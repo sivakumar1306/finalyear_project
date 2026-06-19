@@ -1,5 +1,9 @@
 package com.medxai.qring_flutter
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -13,6 +17,24 @@ class MainActivity : FlutterActivity() {
     }
 
     private lateinit var blePlugin: BlePlugin
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Only start the foreground service if Bluetooth permission is already granted.
+        // On first launch permissions haven't been requested yet — Flutter's main() handles that
+        // and calls startForegroundService via method channel after the user accepts.
+        if (hasBlePermission()) {
+            BleConnectionService.start(this)
+        }
+    }
+
+    private fun hasBlePermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

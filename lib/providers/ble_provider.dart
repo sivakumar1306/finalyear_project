@@ -15,12 +15,15 @@ class BleProvider extends ChangeNotifier {
 
   bool _isConnected = false;
   bool _isScanning = false;
+  bool _isReconnecting = false;
   int _battery = -1;
   String _deviceName = '';
   String _deviceAddress = '';
   Map<String, String> _firmwareVersion = {};
   final List<ScannedDevice> _scannedDevices = [];
   StreamSubscription? _eventSub;
+
+  bool get isReconnecting => _isReconnecting;
 
   bool get isConnected => _isConnected;
   bool get isScanning => _isScanning;
@@ -78,13 +81,36 @@ class BleProvider extends ChangeNotifier {
     _deviceAddress = prefs.getString('device_address') ?? '';
     notifyListeners();
     if (_deviceAddress.isNotEmpty) {
-      checkConnection();
+      // Check if the background service kept us connected
+      _isConnected = await _ble.isConnected();
+      if (_isConnected) {
+        _onConnected();
+        notifyListeners();
+      } else {
+        // Not connected — reconnect in background without blocking UI
+        _reconnectToSaved();
+      }
     }
   }
 
   Future<void> checkConnection() async {
     _isConnected = await _ble.isConnected();
     if (_isConnected) _onConnected();
+    notifyListeners();
+  }
+
+  Future<void> _reconnectToSaved() async {
+    if (_deviceAddress.isEmpty || _isReconnecting) return;
+    _isReconnecting = true;
+    notifyListeners();
+    try {
+      final ok = await _ble.connect(_deviceAddress);
+      if (ok) {
+        _isConnected = true;
+        _onConnected();
+      }
+    } catch (_) {}
+    _isReconnecting = false;
     notifyListeners();
   }
 

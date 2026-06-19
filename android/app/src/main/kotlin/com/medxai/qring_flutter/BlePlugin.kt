@@ -80,8 +80,10 @@ class BlePlugin(private val context: Context) {
     }
 
     init {
-        BleOperateManager.getInstance(context.applicationContext as Application)
-        BleOperateManager.getInstance().init()
+        try {
+            BleOperateManager.getInstance(context.applicationContext as Application)
+            BleOperateManager.getInstance().init()
+        } catch (_: Exception) {}
         registerDeviceListener()
     }
 
@@ -187,6 +189,14 @@ class BlePlugin(private val context: Context) {
             "getSedentaryReminder"       -> getSedentaryReminder(result)
             "startOta"                   -> startOta(call, result)
             "sendNotification"           -> result.success(true)
+            "startForegroundService"     -> {
+                try {
+                    BleOperateManager.getInstance(context.applicationContext as Application)
+                    BleOperateManager.getInstance().init()
+                } catch (_: Exception) {}
+                BleConnectionService.start(context)
+                result.success(true)
+            }
             else                         -> result.notImplemented()
         }
     }

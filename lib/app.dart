@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'screens/home/home_screen.dart';
+import 'screens/auth/splash_screen.dart';
+import 'screens/main_shell.dart';
 import 'screens/device_bind/device_bind_screen.dart';
 import 'screens/health/heart_rate_screen.dart';
 import 'screens/health/blood_pressure_screen.dart';
@@ -20,6 +21,7 @@ import 'screens/reminders/drink_reminder_screen.dart';
 import 'screens/reminders/sedentary_reminder_screen.dart';
 import 'screens/ota/ota_screen.dart';
 import 'screens/sugar_lipids/sugar_lipids_screen.dart';
+import 'theme/app_theme.dart';
 
 class QRingApp extends StatelessWidget {
   const QRingApp({super.key});
@@ -29,22 +31,11 @@ class QRingApp extends StatelessWidget {
     return MaterialApp(
       title: 'QRing',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1565C0),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-          backgroundColor: Color(0xFF1565C0),
-          foregroundColor: Colors.white,
-        ),
-      ),
+      theme: AppTheme.darkTheme(),
       initialRoute: '/',
       routes: {
-        '/': (_) => const HomeScreen(),
+        '/': (_) => const SplashScreen(),
+        '/home': (_) => const MainShell(),
         '/device-bind': (_) => const DeviceBindScreen(),
         '/heart-rate': (_) => const HeartRateScreen(),
         '/blood-pressure': (_) => const BloodPressureScreen(),
