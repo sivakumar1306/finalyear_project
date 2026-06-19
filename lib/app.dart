@@ -1,0 +1,71 @@
+import 'package:flutter/material.dart';
+import 'screens/home/home_screen.dart';
+import 'screens/device_bind/device_bind_screen.dart';
+import 'screens/health/heart_rate_screen.dart';
+import 'screens/health/blood_pressure_screen.dart';
+import 'screens/health/blood_oxygen_screen.dart';
+import 'screens/health/steps_screen.dart';
+import 'screens/health/sleep_screen.dart';
+import 'screens/health/hrv_screen.dart';
+import 'screens/health/pressure_screen.dart';
+import 'screens/health/temperature_screen.dart';
+import 'screens/health/sport_record_screen.dart';
+import 'screens/settings/device_settings_screen.dart';
+import 'screens/settings/health_settings_screen.dart';
+import 'screens/settings/notification_settings_screen.dart';
+import 'screens/settings/target_profile_screen.dart';
+import 'screens/settings/display_settings_screen.dart';
+import 'screens/settings/advanced_settings_screen.dart';
+import 'screens/reminders/drink_reminder_screen.dart';
+import 'screens/reminders/sedentary_reminder_screen.dart';
+import 'screens/ota/ota_screen.dart';
+import 'screens/sugar_lipids/sugar_lipids_screen.dart';
+
+class QRingApp extends StatelessWidget {
+  const QRingApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'QRing',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1565C0),
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+        appBarTheme: const AppBarTheme(
+          centerTitle: true,
+          elevation: 0,
+          backgroundColor: Color(0xFF1565C0),
+          foregroundColor: Colors.white,
+        ),
+      ),
+      initialRoute: '/',
+      routes: {
+        '/': (_) => const HomeScreen(),
+        '/device-bind': (_) => const DeviceBindScreen(),
+        '/heart-rate': (_) => const HeartRateScreen(),
+        '/blood-pressure': (_) => const BloodPressureScreen(),
+        '/blood-oxygen': (_) => const BloodOxygenScreen(),
+        '/steps': (_) => const StepsScreen(),
+        '/sleep': (_) => const SleepScreen(),
+        '/hrv': (_) => const HrvScreen(),
+        '/pressure': (_) => const PressureScreen(),
+        '/temperature': (_) => const TemperatureScreen(),
+        '/sport-record': (_) => const SportRecordScreen(),
+        '/device-settings': (_) => const DeviceSettingsScreen(),
+        '/health-settings': (_) => const HealthSettingsScreen(),
+        '/notification-settings': (_) => const NotificationSettingsScreen(),
+        '/target-profile': (_) => const TargetProfileScreen(),
+        '/display-settings': (_) => const DisplaySettingsScreen(),
+        '/advanced-settings': (_) => const AdvancedSettingsScreen(),
+        '/drink-reminder': (_) => const DrinkReminderScreen(),
+        '/sedentary-reminder': (_) => const SedentaryReminderScreen(),
+        '/ota': (_) => const OtaScreen(),
+        '/sugar-lipids': (_) => const SugarLipidsScreen(),
+      },
+    );
+  }
+}
