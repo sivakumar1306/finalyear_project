@@ -122,6 +122,9 @@ class BleService {
       await _methodChannel.invokeMethod<String>('syncIntervalBloodOxygen') ?? '[]';
 
   // ── Steps ──────────────────────────────────────────────────────────
+  Future<bool> syncTodaySteps() async =>
+      await _methodChannel.invokeMethod<bool>('syncTodaySteps') ?? false;
+
   Future<String> getTodaySteps() async =>
       await _methodChannel.invokeMethod<String>('getTodaySteps') ?? '{}';
 
@@ -180,8 +183,17 @@ class BleService {
   Future<String> getTemperatureList(int startDay, int count) async =>
       await _methodChannel.invokeMethod<String>('getTemperatureList', {'startDay': startDay, 'count': count}) ?? '[]';
 
-  Future<String> syncTemperature() async =>
-      await _methodChannel.invokeMethod<String>('syncTemperature') ?? '[]';
+  Future<String> getTemperatureSetting() async =>
+      await _methodChannel.invokeMethod<String>('getTemperatureSetting') ?? '{}';
+
+  Future<bool> setTemperatureSetting({required bool enable, required int interval}) async =>
+      await _methodChannel.invokeMethod<bool>('setTemperatureSetting', {'enable': enable, 'interval': interval}) ?? false;
+
+  Future<bool> syncAutoTemperature() async =>
+      await _methodChannel.invokeMethod<bool>('syncAutoTemperature') ?? false;
+
+  Future<bool> syncManualTemperature() async =>
+      await _methodChannel.invokeMethod<bool>('syncManualTemperature') ?? false;
 
   // ── Sport Records ──────────────────────────────────────────────────
   Future<String> getSportRecords() async =>

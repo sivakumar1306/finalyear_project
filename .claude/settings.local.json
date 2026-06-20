@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(flutter --version)",
-      "PowerShell(Get-Process *)"
+      "PowerShell(Get-Process *)",
+      "mcp__ide__getDiagnostics",
+      "Bash(flutter build *)"
     ]
   }
 }

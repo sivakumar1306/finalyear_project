@@ -29,11 +29,47 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     }
   }
 
-  Future<void> _syncSeries() async {
+  Future<void> _readSetting() async {
     setState(() { _loading = true; _result = ''; });
     try {
-      final data = await _ble.syncTemperature();
+      final data = await _ble.getTemperatureSetting();
       setState(() => _result = _pretty(data));
+    } catch (e) {
+      setState(() => _result = 'Error: $e');
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _writeSetting() async {
+    setState(() { _loading = true; _result = ''; });
+    try {
+      final ok = await _ble.setTemperatureSetting(enable: true, interval: 2);
+      setState(() => _result = ok ? 'Setting saved (enable=true, interval=2)' : 'Failed');
+    } catch (e) {
+      setState(() => _result = 'Error: $e');
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _syncAuto() async {
+    setState(() { _loading = true; _result = ''; });
+    try {
+      final ok = await _ble.syncAutoTemperature();
+      setState(() => _result = ok ? 'Auto temperature sync started' : 'Failed to start sync');
+    } catch (e) {
+      setState(() => _result = 'Error: $e');
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _syncManual() async {
+    setState(() { _loading = true; _result = ''; });
+    try {
+      final ok = await _ble.syncManualTemperature();
+      setState(() => _result = ok ? 'Manual temperature measurement started' : 'Failed to start measurement');
     } catch (e) {
       setState(() => _result = 'Error: $e');
     } finally {
@@ -67,11 +103,23 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
             const SizedBox(height: 16),
             const VitalStatsRow(avg: '--', min: '--', max: '--', unit: '°C'),
             const SizedBox(height: 24),
+            _sectionLabel('SETTINGS'),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: _Btn(label: 'Read Setting', icon: Icons.settings_outlined, enabled: connected, onTap: _readSetting)),
+              const SizedBox(width: 10),
+              Expanded(child: _Btn(label: 'Write Setting', icon: Icons.settings_rounded, enabled: connected, onTap: _writeSetting)),
+            ]),
+            const SizedBox(height: 16),
+            _sectionLabel('DATA'),
+            const SizedBox(height: 8),
             Row(children: [
               Expanded(child: _Btn(label: "Today's Data", icon: Icons.today_rounded, enabled: connected, onTap: _fetchToday)),
               const SizedBox(width: 10),
-              Expanded(child: _Btn(label: 'Sync Series', icon: Icons.sync_rounded, enabled: connected, onTap: _syncSeries)),
+              Expanded(child: _Btn(label: 'Sync Auto', icon: Icons.sync_rounded, enabled: connected, onTap: _syncAuto)),
             ]),
+            const SizedBox(height: 10),
+            _Btn(label: 'Sync Manual (Single)', icon: Icons.thermostat_rounded, enabled: connected, onTap: _syncManual),
             if (_loading) _loader(),
             if (_result.isNotEmpty) _dataCard(),
             const SizedBox(height: 80),
@@ -80,6 +128,11 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
       ),
     );
   }
+
+  Widget _sectionLabel(String text) => Text(
+        text,
+        style: const TextStyle(color: AppTheme.textSec, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.5),
+      );
 
   Widget _metricCard() => Container(
         width: double.infinity,

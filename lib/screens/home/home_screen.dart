@@ -98,9 +98,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 Row(children: [
                   Expanded(child: _MetricCard(
                     label: 'STEPS',
-                    value: '--',
+                    value: ble.todaySteps > 0 ? '${ble.todaySteps}' : '--',
                     unit: 'steps',
-                    status: 'Tap to load',
+                    status: ble.syncingSteps
+                        ? 'Syncing...'
+                        : ble.todaySteps > 0
+                            ? '${ble.todayCalories} kcal'
+                            : 'Tap to load',
                     color: AppTheme.stepsColor,
                     icon: Icons.directions_walk_rounded,
                     chartData: const [0.3, 0.4, 0.6, 0.7, 0.5, 0.8, 0.6, 0.4, 0.5, 0.7, 0.9, 0.5],

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ble_service.dart';
+import '../services/supabase_service.dart';
 
 class ScannedDevice {
   final String name;
@@ -23,6 +25,13 @@ class BleProvider extends ChangeNotifier {
   final List<ScannedDevice> _scannedDevices = [];
   StreamSubscription? _eventSub;
 
+  // Steps state
+  int _todaySteps = 0;
+  int _todayCalories = 0;
+  double _todayDistanceM = 0.0;
+  bool _syncingSteps = false;
+  List<int> _todayStepsByInterval = [];
+
   bool get isReconnecting => _isReconnecting;
 
   bool get isConnected => _isConnected;
@@ -33,9 +42,24 @@ class BleProvider extends ChangeNotifier {
   Map<String, String> get firmwareVersion => _firmwareVersion;
   List<ScannedDevice> get scannedDevices => List.unmodifiable(_scannedDevices);
 
+  int get todaySteps => _todaySteps;
+  int get todayCalories => _todayCalories;
+  double get todayDistanceM => _todayDistanceM;
+  bool get syncingSteps => _syncingSteps;
+  List<int> get todayStepsByInterval => List.unmodifiable(_todayStepsByInterval);
+
+  void updateStepsData(int steps, int calories, double distanceM, List<int> intervals) {
+    _todaySteps = steps;
+    _todayCalories = calories;
+    _todayDistanceM = distanceM;
+    _todayStepsByInterval = intervals;
+    notifyListeners();
+  }
+
   BleProvider() {
     _loadSavedDevice();
     _listenEvents();
+    _loadTodayFromSupabase();
   }
 
   void _listenEvents() {
@@ -118,6 +142,72 @@ class BleProvider extends ChangeNotifier {
     _ble.setTime();
     refreshBattery();
     refreshFirmwareVersion();
+    // Steps are fetched by StepsScreen directly to avoid concurrent BLE calls.
+  }
+
+  Future<void> _loadTodayFromSupabase() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      final now = DateTime.now();
+      final ds = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final data = await SupabaseService.client
+          .from('user_steps')
+          .select()
+          .eq('user_id', user.id)
+          .eq('date', ds)
+          .maybeSingle();
+      if (data != null) {
+        _todaySteps = (data['steps'] as num? ?? 0).toInt();
+        _todayCalories = (data['calories'] as num? ?? 0).toInt();
+        _todayDistanceM = (data['distance_m'] as num? ?? 0).toDouble();
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> syncTodayStepsFromRing() async {
+    if (_syncingSteps) return;
+    _syncingSteps = true;
+    notifyListeners();
+    try {
+      final json = await _ble.getTodaySteps();
+      final decoded = jsonDecode(json);
+      final list = decoded is List ? decoded : <dynamic>[];
+      int totalSteps = 0, totalCal = 0;
+      double totalDist = 0.0;
+      // SDK ProGuard obfuscates BleStepDetails: d=slot, e=steps, f=calories, g=distance
+      final slots = List<int>.filled(96, 0);
+      for (final item in list) {
+        final m = item as Map<String, dynamic>;
+        final d     = (m['d'] as num? ?? 0).toInt(); // timeIndex: 15-min slot 0–95
+        // ProGuard field order: e=calorie(小卡), f=walkSteps, g=distance(m), h=runSteps
+        final steps = (m['f'] as num? ?? 0).toInt();           // walkSteps — raw count
+        final cal   = (m['e'] as num? ?? 0).toInt() ~/ 1000;  // 小卡 → kcal
+        final dist  = (m['g'] as num? ?? 0).toDouble();         // meters
+        totalSteps += steps;
+        totalCal   += cal;
+        totalDist  += dist;
+        if (d >= 0 && d < 96) slots[d] += steps;
+      }
+      _todayStepsByInterval = slots;
+      _todaySteps = totalSteps;
+      _todayCalories = totalCal;
+      _todayDistanceM = totalDist;
+      notifyListeners();
+      final user = SupabaseService.currentUser;
+      if (user != null && (totalSteps > 0 || totalCal > 0)) {
+        await SupabaseService.upsertSteps(
+          userId: user.id,
+          date: DateTime.now(),
+          steps: totalSteps,
+          calories: totalCal,
+          distanceM: totalDist,
+        );
+      }
+    } catch (_) {}
+    _syncingSteps = false;
+    notifyListeners();
   }
 
   Future<void> refreshBattery() async {

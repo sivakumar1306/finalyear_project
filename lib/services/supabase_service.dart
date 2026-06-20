@@ -50,4 +50,40 @@ class SupabaseService {
   }
 
   static bool get isLoggedIn => currentUser != null;
+
+  static Future<void> upsertSteps({
+    required String userId,
+    required DateTime date,
+    required int steps,
+    required int calories,
+    required double distanceM,
+  }) async {
+    final dateStr =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    await client.from('user_steps').upsert({
+      'user_id': userId,
+      'date': dateStr,
+      'steps': steps,
+      'calories': calories,
+      'distance_m': distanceM,
+      'synced_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'user_id,date');
+  }
+
+  static Future<List<Map<String, dynamic>>> getStepsHistory({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    String fmt(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    final data = await client
+        .from('user_steps')
+        .select()
+        .eq('user_id', userId)
+        .gte('date', fmt(from))
+        .lte('date', fmt(to))
+        .order('date', ascending: true);
+    return List<Map<String, dynamic>>.from(data);
+  }
 }
