@@ -163,9 +163,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 12),
                   Expanded(child: _MetricCard(
                     label: 'BLOOD PRESSURE',
-                    value: '--/--',
+                    value: ble.latestBpSbp > 0 ? '${ble.latestBpSbp}/${ble.latestBpDbp}' : '--/--',
                     unit: 'mmHg',
-                    status: 'Normal',
+                    status: ble.latestBpSbp > 0 ? 'Latest reading' : 'Tap to measure',
                     color: AppTheme.bpColor,
                     icon: Icons.water_drop_rounded,
                     chartData: const [0.6, 0.65, 0.6, 0.68, 0.65, 0.6, 0.64, 0.67, 0.64, 0.6, 0.65, 0.62],
@@ -495,8 +495,28 @@ class _StressCard extends StatelessWidget {
 
   const _StressCard({required this.onTap});
 
+  static String _label(int v) {
+    if (v <= 0) return 'Tap to measure';
+    if (v < 40) return 'Relaxed';
+    if (v < 60) return 'Normal';
+    if (v < 80) return 'Elevated';
+    return 'High';
+  }
+
+  static Color _color(int v) {
+    if (v <= 0) return AppTheme.textSec;
+    if (v < 40) return AppTheme.success;
+    if (v < 60) return const Color(0xFFFBBF24);
+    if (v < 80) return AppTheme.stressColor;
+    return AppTheme.danger;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final sv = context.watch<BleProvider>().latestStressValue;
+    final label = _label(sv);
+    final color = _color(sv);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -544,20 +564,20 @@ class _StressCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('DAILY AVERAGE',
+                    const Text('LATEST',
                         style: TextStyle(
                             color: AppTheme.textSec,
                             fontSize: 9,
                             letterSpacing: 0.5)),
-                    const Text('--',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 30,
-                            fontWeight: FontWeight.w700,
-                            height: 1.1)),
-                    const Text('Normal',
-                        style: TextStyle(
-                            color: AppTheme.success, fontSize: 11)),
+                    Text(
+                      sv > 0 ? '$sv' : '--',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 30,
+                          fontWeight: FontWeight.w700,
+                          height: 1.1),
+                    ),
+                    Text(label, style: TextStyle(color: color, fontSize: 11)),
                   ],
                 ),
                 const SizedBox(width: 14),
@@ -566,25 +586,6 @@ class _StressCard extends StatelessWidget {
                     height: 56,
                     child: CustomPaint(painter: _StressBarPainter()),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text('DAILY RANGE',
-                        style: TextStyle(
-                            color: AppTheme.textSec,
-                            fontSize: 9,
-                            letterSpacing: 0.5)),
-                    const Text('--',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700)),
-                    const Text('Normal',
-                        style: TextStyle(
-                            color: AppTheme.success, fontSize: 11)),
-                  ],
                 ),
               ],
             ),

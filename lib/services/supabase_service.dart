@@ -212,4 +212,96 @@ class SupabaseService {
         .order('date', ascending: true);
     return List<Map<String, dynamic>>.from(data);
   }
+
+  // ── Blood Pressure ─────────────────────────────────────────────────────────
+
+  static Future<void> insertBp({
+    required String userId,
+    required int systolic,
+    required int diastolic,
+    required DateTime measuredAt,
+    String source = 'manual',
+  }) async {
+    await client.from('user_bp').insert({
+      'user_id': userId,
+      'systolic': systolic,
+      'diastolic': diastolic,
+      'measured_at': measuredAt.toUtc().toIso8601String(),
+      'source': source,
+    });
+  }
+
+  static Future<Map<String, dynamic>?> getLatestBp(String userId) async {
+    return client
+        .from('user_bp')
+        .select()
+        .eq('user_id', userId)
+        .order('measured_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+  }
+
+  static Future<List<Map<String, dynamic>>> getBpReadings({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final data = await client
+        .from('user_bp')
+        .select()
+        .eq('user_id', userId)
+        .gte('measured_at', from.toUtc().toIso8601String())
+        .lte('measured_at', to.toUtc().toIso8601String())
+        .order('measured_at', ascending: true);
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  // ── Stress ─────────────────────────────────────────────────────────────────
+
+  static String _stressLabel(int v) {
+    if (v < 40) return 'Relaxed';
+    if (v < 60) return 'Normal';
+    if (v < 80) return 'Elevated';
+    return 'High';
+  }
+
+  static Future<void> insertStress({
+    required String userId,
+    required int stressValue,
+    required DateTime measuredAt,
+    String source = 'manual',
+  }) async {
+    await client.from('user_stress').insert({
+      'user_id': userId,
+      'stress_value': stressValue,
+      'label': _stressLabel(stressValue),
+      'measured_at': measuredAt.toUtc().toIso8601String(),
+      'source': source,
+    });
+  }
+
+  static Future<Map<String, dynamic>?> getLatestStress(String userId) async {
+    return client
+        .from('user_stress')
+        .select()
+        .eq('user_id', userId)
+        .order('measured_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+  }
+
+  static Future<List<Map<String, dynamic>>> getStressReadings({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final data = await client
+        .from('user_stress')
+        .select()
+        .eq('user_id', userId)
+        .gte('measured_at', from.toUtc().toIso8601String())
+        .lte('measured_at', to.toUtc().toIso8601String())
+        .order('measured_at', ascending: true);
+    return List<Map<String, dynamic>>.from(data);
+  }
 }

@@ -42,6 +42,13 @@ class BleProvider extends ChangeNotifier {
   int _todayMinSpo2 = 0;
   int _todayMaxSpo2 = 0;
 
+  // Blood Pressure state
+  int _latestBpSbp = 0;
+  int _latestBpDbp = 0;
+
+  // Stress state
+  int _latestStressValue = 0;
+
   bool get isReconnecting => _isReconnecting;
 
   bool get isConnected => _isConnected;
@@ -66,6 +73,11 @@ class BleProvider extends ChangeNotifier {
   int get todayMinSpo2 => _todayMinSpo2;
   int get todayMaxSpo2 => _todayMaxSpo2;
 
+  int get latestBpSbp => _latestBpSbp;
+  int get latestBpDbp => _latestBpDbp;
+
+  int get latestStressValue => _latestStressValue;
+
   void updateStepsData(int steps, int calories, double distanceM, List<int> intervals) {
     _todaySteps = steps;
     _todayCalories = calories;
@@ -88,12 +100,25 @@ class BleProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateBpLatest(int sbp, int dbp) {
+    _latestBpSbp = sbp;
+    _latestBpDbp = dbp;
+    notifyListeners();
+  }
+
+  void updateStressLatest(int value) {
+    _latestStressValue = value;
+    notifyListeners();
+  }
+
   BleProvider() {
     _loadSavedDevice();
     _listenEvents();
     _loadTodayFromSupabase();
     _loadTodayHrFromSupabase();
     _loadTodaySpo2FromSupabase();
+    _loadLatestBpFromSupabase();
+    _loadLatestStressFromSupabase();
   }
 
   void _listenEvents() {
@@ -223,6 +248,31 @@ class BleProvider extends ChangeNotifier {
         _todayAvgSpo2 = (data['avg_spo2'] as num? ?? 0).toInt();
         _todayMinSpo2 = (data['min_spo2'] as num? ?? 0).toInt();
         _todayMaxSpo2 = (data['max_spo2'] as num? ?? 0).toInt();
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadLatestBpFromSupabase() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      final data = await SupabaseService.getLatestBp(user.id);
+      if (data != null) {
+        _latestBpSbp = (data['systolic'] as num? ?? 0).toInt();
+        _latestBpDbp = (data['diastolic'] as num? ?? 0).toInt();
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadLatestStressFromSupabase() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      final data = await SupabaseService.getLatestStress(user.id);
+      if (data != null) {
+        _latestStressValue = (data['stress_value'] as num? ?? 0).toInt();
         notifyListeners();
       }
     } catch (_) {}
