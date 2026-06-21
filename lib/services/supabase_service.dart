@@ -86,4 +86,130 @@ class SupabaseService {
         .order('date', ascending: true);
     return List<Map<String, dynamic>>.from(data);
   }
+
+  static Future<void> upsertHr({
+    required String userId,
+    required DateTime date,
+    required int avgHr,
+    required int minHr,
+    required int maxHr,
+    required int sampleCount,
+  }) async {
+    final dateStr =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    await client.from('user_hr').upsert({
+      'user_id': userId,
+      'date': dateStr,
+      'avg_hr': avgHr,
+      'min_hr': minHr,
+      'max_hr': maxHr,
+      'sample_count': sampleCount,
+      'synced_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'user_id,date');
+  }
+
+  static Future<Map<String, dynamic>?> getTodayHr(String userId) async {
+    final now = DateTime.now();
+    final dateStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    return client
+        .from('user_hr')
+        .select()
+        .eq('user_id', userId)
+        .eq('date', dateStr)
+        .maybeSingle();
+  }
+
+  static Future<Map<String, dynamic>?> getHrForDate(
+      String userId, DateTime date) async {
+    final dateStr =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return client
+        .from('user_hr')
+        .select()
+        .eq('user_id', userId)
+        .eq('date', dateStr)
+        .maybeSingle();
+  }
+
+  static Future<List<Map<String, dynamic>>> getHrHistory({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    String fmt(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    final data = await client
+        .from('user_hr')
+        .select()
+        .eq('user_id', userId)
+        .gte('date', fmt(from))
+        .lte('date', fmt(to))
+        .order('date', ascending: true);
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  // ── SpO2 ──────────────────────────────────────────────────────────────────
+
+  static Future<void> upsertSpo2({
+    required String userId,
+    required DateTime date,
+    required int avgSpo2,
+    required int minSpo2,
+    required int maxSpo2,
+    required int sampleCount,
+  }) async {
+    final dateStr =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    await client.from('user_spo2').upsert({
+      'user_id': userId,
+      'date': dateStr,
+      'avg_spo2': avgSpo2,
+      'min_spo2': minSpo2,
+      'max_spo2': maxSpo2,
+      'sample_count': sampleCount,
+      'synced_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'user_id,date');
+  }
+
+  static Future<Map<String, dynamic>?> getTodaySpo2(String userId) async {
+    final now = DateTime.now();
+    final dateStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    return client
+        .from('user_spo2')
+        .select()
+        .eq('user_id', userId)
+        .eq('date', dateStr)
+        .maybeSingle();
+  }
+
+  static Future<Map<String, dynamic>?> getSpo2ForDate(
+      String userId, DateTime date) async {
+    final dateStr =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return client
+        .from('user_spo2')
+        .select()
+        .eq('user_id', userId)
+        .eq('date', dateStr)
+        .maybeSingle();
+  }
+
+  static Future<List<Map<String, dynamic>>> getSpo2History({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    String fmt(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    final data = await client
+        .from('user_spo2')
+        .select()
+        .eq('user_id', userId)
+        .gte('date', fmt(from))
+        .lte('date', fmt(to))
+        .order('date', ascending: true);
+    return List<Map<String, dynamic>>.from(data);
+  }
 }

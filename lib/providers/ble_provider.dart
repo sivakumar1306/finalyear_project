@@ -32,6 +32,16 @@ class BleProvider extends ChangeNotifier {
   bool _syncingSteps = false;
   List<int> _todayStepsByInterval = [];
 
+  // Heart rate state
+  int _todayAvgHr = 0;
+  int _todayMinHr = 0;
+  int _todayMaxHr = 0;
+
+  // SpO2 state
+  int _todayAvgSpo2 = 0;
+  int _todayMinSpo2 = 0;
+  int _todayMaxSpo2 = 0;
+
   bool get isReconnecting => _isReconnecting;
 
   bool get isConnected => _isConnected;
@@ -48,6 +58,14 @@ class BleProvider extends ChangeNotifier {
   bool get syncingSteps => _syncingSteps;
   List<int> get todayStepsByInterval => List.unmodifiable(_todayStepsByInterval);
 
+  int get todayAvgHr => _todayAvgHr;
+  int get todayMinHr => _todayMinHr;
+  int get todayMaxHr => _todayMaxHr;
+
+  int get todayAvgSpo2 => _todayAvgSpo2;
+  int get todayMinSpo2 => _todayMinSpo2;
+  int get todayMaxSpo2 => _todayMaxSpo2;
+
   void updateStepsData(int steps, int calories, double distanceM, List<int> intervals) {
     _todaySteps = steps;
     _todayCalories = calories;
@@ -56,10 +74,26 @@ class BleProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateHrData(int avg, int min, int max) {
+    _todayAvgHr = avg;
+    _todayMinHr = min;
+    _todayMaxHr = max;
+    notifyListeners();
+  }
+
+  void updateSpo2Data(int avg, int min, int max) {
+    _todayAvgSpo2 = avg;
+    _todayMinSpo2 = min;
+    _todayMaxSpo2 = max;
+    notifyListeners();
+  }
+
   BleProvider() {
     _loadSavedDevice();
     _listenEvents();
     _loadTodayFromSupabase();
+    _loadTodayHrFromSupabase();
+    _loadTodaySpo2FromSupabase();
   }
 
   void _listenEvents() {
@@ -161,6 +195,34 @@ class BleProvider extends ChangeNotifier {
         _todaySteps = (data['steps'] as num? ?? 0).toInt();
         _todayCalories = (data['calories'] as num? ?? 0).toInt();
         _todayDistanceM = (data['distance_m'] as num? ?? 0).toDouble();
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadTodayHrFromSupabase() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      final data = await SupabaseService.getTodayHr(user.id);
+      if (data != null) {
+        _todayAvgHr = (data['avg_hr'] as num? ?? 0).toInt();
+        _todayMinHr = (data['min_hr'] as num? ?? 0).toInt();
+        _todayMaxHr = (data['max_hr'] as num? ?? 0).toInt();
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadTodaySpo2FromSupabase() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      final data = await SupabaseService.getTodaySpo2(user.id);
+      if (data != null) {
+        _todayAvgSpo2 = (data['avg_spo2'] as num? ?? 0).toInt();
+        _todayMinSpo2 = (data['min_spo2'] as num? ?? 0).toInt();
+        _todayMaxSpo2 = (data['max_spo2'] as num? ?? 0).toInt();
         notifyListeners();
       }
     } catch (_) {}

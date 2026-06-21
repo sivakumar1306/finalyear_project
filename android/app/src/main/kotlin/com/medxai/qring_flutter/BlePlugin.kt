@@ -257,6 +257,9 @@ class BlePlugin(private val context: Context) {
                 if (connected) {
                     _isConnected = true
                     sendEvent("connectionState", mapOf("connected" to true))
+                    // Enable BLE notifications for large data (blood oxygen, sleep, etc.)
+                    // Must be called after service discovery or large data callbacks never fire.
+                    LargeDataHandler.getInstance().initEnable()
                     CommandHandle.getInstance().executeReqCmd(
                         SimpleKeyReq(Constants.CMD_BIND_SUCCESS), null
                     )
@@ -306,7 +309,7 @@ class BlePlugin(private val context: Context) {
 
     private fun setTime(result: MethodChannel.Result) {
         CommandHandle.getInstance().executeReqCmd(
-            SetTimeReq(1),
+            SetTimeReq(0),
             ICommandResponse<SetTimeRsp> { _ ->
                 mainHandler.post { result.success(true) }
             }
@@ -426,16 +429,27 @@ class BlePlugin(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────
 
     private fun getTodayBloodPressure(result: MethodChannel.Result) {
+        val done = AtomicBoolean(false)
         BleOperateManager.getInstance().getTodayBloodPressure(
             object : BleOperateManager.HealthDataCallback<List<BlePressure>> {
                 override fun onSuccess(data: List<BlePressure>) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
+                    if (done.compareAndSet(false, true)) {
+                        val mapped = data.map { p: BlePressure -> mapOf("sbp" to p.sbp, "dbp" to p.dbp, "time" to p.time) }
+                        mainHandler.post { result.success(gson.toJson(mapped)) }
+                    }
                 }
                 override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                    if (done.compareAndSet(false, true)) {
+                        mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                    }
                 }
             }
         )
+        mainHandler.postDelayed({
+            if (done.compareAndSet(false, true)) {
+                result.error("TIMEOUT", "Blood pressure data fetch timed out", null)
+            }
+        }, 30000)
     }
 
     private fun getBloodPressure(call: MethodCall, result: MethodChannel.Result) {
@@ -491,18 +505,31 @@ class BlePlugin(private val context: Context) {
 
     private fun manualModeBP(call: MethodCall, result: MethodChannel.Result) {
         val start = call.argument<Boolean>("start") ?: true
+        val done = AtomicBoolean(false)
         BleOperateManager.getInstance().manualModeBP(
             ICommandResponse<StartHeartRateRsp> { rsp ->
-                mainHandler.post {
-                    result.success(gson.toJson(mapOf(
-                        "sbp" to rsp.getSbp(),
-                        "dbp" to rsp.getDbp(),
-                        "status" to rsp.status
-                    )))
+                val sbp = rsp.getSbp()
+                val dbp = rsp.getDbp()
+                val shouldRespond = if (start) (sbp > 0 && dbp > 0) else true
+                if (shouldRespond && done.compareAndSet(false, true)) {
+                    mainHandler.post {
+                        result.success(gson.toJson(mapOf(
+                            "sbp" to sbp,
+                            "dbp" to dbp,
+                            "status" to rsp.status
+                        )))
+                    }
                 }
             },
             !start
         )
+        if (start) {
+            mainHandler.postDelayed({
+                if (done.compareAndSet(false, true)) {
+                    result.error("TIMEOUT", "Blood pressure measurement timed out", null)
+                }
+            }, 60000)
+        }
     }
 
     private fun syncBloodPressure(result: MethodChannel.Result) {
@@ -519,16 +546,34 @@ class BlePlugin(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────
 
     private fun getTodayBloodOxygen(result: MethodChannel.Result) {
+        val done = AtomicBoolean(false)
         BleOperateManager.getInstance().getTodayBloodOxygen(
             object : BleOperateManager.HealthDataCallback<BloodOxygenEntity> {
                 override fun onSuccess(data: BloodOxygenEntity) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
+                    if (done.compareAndSet(false, true)) {
+                        // Use getters so R8 renames call-site and definition consistently.
+                        // Gson on the entity directly uses reflected field names (obfuscated).
+                        val map = mapOf(
+                            "dateStr"   to data.getDateStr(),
+                            "maxArray"  to (data.getMaxArray()  ?: emptyList<Int>()),
+                            "minArray"  to (data.getMinArray()  ?: emptyList<Int>()),
+                            "unix_time" to data.getUnix_time()
+                        )
+                        mainHandler.post { result.success(gson.toJson(map)) }
+                    }
                 }
                 override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                    if (done.compareAndSet(false, true)) {
+                        mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                    }
                 }
             }
         )
+        mainHandler.postDelayed({
+            if (done.compareAndSet(false, true)) {
+                result.error("TIMEOUT", "Blood oxygen data fetch timed out", null)
+            }
+        }, 30000)
     }
 
     private fun getBloodOxygen(call: MethodCall, result: MethodChannel.Result) {
@@ -563,12 +608,20 @@ class BlePlugin(private val context: Context) {
     }
 
     private fun getBloodOxygenSetting(result: MethodChannel.Result) {
+        val done = AtomicBoolean(false)
         CommandHandle.getInstance().executeReqCmd(
             BloodOxygenSettingReq.getReadInstance(),
             ICommandResponse<BaseRspCmd> { rsp ->
-                mainHandler.post { result.success(gson.toJson(rsp)) }
+                if (done.compareAndSet(false, true)) {
+                    mainHandler.post { result.success(gson.toJson(rsp)) }
+                }
             }
         )
+        mainHandler.postDelayed({
+            if (done.compareAndSet(false, true)) {
+                result.error("TIMEOUT", "Blood oxygen setting read timed out", null)
+            }
+        }, 10000)
     }
 
     private fun setBloodOxygenSetting(call: MethodCall, result: MethodChannel.Result) {

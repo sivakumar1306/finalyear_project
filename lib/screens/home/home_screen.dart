@@ -139,9 +139,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 12),
                   Expanded(child: _MetricCard(
                     label: 'BLOOD OXYGEN',
-                    value: '--',
+                    value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
                     unit: '%',
-                    status: 'Excellent',
+                    status: ble.todayAvgSpo2 > 0 ? 'Avg today' : 'Tap to sync',
                     color: AppTheme.spo2Color,
                     icon: Icons.bloodtype_rounded,
                     chartData: const [0.96, 0.97, 0.96, 0.98, 0.97, 0.99, 0.98, 0.97, 0.96, 0.98, 0.97, 0.99],
@@ -152,9 +152,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 Row(children: [
                   Expanded(child: _MetricCard(
                     label: 'HEART RATE',
-                    value: '--',
+                    value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
                     unit: 'bpm',
-                    status: 'Resting',
+                    status: ble.todayAvgHr > 0 ? 'Avg today' : 'Tap to sync',
                     color: AppTheme.hrColor,
                     icon: Icons.favorite_rounded,
                     chartData: const [0.45, 0.5, 0.55, 0.5, 0.6, 0.55, 0.5, 0.48, 0.52, 0.58, 0.54, 0.5],

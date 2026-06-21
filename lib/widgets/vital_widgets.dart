@@ -1,51 +1,64 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// Horizontal 5-day date selector, today highlighted in gold.
+/// Horizontal 5-day date selector. Pass [selectedDate] and [onDateSelected]
+/// to make it interactive; omit both for the static "today highlighted" look.
 class VitalDateSelector extends StatelessWidget {
-  const VitalDateSelector({super.key});
+  final DateTime? selectedDate;
+  final ValueChanged<DateTime>? onDateSelected;
+
+  const VitalDateSelector({super.key, this.selectedDate, this.onDateSelected});
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final dates = List.generate(5, (i) => now.subtract(Duration(days: 4 - i)));
     const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final sel = selectedDate ?? now;
 
     return Row(
       children: dates.map((d) {
-        final isToday = d.day == now.day &&
-            d.month == now.month &&
-            d.year == now.year;
+        final isSelected = d.day == sel.day && d.month == sel.month && d.year == sel.year;
+        final isToday = d.day == now.day && d.month == now.month && d.year == now.year;
         return Expanded(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            height: 62,
-            decoration: BoxDecoration(
-              color: isToday ? AppTheme.gold : AppTheme.card,
-              borderRadius: BorderRadius.circular(12),
-              border: isToday ? null : Border.all(color: AppTheme.div),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  dayNames[d.weekday - 1],
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: isToday ? Colors.black : AppTheme.textSec,
-                    fontWeight: FontWeight.w500,
+          child: GestureDetector(
+            onTap: onDateSelected != null ? () => onDateSelected!(d) : null,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              height: 62,
+              decoration: BoxDecoration(
+                color: isSelected ? AppTheme.gold : AppTheme.card,
+                borderRadius: BorderRadius.circular(12),
+                border: isSelected
+                    ? null
+                    : Border.all(
+                        color: isToday
+                            ? AppTheme.gold.withValues(alpha: 0.4)
+                            : AppTheme.div,
+                      ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    dayNames[d.weekday - 1],
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isSelected ? Colors.black : AppTheme.textSec,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${d.day}',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: isToday ? Colors.black : Colors.white,
-                    fontWeight: FontWeight.w700,
+                  const SizedBox(height: 2),
+                  Text(
+                    '${d.day}',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: isSelected ? Colors.black : Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -54,9 +67,10 @@ class VitalDateSelector extends StatelessWidget {
   }
 }
 
-/// Day / Week / Month tab bar (visual only).
+/// Day / Week / Month tab bar. Pass [onChanged] to be notified of selection.
 class VitalPeriodTabs extends StatefulWidget {
-  const VitalPeriodTabs({super.key});
+  final ValueChanged<int>? onChanged;
+  const VitalPeriodTabs({super.key, this.onChanged});
 
   @override
   State<VitalPeriodTabs> createState() => _VitalPeriodTabsState();
@@ -72,7 +86,10 @@ class _VitalPeriodTabsState extends State<VitalPeriodTabs> {
       children: List.generate(tabs.length, (i) {
         final active = i == _sel;
         return GestureDetector(
-          onTap: () => setState(() => _sel = i),
+          onTap: () {
+            setState(() => _sel = i);
+            widget.onChanged?.call(i);
+          },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
             decoration: BoxDecoration(
