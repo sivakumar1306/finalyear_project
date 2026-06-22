@@ -13,6 +13,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _firstName = '';
+  String _gender = '';
 
   @override
   void initState() {
@@ -20,20 +21,32 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<BleProvider>().checkConnection();
     });
-    _loadUserName();
+    _loadUserProfile();
   }
 
-  Future<void> _loadUserName() async {
+  Future<void> _loadUserProfile() async {
     try {
       final user = SupabaseService.currentUser;
       if (user != null) {
         final profile = await SupabaseService.getProfile(user.id);
         if (mounted && profile != null) {
           final fullName = profile['full_name'] as String? ?? '';
-          setState(() => _firstName = fullName.split(' ').first);
+          setState(() {
+            _firstName = fullName.split(' ').first;
+            _gender = profile['gender'] as String? ?? '';
+          });
         }
       }
     } catch (_) {}
+  }
+
+  static String _hrvStatus(int v) {
+    if (v <= 0) return 'Tap to sync';
+    if (v < 20) return 'Very Low';
+    if (v < 40) return 'Low';
+    if (v < 60) return 'Moderate';
+    if (v < 80) return 'Good';
+    return 'Excellent';
   }
 
   String get _greeting {
@@ -60,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppTheme.card,
       onRefresh: () async {
         await ble.checkConnection();
-        await _loadUserName();
+        await _loadUserProfile();
       },
       child: CustomScrollView(
         slivers: [
@@ -95,6 +108,10 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
+                if (_gender == 'Female') ...[
+                  _WomensHealthBanner(onTap: () => Navigator.pushNamed(context, '/womens-health')),
+                  const SizedBox(height: 12),
+                ],
                 Row(children: [
                   Expanded(child: _MetricCard(
                     label: 'STEPS',
@@ -128,9 +145,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 Row(children: [
                   Expanded(child: _MetricCard(
                     label: 'HRV',
-                    value: '--',
+                    value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
                     unit: 'ms',
-                    status: 'Normal',
+                    status: _hrvStatus(ble.todayAvgHrv),
                     color: AppTheme.hrvColor,
                     icon: Icons.monitor_heart_rounded,
                     chartData: const [0.5, 0.6, 0.45, 0.7, 0.55, 0.8, 0.6, 0.5, 0.45, 0.65, 0.7, 0.55],
@@ -591,6 +608,65 @@ class _StressCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────
+// Women's Health banner card (female users only)
+// ──────────────────────────────────────────────────
+class _WomensHealthBanner extends StatelessWidget {
+  final VoidCallback onTap;
+  const _WomensHealthBanner({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    const womenColor = Color(0xFFEC4899);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: womenColor.withValues(alpha: 0.3)),
+          gradient: LinearGradient(
+            colors: [
+              womenColor.withValues(alpha: 0.12),
+              AppTheme.card,
+            ],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+        ),
+        child: Row(children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+                color: womenColor.withValues(alpha: 0.15),
+                shape: BoxShape.circle),
+            child: const Icon(Icons.favorite_rounded, color: womenColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('WOMEN\'S HEALTH',
+                  style: TextStyle(
+                      color: womenColor,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.4)),
+              SizedBox(height: 2),
+              Text('Cycle · Fertility · Symptoms',
+                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+            ]),
+          ),
+          const Icon(Icons.chevron_right_rounded,
+              color: AppTheme.textSec, size: 20),
+        ]),
       ),
     );
   }

@@ -33,7 +33,8 @@
       "Bash(jar xf *)",
       "Bash(javap -p com/oudmon/ble/base/communication/entity/BlePressure.class)",
       "Bash(unzip -o /tmp/aar_extract/qring_sdk_1.0.0.19.aar -d aar_full)",
-      "Bash(cat aar_full/proguard.txt)"
+      "Bash(cat aar_full/proguard.txt)",
+      "Bash(flutter analyze *)"
     ]
   }
 }

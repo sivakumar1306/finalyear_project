@@ -304,4 +304,176 @@ class SupabaseService {
         .order('measured_at', ascending: true);
     return List<Map<String, dynamic>>.from(data);
   }
+
+  // ── HRV ────────────────────────────────────────────────────────────────────
+
+  static Future<void> upsertHrv({
+    required String userId,
+    required DateTime date,
+    required int avgHrv,
+    required int minHrv,
+    required int maxHrv,
+    required int sampleCount,
+  }) async {
+    final dateStr =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    await client.from('user_hrv').upsert({
+      'user_id': userId,
+      'date': dateStr,
+      'avg_hrv': avgHrv,
+      'min_hrv': minHrv,
+      'max_hrv': maxHrv,
+      'sample_count': sampleCount,
+      'synced_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'user_id,date');
+  }
+
+  static Future<Map<String, dynamic>?> getHrvForDate(
+      String userId, DateTime date) async {
+    final dateStr =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return client
+        .from('user_hrv')
+        .select()
+        .eq('user_id', userId)
+        .eq('date', dateStr)
+        .maybeSingle();
+  }
+
+  static Future<List<Map<String, dynamic>>> getHrvHistory({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    String fmt(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    final data = await client
+        .from('user_hrv')
+        .select()
+        .eq('user_id', userId)
+        .gte('date', fmt(from))
+        .lte('date', fmt(to))
+        .order('date', ascending: true);
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  // ── Temperature ────────────────────────────────────────────────────────────
+
+  static Future<void> insertTempBatch({
+    required String userId,
+    required List<({DateTime measuredAt, double valueC, String source})> readings,
+  }) async {
+    if (readings.isEmpty) return;
+    await client.from('user_temp').insert(readings
+        .map((r) => {
+              'user_id': userId,
+              'measured_at': r.measuredAt.toUtc().toIso8601String(),
+              'value_c': r.valueC,
+              'source': r.source,
+            })
+        .toList());
+  }
+
+  static Future<void> insertTemp({
+    required String userId,
+    required DateTime measuredAt,
+    required double valueC,
+    String source = 'auto',
+  }) async {
+    await client.from('user_temp').insert({
+      'user_id': userId,
+      'measured_at': measuredAt.toUtc().toIso8601String(),
+      'value_c': valueC,
+      'source': source,
+    });
+  }
+
+  static Future<List<Map<String, dynamic>>> getTempReadings({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final data = await client
+        .from('user_temp')
+        .select()
+        .eq('user_id', userId)
+        .gte('measured_at', from.toUtc().toIso8601String())
+        .lte('measured_at', to.toUtc().toIso8601String())
+        .order('measured_at', ascending: true);
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  static Future<Map<String, dynamic>?> getLatestTemp(String userId) async {
+    return client
+        .from('user_temp')
+        .select()
+        .eq('user_id', userId)
+        .order('measured_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+  }
+
+  // ── Women's Health — Cycles ────────────────────────────────────────────────
+
+  static String _dateStr(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  static Future<List<Map<String, dynamic>>> getCycles(String userId) async {
+    final data = await client
+        .from('user_cycles')
+        .select()
+        .eq('user_id', userId)
+        .order('period_start', ascending: false);
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  static Future<void> saveCycle({
+    required String userId,
+    required DateTime periodStart,
+    required int cycleLength,
+    required int periodLength,
+    String? notes,
+  }) async {
+    await client.from('user_cycles').upsert({
+      'user_id': userId,
+      'period_start': _dateStr(periodStart),
+      'cycle_length': cycleLength,
+      'period_length': periodLength,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+    }, onConflict: 'user_id,period_start');
+  }
+
+  // ── Women's Health — Symptoms ──────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>?> getSymptomsForDate(
+      String userId, DateTime date) async {
+    return client
+        .from('user_symptoms')
+        .select()
+        .eq('user_id', userId)
+        .eq('logged_date', _dateStr(date))
+        .maybeSingle();
+  }
+
+  static Future<void> upsertSymptoms({
+    required String userId,
+    required DateTime date,
+    String? mood,
+    int? energy,
+    bool cramps = false,
+    bool headache = false,
+    bool bloating = false,
+    String? notes,
+  }) async {
+    await client.from('user_symptoms').upsert({
+      'user_id': userId,
+      'logged_date': _dateStr(date),
+      'mood': mood,
+      'energy': energy,
+      'cramps': cramps,
+      'headache': headache,
+      'bloating': bloating,
+      'notes': notes,
+    }, onConflict: 'user_id,logged_date');
+  }
 }

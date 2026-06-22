@@ -49,6 +49,9 @@ class BleProvider extends ChangeNotifier {
   // Stress state
   int _latestStressValue = 0;
 
+  // HRV state
+  int _todayAvgHrv = 0;
+
   bool get isReconnecting => _isReconnecting;
 
   bool get isConnected => _isConnected;
@@ -77,6 +80,8 @@ class BleProvider extends ChangeNotifier {
   int get latestBpDbp => _latestBpDbp;
 
   int get latestStressValue => _latestStressValue;
+
+  int get todayAvgHrv => _todayAvgHrv;
 
   void updateStepsData(int steps, int calories, double distanceM, List<int> intervals) {
     _todaySteps = steps;
@@ -111,6 +116,11 @@ class BleProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateHrvLatest(int avgHrv) {
+    _todayAvgHrv = avgHrv;
+    notifyListeners();
+  }
+
   BleProvider() {
     _loadSavedDevice();
     _listenEvents();
@@ -119,6 +129,7 @@ class BleProvider extends ChangeNotifier {
     _loadTodaySpo2FromSupabase();
     _loadLatestBpFromSupabase();
     _loadLatestStressFromSupabase();
+    _loadTodayHrvFromSupabase();
   }
 
   void _listenEvents() {
@@ -273,6 +284,18 @@ class BleProvider extends ChangeNotifier {
       final data = await SupabaseService.getLatestStress(user.id);
       if (data != null) {
         _latestStressValue = (data['stress_value'] as num? ?? 0).toInt();
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadTodayHrvFromSupabase() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      final data = await SupabaseService.getHrvForDate(user.id, DateTime.now());
+      if (data != null) {
+        _todayAvgHrv = (data['avg_hrv'] as num? ?? 0).toInt();
         notifyListeners();
       }
     } catch (_) {}

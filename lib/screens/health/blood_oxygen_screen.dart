@@ -49,7 +49,8 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         _selectedDate.day == now.day;
   }
 
-  bool get _showRingData => _period == 0 && _isToday;
+  // Only use ring-fetched data if we actually have it (sync paused by default)
+  bool get _showRingData => _period == 0 && _isToday && _chartValues.isNotEmpty;
 
   List<int> get _displayChart => _showRingData ? _chartValues : _histChartValues;
   int get _displayAvg => _showRingData ? _avgSpo2 : _histAvg;
@@ -65,14 +66,12 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && context.read<BleProvider>().isConnected) {
-        // Fetch data first; load settings only after the data command completes
-        // so BloodOxygenSettingReq doesn't block the CommandHandle queue before
-        // getTodayBloodOxygen is dispatched.
-        _fetchToday().then((_) {
-          if (mounted) _loadSettings();
-        });
-      }
+      if (!mounted) return;
+      // Ring sync paused — loads Supabase data on open instead.
+      // TODO: re-enable ring sync once getTodayBloodOxygen is stable:
+      //   _fetchToday().then((_) { if (mounted) _loadSettings(); });
+      _loadTodayFromSupabase();
+      if (context.read<BleProvider>().isConnected) _loadSettings();
     });
   }
 
@@ -248,6 +247,66 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     }
   }
 
+  // Loads today's saved SpO2 from Supabase into the history display vars.
+  Future<void> _loadTodayFromSupabase() async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    setState(() => _loadingHistory = true);
+    try {
+      final row = await SupabaseService.getSpo2ForDate(user.id, DateTime.now());
+      if (!mounted) return;
+      if (row != null) {
+        setState(() {
+          _histAvg = (row['avg_spo2'] as num? ?? 0).toInt();
+          _histMin = (row['min_spo2'] as num? ?? 0).toInt();
+          _histMax = (row['max_spo2'] as num? ?? 0).toInt();
+        });
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loadingHistory = false);
+    }
+  }
+
+  // Upserts today's SpO2 row, computing a running avg/min/max across readings.
+  Future<void> _saveSingleMeasurement(int spo2) async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    try {
+      final existing = await SupabaseService.getSpo2ForDate(user.id, DateTime.now());
+      int newAvg, newMin, newMax, newCount;
+      final prevCount = (existing?['sample_count'] as num? ?? 0).toInt();
+      if (existing != null && prevCount > 0) {
+        final prevAvg = (existing['avg_spo2'] as num).toInt();
+        final prevMin = (existing['min_spo2'] as num).toInt();
+        final prevMax = (existing['max_spo2'] as num).toInt();
+        newCount = prevCount + 1;
+        newAvg = ((prevAvg * prevCount + spo2) / newCount).round();
+        newMin = spo2 < prevMin ? spo2 : prevMin;
+        newMax = spo2 > prevMax ? spo2 : prevMax;
+      } else {
+        newAvg = newMin = newMax = spo2;
+        newCount = 1;
+      }
+      await SupabaseService.upsertSpo2(
+        userId: user.id,
+        date: DateTime.now(),
+        avgSpo2: newAvg,
+        minSpo2: newMin,
+        maxSpo2: newMax,
+        sampleCount: newCount,
+      );
+      if (mounted) {
+        context.read<BleProvider>().updateSpo2Data(newAvg, newMin, newMax);
+        setState(() {
+          _histAvg = newAvg;
+          _histMin = newMin;
+          _histMax = newMax;
+        });
+      }
+    } catch (_) {}
+  }
+
   // ── Settings ───────────────────────────────────────────────────────────────
 
   Future<void> _loadSettings() async {
@@ -287,6 +346,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         _measuring = false;
         if (liveVal > 0 && _period == 0 && _isToday) _avgSpo2 = liveVal;
       });
+      if (liveVal > 0) await _saveSingleMeasurement(liveVal);
     } catch (e) {
       final msg = e.toString().contains('TIMEOUT')
           ? 'Measurement timed out. Make sure the ring is worn properly.'

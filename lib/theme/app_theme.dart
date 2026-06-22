@@ -23,6 +23,7 @@ class AppTheme {
   static const Color hrvColor = Color(0xFF2DD4BF);
   static const Color stressColor = Color(0xFFF97316);
   static const Color tempColor = Color(0xFFFBBF24);
+  static const Color womenColor = Color(0xFFEC4899);
 
   static ThemeData darkTheme() {
     return ThemeData(

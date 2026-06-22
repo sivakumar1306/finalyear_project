@@ -10,6 +10,7 @@ import 'screens/health/sleep_screen.dart';
 import 'screens/health/hrv_screen.dart';
 import 'screens/health/pressure_screen.dart';
 import 'screens/health/temperature_screen.dart';
+import 'screens/health/womens_health_screen.dart';
 import 'screens/health/sport_record_screen.dart';
 import 'screens/settings/device_settings_screen.dart';
 import 'screens/settings/health_settings_screen.dart';
@@ -56,6 +57,7 @@ class QRingApp extends StatelessWidget {
         '/sedentary-reminder': (_) => const SedentaryReminderScreen(),
         '/ota': (_) => const OtaScreen(),
         '/sugar-lipids': (_) => const SugarLipidsScreen(),
+        '/womens-health': (_) => const WomensHealthScreen(),
       },
     );
   }

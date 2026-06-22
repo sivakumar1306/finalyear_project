@@ -31,6 +31,10 @@ class RecordsScreen extends StatelessWidget {
             const SizedBox(height: 8),
             _vitalsGroup(context),
             const SizedBox(height: 20),
+            _sectionLabel('WOMEN\'S HEALTH'),
+            const SizedBox(height: 8),
+            _womensGroup(context),
+            const SizedBox(height: 20),
             _sectionLabel('ACTIVITY'),
             const SizedBox(height: 8),
             _activityGroup(context),
@@ -63,6 +67,14 @@ class RecordsScreen extends StatelessWidget {
       _RecordItem('HRV', Icons.monitor_heart_rounded, AppTheme.hrvColor, '/hrv', '-- ms'),
       _RecordItem('Stress / Pressure', Icons.psychology_rounded, AppTheme.stressColor, '/pressure', '--'),
       _RecordItem('Temperature', Icons.thermostat_rounded, AppTheme.tempColor, '/temperature', '-- °C'),
+    ];
+    return _itemsCard(context, items);
+  }
+
+  Widget _womensGroup(BuildContext context) {
+    final items = [
+      _RecordItem('Women\'s Health', Icons.favorite_rounded,
+          const Color(0xFFEC4899), '/womens-health', 'Cycle · Fertility · Symptoms'),
     ];
     return _itemsCard(context, items);
   }
