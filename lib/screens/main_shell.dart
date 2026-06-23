@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
+import '../providers/workout_provider.dart';
 import 'home/home_screen.dart';
 import 'assist/assist_screen.dart';
 import 'records/records_screen.dart';
 import 'settings/settings_screen.dart';
+import 'workouts/workouts_screen.dart';
+import 'workouts/active_workout_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -15,6 +19,101 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _tab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Navigate to active workout screen if a workout was resumed after app restart.
+    context.read<WorkoutProvider>().initialized.then((_) {
+      if (!mounted) return;
+      final workout = context.read<WorkoutProvider>();
+      if (workout.isWorkoutActive) {
+        setState(() => _tab = 4);
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ActiveWorkoutScreen()),
+        );
+      }
+    });
+  }
+
+  void _onTabTap(int index) {
+    final workout = context.read<WorkoutProvider>();
+    if (workout.isWorkoutActive && index != 4) {
+      _showWorkoutLockSheet();
+      return;
+    }
+    setState(() => _tab = index);
+  }
+
+  void _showWorkoutLockSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.div,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Icon(Icons.directions_run_rounded, color: AppTheme.gold, size: 40),
+            const SizedBox(height: 14),
+            const Text(
+              'Workout in Progress',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Finish your workout to access other features.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppTheme.textSec, fontSize: 14),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.gold,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  setState(() => _tab = 4);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ActiveWorkoutScreen(),
+                    ),
+                  );
+                },
+                child: const Text(
+                  'Go to Workout',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,11 +131,12 @@ class _MainShellState extends State<MainShell> {
             AssistScreen(),
             RecordsScreen(),
             SettingsScreen(),
+            WorkoutsScreen(),
           ],
         ),
         bottomNavigationBar: _BottomNav(
           selected: _tab,
-          onTap: (i) => setState(() => _tab = i),
+          onTap: _onTabTap,
         ),
       ),
     );
@@ -85,6 +185,12 @@ class _BottomNav extends StatelessWidget {
                 label: 'Profile',
                 active: selected == 3,
                 onTap: () => onTap(3),
+              ),
+              _NavTab(
+                icon: Icons.directions_run_rounded,
+                label: 'Workouts',
+                active: selected == 4,
+                onTap: () => onTap(4),
               ),
             ],
           ),

@@ -250,4 +250,10 @@ class BleService {
   // ── Notification ───────────────────────────────────────────────────
   Future<void> sendNotification({required int type, required String title, required String content}) =>
       _methodChannel.invokeMethod('sendNotification', {'type': type, 'title': title, 'content': content});
+
+  // ── Workout ────────────────────────────────────────────────────────
+  Future<void> startWorkout(String type, int startTimeMs) =>
+      _methodChannel.invokeMethod('startWorkout', {'type': type, 'startTimeMs': startTimeMs});
+
+  Future<void> stopWorkout() => _methodChannel.invokeMethod('stopWorkout');
 }

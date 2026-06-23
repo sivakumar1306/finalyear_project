@@ -197,6 +197,14 @@ class BlePlugin(private val context: Context) {
                 BleConnectionService.start(context)
                 result.success(true)
             }
+            "startWorkout"               -> {
+                WorkoutService.start(context)
+                result.success(true)
+            }
+            "stopWorkout"                -> {
+                WorkoutService.stop(context)
+                result.success(true)
+            }
             else                         -> result.notImplemented()
         }
     }
@@ -330,16 +338,23 @@ class BlePlugin(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────
 
     private fun getTodayHeartRate(result: MethodChannel.Result) {
+        val done = java.util.concurrent.atomic.AtomicBoolean(false)
         BleOperateManager.getInstance().getTodayHeartRate(
             object : BleOperateManager.HealthDataCallback<ReadHeartRateRsp> {
                 override fun onSuccess(data: ReadHeartRateRsp) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
+                    if (done.compareAndSet(false, true))
+                        mainHandler.post { result.success(gson.toJson(data)) }
                 }
                 override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                    if (done.compareAndSet(false, true))
+                        mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
                 }
             }
         )
+        mainHandler.postDelayed({
+            if (done.compareAndSet(false, true))
+                result.error("TIMEOUT", "Heart rate data fetch timed out", null)
+        }, 20_000L)
     }
 
     private fun getHeartRate(call: MethodCall, result: MethodChannel.Result) {
@@ -803,16 +818,23 @@ class BlePlugin(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────
 
     private fun getTodayHrv(result: MethodChannel.Result) {
+        val done = java.util.concurrent.atomic.AtomicBoolean(false)
         BleOperateManager.getInstance().getTodayHrv(
             object : BleOperateManager.HealthDataCallback<HRVRsp> {
                 override fun onSuccess(data: HRVRsp) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
+                    if (done.compareAndSet(false, true))
+                        mainHandler.post { result.success(gson.toJson(data)) }
                 }
                 override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                    if (done.compareAndSet(false, true))
+                        mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
                 }
             }
         )
+        mainHandler.postDelayed({
+            if (done.compareAndSet(false, true))
+                result.error("TIMEOUT", "HRV data fetch timed out", null)
+        }, 20_000L)
     }
 
     private fun getHrv(call: MethodCall, result: MethodChannel.Result) {

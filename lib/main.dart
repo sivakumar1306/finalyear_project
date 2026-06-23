@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'providers/ble_provider.dart';
+import 'providers/workout_provider.dart';
 import 'services/supabase_service.dart';
 import 'app.dart';
 
@@ -29,8 +30,11 @@ void main() async {
   await _requestPermissionsAndStartService();
   await SupabaseService.initialize();
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => BleProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => BleProvider()),
+        ChangeNotifierProvider(create: (_) => WorkoutProvider()),
+      ],
       child: const QRingApp(),
     ),
   );

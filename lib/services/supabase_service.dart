@@ -413,6 +413,54 @@ class SupabaseService {
         .maybeSingle();
   }
 
+  // ── Workouts ──────────────────────────────────────────────────────────────
+
+  static Future<String?> insertWorkout({
+    required String userId,
+    required String type,
+    required DateTime startedAt,
+    required DateTime endedAt,
+    required int durationS,
+    required int steps,
+    required int calories,
+    required double distanceM,
+    required int avgHr,
+    required int avgSpo2,
+    required int avgBpSbp,
+    required int avgBpDbp,
+  }) async {
+    final data = await client.from('user_workouts').insert({
+      'user_id': userId,
+      'workout_type': type,
+      'started_at': startedAt.toUtc().toIso8601String(),
+      'ended_at': endedAt.toUtc().toIso8601String(),
+      'duration_s': durationS,
+      'steps': steps,
+      'calories': calories,
+      'distance_m': distanceM,
+      'avg_hr': avgHr,
+      'avg_spo2': avgSpo2,
+      'avg_bp_sbp': avgBpSbp,
+      'avg_bp_dbp': avgBpDbp,
+    }).select('id').single();
+    return data['id'] as String?;
+  }
+
+  static Future<List<Map<String, dynamic>>> getWorkoutHistory({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final data = await client
+        .from('user_workouts')
+        .select()
+        .eq('user_id', userId)
+        .gte('started_at', from.toUtc().toIso8601String())
+        .lte('started_at', to.toUtc().toIso8601String())
+        .order('started_at', ascending: false);
+    return List<Map<String, dynamic>>.from(data);
+  }
+
   // ── Women's Health — Cycles ────────────────────────────────────────────────
 
   static String _dateStr(DateTime d) =>
