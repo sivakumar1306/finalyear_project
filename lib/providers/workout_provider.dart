@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ble_service.dart';
@@ -8,20 +10,27 @@ import '../models/workout_model.dart';
 class WorkoutProvider extends ChangeNotifier {
   final BleService _ble = BleService();
 
+  // 1-second timer updates elapsed time only (synchronous, always reliable)
   Timer? _uiTimer;
+  // 20-second timer polls the ring for step data
+  Timer? _pollTimer;
+
   SharedPreferences? _prefs;
 
   bool _isWorkoutActive = false;
   WorkoutType? _currentType;
   DateTime? _startTime;
   int _elapsedSeconds = 0;
+
+  // Baseline readings captured at workout start
+  int _initialSteps = 0;
+  int _initialCalories = 0;
+  double _initialDistance = 0.0;
+
+  // Delta values displayed and saved (current - initial)
   int _workoutSteps = 0;
   int _workoutCalories = 0;
   double _workoutDistanceM = 0.0;
-  int? _latestSpo2;
-  int? _latestBpSbp;
-  int? _latestBpDbp;
-  int? _latestHr;
 
   bool get isWorkoutActive => _isWorkoutActive;
   WorkoutType? get currentType => _currentType;
@@ -30,13 +39,9 @@ class WorkoutProvider extends ChangeNotifier {
   int get workoutSteps => _workoutSteps;
   int get workoutCalories => _workoutCalories;
   double get workoutDistanceM => _workoutDistanceM;
-  int? get latestSpo2 => _latestSpo2;
-  int? get latestBpSbp => _latestBpSbp;
-  int? get latestBpDbp => _latestBpDbp;
-  int? get latestHr => _latestHr;
 
-  // Completes after the initial SharedPreferences check, used by MainShell
-  // to redirect to active workout screen on app resume.
+  // Completes after the initial SharedPreferences check; used by MainShell
+  // to redirect to the active workout screen on app resume.
   late final Future<void> initialized;
 
   WorkoutProvider() {
@@ -50,8 +55,7 @@ class WorkoutProvider extends ChangeNotifier {
 
   Future<void> _resumeIfActive() async {
     final prefs = await _getPrefs();
-    final active = prefs.getBool('workout_active') ?? false;
-    if (!active) return;
+    if (!(prefs.getBool('workout_active') ?? false)) return;
 
     final typeStr = prefs.getString('workout_type');
     final startMs = prefs.getInt('workout_start_time');
@@ -62,27 +66,18 @@ class WorkoutProvider extends ChangeNotifier {
       orElse: () => WorkoutType.running,
     );
     _startTime = DateTime.fromMillisecondsSinceEpoch(startMs);
+    _initialSteps = prefs.getInt('workout_start_steps') ?? 0;
+    _initialCalories = prefs.getInt('workout_start_calories') ?? 0;
+    _initialDistance = prefs.getDouble('workout_start_distance') ?? 0.0;
     _isWorkoutActive = true;
+
     _startUiTimer();
+    _startPollTimer();
     notifyListeners();
   }
 
-  Future<void> startWorkout(
-    WorkoutType type, {
-    required int baselineSteps,
-    required int baselineCalories,
-    required double baselineDistance,
-  }) async {
-    final prefs = await _getPrefs();
+  Future<void> startWorkout(WorkoutType type) async {
     final now = DateTime.now();
-    final startMs = now.millisecondsSinceEpoch;
-
-    await prefs.setBool('workout_active', true);
-    await prefs.setString('workout_type', type.name);
-    await prefs.setInt('workout_start_time', startMs);
-    await prefs.setInt('workout_start_steps', baselineSteps);
-    await prefs.setInt('workout_start_calories', baselineCalories);
-    await prefs.setDouble('workout_start_distance', baselineDistance);
 
     _currentType = type;
     _startTime = now;
@@ -91,27 +86,52 @@ class WorkoutProvider extends ChangeNotifier {
     _workoutSteps = 0;
     _workoutCalories = 0;
     _workoutDistanceM = 0.0;
-    _latestSpo2 = null;
-    _latestBpSbp = null;
-    _latestBpDbp = null;
-    _latestHr = null;
+
+    // Fetch current ring values as the workout baseline before the user
+    // moves. If the ring is unreachable, fall back to zero — polls will
+    // still collect relative progress once the ring responds.
+    try {
+      final raw = await _ble.getTodaySteps();
+      final (s, c, d) = _parseSteps(raw);
+      _initialSteps = s;
+      _initialCalories = c;
+      _initialDistance = d;
+    } catch (_) {
+      _initialSteps = 0;
+      _initialCalories = 0;
+      _initialDistance = 0.0;
+    }
+
+    final prefs = await _getPrefs();
+    await prefs.setBool('workout_active', true);
+    await prefs.setString('workout_type', type.name);
+    await prefs.setInt('workout_start_time', now.millisecondsSinceEpoch);
+    await prefs.setInt('workout_start_steps', _initialSteps);
+    await prefs.setInt('workout_start_calories', _initialCalories);
+    await prefs.setDouble('workout_start_distance', _initialDistance);
 
     try {
-      await _ble.startWorkout(type.name, startMs);
+      await _ble.startWorkout(type.name, now.millisecondsSinceEpoch);
     } catch (_) {}
 
     _startUiTimer();
+    _startPollTimer();
     notifyListeners();
   }
 
   Future<WorkoutSession?> stopWorkout() async {
     if (!_isWorkoutActive) return null;
 
-    final endTime = DateTime.now();
-    final duration = _elapsedSeconds;
-
     _uiTimer?.cancel();
     _uiTimer = null;
+    _pollTimer?.cancel();
+    _pollTimer = null;
+
+    // One final ring poll to capture the most recent readings before saving
+    await _pollRing();
+
+    final endTime = DateTime.now();
+    final duration = _elapsedSeconds;
 
     try {
       await _ble.stopWorkout();
@@ -130,10 +150,10 @@ class WorkoutProvider extends ChangeNotifier {
           steps: _workoutSteps,
           calories: _workoutCalories,
           distanceM: _workoutDistanceM,
-          avgHr: _latestHr ?? 0,
-          avgSpo2: _latestSpo2 ?? 0,
-          avgBpSbp: _latestBpSbp ?? 0,
-          avgBpDbp: _latestBpDbp ?? 0,
+          avgHr: 0,
+          avgSpo2: 0,
+          avgBpSbp: 0,
+          avgBpDbp: 0,
         );
         session = WorkoutSession(
           id: id ?? '',
@@ -144,12 +164,10 @@ class WorkoutProvider extends ChangeNotifier {
           steps: _workoutSteps,
           calories: _workoutCalories,
           distanceM: _workoutDistanceM,
-          avgHr: _latestHr ?? 0,
-          avgSpo2: _latestSpo2 ?? 0,
-          avgBpSbp: _latestBpSbp ?? 0,
-          avgBpDbp: _latestBpDbp ?? 0,
         );
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('WorkoutProvider: insertWorkout failed: $e');
+      }
     }
 
     final prefs = await _getPrefs();
@@ -160,13 +178,6 @@ class WorkoutProvider extends ChangeNotifier {
       'workout_start_steps',
       'workout_start_calories',
       'workout_start_distance',
-      'workout_latest_spo2',
-      'workout_latest_sbp',
-      'workout_latest_dbp',
-      'workout_latest_hr',
-      'workout_current_steps',
-      'workout_current_calories',
-      'workout_current_distance',
     ]) {
       await prefs.remove(key);
     }
@@ -180,55 +191,67 @@ class WorkoutProvider extends ChangeNotifier {
     return session;
   }
 
+  // ── Timers ────────────────────────────────────────────────────────────────
+
   void _startUiTimer() {
     _uiTimer?.cancel();
     _uiTimer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
-  Future<void> _tick() async {
+  // Synchronous — just computes elapsed time, no async work that could fail
+  void _tick() {
     if (_startTime == null) return;
     _elapsedSeconds = DateTime.now().difference(_startTime!).inSeconds;
-
-    // Reload picks up values written by WorkoutService.kt — Flutter's SharedPreferences
-    // caches in Dart memory, so native writes are invisible without an explicit reload.
-    final prefs = await _getPrefs();
-    await prefs.reload();
-
-    // WorkoutService clears workout_active if startForeground fails. Detect that
-    // and stop the Dart-side workout so the UI doesn't stay locked indefinitely.
-    if (!(prefs.getBool('workout_active') ?? false)) {
-      _uiTimer?.cancel();
-      _uiTimer = null;
-      _isWorkoutActive = false;
-      _currentType = null;
-      _startTime = null;
-      _elapsedSeconds = 0;
-      notifyListeners();
-      return;
-    }
-
-    final spo2 = prefs.getInt('workout_latest_spo2');
-    final sbp = prefs.getInt('workout_latest_sbp');
-    final dbp = prefs.getInt('workout_latest_dbp');
-    final hr = prefs.getInt('workout_latest_hr');
-    final steps = prefs.getInt('workout_current_steps');
-    final calories = prefs.getInt('workout_current_calories');
-    final distance = prefs.getDouble('workout_current_distance');
-
-    if (spo2 != null) _latestSpo2 = spo2;
-    if (sbp != null) _latestBpSbp = sbp;
-    if (dbp != null) _latestBpDbp = dbp;
-    if (hr != null) _latestHr = hr;
-    if (steps != null) _workoutSteps = steps;
-    if (calories != null) _workoutCalories = calories;
-    if (distance != null) _workoutDistanceM = distance;
-
     notifyListeners();
+  }
+
+  void _startPollTimer() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) => _pollRing());
+  }
+
+  // Fetches current ring totals and subtracts the workout baseline.
+  // On failure, keeps the last valid values (never resets to zero).
+  Future<void> _pollRing() async {
+    if (!_isWorkoutActive) return;
+    try {
+      final raw = await _ble.getTodaySteps();
+      final (steps, cal, dist) = _parseSteps(raw);
+
+      // Only apply if the ring returned real data
+      if (steps > 0 || cal > 0 || dist > 0) {
+        _workoutSteps = (steps - _initialSteps).clamp(0, 9999999);
+        _workoutCalories = (cal - _initialCalories).clamp(0, 9999999);
+        _workoutDistanceM = (dist - _initialDistance).clamp(0.0, 9999999.0);
+        notifyListeners();
+      }
+    } catch (_) {
+      // Keep last valid values on ring error
+    }
+  }
+
+  // Same ProGuard field mapping used by StepsScreen and BleProvider:
+  //   e = calories (小卡, divide by 1000 for kcal)
+  //   f = walkSteps
+  //   g = distance (meters)
+  (int steps, int calories, double distance) _parseSteps(String jsonStr) {
+    final decoded = jsonDecode(jsonStr);
+    final list = decoded is List ? decoded : <dynamic>[];
+    int totalSteps = 0, totalCal = 0;
+    double totalDist = 0.0;
+    for (final item in list) {
+      final m = item as Map<String, dynamic>;
+      totalSteps += (m['f'] as num? ?? 0).toInt();
+      totalCal   += (m['e'] as num? ?? 0).toInt() ~/ 1000;
+      totalDist  += (m['g'] as num? ?? 0).toDouble();
+    }
+    return (totalSteps, totalCal, totalDist);
   }
 
   @override
   void dispose() {
     _uiTimer?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/ble_provider.dart';
 import '../../providers/workout_provider.dart';
 import '../../models/workout_model.dart';
 import '../../services/supabase_service.dart';
@@ -192,7 +191,7 @@ class _WorkoutCard extends StatelessWidget {
           ),
         ),
         subtitle: const Text(
-          'Tracks SpO₂, BP, HR, steps & calories',
+          'Tracks steps, calories & distance',
           style: TextStyle(color: AppTheme.textSec, fontSize: 12),
         ),
         trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.textSec),
@@ -222,10 +221,17 @@ class _WorkoutCard extends StatelessWidget {
 
 // ── Pre-start sheet ──────────────────────────────────────────────────────────
 
-class _PreStartSheet extends StatelessWidget {
+class _PreStartSheet extends StatefulWidget {
   final WorkoutType type;
   final VoidCallback onWorkoutStarted;
   const _PreStartSheet({required this.type, required this.onWorkoutStarted});
+
+  @override
+  State<_PreStartSheet> createState() => _PreStartSheetState();
+}
+
+class _PreStartSheetState extends State<_PreStartSheet> {
+  bool _starting = false;
 
   @override
   Widget build(BuildContext context) {
@@ -255,7 +261,7 @@ class _PreStartSheet extends StatelessWidget {
             ),
             const SizedBox(width: 14),
             Text(
-              '${type.label} Workout',
+              '${widget.type.label} Workout',
               style: const TextStyle(
                   color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700),
             ),
@@ -268,12 +274,8 @@ class _PreStartSheet extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ...[
-            (Icons.timer_rounded, 'Timer starts immediately and runs in the background'),
-            (Icons.water_drop_rounded, 'Blood oxygen (SpO₂) measured every 5 minutes'),
-            (Icons.favorite_rounded, 'Blood pressure measured every 10 minutes'),
-            (Icons.monitor_heart_rounded, 'Heart rate monitored continuously by the ring'),
-            (Icons.directions_walk_rounded, 'Steps, calories & distance tracked in real time'),
-            (Icons.notifications_rounded, 'A notification shows your workout type and elapsed time'),
+            (Icons.timer_rounded, 'Timer starts immediately'),
+            (Icons.directions_walk_rounded, 'Steps, calories & distance polled from ring every 20 seconds'),
             (Icons.lock_rounded, 'Other app features are paused until you finish'),
           ].map(
             (e) => Padding(
@@ -291,22 +293,6 @@ class _PreStartSheet extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: AppTheme.goldBorder, borderRadius: BorderRadius.circular(10)),
-            child: const Row(children: [
-              Icon(Icons.battery_alert_rounded, color: AppTheme.gold, size: 16),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Frequent measurements will drain your ring battery faster.',
-                  style: TextStyle(color: AppTheme.gold, fontSize: 12),
-                ),
-              ),
-            ]),
-          ),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
@@ -318,20 +304,23 @@ class _PreStartSheet extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
               ),
-              onPressed: () async {
+              onPressed: _starting ? null : () async {
+                setState(() => _starting = true);
                 final workout = context.read<WorkoutProvider>();
-                final ble = context.read<BleProvider>();
-                await workout.startWorkout(
-                  type,
-                  baselineSteps: ble.todaySteps,
-                  baselineCalories: ble.todayCalories,
-                  baselineDistance: ble.todayDistanceM,
-                );
-                if (context.mounted) Navigator.of(context).pop();
-                onWorkoutStarted();
+                final nav = Navigator.of(context);
+                await workout.startWorkout(widget.type);
+                if (!mounted) return;
+                nav.pop();
+                widget.onWorkoutStarted();
               },
-              child: const Text('Start Workout',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              child: _starting
+                  ? const SizedBox(
+                      width: 22, height: 22,
+                      child: CircularProgressIndicator(
+                          color: Colors.black, strokeWidth: 2.5),
+                    )
+                  : const Text('Start Workout',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             ),
           ),
         ],

@@ -149,48 +149,18 @@ class _MetricsGrid extends StatelessWidget {
   final WorkoutProvider workout;
   const _MetricsGrid({required this.workout});
 
+  String _formatDistance(double meters) {
+    if (meters <= 0) return '—';
+    if (meters >= 1000) return '${(meters / 1000).toStringAsFixed(2)} km';
+    return '${meters.toStringAsFixed(0)} m';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         Row(
           children: [
-            Expanded(
-              child: _MetricCard(
-                label: 'SpO₂',
-                value: workout.latestSpo2 != null ? '${workout.latestSpo2}%' : '—',
-                icon: Icons.water_drop_rounded,
-                color: AppTheme.spo2Color,
-                subtitle: 'Every 5 min',
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _MetricCard(
-                label: 'Blood Pressure',
-                value: (workout.latestBpSbp != null && workout.latestBpDbp != null)
-                    ? '${workout.latestBpSbp}/${workout.latestBpDbp}'
-                    : '—',
-                icon: Icons.favorite_rounded,
-                color: AppTheme.bpColor,
-                subtitle: 'Every 10 min',
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _MetricCard(
-                label: 'Heart Rate',
-                value: workout.latestHr != null ? '${workout.latestHr} bpm' : '—',
-                icon: Icons.monitor_heart_rounded,
-                color: AppTheme.hrColor,
-                subtitle: 'Continuous',
-              ),
-            ),
-            const SizedBox(width: 10),
             Expanded(
               child: _MetricCard(
                 label: 'Steps',
@@ -200,11 +170,7 @@ class _MetricsGrid extends StatelessWidget {
                 subtitle: 'This session',
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
+            const SizedBox(width: 10),
             Expanded(
               child: _MetricCard(
                 label: 'Calories',
@@ -214,26 +180,18 @@ class _MetricsGrid extends StatelessWidget {
                 subtitle: 'Burned',
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _MetricCard(
-                label: 'Distance',
-                value: _formatDistance(workout.workoutDistanceM),
-                icon: Icons.straighten_rounded,
-                color: AppTheme.success,
-                subtitle: 'Covered',
-              ),
-            ),
           ],
+        ),
+        const SizedBox(height: 10),
+        _MetricCard(
+          label: 'Distance',
+          value: _formatDistance(workout.workoutDistanceM),
+          icon: Icons.straighten_rounded,
+          color: AppTheme.success,
+          subtitle: 'Covered',
         ),
       ],
     );
-  }
-
-  String _formatDistance(double meters) {
-    if (meters <= 0) return '—';
-    if (meters >= 1000) return '${(meters / 1000).toStringAsFixed(2)} km';
-    return '${meters.toStringAsFixed(0)} m';
   }
 }
 
@@ -359,12 +317,6 @@ class _FinishButtonState extends State<_FinishButton> {
                   ? '${(session.distanceM / 1000).toStringAsFixed(2)} km'
                   : '${session.distanceM.toStringAsFixed(0)} m',
             ),
-            if (session.avgSpo2 > 0)
-              _SummaryRow(label: 'SpO₂', value: '${session.avgSpo2}%'),
-            if (session.avgBpSbp > 0 && session.avgBpDbp > 0)
-              _SummaryRow(label: 'Blood Pressure', value: '${session.avgBpSbp}/${session.avgBpDbp}'),
-            if (session.avgHr > 0)
-              _SummaryRow(label: 'Heart Rate', value: '${session.avgHr} bpm'),
           ],
         ),
         actions: [
