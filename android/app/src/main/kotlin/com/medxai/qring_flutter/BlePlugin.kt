@@ -126,6 +126,7 @@ class BlePlugin(private val context: Context) {
             "getHeartRateSetting"        -> getHeartRateSetting(result)
             "setHeartRateSetting"        -> setHeartRateSetting(call, result)
             "manualModeHeart"            -> manualModeHeart(call, result)
+            "readHeartRate"              -> readHeartRate(result)
             "syncIntervalHeartRate"      -> syncIntervalHeartRate(result)
             "syncHistoryHeartRate"       -> syncHistoryHeartRate(result)
             "getTodayBloodPressure"      -> getTodayBloodPressure(result)
@@ -416,6 +417,40 @@ class BlePlugin(private val context: Context) {
             },
             !start
         )
+    }
+
+    // Single-call measurement: starts HR, waits for a valid (>0) reading,
+    // auto-stops, then resolves. Mirrors the test_app RingSdkBridge.readHeartRate().
+    private fun readHeartRate(result: MethodChannel.Result) {
+        val done = AtomicBoolean(false)
+
+        BleOperateManager.getInstance().manualModeHeart(
+            ICommandResponse<StartHeartRateRsp> { rsp ->
+                if (done.get()) return@ICommandResponse
+
+                if (rsp.status == BaseRspCmd.RESULT_OK) {
+                    val value = if (rsp.getHeartRate() > 0) rsp.getHeartRate() else rsp.getValue()
+                    if (value > 0 && done.compareAndSet(false, true)) {
+                        BleOperateManager.getInstance().manualModeHeart(null, true) // stop
+                        mainHandler.post { result.success(value) }
+                    }
+                    // value == 0: measurement still warming up — wait for next callback
+                } else {
+                    if (done.compareAndSet(false, true)) {
+                        mainHandler.post { result.success(null) }
+                    }
+                }
+            },
+            false // false = start measurement
+        )
+
+        // Stop and time out after 60 s so the Dart await never hangs forever
+        mainHandler.postDelayed({
+            if (done.compareAndSet(false, true)) {
+                BleOperateManager.getInstance().manualModeHeart(null, true) // stop
+                result.error("TIMEOUT", "Heart rate measurement timed out", null)
+            }
+        }, 60_000L)
     }
 
     private fun syncIntervalHeartRate(result: MethodChannel.Result) {

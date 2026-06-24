@@ -77,6 +77,11 @@ class BleService {
   Future<String> manualModeHeart({required bool start}) async =>
       await _methodChannel.invokeMethod<String>('manualModeHeart', {'start': start}) ?? '{}';
 
+  // Single-call measurement: starts, waits for a valid reading, auto-stops.
+  // Returns the heart rate in bpm, or null if no reading received.
+  Future<int?> readHeartRate() async =>
+      _methodChannel.invokeMethod<int>('readHeartRate');
+
   Future<String> syncIntervalHeartRate() async =>
       await _methodChannel.invokeMethod<String>('syncIntervalHeartRate') ?? '[]';
 

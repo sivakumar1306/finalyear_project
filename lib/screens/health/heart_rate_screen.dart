@@ -25,6 +25,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   bool _loadingHistory = false;  // Supabase fetch
   bool _measuring = false;
 
+  // Latest manually-measured HR (shown until next sync clears it)
+  int _manualHr = 0;
+
   // Raw result card
   String _result = '';
 
@@ -104,7 +107,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   // ── Ring fetch ─────────────────────────────────────────────────────────────
 
   Future<void> _fetchToday() async {
-    setState(() { _loading = true; _result = ''; });
+    setState(() { _loading = true; _result = ''; _manualHr = 0; });
     try {
       final data = await _ble.getTodayHeartRate();
       setState(() => _result = _pretty(data));
@@ -259,13 +262,24 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     }
   }
 
-  Future<void> _toggleManual() async {
-    final start = !_measuring;
-    setState(() => _measuring = start);
+  Future<void> _startMeasurement() async {
+    if (_measuring) return;
+    setState(() { _measuring = true; _result = ''; _manualHr = 0; });
     try {
-      final result = await _ble.manualModeHeart(start: start);
-      setState(() { _result = _pretty(result); _measuring = false; });
+      final hr = await _ble.readHeartRate();
+      if (!mounted) return;
+      if (hr != null && hr > 0) {
+        setState(() {
+          _manualHr = hr;
+          _measuring = false;
+          _result = 'Heart Rate: $hr bpm';
+        });
+        await _saveHrToSupabase(hr, hr, hr, 1);
+      } else {
+        setState(() { _measuring = false; _result = 'No reading received'; });
+      }
     } catch (e) {
+      if (!mounted) return;
       setState(() { _measuring = false; _result = 'Error: $e'; });
     }
   }
@@ -338,15 +352,23 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
               color: AppTheme.hrColor,
               icon: Icons.favorite_rounded,
               label: 'HEART RATE',
-              value: _measuring ? '···' : (displayAvg > 0 ? '$displayAvg' : '--'),
+              value: _measuring
+                  ? '···'
+                  : _manualHr > 0
+                      ? '$_manualHr'
+                      : displayAvg > 0
+                          ? '$displayAvg'
+                          : '--',
               unit: 'bpm',
               status: _measuring
                   ? 'Measuring…'
-                  : displayAvg > 0
-                      ? (_period == 0
-                          ? (_isToday ? "Today's average" : 'Daily average')
-                          : (_period == 1 ? '7-day average' : '30-day average'))
-                      : 'Tap to load',
+                  : _manualHr > 0
+                      ? 'Latest reading'
+                      : displayAvg > 0
+                          ? (_period == 0
+                              ? (_isToday ? "Today's average" : 'Daily average')
+                              : (_period == 1 ? '7-day average' : '30-day average'))
+                          : 'Tap to load',
             ),
             const SizedBox(height: 16),
 
@@ -374,11 +396,11 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
             // One-click measurement (Day view only)
             if (_period == 0) ...[
               VitalOneClickButton(
-                label: _measuring ? 'Stop Measurement' : 'One Click Measurement',
-                isStop: _measuring,
-                loading: _loading && _measuring,
-                enabled: connected,
-                onPressed: _toggleManual,
+                label: _measuring ? 'Measuring…' : 'One Click Measurement',
+                isStop: false,
+                loading: _measuring,
+                enabled: connected && !_measuring,
+                onPressed: _startMeasurement,
               ),
               const SizedBox(height: 12),
               _SecondaryButton(
