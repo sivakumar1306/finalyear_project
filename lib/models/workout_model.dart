@@ -15,6 +15,7 @@ class WorkoutSession {
   final int steps;
   final int calories;
   final double distanceM;
+  final int avgHr;
 
   const WorkoutSession({
     required this.id,
@@ -25,5 +26,6 @@ class WorkoutSession {
     required this.steps,
     required this.calories,
     required this.distanceM,
+    required this.avgHr,
   });
 }

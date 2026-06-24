@@ -10,10 +10,8 @@ import '../models/workout_model.dart';
 class WorkoutProvider extends ChangeNotifier {
   final BleService _ble = BleService();
 
-  // 1-second timer updates elapsed time only (synchronous, always reliable)
+  // 1-second timer: updates elapsed time only (synchronous, always reliable)
   Timer? _uiTimer;
-  // 20-second timer polls the ring for step data
-  Timer? _pollTimer;
 
   SharedPreferences? _prefs;
 
@@ -32,6 +30,10 @@ class WorkoutProvider extends ChangeNotifier {
   int _workoutCalories = 0;
   double _workoutDistanceM = 0.0;
 
+  // Heart rate collected during workout
+  final List<int> _hrReadings = [];
+  int _latestHr = 0;
+
   bool get isWorkoutActive => _isWorkoutActive;
   WorkoutType? get currentType => _currentType;
   DateTime? get startTime => _startTime;
@@ -39,6 +41,10 @@ class WorkoutProvider extends ChangeNotifier {
   int get workoutSteps => _workoutSteps;
   int get workoutCalories => _workoutCalories;
   double get workoutDistanceM => _workoutDistanceM;
+  int get latestHr => _latestHr;
+  int get avgHr => _hrReadings.isEmpty
+      ? 0
+      : (_hrReadings.reduce((a, b) => a + b) / _hrReadings.length).round();
 
   // Completes after the initial SharedPreferences check; used by MainShell
   // to redirect to the active workout screen on app resume.
@@ -69,10 +75,12 @@ class WorkoutProvider extends ChangeNotifier {
     _initialSteps = prefs.getInt('workout_start_steps') ?? 0;
     _initialCalories = prefs.getInt('workout_start_calories') ?? 0;
     _initialDistance = prefs.getDouble('workout_start_distance') ?? 0.0;
+    _hrReadings.clear();
+    _latestHr = 0;
     _isWorkoutActive = true;
 
     _startUiTimer();
-    _startPollTimer();
+    _runMeasurementLoop(); // fire-and-forget
     notifyListeners();
   }
 
@@ -86,6 +94,8 @@ class WorkoutProvider extends ChangeNotifier {
     _workoutSteps = 0;
     _workoutCalories = 0;
     _workoutDistanceM = 0.0;
+    _hrReadings.clear();
+    _latestHr = 0;
 
     // Fetch current ring values as the workout baseline before the user
     // moves. If the ring is unreachable, fall back to zero — polls will
@@ -115,23 +125,24 @@ class WorkoutProvider extends ChangeNotifier {
     } catch (_) {}
 
     _startUiTimer();
-    _startPollTimer();
+    _runMeasurementLoop(); // fire-and-forget
     notifyListeners();
   }
 
   Future<WorkoutSession?> stopWorkout() async {
     if (!_isWorkoutActive) return null;
 
+    // Signal the loop to exit after its current await completes
+    _isWorkoutActive = false;
     _uiTimer?.cancel();
     _uiTimer = null;
-    _pollTimer?.cancel();
-    _pollTimer = null;
 
-    // One final ring poll to capture the most recent readings before saving
+    // Final steps poll to capture the most recent readings before saving
     await _pollRing();
 
     final endTime = DateTime.now();
     final duration = _elapsedSeconds;
+    final computedAvgHr = avgHr; // snapshot before state is cleared
 
     try {
       await _ble.stopWorkout();
@@ -150,7 +161,7 @@ class WorkoutProvider extends ChangeNotifier {
           steps: _workoutSteps,
           calories: _workoutCalories,
           distanceM: _workoutDistanceM,
-          avgHr: 0,
+          avgHr: computedAvgHr,
           avgSpo2: 0,
           avgBpSbp: 0,
           avgBpDbp: 0,
@@ -164,6 +175,7 @@ class WorkoutProvider extends ChangeNotifier {
           steps: _workoutSteps,
           calories: _workoutCalories,
           distanceM: _workoutDistanceM,
+          avgHr: computedAvgHr,
         );
       } catch (e) {
         debugPrint('WorkoutProvider: insertWorkout failed: $e');
@@ -186,42 +198,71 @@ class WorkoutProvider extends ChangeNotifier {
     _currentType = null;
     _startTime = null;
     _elapsedSeconds = 0;
+    _hrReadings.clear();
+    _latestHr = 0;
     notifyListeners();
 
     return session;
   }
 
-  // ── Timers ────────────────────────────────────────────────────────────────
+  // ── Measurement loop ─────────────────────────────────────────────────────────
+  //
+  // Alternates between:
+  //   1. HR reading  — blocks until the ring returns a valid beat (~15-30 s)
+  //   2. Steps poll  — fetch accumulated steps/cal/dist and compute delta
+  //
+  // The loop runs until _isWorkoutActive is false, which stopWorkout() sets
+  // before awaiting its own final poll. Each await checks the flag so the
+  // loop exits cleanly at the next opportunity without being forcefully cancelled.
+
+  Future<void> _runMeasurementLoop() async {
+    while (_isWorkoutActive) {
+      // ── 1. Heart rate ─────────────────────────────────────────────────────
+      try {
+        final hr = await _ble.readHeartRate();
+        if (!_isWorkoutActive) break;
+        if (hr != null && hr > 0) {
+          _hrReadings.add(hr);
+          _latestHr = hr;
+          notifyListeners();
+        }
+      } catch (_) {
+        // Ring unreachable or timed out — skip HR this round, still poll steps
+        if (!_isWorkoutActive) break;
+      }
+
+      if (!_isWorkoutActive) break;
+
+      // ── 2. Steps / calories / distance ────────────────────────────────────
+      await _pollRing();
+    }
+  }
+
+  // ── Timer & ring helpers ──────────────────────────────────────────────────
 
   void _startUiTimer() {
     _uiTimer?.cancel();
     _uiTimer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
-  // Synchronous — just computes elapsed time, no async work that could fail
+  // Synchronous: just advances elapsed seconds and refreshes the UI.
   void _tick() {
     if (_startTime == null) return;
     _elapsedSeconds = DateTime.now().difference(_startTime!).inSeconds;
     notifyListeners();
   }
 
-  void _startPollTimer() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) => _pollRing());
-  }
-
   // Fetches current ring totals and subtracts the workout baseline.
   // On failure, keeps the last valid values (never resets to zero).
   Future<void> _pollRing() async {
-    if (!_isWorkoutActive) return;
     try {
       final raw = await _ble.getTodaySteps();
       final (steps, cal, dist) = _parseSteps(raw);
 
       // Only apply if the ring returned real data
       if (steps > 0 || cal > 0 || dist > 0) {
-        _workoutSteps = (steps - _initialSteps).clamp(0, 9999999);
-        _workoutCalories = (cal - _initialCalories).clamp(0, 9999999);
+        _workoutSteps    = (steps - _initialSteps).clamp(0, 9999999);
+        _workoutCalories = (cal   - _initialCalories).clamp(0, 9999999);
         _workoutDistanceM = (dist - _initialDistance).clamp(0.0, 9999999.0);
         notifyListeners();
       }
@@ -251,7 +292,6 @@ class WorkoutProvider extends ChangeNotifier {
   @override
   void dispose() {
     _uiTimer?.cancel();
-    _pollTimer?.cancel();
     super.dispose();
   }
 }

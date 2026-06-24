@@ -163,6 +163,16 @@ class _MetricsGrid extends StatelessWidget {
           children: [
             Expanded(
               child: _MetricCard(
+                label: 'Heart Rate',
+                value: workout.latestHr > 0 ? '${workout.latestHr}' : '—',
+                icon: Icons.favorite_rounded,
+                color: AppTheme.hrColor,
+                subtitle: workout.avgHr > 0 ? 'Avg ${workout.avgHr} bpm' : 'Measuring…',
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _MetricCard(
                 label: 'Steps',
                 value: workout.workoutSteps > 0 ? '${workout.workoutSteps}' : '—',
                 icon: Icons.directions_walk_rounded,
@@ -170,7 +180,11 @@ class _MetricsGrid extends StatelessWidget {
                 subtitle: 'This session',
               ),
             ),
-            const SizedBox(width: 10),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
             Expanded(
               child: _MetricCard(
                 label: 'Calories',
@@ -180,15 +194,17 @@ class _MetricsGrid extends StatelessWidget {
                 subtitle: 'Burned',
               ),
             ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _MetricCard(
+                label: 'Distance',
+                value: _formatDistance(workout.workoutDistanceM),
+                icon: Icons.straighten_rounded,
+                color: AppTheme.success,
+                subtitle: 'Covered',
+              ),
+            ),
           ],
-        ),
-        const SizedBox(height: 10),
-        _MetricCard(
-          label: 'Distance',
-          value: _formatDistance(workout.workoutDistanceM),
-          icon: Icons.straighten_rounded,
-          color: AppTheme.success,
-          subtitle: 'Covered',
         ),
       ],
     );
@@ -309,6 +325,8 @@ class _FinishButtonState extends State<_FinishButton> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _SummaryRow(label: 'Duration', value: timeStr),
+            if (session.avgHr > 0)
+              _SummaryRow(label: 'Avg Heart Rate', value: '${session.avgHr} bpm'),
             _SummaryRow(label: 'Steps', value: '${session.steps}'),
             _SummaryRow(label: 'Calories', value: '${session.calories} kcal'),
             _SummaryRow(
