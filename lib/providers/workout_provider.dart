@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ble_service.dart';
 import '../services/supabase_service.dart';
@@ -10,13 +9,12 @@ import '../models/workout_model.dart';
 class WorkoutProvider extends ChangeNotifier {
   final BleService _ble = BleService();
 
-  // 1-second timer: updates elapsed time only (synchronous, always reliable)
   Timer? _uiTimer;
-
   SharedPreferences? _prefs;
 
   bool _isWorkoutActive = false;
-  WorkoutType? _currentType;
+  WorkoutCategory? _currentCategory;
+  String? _currentSport;
   DateTime? _startTime;
   int _elapsedSeconds = 0;
 
@@ -35,7 +33,8 @@ class WorkoutProvider extends ChangeNotifier {
   int _latestHr = 0;
 
   bool get isWorkoutActive => _isWorkoutActive;
-  WorkoutType? get currentType => _currentType;
+  WorkoutCategory? get currentCategory => _currentCategory;
+  String? get currentSport => _currentSport;
   DateTime? get startTime => _startTime;
   int get elapsedSeconds => _elapsedSeconds;
   int get workoutSteps => _workoutSteps;
@@ -63,14 +62,13 @@ class WorkoutProvider extends ChangeNotifier {
     final prefs = await _getPrefs();
     if (!(prefs.getBool('workout_active') ?? false)) return;
 
-    final typeStr = prefs.getString('workout_type');
+    final catStr = prefs.getString('workout_category');
+    final sport = prefs.getString('workout_sport');
     final startMs = prefs.getInt('workout_start_time');
-    if (typeStr == null || startMs == null) return;
+    if (catStr == null || startMs == null) return;
 
-    _currentType = WorkoutType.values.firstWhere(
-      (e) => e.name == typeStr,
-      orElse: () => WorkoutType.running,
-    );
+    _currentCategory = workoutCategoryFromString(catStr) ?? WorkoutCategory.running;
+    _currentSport = sport ?? _currentCategory!.sports.first;
     _startTime = DateTime.fromMillisecondsSinceEpoch(startMs);
     _initialSteps = prefs.getInt('workout_start_steps') ?? 0;
     _initialCalories = prefs.getInt('workout_start_calories') ?? 0;
@@ -84,10 +82,11 @@ class WorkoutProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> startWorkout(WorkoutType type) async {
+  Future<void> startWorkout(WorkoutCategory category, String sport) async {
     final now = DateTime.now();
 
-    _currentType = type;
+    _currentCategory = category;
+    _currentSport = sport;
     _startTime = now;
     _isWorkoutActive = true;
     _elapsedSeconds = 0;
@@ -98,8 +97,7 @@ class WorkoutProvider extends ChangeNotifier {
     _latestHr = 0;
 
     // Fetch current ring values as the workout baseline before the user
-    // moves. If the ring is unreachable, fall back to zero — polls will
-    // still collect relative progress once the ring responds.
+    // moves. If the ring is unreachable, fall back to zero.
     try {
       final raw = await _ble.getTodaySteps();
       final (s, c, d) = _parseSteps(raw);
@@ -114,14 +112,15 @@ class WorkoutProvider extends ChangeNotifier {
 
     final prefs = await _getPrefs();
     await prefs.setBool('workout_active', true);
-    await prefs.setString('workout_type', type.name);
+    await prefs.setString('workout_category', category.name);
+    await prefs.setString('workout_sport', sport);
     await prefs.setInt('workout_start_time', now.millisecondsSinceEpoch);
     await prefs.setInt('workout_start_steps', _initialSteps);
     await prefs.setInt('workout_start_calories', _initialCalories);
     await prefs.setDouble('workout_start_distance', _initialDistance);
 
     try {
-      await _ble.startWorkout(type.name, now.millisecondsSinceEpoch);
+      await _ble.startWorkout(sport, now.millisecondsSinceEpoch);
     } catch (_) {}
 
     _startUiTimer();
@@ -143,6 +142,8 @@ class WorkoutProvider extends ChangeNotifier {
     final endTime = DateTime.now();
     final duration = _elapsedSeconds;
     final computedAvgHr = avgHr; // snapshot before state is cleared
+    final category = _currentCategory!;
+    final sport = _currentSport ?? category.sports.first;
 
     try {
       await _ble.stopWorkout();
@@ -150,11 +151,11 @@ class WorkoutProvider extends ChangeNotifier {
 
     WorkoutSession? session;
     final userId = SupabaseService.currentUser?.id;
-    if (userId != null && _currentType != null && _startTime != null) {
+    if (userId != null && _startTime != null) {
       try {
         final id = await SupabaseService.insertWorkout(
           userId: userId,
-          type: _currentType!.name,
+          type: sport,
           startedAt: _startTime!,
           endedAt: endTime,
           durationS: duration,
@@ -168,7 +169,8 @@ class WorkoutProvider extends ChangeNotifier {
         );
         session = WorkoutSession(
           id: id ?? '',
-          type: _currentType!,
+          category: category,
+          sport: sport,
           startTime: _startTime!,
           endTime: endTime,
           durationSeconds: duration,
@@ -185,7 +187,8 @@ class WorkoutProvider extends ChangeNotifier {
     final prefs = await _getPrefs();
     for (final key in [
       'workout_active',
-      'workout_type',
+      'workout_category',
+      'workout_sport',
       'workout_start_time',
       'workout_start_steps',
       'workout_start_calories',
@@ -195,7 +198,8 @@ class WorkoutProvider extends ChangeNotifier {
     }
 
     _isWorkoutActive = false;
-    _currentType = null;
+    _currentCategory = null;
+    _currentSport = null;
     _startTime = null;
     _elapsedSeconds = 0;
     _hrReadings.clear();
@@ -211,9 +215,8 @@ class WorkoutProvider extends ChangeNotifier {
   //   1. HR reading  — blocks until the ring returns a valid beat (~15-30 s)
   //   2. Steps poll  — fetch accumulated steps/cal/dist and compute delta
   //
-  // The loop runs until _isWorkoutActive is false, which stopWorkout() sets
-  // before awaiting its own final poll. Each await checks the flag so the
-  // loop exits cleanly at the next opportunity without being forcefully cancelled.
+  // Polling always runs regardless of category. The active workout screen
+  // decides which values to display based on the category metrics.
 
   Future<void> _runMeasurementLoop() async {
     while (_isWorkoutActive) {
@@ -227,7 +230,6 @@ class WorkoutProvider extends ChangeNotifier {
           notifyListeners();
         }
       } catch (_) {
-        // Ring unreachable or timed out — skip HR this round, still poll steps
         if (!_isWorkoutActive) break;
       }
 
@@ -245,21 +247,17 @@ class WorkoutProvider extends ChangeNotifier {
     _uiTimer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
-  // Synchronous: just advances elapsed seconds and refreshes the UI.
   void _tick() {
     if (_startTime == null) return;
     _elapsedSeconds = DateTime.now().difference(_startTime!).inSeconds;
     notifyListeners();
   }
 
-  // Fetches current ring totals and subtracts the workout baseline.
-  // On failure, keeps the last valid values (never resets to zero).
   Future<void> _pollRing() async {
     try {
       final raw = await _ble.getTodaySteps();
       final (steps, cal, dist) = _parseSteps(raw);
 
-      // Only apply if the ring returned real data
       if (steps > 0 || cal > 0 || dist > 0) {
         _workoutSteps    = (steps - _initialSteps).clamp(0, 9999999);
         _workoutCalories = (cal   - _initialCalories).clamp(0, 9999999);

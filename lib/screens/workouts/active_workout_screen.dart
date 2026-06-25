@@ -90,6 +90,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final label = workout.currentSport ?? workout.currentCategory?.label ?? 'Workout';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Column(
@@ -108,7 +109,7 @@ class _Header extends StatelessWidget {
                     const Icon(Icons.circle, color: AppTheme.danger, size: 8),
                     const SizedBox(width: 6),
                     Text(
-                      workout.currentType?.label ?? 'Workout',
+                      label,
                       style: const TextStyle(
                         color: AppTheme.gold,
                         fontSize: 13,
@@ -149,65 +150,78 @@ class _MetricsGrid extends StatelessWidget {
   final WorkoutProvider workout;
   const _MetricsGrid({required this.workout});
 
+  static const _metricOrder = [
+    WorkoutMetric.heartRate,
+    WorkoutMetric.steps,
+    WorkoutMetric.distance,
+    WorkoutMetric.calories,
+  ];
+
   String _formatDistance(double meters) {
     if (meters <= 0) return '—';
     if (meters >= 1000) return '${(meters / 1000).toStringAsFixed(2)} km';
     return '${meters.toStringAsFixed(0)} m';
   }
 
+  Widget _cardFor(WorkoutMetric metric) => switch (metric) {
+        WorkoutMetric.heartRate => _MetricCard(
+            label: 'Heart Rate',
+            value: workout.latestHr > 0 ? '${workout.latestHr}' : '—',
+            icon: Icons.favorite_rounded,
+            color: AppTheme.hrColor,
+            subtitle: workout.avgHr > 0 ? 'Avg ${workout.avgHr} bpm' : 'Measuring…',
+          ),
+        WorkoutMetric.steps => _MetricCard(
+            label: 'Steps',
+            value: workout.workoutSteps > 0 ? '${workout.workoutSteps}' : '—',
+            icon: Icons.directions_walk_rounded,
+            color: AppTheme.stepsColor,
+            subtitle: 'This session',
+          ),
+        WorkoutMetric.distance => _MetricCard(
+            label: 'Distance',
+            value: _formatDistance(workout.workoutDistanceM),
+            icon: Icons.straighten_rounded,
+            color: AppTheme.success,
+            subtitle: 'Covered',
+          ),
+        WorkoutMetric.calories => _MetricCard(
+            label: 'Calories',
+            value: workout.workoutCalories > 0
+                ? '${workout.workoutCalories} kcal'
+                : '—',
+            icon: Icons.local_fire_department_rounded,
+            color: const Color(0xFFFF6B35),
+            subtitle: 'Burned',
+          ),
+      };
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
+    final metrics = workout.currentCategory?.metrics ?? WorkoutCategory.running.metrics;
+    final cards = _metricOrder
+        .where((m) => metrics.contains(m))
+        .map(_cardFor)
+        .toList();
+
+    // Layout: pairs of 2; last card is full-width when count is odd
+    final rows = <Widget>[];
+    for (int i = 0; i < cards.length; i += 2) {
+      if (i > 0) rows.add(const SizedBox(height: 10));
+      if (i + 1 < cards.length) {
+        rows.add(Row(
           children: [
-            Expanded(
-              child: _MetricCard(
-                label: 'Heart Rate',
-                value: workout.latestHr > 0 ? '${workout.latestHr}' : '—',
-                icon: Icons.favorite_rounded,
-                color: AppTheme.hrColor,
-                subtitle: workout.avgHr > 0 ? 'Avg ${workout.avgHr} bpm' : 'Measuring…',
-              ),
-            ),
+            Expanded(child: cards[i]),
             const SizedBox(width: 10),
-            Expanded(
-              child: _MetricCard(
-                label: 'Steps',
-                value: workout.workoutSteps > 0 ? '${workout.workoutSteps}' : '—',
-                icon: Icons.directions_walk_rounded,
-                color: AppTheme.stepsColor,
-                subtitle: 'This session',
-              ),
-            ),
+            Expanded(child: cards[i + 1]),
           ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _MetricCard(
-                label: 'Calories',
-                value: workout.workoutCalories > 0 ? '${workout.workoutCalories} kcal' : '—',
-                icon: Icons.local_fire_department_rounded,
-                color: const Color(0xFFFF6B35),
-                subtitle: 'Burned',
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _MetricCard(
-                label: 'Distance',
-                value: _formatDistance(workout.workoutDistanceM),
-                icon: Icons.straighten_rounded,
-                color: AppTheme.success,
-                subtitle: 'Covered',
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
+        ));
+      } else {
+        rows.add(cards[i]);
+      }
+    }
+
+    return Column(children: rows);
   }
 }
 
@@ -307,6 +321,8 @@ class _FinishButtonState extends State<_FinishButton> {
             ? '${m}m ${s}s'
             : '${s}s';
 
+    final metrics = session.category.metrics;
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -315,9 +331,11 @@ class _FinishButtonState extends State<_FinishButton> {
           children: [
             const Icon(Icons.check_circle_rounded, color: AppTheme.success, size: 24),
             const SizedBox(width: 8),
-            Text(
-              '${session.type.label} Complete',
-              style: const TextStyle(color: Colors.white, fontSize: 18),
+            Expanded(
+              child: Text(
+                '${session.sport} Complete',
+                style: const TextStyle(color: Colors.white, fontSize: 18),
+              ),
             ),
           ],
         ),
@@ -325,16 +343,19 @@ class _FinishButtonState extends State<_FinishButton> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _SummaryRow(label: 'Duration', value: timeStr),
-            if (session.avgHr > 0)
+            if (metrics.contains(WorkoutMetric.heartRate) && session.avgHr > 0)
               _SummaryRow(label: 'Avg Heart Rate', value: '${session.avgHr} bpm'),
-            _SummaryRow(label: 'Steps', value: '${session.steps}'),
-            _SummaryRow(label: 'Calories', value: '${session.calories} kcal'),
-            _SummaryRow(
-              label: 'Distance',
-              value: session.distanceM >= 1000
-                  ? '${(session.distanceM / 1000).toStringAsFixed(2)} km'
-                  : '${session.distanceM.toStringAsFixed(0)} m',
-            ),
+            if (metrics.contains(WorkoutMetric.steps))
+              _SummaryRow(label: 'Steps', value: '${session.steps}'),
+            if (metrics.contains(WorkoutMetric.calories))
+              _SummaryRow(label: 'Calories', value: '${session.calories} kcal'),
+            if (metrics.contains(WorkoutMetric.distance))
+              _SummaryRow(
+                label: 'Distance',
+                value: session.distanceM >= 1000
+                    ? '${(session.distanceM / 1000).toStringAsFixed(2)} km'
+                    : '${session.distanceM.toStringAsFixed(0)} m',
+              ),
           ],
         ),
         actions: [
@@ -399,7 +420,14 @@ class _SummaryRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(color: AppTheme.textSec, fontSize: 14)),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
