@@ -17,6 +17,7 @@ import com.oudmon.ble.base.communication.ILargeDataLaunchSleepResponse
 import com.oudmon.ble.base.communication.ILargeDataSleepResponse
 import com.oudmon.ble.base.communication.LargeDataHandler
 import com.oudmon.ble.base.communication.bigData.BloodOxygenEntity
+import com.oudmon.ble.base.communication.bigData.IntervalBloodOxygenEntity
 import com.oudmon.ble.base.communication.bigData.bean.IntervalHeartRateEntity
 import com.oudmon.ble.base.communication.bigData.bean.IntervalTemperatureEntity
 import com.oudmon.ble.base.communication.bigData.resp.IIntervalHeartRateCallback
