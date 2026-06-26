@@ -35,7 +35,14 @@
       "Bash(unzip -o /tmp/aar_extract/qring_sdk_1.0.0.19.aar -d aar_full)",
       "Bash(cat aar_full/proguard.txt)",
       "Bash(flutter analyze *)",
-      "Bash(flutter pub *)"
+      "Bash(flutter pub *)",
+      "Bash(javap -p com/oudmon/ble/base/communication/rsp/SleepNewProtoResp.class)",
+      "Bash(javap -p 'com/oudmon/ble/base/communication/rsp/SleepNewProtoResp$DetailBean.class')",
+      "Bash(javap -p com/oudmon/ble/base/bean/SleepDisplay.class)",
+      "Bash(javap -p 'com/oudmon/ble/base/bean/SleepDisplay$SleepDataBean.class')",
+      "Bash(javap -p -c com/oudmon/ble/base/util/SleepAnalyzerUtils.class)",
+      "Bash(javap -verbose -p 'com/oudmon/ble/base/bean/SleepDisplay$SleepDataBean.class')",
+      "Bash(javap -verbose -p \"com/oudmon/ble/base/bean/SleepDisplay.class\")"
     ]
   }
 }

@@ -67,11 +67,12 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      // Ring sync paused — loads Supabase data on open instead.
-      // TODO: re-enable ring sync once getTodayBloodOxygen is stable:
-      //   _fetchToday().then((_) { if (mounted) _loadSettings(); });
-      _loadTodayFromSupabase();
-      if (context.read<BleProvider>().isConnected) _loadSettings();
+      final connected = context.read<BleProvider>().isConnected;
+      if (connected) {
+        _fetchToday().then((_) { if (mounted) _loadSettings(); });
+      } else {
+        _loadTodayFromSupabase();
+      }
     });
   }
 

@@ -789,11 +789,49 @@ class BlePlugin(private val context: Context) {
     // Sleep
     // ─────────────────────────────────────────────────────────────────
 
+    // Serialise via getters so Gson reflection issues with obfuscated
+    // inner-class fields (SleepDataBean showing as {}) are bypassed.
+    private fun sleepDisplayToMap(data: SleepDisplay): Map<String, Any?> {
+        val segments = data.list?.map { bean ->
+            mapOf(
+                "sleepStart" to bean.sleepStart,
+                "sleepEnd"   to bean.sleepEnd,
+                "type"       to bean.type
+            )
+        } ?: emptyList<Map<String, Any?>>()
+        return mapOf(
+            "totalSleepDuration" to data.totalSleepDuration,
+            "deepDuration"       to data.deepSleepDuration,
+            "lightDuration"      to data.shallowSleepDuration,
+            "remDuration"        to data.rapidDuration,
+            "awakeDuration"      to data.awakeDuration,
+            "sleepTime"          to data.sleepTime,
+            "wakeTime"           to data.wakeTime,
+            "wakingCount"        to data.wakingCount,
+            "fallSleepMin"       to data.fallSleepMin,
+            "list"               to segments
+        )
+    }
+
+    private fun sleepNewProtoToMap(data: SleepNewProtoResp): Map<String, Any?> {
+        val segments = data.list?.map { bean ->
+            mapOf("d" to bean.d, "t" to bean.t)
+        } ?: emptyList<Map<String, Any?>>()
+        return mapOf(
+            "st"          to data.st,
+            "et"          to data.et,
+            "lunchBreak"  to data.isLunchBreak,
+            "lunchSt"     to data.lunchSt,
+            "lunchEt"     to data.lunchEt,
+            "list"        to segments
+        )
+    }
+
     private fun getTodaySleep(result: MethodChannel.Result) {
         BleOperateManager.getInstance().getTodaySleep(
             object : BleOperateManager.HealthDataCallback<SleepDisplay> {
                 override fun onSuccess(data: SleepDisplay) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
+                    mainHandler.post { result.success(gson.toJson(sleepDisplayToMap(data))) }
                 }
                 override fun onError(code: Int, message: String?) {
                     mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
@@ -808,7 +846,7 @@ class BlePlugin(private val context: Context) {
             dayIndex,
             object : BleOperateManager.HealthDataCallback<SleepDisplay> {
                 override fun onSuccess(data: SleepDisplay) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
+                    mainHandler.post { result.success(gson.toJson(sleepDisplayToMap(data))) }
                 }
                 override fun onError(code: Int, message: String?) {
                     mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
@@ -838,12 +876,14 @@ class BlePlugin(private val context: Context) {
             0,
             object : ILargeDataSleepResponse {
                 override fun sleepData(p0: SleepDisplay?) {
-                    mainHandler.post { result.success(gson.toJson(p0)) }
+                    val json = if (p0 != null) gson.toJson(sleepDisplayToMap(p0)) else "{}"
+                    mainHandler.post { result.success(json) }
                 }
             },
             object : ILargeDataLaunchSleepResponse {
                 override fun sleepData(p0: SleepNewProtoResp?) {
-                    mainHandler.post { result.success(gson.toJson(p0)) }
+                    val json = if (p0 != null) gson.toJson(sleepNewProtoToMap(p0)) else "{}"
+                    mainHandler.post { result.success(json) }
                 }
             }
         )
