@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
+import '../providers/ble_provider.dart';
 import '../providers/workout_provider.dart';
 import 'home/home_screen.dart';
 import 'assist/assist_screen.dart';
@@ -124,14 +125,29 @@ class _MainShellState extends State<MainShell> {
       ),
       child: Scaffold(
         backgroundColor: AppTheme.bg,
-        body: IndexedStack(
-          index: _tab,
-          children: const [
-            HomeScreen(),
-            AssistScreen(),
-            RecordsScreen(),
-            SettingsScreen(),
-            WorkoutsScreen(),
+        body: Stack(
+          children: [
+            IndexedStack(
+              index: _tab,
+              children: const [
+                HomeScreen(),
+                AssistScreen(),
+                RecordsScreen(),
+                SettingsScreen(),
+                WorkoutsScreen(),
+              ],
+            ),
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: Consumer<BleProvider>(
+                builder: (context, ble, _) => AnimatedSlide(
+                  offset: ble.isSyncing ? Offset.zero : const Offset(0, -1),
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeInOut,
+                  child: _SyncBanner(step: ble.syncStep),
+                ),
+              ),
+            ),
           ],
         ),
         bottomNavigationBar: _BottomNav(
@@ -195,6 +211,46 @@ class _BottomNav extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Sync banner ───────────────────────────────────────────────────────────────
+
+class _SyncBanner extends StatelessWidget {
+  final String step;
+  const _SyncBanner({required this.step});
+
+  @override
+  Widget build(BuildContext context) {
+    final topPad = MediaQuery.of(context).padding.top;
+    return Container(
+      width: double.infinity,
+      color: AppTheme.gold,
+      padding: EdgeInsets.fromLTRB(16, topPad + 8, 16, 10),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              step.isEmpty ? 'Syncing ring data...' : 'Syncing $step...',
+              style: const TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

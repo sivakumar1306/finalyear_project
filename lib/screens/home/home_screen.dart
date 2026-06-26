@@ -122,6 +122,31 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Above normal';
   }
 
+  static String _sleepDurationLabel(int seconds) {
+    if (seconds <= 0) return '--';
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    if (h > 0 && m > 0) return '${h}h ${m}m';
+    if (h > 0) return '${h}h';
+    return '${m}m';
+  }
+
+  static String _sleepStatus(int score) {
+    if (score <= 0) return 'No data';
+    if (score >= 80) return 'Excellent';
+    if (score >= 60) return 'Good';
+    if (score >= 40) return 'Fair';
+    return 'Poor';
+  }
+
+  static Color _sleepStatusColor(int score) {
+    if (score <= 0) return _kSec2;
+    if (score >= 80) return AppTheme.success;
+    if (score >= 60) return AppTheme.sleepColor;
+    if (score >= 40) return const Color(0xFFFBBF24);
+    return AppTheme.danger;
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -247,10 +272,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: _HomeCard(
                       label: 'Sleep',
-                      value: '--',
+                      value: _sleepDurationLabel(ble.todaySleepDuration),
                       unit: '',
-                      status: 'No data',
-                      statusColor: _kSec2,
+                      status: ble.todaySleepDuration > 0
+                          ? 'Score: ${ble.todaySleepScore} · ${_sleepStatus(ble.todaySleepScore)}'
+                          : 'No data',
+                      statusColor: _sleepStatusColor(ble.todaySleepScore),
                       accentColor: AppTheme.sleepColor,
                       sparkData: const [0.5, 0.7, 0.9, 0.8, 0.6, 0.4, 0.3, 0.5, 0.7, 0.8, 0.6, 0.4],
                       onTap: () => Navigator.pushNamed(context, '/sleep'),
