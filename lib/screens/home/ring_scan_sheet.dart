@@ -120,6 +120,27 @@ class _RingScanSheetState extends State<_RingScanSheet>
     }
   }
 
+  bool _connectingLast = false;
+
+  Future<void> _connectLast() async {
+    setState(() => _connectingLast = true);
+    final ok = await _ble.connectLastDevice();
+    if (!mounted) return;
+    setState(() => _connectingLast = false);
+    if (ok) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Connected to ${_ble.deviceName}'),
+        backgroundColor: AppTheme.success,
+      ));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not reach ring — try placing it on the charger to wake it.'),
+        backgroundColor: AppTheme.danger,
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
@@ -203,6 +224,9 @@ class _RingScanSheetState extends State<_RingScanSheet>
                               pulseAnim: _pulseAnim,
                               isScanning: ble.isScanning,
                               onRetry: _startScan,
+                              lastDeviceName: ble.deviceName,
+                              connectingLast: _connectingLast,
+                              onConnectLast: _connectLast,
                             ),
                 ),
               ],
@@ -220,11 +244,17 @@ class _SearchingBody extends StatelessWidget {
   final Animation<double> pulseAnim;
   final bool isScanning;
   final VoidCallback onRetry;
+  final String lastDeviceName;
+  final bool connectingLast;
+  final VoidCallback onConnectLast;
 
   const _SearchingBody({
     required this.pulseAnim,
     required this.isScanning,
     required this.onRetry,
+    required this.lastDeviceName,
+    required this.connectingLast,
+    required this.onConnectLast,
   });
 
   @override
@@ -296,6 +326,33 @@ class _SearchingBody extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           _GoldButton(label: 'Search Again', onTap: onRetry),
+          // If a ring was previously paired, offer a direct-connect fallback.
+          // This bypasses BLE advertising — useful when another app left a GATT
+          // connection open or the ring stopped advertising.
+          if (lastDeviceName.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            connectingLast
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppTheme.gold,
+                    ),
+                  )
+                : GestureDetector(
+                    onTap: onConnectLast,
+                    child: Text(
+                      'Connect to "$lastDeviceName" directly',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: AppTheme.gold,
+                        decoration: TextDecoration.underline,
+                        decorationColor: AppTheme.gold,
+                      ),
+                    ),
+                  ),
+          ],
         ],
       ],
     );

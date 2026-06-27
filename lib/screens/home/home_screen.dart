@@ -8,9 +8,7 @@ import 'ring_scan_sheet.dart';
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
-const _kCard   = Color(0xFF161616);
 const _kBorder = Color(0xFF242424);
-const _kSec    = Color(0xFF666666);
 const _kSec2   = Color(0xFF888888);
 
 String _stressStatus(int v) {
@@ -185,6 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   steps: ble.todaySteps,
                   distanceM: ble.todayDistanceM,
                   calories: ble.todayCalories,
+                  connected: ble.isConnected,
                   onTap: () => Navigator.pushNamed(context, '/steps'),
                 ),
                 const SizedBox(height: 12),
@@ -208,10 +207,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
                               ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
                               : _hrStatus(ble.todayAvgHr))
-                          : 'Tap to sync',
+                          : 'No data',
                       statusColor: ble.todayAvgHr > 0 ? AppTheme.hrColor : _kSec2,
                       accentColor: AppTheme.hrColor,
                       sparkData: const [0.45, 0.5, 0.55, 0.5, 0.6, 0.55, 0.5, 0.48, 0.52, 0.58, 0.54, 0.5],
+                      connected: ble.isConnected,
                       onTap: () => Navigator.pushNamed(context, '/heart-rate'),
                     ),
                   ),
@@ -225,10 +225,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           ? (ble.todayMinSpo2 > 0 && ble.todayMaxSpo2 > 0
                               ? 'Range: ${ble.todayMinSpo2}-${ble.todayMaxSpo2}%'
                               : _spo2Status(ble.todayAvgSpo2))
-                          : 'Tap to sync',
+                          : 'No data',
                       statusColor: ble.todayAvgSpo2 > 0 ? AppTheme.spo2Color : _kSec2,
                       accentColor: AppTheme.spo2Color,
                       sparkData: const [0.96, 0.97, 0.96, 0.98, 0.97, 0.99, 0.98, 0.97, 0.96, 0.98, 0.97, 0.99],
+                      connected: ble.isConnected,
                       onTap: () => Navigator.pushNamed(context, '/blood-oxygen'),
                     ),
                   ),
@@ -244,10 +245,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           ? '${ble.latestBpSbp}/${ble.latestBpDbp}'
                           : '--/--',
                       unit: ble.latestBpSbp > 0 ? 'mmHg' : '',
-                      status: ble.latestBpSbp > 0 ? 'Latest reading' : 'Tap to measure',
+                      status: ble.latestBpSbp > 0 ? 'Latest reading' : 'No data',
                       statusColor: ble.latestBpSbp > 0 ? AppTheme.bpColor : _kSec2,
                       accentColor: AppTheme.bpColor,
                       sparkData: const [0.6, 0.65, 0.6, 0.68, 0.65, 0.6, 0.64, 0.67, 0.64, 0.6, 0.65, 0.62],
+                      connected: ble.isConnected,
                       onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
                     ),
                   ),
@@ -261,6 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       statusColor: ble.todayAvgHrv > 0 ? AppTheme.hrvColor : _kSec2,
                       accentColor: AppTheme.hrvColor,
                       sparkData: const [0.5, 0.6, 0.45, 0.7, 0.55, 0.8, 0.6, 0.5, 0.45, 0.65, 0.7, 0.55],
+                      connected: ble.isConnected,
                       onTap: () => Navigator.pushNamed(context, '/hrv'),
                     ),
                   ),
@@ -280,6 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       statusColor: _sleepStatusColor(ble.todaySleepScore),
                       accentColor: AppTheme.sleepColor,
                       sparkData: const [0.5, 0.7, 0.9, 0.8, 0.6, 0.4, 0.3, 0.5, 0.7, 0.8, 0.6, 0.4],
+                      connected: ble.isConnected,
                       onTap: () => Navigator.pushNamed(context, '/sleep'),
                     ),
                   ),
@@ -289,10 +293,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       label: 'Temperature',
                       value: '--',
                       unit: '°F',
-                      status: 'Normal',
-                      statusColor: AppTheme.tempColor,
+                      status: 'No data',
+                      statusColor: _kSec2,
                       accentColor: AppTheme.tempColor,
                       sparkData: const [0.5, 0.52, 0.51, 0.53, 0.52, 0.51, 0.5, 0.52, 0.53, 0.51, 0.5, 0.52],
+                      connected: ble.isConnected,
                       onTap: () => Navigator.pushNamed(context, '/temperature'),
                     ),
                   ),
@@ -312,6 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           : _kSec2,
                       accentColor: const Color(0xFFD97706),
                       sparkData: const [0.2, 0.3, 0.5, 0.4, 0.6, 0.7, 0.5, 0.3, 0.2, 0.4, 0.5, 0.3],
+                      connected: ble.isConnected,
                       onTap: () => Navigator.pushNamed(context, '/sport-record'),
                     ),
                   ),
@@ -325,6 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       statusColor: _stressColor(ble.latestStressValue),
                       accentColor: AppTheme.stressColor,
                       sparkData: const [0.30, 0.45, 0.38, 0.52, 0.48, 0.55, 0.42, 0.38, 0.47, 0.35, 0.40, 0.30],
+                      connected: ble.isConnected,
                       onTap: () => Navigator.pushNamed(context, '/pressure'),
                     ),
                   ),
@@ -477,6 +484,78 @@ class _DevicePill extends StatelessWidget {
 
 // ── Generic half-width metric card ────────────────────────────────────────────
 
+// ── Shrink Click Animation Widget ───────────────────────────────────────────
+
+class _ShrinkButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+
+  const _ShrinkButton({
+    required this.child,
+    this.onTap,
+  });
+
+  @override
+  State<_ShrinkButton> createState() => _ShrinkButtonState();
+}
+
+class _ShrinkButtonState extends State<_ShrinkButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.96).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails details) {
+    if (widget.onTap != null) {
+      _controller.forward();
+    }
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    if (widget.onTap != null) {
+      _controller.reverse();
+      widget.onTap!();
+    }
+  }
+
+  void _onTapCancel() {
+    if (widget.onTap != null) {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      behavior: HitTestBehavior.opaque,
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 class _HomeCard extends StatelessWidget {
   final String label;
   final String value;
@@ -485,6 +564,7 @@ class _HomeCard extends StatelessWidget {
   final Color statusColor;
   final Color accentColor;
   final List<double> sparkData;
+  final bool connected;
   final VoidCallback? onTap;
 
   const _HomeCard({
@@ -495,93 +575,149 @@ class _HomeCard extends StatelessWidget {
     required this.statusColor,
     required this.accentColor,
     required this.sparkData,
+    required this.connected,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return _ShrinkButton(
       onTap: onTap,
-      child: Container(
-        height: 162,
-        padding: const EdgeInsets.all(14),
+      child: DecoratedBox(
         decoration: BoxDecoration(
-          color: _kCard,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
+          color: const Color(0xFF1A1A1A),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Label row
-            Row(children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: _inter(12, weight: FontWeight.w500, color: Colors.white),
+        child: Container(
+          height: 162,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                accentColor.withValues(alpha: 0.12),
+                accentColor.withValues(alpha: 0.02),
+              ],
+            ),
+            border: Border.all(
+              color: accentColor.withValues(alpha: 0.15),
+              width: 1.0,
+            ),
+          ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top row: Title and arrow
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: _inter(13, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
+                      child: const Icon(
+                        Icons.chevron_right_rounded,
+                        color: Colors.white70,
+                        size: 16,
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                // Middle row: Value/Unit and Graph/Sparkline
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    // Value & Unit
+                    Expanded(
+                      flex: 3,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                value,
+                                style: GoogleFonts.inter(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w200,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (unit.isNotEmpty) ...[
+                            const SizedBox(width: 3),
+                            Text(
+                              unit,
+                              style: _inter(11, weight: FontWeight.w600, color: Colors.white60),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Sparkline
+                    Expanded(
+                      flex: 2,
+                      child: SizedBox(
+                        height: 28,
+                        child: connected
+                            ? CustomPaint(
+                                painter: _SparkPainter(accentColor, sparkData),
+                              )
+                            : const _ConnectHint(compact: true),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Bottom row: Status
+                Text(
+                  status,
+                  style: _inter(11, color: statusColor, weight: FontWeight.w500),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const Icon(Icons.chevron_right_rounded, color: _kSec, size: 15),
-            ]),
-            const Spacer(),
-            // Value
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      value,
-                      style: _inter(26, weight: FontWeight.w700),
-                    ),
-                  ),
-                ),
-                if (unit.isNotEmpty) ...[
-                  const SizedBox(width: 3),
-                  Text(unit, style: _inter(10, color: _kSec2)),
-                ],
               ],
             ),
-            const SizedBox(height: 2),
-            // Status
-            Text(
-              status,
-              style: _inter(10, color: statusColor),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8),
-            // Sparkline
-            SizedBox(
-              height: 26,
-              width: double.infinity,
-              child: CustomPaint(
-                painter: _SparkPainter(accentColor, sparkData),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
     );
   }
 }
 
 // ── Activity card (full-width: steps + distance + calories) ──────────────────
 
+
 class _ActivityCard extends StatelessWidget {
   final int steps;
   final double distanceM;
   final int calories;
+  final bool connected;
   final VoidCallback? onTap;
 
   const _ActivityCard({
     required this.steps,
     required this.distanceM,
     required this.calories,
+    required this.connected,
     this.onTap,
   });
 
@@ -589,65 +725,103 @@ class _ActivityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasData = steps > 0;
     final km = distanceM / 1000;
+    final accentColor = AppTheme.stepsColor;
 
-    return GestureDetector(
+    return _ShrinkButton(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: DecoratedBox(
         decoration: BoxDecoration(
-          color: _kCard,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
+          color: const Color(0xFF1A1A1A),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Text('Activity', style: _inter(14, weight: FontWeight.w500)),
-              const Spacer(),
-              const Icon(Icons.chevron_right_rounded, color: _kSec, size: 15),
-            ]),
-            const SizedBox(height: 16),
-            IntrinsicHeight(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _ActivityStat(
-                      value: hasData ? '$steps' : '--',
-                      unit: 'steps',
-                      color: AppTheme.stepsColor,
-                    ),
-                  ),
-                  VerticalDivider(color: _kBorder, width: 1, thickness: 0.5),
-                  Expanded(
-                    child: _ActivityStat(
-                      value: hasData ? km.toStringAsFixed(2) : '--',
-                      unit: 'km',
-                      color: AppTheme.success,
-                    ),
-                  ),
-                  VerticalDivider(color: _kBorder, width: 1, thickness: 0.5),
-                  Expanded(
-                    child: _ActivityStat(
-                      value: hasData ? '$calories' : '--',
-                      unit: 'kcal',
-                      color: const Color(0xFFD97706),
-                    ),
-                  ),
-                ],
-              ),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                accentColor.withValues(alpha: 0.12),
+                accentColor.withValues(alpha: 0.02),
+              ],
             ),
-            const SizedBox(height: 14),
-            SizedBox(
-              height: 28,
-              width: double.infinity,
-              child: CustomPaint(
-                painter: _SparkPainter(
-                  AppTheme.stepsColor,
-                  const [0.2, 0.4, 0.6, 0.5, 0.7, 0.8, 0.6, 0.5, 0.7, 0.9, 0.7, 0.5],
+            border: Border.all(
+              color: accentColor.withValues(alpha: 0.15),
+              width: 1.0,
+            ),
+          ),
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Activity',
+                      style: _inter(13, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9)),
+                    ),
+                    Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
+                      child: const Icon(
+                        Icons.chevron_right_rounded,
+                        color: Colors.white70,
+                        size: 16,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-          ],
+                const SizedBox(height: 16),
+                IntrinsicHeight(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _ActivityStat(
+                          value: hasData ? '$steps' : '--',
+                          unit: 'steps',
+                          color: AppTheme.stepsColor,
+                        ),
+                      ),
+                      VerticalDivider(color: accentColor.withValues(alpha: 0.15), width: 1, thickness: 0.5),
+                      Expanded(
+                        child: _ActivityStat(
+                          value: hasData ? km.toStringAsFixed(2) : '--',
+                          unit: 'km',
+                          color: AppTheme.success,
+                        ),
+                      ),
+                      VerticalDivider(color: accentColor.withValues(alpha: 0.15), width: 1, thickness: 0.5),
+                      Expanded(
+                        child: _ActivityStat(
+                          value: hasData ? '$calories' : '--',
+                          unit: 'kcal',
+                          color: const Color(0xFFD97706),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                if (connected)
+                  SizedBox(
+                    height: 28,
+                    width: double.infinity,
+                    child: CustomPaint(
+                      painter: _SparkPainter(
+                        AppTheme.stepsColor,
+                        const [0.2, 0.4, 0.6, 0.5, 0.7, 0.8, 0.6, 0.5, 0.7, 0.9, 0.7, 0.5],
+                      ),
+                    ),
+                  )
+                else
+                  const _ConnectHint(),
+              ],
+          ),
         ),
       ),
     );
@@ -674,10 +848,14 @@ class _ActivityStat extends StatelessWidget {
         children: [
           Text(
             value,
-            style: _inter(22, weight: FontWeight.w700, color: Colors.white),
+            style: GoogleFonts.inter(
+              fontSize: 24,
+              fontWeight: FontWeight.w200,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 2),
-          Text(unit, style: _inter(11, color: color)),
+          Text(unit, style: _inter(11, color: color, weight: FontWeight.w600)),
         ],
       ),
     );
@@ -712,15 +890,33 @@ class _WomensHealthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final accentColor = AppTheme.womenColor;
+    return _ShrinkButton(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: DecoratedBox(
         decoration: BoxDecoration(
-          color: _kCard,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
+          color: const Color(0xFF1A1A1A),
         ),
-        child: _body(),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                accentColor.withValues(alpha: 0.12),
+                accentColor.withValues(alpha: 0.02),
+              ],
+            ),
+            border: Border.all(
+              color: accentColor.withValues(alpha: 0.15),
+              width: 1.0,
+            ),
+          ),
+          child: _body(),
+        ),
       ),
     );
   }
@@ -730,19 +926,37 @@ class _WomensHealthCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Header
-        Row(children: [
-          const Icon(Icons.nightlight_round, color: AppTheme.womenColor, size: 14),
-          const SizedBox(width: 6),
-          Text(
-            'CYCLE',
-            style: _inter(11,
-                weight: FontWeight.w700,
-                color: AppTheme.womenColor,
-                letterSpacing: 1.4),
-          ),
-          const Spacer(),
-          const Icon(Icons.chevron_right_rounded, color: _kSec, size: 15),
-        ]),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.nightlight_round, color: AppTheme.womenColor, size: 14),
+                const SizedBox(width: 6),
+                Text(
+                  'CYCLE',
+                  style: _inter(11,
+                      weight: FontWeight.w700,
+                      color: AppTheme.womenColor,
+                      letterSpacing: 1.4),
+                ),
+              ],
+            ),
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
+              child: const Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white70,
+                size: 16,
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 14),
         // Phase + day number
         Row(
@@ -763,7 +977,11 @@ class _WomensHealthCard extends StatelessWidget {
                   ),
                   TextSpan(
                     text: '$_cycleDay',
-                    style: _inter(28, weight: FontWeight.w700, color: Colors.white),
+                    style: GoogleFonts.inter(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w200,
+                      color: Colors.white,
+                    ),
                   ),
                 ],
               ),
@@ -815,6 +1033,40 @@ class _WomensHealthCard extends StatelessWidget {
     return spans;
   }
 
+}
+
+// ── Connect hint ──────────────────────────────────────────────────────────────
+
+class _ConnectHint extends StatelessWidget {
+  final bool compact;
+  const _ConnectHint({this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    if (compact) {
+      return const Align(
+        alignment: Alignment.centerRight,
+        child: Icon(
+          Icons.bluetooth_disabled_rounded,
+          size: 16,
+          color: Color(0xFF555555),
+        ),
+      );
+    }
+    return SizedBox(
+      height: 26,
+      child: Row(
+        children: [
+          const Icon(Icons.bluetooth_disabled_rounded, size: 11, color: Color(0xFF555555)),
+          const SizedBox(width: 5),
+          Text(
+            'Connect Ring to Track',
+            style: _inter(10, color: const Color(0xFF555555)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── Cycle bar painter ─────────────────────────────────────────────────────────
@@ -891,16 +1143,40 @@ class _EditCardsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Center(
-        child: Text('Edit Cards',
-            style: _inter(14, weight: FontWeight.w500, color: Colors.white60)),
+    return _ShrinkButton(
+      onTap: () {},
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: const Color(0xFF1A1A1A),
+        ),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withValues(alpha: 0.06),
+                Colors.white.withValues(alpha: 0.02),
+              ],
+            ),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.1),
+              width: 1.0,
+            ),
+          ),
+          child: const Center(
+            child: Text(
+              'Edit Cards',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.white60,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

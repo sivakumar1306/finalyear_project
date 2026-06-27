@@ -42,7 +42,8 @@
       "Bash(javap -p 'com/oudmon/ble/base/bean/SleepDisplay$SleepDataBean.class')",
       "Bash(javap -p -c com/oudmon/ble/base/util/SleepAnalyzerUtils.class)",
       "Bash(javap -verbose -p 'com/oudmon/ble/base/bean/SleepDisplay$SleepDataBean.class')",
-      "Bash(javap -verbose -p \"com/oudmon/ble/base/bean/SleepDisplay.class\")"
+      "Bash(javap -verbose -p \"com/oudmon/ble/base/bean/SleepDisplay.class\")",
+      "PowerShell(Get-Item \"C:\\\\Jeffrey\\\\new-flutter\\\\build\\\\app\\\\outputs\\\\flutter-apk\\\\app-release.apk\" | Select-Object Name, @{N='Size MB';E={[math]::Round\\($_.Length/1MB,1\\)}}, LastWriteTime)"
     ]
   }
 }

@@ -230,11 +230,14 @@ class BleProvider extends ChangeNotifier {
   }
 
   void _onConnected() {
-    _ble.setTime();
     _initThenSync();
   }
 
   Future<void> _initThenSync() async {
+    // Await setTime so the ring finishes its daily midnight reset before we
+    // start fetching metrics. Skipping this await was the cause of the
+    // blood-oxygen SDK crash at 12:03 AM.
+    try { await _ble.setTime(); } catch (_) {}
     await refreshBattery();
     await refreshFirmwareVersion();
     if (_isConnected) syncAllFromRing();
@@ -247,48 +250,50 @@ class BleProvider extends ChangeNotifier {
     _isSyncing = true;
     notifyListeners();
 
-    // 1. Steps
     try {
-      _syncStep = 'steps';
-      notifyListeners();
-      await syncTodayStepsFromRing();
-    } catch (_) {}
+      // 1. Steps
+      try {
+        _syncStep = 'steps';
+        notifyListeners();
+        await syncTodayStepsFromRing();
+      } catch (_) {}
 
-    // 2. Heart Rate
-    try {
-      _syncStep = 'heart rate';
-      notifyListeners();
-      final json = await _ble.getTodayHeartRate();
-      _parseAndSaveHr(json);
-    } catch (_) {}
+      // 2. Heart Rate
+      try {
+        _syncStep = 'heart rate';
+        notifyListeners();
+        final json = await _ble.getTodayHeartRate();
+        _parseAndSaveHr(json);
+      } catch (_) {}
 
-    // 3. Blood Oxygen
-    try {
-      _syncStep = 'blood oxygen';
-      notifyListeners();
-      final json = await _ble.getTodayBloodOxygen();
-      _parseAndSaveSpo2(json);
-    } catch (_) {}
+      // 3. Blood Oxygen
+      try {
+        _syncStep = 'blood oxygen';
+        notifyListeners();
+        final json = await _ble.getTodayBloodOxygen();
+        _parseAndSaveSpo2(json);
+      } catch (_) {}
 
-    // 4. HRV
-    try {
-      _syncStep = 'HRV';
-      notifyListeners();
-      final json = await _ble.getTodayHrv();
-      _parseAndSaveHrv(json);
-    } catch (_) {}
+      // 4. HRV
+      try {
+        _syncStep = 'HRV';
+        notifyListeners();
+        final json = await _ble.getTodayHrv();
+        _parseAndSaveHrv(json);
+      } catch (_) {}
 
-    // 5. Sleep
-    try {
-      _syncStep = 'sleep';
+      // 5. Sleep
+      try {
+        _syncStep = 'sleep';
+        notifyListeners();
+        final json = await _ble.getTodaySleep();
+        _parseAndSaveSleep(json);
+      } catch (_) {}
+    } finally {
+      _isSyncing = false;
+      _syncStep  = '';
       notifyListeners();
-      final json = await _ble.getTodaySleep();
-      _parseAndSaveSleep(json);
-    } catch (_) {}
-
-    _isSyncing = false;
-    _syncStep  = '';
-    notifyListeners();
+    }
   }
 
   // ── Parse & save helpers (used by sync, no setState) ─────────────────────
@@ -600,6 +605,24 @@ class BleProvider extends ChangeNotifier {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('device_name',    device.name);
         await prefs.setString('device_address', device.address);
+        _onConnected();
+        notifyListeners();
+      }
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Connect directly to the last saved ring address without requiring a BLE
+  /// scan result. Useful when the ring is bonded but not advertising (e.g.
+  /// after being used by another app).
+  Future<bool> connectLastDevice() async {
+    if (_deviceAddress.isEmpty) return false;
+    try {
+      final ok = await _ble.connect(_deviceAddress);
+      if (ok) {
+        _isConnected = true;
         _onConnected();
         notifyListeners();
       }
