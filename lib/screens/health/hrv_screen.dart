@@ -1,11 +1,36 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/vital_widgets.dart';
+
+// ── Local design tokens ───────────────────────────────────────────────────────
+
+const _kCard   = Color(0xFF141414);
+const _kBorder = Color(0xFF242424);
+const _kGrid   = Color(0xFF222222);
+const _kSec    = Color(0xFF666666);
+const _kSec2   = Color(0xFF888888);
+
+TextStyle _inter(
+  double size, {
+  FontWeight weight = FontWeight.w400,
+  Color color = Colors.white,
+  double? letterSpacing,
+  double? height,
+}) =>
+    GoogleFonts.inter(
+      fontSize: size,
+      fontWeight: weight,
+      color: color,
+      letterSpacing: letterSpacing,
+      height: height,
+    );
+
+// ── Screen ────────────────────────────────────────────────────────────────────
 
 class HrvScreen extends StatefulWidget {
   const HrvScreen({super.key});
@@ -16,40 +41,58 @@ class HrvScreen extends StatefulWidget {
 class _HrvScreenState extends State<HrvScreen> {
   final _ble = BleService();
 
-  int _period = 0;
+  bool _loading      = false;
+  bool _loadingDay   = false;
+  bool _loadingTrend = false;
+
   DateTime _selectedDate = DateTime.now();
 
-  bool _loading = false;
-  bool _loadingHistory = false;
-
-  // Ring data: 48 slots × 30 min = 24 h
+  // Today's ring data
   List<int> _chartValues = [];
   int _avgHrv = 0, _minHrv = 0, _maxHrv = 0;
 
-  // Supabase history
-  List<int> _histChartValues = [];
-  int _histAvg = 0, _histMin = 0, _histMax = 0;
+  // Past-day / Supabase data
+  int _dayAvg = 0, _dayMin = 0, _dayMax = 0;
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // 7-day trend
+  List<int> _trendValues = [];
+  int _trendMin = 0, _trendMax = 0;
+
+  // ── Computed ──────────────────────────────────────────────────────────────
 
   bool get _isToday {
-    final now = DateTime.now();
-    return _selectedDate.year == now.year &&
-        _selectedDate.month == now.month &&
-        _selectedDate.day == now.day;
+    final n = DateTime.now();
+    return _selectedDate.year == n.year &&
+        _selectedDate.month == n.month &&
+        _selectedDate.day == n.day;
   }
 
-  bool get _showRingData =>
-      _period == 0 && _isToday && _chartValues.isNotEmpty;
+  bool get _hasRingData => _isToday && _chartValues.any((v) => v > 0);
 
-  List<int> get _displayChart =>
-      _showRingData ? _chartValues : _histChartValues;
-  int get _displayAvg => _showRingData ? _avgHrv : _histAvg;
-  int get _displayMin => _showRingData ? _minHrv : _histMin;
-  int get _displayMax => _showRingData ? _maxHrv : _histMax;
+  int get _displayAvg => _hasRingData ? _avgHrv : _dayAvg;
+  int get _displayMin => _hasRingData ? _minHrv : _dayMin;
+  int get _displayMax => _hasRingData ? _maxHrv : _dayMax;
 
-  static String _fmtDate(DateTime d) =>
+  String _fmt(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  static String _hrvLabel(int v) {
+    if (v <= 0) return '--';
+    if (v < 20) return 'Very Low';
+    if (v < 40) return 'Low';
+    if (v < 60) return 'Moderate';
+    if (v < 80) return 'Good';
+    return 'Excellent';
+  }
+
+  static Color _hrvColor(int v) {
+    if (v <= 0) return _kSec2;
+    if (v < 20) return AppTheme.danger;
+    if (v < 40) return AppTheme.stressColor;
+    if (v < 60) return const Color(0xFFFBBF24);
+    if (v < 80) return AppTheme.success;
+    return AppTheme.hrvColor;
+  }
 
   static String _fmtTime(DateTime dt) {
     final h = dt.hour;
@@ -59,69 +102,37 @@ class _HrvScreenState extends State<HrvScreen> {
     return '$h12:$m $ampm';
   }
 
-  static String _hrvLabel(int v) {
-    if (v <= 0) return 'No data';
-    if (v < 20) return 'Very Low';
-    if (v < 40) return 'Low';
-    if (v < 60) return 'Moderate';
-    if (v < 80) return 'Good';
-    return 'Excellent';
-  }
-
-  static Color _hrvColor(int v) {
-    if (v <= 0) return AppTheme.textSec;
-    if (v < 20) return AppTheme.danger;
-    if (v < 40) return AppTheme.stressColor;
-    if (v < 60) return const Color(0xFFFBBF24);
-    if (v < 80) return AppTheme.success;
-    return AppTheme.hrvColor;
-  }
-
-  // ── Init ───────────────────────────────────────────────────────────────────
+  // ── Init ──────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final connected = context.read<BleProvider>().isConnected;
-      if (connected) {
+      if (context.read<BleProvider>().isConnected) {
         _fetchTodayFromRing();
       } else {
-        _loadTodayFromSupabase();
+        _loadDayFromSupabase(DateTime.now());
       }
+      _load7DayTrend();
     });
   }
 
-  // ── Period / date handlers ─────────────────────────────────────────────────
-
-  void _onPeriodChanged(int p) {
-    setState(() {
-      _period = p;
-      _histChartValues = [];
-      _histAvg = _histMin = _histMax = 0;
-    });
-    if (p == 0) _loadTodayFromSupabase();
-    if (p == 1) _loadPeriodFromSupabase(7);
-    if (p == 2) _loadPeriodFromSupabase(30);
-  }
+  // ── Date selection ────────────────────────────────────────────────────────
 
   void _onDateSelected(DateTime date) {
-    final now = DateTime.now();
-    final isToday = date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
+    final n = DateTime.now();
+    final isToday = date.year == n.year && date.month == n.month && date.day == n.day;
     setState(() {
       _selectedDate = date;
-      if (!isToday) {
-        _histChartValues = [];
-        _histAvg = _histMin = _histMax = 0;
+      if (isToday) {
+        _dayAvg = _dayMin = _dayMax = 0;
       }
     });
     if (!isToday) _loadDayFromSupabase(date);
   }
 
-  // ── Ring fetch ─────────────────────────────────────────────────────────────
+  // ── Ring fetch ────────────────────────────────────────────────────────────
 
   Future<void> _fetchTodayFromRing() async {
     setState(() => _loading = true);
@@ -129,7 +140,7 @@ class _HrvScreenState extends State<HrvScreen> {
       final data = await _ble.getTodayHrv();
       _parseHrvData(data);
     } catch (_) {
-      _loadTodayFromSupabase();
+      _loadDayFromSupabase(DateTime.now());
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -139,19 +150,18 @@ class _HrvScreenState extends State<HrvScreen> {
     try {
       final decoded = jsonDecode(jsonStr);
       if (decoded == null || decoded is! Map<String, dynamic>) {
-        _loadTodayFromSupabase();
+        _loadDayFromSupabase(DateTime.now());
         return;
       }
 
       final offset = (decoded['offset'] as num? ?? 0).toInt();
-      // SDK: HRVRsp key 'd' — one value per 30-min slot; 0 = no reading.
       final raw = (decoded['d'] as List<dynamic>? ?? [])
           .map((v) => (v as num).toInt())
           .toList();
 
       final readings = raw.where((v) => v > 0).toList();
       if (readings.isEmpty) {
-        _loadTodayFromSupabase();
+        _loadDayFromSupabase(DateTime.now());
         return;
       }
 
@@ -159,9 +169,6 @@ class _HrvScreenState extends State<HrvScreen> {
       final maxVal = readings.reduce((a, b) => a > b ? a : b);
       final minVal = readings.reduce((a, b) => a < b ? a : b);
 
-      // Expand to the full 48-slot (24 h) array so bar positions and the
-      // readings list timestamps both reflect correct clock times.
-      // Slot i = midnight + i*30 min.
       const totalSlots = 48;
       final fullDay = List<int>.filled(totalSlots, 0);
       for (int i = 0; i < raw.length; i++) {
@@ -169,7 +176,6 @@ class _HrvScreenState extends State<HrvScreen> {
         if (slot < totalSlots) fullDay[slot] = raw[i];
       }
 
-      // Ring firmware pre-fills the entire day — zero out future slots.
       final nowMins = DateTime.now().hour * 60 + DateTime.now().minute;
       final currentSlot = nowMins ~/ 30;
       for (int i = currentSlot + 1; i < totalSlots; i++) {
@@ -188,12 +194,11 @@ class _HrvScreenState extends State<HrvScreen> {
       context.read<BleProvider>().updateHrvLatest(avg);
       _saveToSupabase(avg, minVal, maxVal, readings.length);
     } catch (_) {
-      _loadTodayFromSupabase();
+      _loadDayFromSupabase(DateTime.now());
     }
   }
 
-  Future<void> _saveToSupabase(
-      int avg, int min, int max, int count) async {
+  Future<void> _saveToSupabase(int avg, int min, int max, int count) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
     try {
@@ -208,199 +213,250 @@ class _HrvScreenState extends State<HrvScreen> {
     } catch (_) {}
   }
 
-  // ── Supabase fetches ───────────────────────────────────────────────────────
-
-  Future<void> _loadTodayFromSupabase() async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
-    setState(() => _loadingHistory = true);
-    try {
-      final row =
-          await SupabaseService.getHrvForDate(user.id, DateTime.now());
-      if (!mounted) return;
-      if (row != null) {
-        setState(() {
-          _histAvg = (row['avg_hrv'] as num? ?? 0).toInt();
-          _histMin = (row['min_hrv'] as num? ?? 0).toInt();
-          _histMax = (row['max_hrv'] as num? ?? 0).toInt();
-        });
-      }
-    } catch (_) {
-    } finally {
-      if (mounted) setState(() => _loadingHistory = false);
-    }
-  }
+  // ── Supabase fetches ──────────────────────────────────────────────────────
 
   Future<void> _loadDayFromSupabase(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingHistory = true);
+    setState(() => _loadingDay = true);
     try {
       final row = await SupabaseService.getHrvForDate(user.id, date);
       if (!mounted) return;
       if (row != null) {
         setState(() {
-          _histAvg = (row['avg_hrv'] as num? ?? 0).toInt();
-          _histMin = (row['min_hrv'] as num? ?? 0).toInt();
-          _histMax = (row['max_hrv'] as num? ?? 0).toInt();
+          _dayAvg = (row['avg_hrv'] as num? ?? 0).toInt();
+          _dayMin = (row['min_hrv'] as num? ?? 0).toInt();
+          _dayMax = (row['max_hrv'] as num? ?? 0).toInt();
         });
       }
-    } catch (_) {
-    } finally {
-      if (mounted) setState(() => _loadingHistory = false);
+    } catch (_) {} finally {
+      if (mounted) setState(() => _loadingDay = false);
     }
   }
 
-  Future<void> _loadPeriodFromSupabase(int days) async {
+  Future<void> _load7DayTrend() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingHistory = true);
+    setState(() => _loadingTrend = true);
     try {
       final now = DateTime.now();
       final rows = await SupabaseService.getHrvHistory(
         userId: user.id,
-        from: now.subtract(Duration(days: days - 1)),
+        from: now.subtract(const Duration(days: 6)),
         to: now,
       );
-
-      final chartVals = List.generate(days, (i) {
-        final day = now.subtract(Duration(days: days - 1 - i));
-        final row = rows.firstWhere(
-          (r) => r['date'] == _fmtDate(day),
-          orElse: () => {},
-        );
+      final vals = List.generate(7, (i) {
+        final day = now.subtract(Duration(days: 6 - i));
+        final row = rows.firstWhere((r) => r['date'] == _fmt(day), orElse: () => {});
         return (row['avg_hrv'] as num? ?? 0).toInt();
       });
-
-      final valid = rows.where((r) => (r['avg_hrv'] as num? ?? 0) > 0).toList();
+      final valid = rows.where((r) => r['min_hrv'] != null).toList();
       if (!mounted) return;
-      if (valid.isEmpty) {
-        setState(() {
-          _histChartValues = chartVals;
-          _histAvg = _histMin = _histMax = 0;
-          _loadingHistory = false;
-        });
-        return;
-      }
-
-      final avg = (valid
-                  .map((r) => (r['avg_hrv'] as num).toInt())
-                  .reduce((a, b) => a + b) /
-              valid.length)
-          .round();
-      final minVal = valid
-          .map((r) => (r['min_hrv'] as num).toInt())
-          .reduce((a, b) => a < b ? a : b);
-      final maxVal = valid
-          .map((r) => (r['max_hrv'] as num).toInt())
-          .reduce((a, b) => a > b ? a : b);
-
       setState(() {
-        _histChartValues = chartVals;
-        _histAvg = avg;
-        _histMin = minVal;
-        _histMax = maxVal;
-        _loadingHistory = false;
+        _trendValues = vals;
+        _trendMin = valid.isEmpty
+            ? 0
+            : valid.map((r) => (r['min_hrv'] as num).toInt()).reduce((a, b) => a < b ? a : b);
+        _trendMax = valid.isEmpty
+            ? 0
+            : valid.map((r) => (r['max_hrv'] as num).toInt()).reduce((a, b) => a > b ? a : b);
       });
-    } catch (_) {
-      if (mounted) setState(() => _loadingHistory = false);
+    } catch (_) {} finally {
+      if (mounted) setState(() => _loadingTrend = false);
     }
   }
 
-  // ── Chart label helpers ────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
-  String _chartTitle() {
-    if (_period == 1) return 'LAST 7 DAYS';
-    if (_period == 2) return 'LAST 30 DAYS';
-    if (!_isToday) {
-      const months = [
-        'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-        'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'
-      ];
-      return '${months[_selectedDate.month - 1]} ${_selectedDate.day}';
-    }
-    return 'TODAY';
-  }
-
-  List<String> _chartXLabels() {
+  List<String> _trendXLabels() {
     final now = DateTime.now();
-    if (_period == 0) return ['12am', '6am', '12pm', '6pm', ''];
-    if (_period == 1) {
-      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      return List.generate(7, (i) {
-        final d = now.subtract(Duration(days: 6 - i));
-        return days[d.weekday - 1];
-      });
-    }
-    return ['1', '5', '10', '15', '20', '25', '30'];
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return List.generate(7, (i) {
+      final d = now.subtract(Duration(days: 6 - i));
+      return days[d.weekday - 1];
+    });
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final connected = context.watch<BleProvider>().isConnected;
-    final anyLoading = _loading || _loadingHistory;
+
     final displayAvg = _displayAvg;
     final displayMin = _displayMin;
     final displayMax = _displayMax;
-    final displayChart = _displayChart;
+
+    final hrvText = _loading
+        ? '···'
+        : displayAvg > 0
+            ? '$displayAvg'
+            : '--';
+
+    final hasData = _hasRingData;
+    final dailyRangeLabel = hasData
+        ? '$displayMin - $displayMax ms'
+        : '-- -- ms';
+
+    final trendRangeLabel = _trendMin > 0 && _trendMax > 0
+        ? '$_trendMin - $_trendMax ms'
+        : '-- -- ms';
 
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: _darkBar('HRV'),
+      backgroundColor: AppTheme.bg,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bg,
+        foregroundColor: Colors.white,
+        centerTitle: true,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text('HRV', style: _inter(17, weight: FontWeight.w600)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            onPressed: () {},
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(0.5),
+          child: Container(color: _kBorder, height: 0.5),
+        ),
+      ),
       body: RefreshIndicator(
-        color: AppTheme.gold,
-        backgroundColor: AppTheme.card,
+        color: AppTheme.hrvColor,
+        backgroundColor: _kCard,
         onRefresh: () async {
           if (connected) await _fetchTodayFromRing();
+          await _load7DayTrend();
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
 
-              if (_period == 0) ...[
-                VitalDateSelector(
-                  selectedDate: _selectedDate,
-                  onDateSelected: _onDateSelected,
-                ),
-                const SizedBox(height: 12),
-              ] else
-                const SizedBox(height: 4),
+              // ── 1. Date row ────────────────────────────────────────────
+              _HRVDateRow(
+                selectedDate: _selectedDate,
+                onDateSelected: _onDateSelected,
+              ),
+              const SizedBox(height: 22),
 
-              VitalPeriodTabs(onChanged: _onPeriodChanged),
-              const SizedBox(height: 24),
-
-              _metricCard(displayAvg),
-              const SizedBox(height: 16),
-
-              _chartCard(displayChart, anyLoading),
-              const SizedBox(height: 16),
-
-              VitalStatsRow(
-                avg: displayAvg > 0 ? '$displayAvg' : '--',
-                min: displayMin > 0 ? '$displayMin' : '--',
-                max: displayMax > 0 ? '$displayMax' : '--',
-                unit: 'ms',
+              // ── 2. Current HRV value ───────────────────────────────────
+              Text(
+                'CURRENT HRV',
+                style: _inter(11,
+                    weight: FontWeight.w600,
+                    color: AppTheme.gold,
+                    letterSpacing: 1.2),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                hrvText,
+                style: _inter(52, weight: FontWeight.w300, height: 1.1),
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text('ms', style: _inter(13, color: _kSec)),
+                  const SizedBox(width: 10),
+                  if (!_loading && displayAvg > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _hrvColor(displayAvg).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _hrvLabel(displayAvg),
+                        style: _inter(11,
+                            weight: FontWeight.w600,
+                            color: _hrvColor(displayAvg)),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 16),
 
-              if (_period == 0 && _showRingData) ...[
-                _slotReadingsList(displayChart),
-                const SizedBox(height: 16),
-              ],
+              // ── 3. Daily chart ─────────────────────────────────────────
+              _HRVChartCard(
+                headerLabel: hasData ? 'TODAY' : (_isToday ? 'NO DATA YET' : _dateLabel()),
+                rangeLabel: dailyRangeLabel,
+                values: _isToday ? _chartValues : [],
+                xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                loading: _loading || _loadingDay,
+              ),
+              const SizedBox(height: 10),
 
-              if (anyLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(
-                      child: CircularProgressIndicator(
-                          color: AppTheme.gold, strokeWidth: 2)),
+              // ── 4. Stats row ───────────────────────────────────────────
+              Row(children: [
+                Expanded(
+                  child: _HRVStatCard(
+                    label: 'AVERAGE',
+                    value: displayAvg > 0 ? '$displayAvg' : '--',
+                    unit: displayAvg > 0 ? 'ms' : '--',
+                  ),
                 ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _HRVStatCard(
+                    label: 'MINIMUM',
+                    value: displayMin > 0 ? '$displayMin' : '--',
+                    unit: displayMin > 0 ? 'ms' : '--',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _HRVStatCard(
+                    label: 'MAXIMUM',
+                    value: displayMax > 0 ? '$displayMax' : '--',
+                    unit: displayMax > 0 ? 'ms' : '--',
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 10),
+
+              // ── 5. 7-day trend ─────────────────────────────────────────
+              _HRVChartCard(
+                headerLabel: 'LAST 7 DAYS TREND',
+                rangeLabel: trendRangeLabel,
+                values: _trendValues,
+                xLabels: _trendXLabels(),
+                loading: _loadingTrend,
+              ),
+              const SizedBox(height: 10),
+
+              // ── 6. Color legend ────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                decoration: BoxDecoration(
+                  color: _kCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _kBorder),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _LegendDot(color: AppTheme.danger, label: 'Very Low'),
+                    _LegendDot(color: AppTheme.stressColor, label: 'Low'),
+                    _LegendDot(color: const Color(0xFFFBBF24), label: 'Moderate'),
+                    _LegendDot(color: AppTheme.success, label: 'Good'),
+                    _LegendDot(color: AppTheme.hrvColor, label: 'Excellent'),
+                  ],
+                ),
+              ),
+
+              // ── 7. Slot readings (today only) ──────────────────────────
+              if (hasData) ...[
+                const SizedBox(height: 10),
+                _slotReadingsList(_chartValues),
+              ],
 
               const SizedBox(height: 80),
             ],
@@ -410,137 +466,12 @@ class _HrvScreenState extends State<HrvScreen> {
     );
   }
 
-  // ── Widgets ────────────────────────────────────────────────────────────────
-
-  Widget _metricCard(int displayAvg) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
-          borderRadius: BorderRadius.circular(20),
-          border:
-              Border.all(color: AppTheme.hrvColor.withValues(alpha: 0.25)),
-        ),
-        child: Row(children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-                color: AppTheme.hrvColor.withValues(alpha: 0.15),
-                shape: BoxShape.circle),
-            child: const Icon(Icons.monitor_heart_rounded,
-                color: AppTheme.hrvColor, size: 30),
-          ),
-          const SizedBox(width: 16),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('HEART RATE VARIABILITY',
-                style: TextStyle(
-                    color: AppTheme.hrvColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.5)),
-            const SizedBox(height: 4),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  _loading
-                      ? '···'
-                      : (displayAvg > 0 ? '$displayAvg' : '--'),
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 52,
-                      fontWeight: FontWeight.w700,
-                      height: 1.0),
-                ),
-                const SizedBox(width: 8),
-                const Text('ms',
-                    style:
-                        TextStyle(color: AppTheme.textSec, fontSize: 16)),
-              ],
-            ),
-            Text(
-              _loading ? 'Syncing…' : _hrvLabel(displayAvg),
-              style: TextStyle(
-                  color: _loading
-                      ? AppTheme.textSec
-                      : _hrvColor(displayAvg),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600),
-            ),
-          ]),
-        ]),
-      );
-
-  Widget _chartCard(List<int> values, bool loading) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-            color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_chartTitle(),
-                style: const TextStyle(
-                    color: AppTheme.textSec,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1)),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 100,
-              width: double.infinity,
-              child: _buildChartContent(values, loading),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: _chartXLabels()
-                  .map((l) => Text(l,
-                      style: const TextStyle(
-                          color: Color(0xFF555555), fontSize: 10)))
-                  .toList(),
-            ),
-            const SizedBox(height: 10),
-            const Row(children: [
-              _LegendDot(color: AppTheme.danger, label: 'Very Low'),
-              SizedBox(width: 10),
-              _LegendDot(color: AppTheme.stressColor, label: 'Low'),
-              SizedBox(width: 10),
-              _LegendDot(
-                  color: Color(0xFFFBBF24), label: 'Moderate'),
-              SizedBox(width: 10),
-              _LegendDot(color: AppTheme.success, label: 'Good'),
-              SizedBox(width: 10),
-              _LegendDot(color: AppTheme.hrvColor, label: 'Excellent'),
-            ]),
-          ],
-        ),
-      );
-
-  Widget _buildChartContent(List<int> values, bool loading) {
-    if (loading) {
-      return const Center(
-          child: CircularProgressIndicator(
-              color: AppTheme.hrvColor, strokeWidth: 2));
-    }
-    final nonZero = values.where((v) => v > 0).toList();
-    if (nonZero.isEmpty) {
-      return Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.monitor_heart_outlined,
-              color: AppTheme.textSec.withValues(alpha: 0.3), size: 28),
-          const SizedBox(height: 6),
-          Text(
-            _period == 0 && !_isToday
-                ? 'No data saved for this day'
-                : 'No data yet',
-            style: const TextStyle(color: AppTheme.textSec, fontSize: 12),
-          ),
-        ]),
-      );
-    }
-    return CustomPaint(painter: _HrvBarPainter(values: values));
+  String _dateLabel() {
+    const months = [
+      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+    ];
+    return '${months[_selectedDate.month - 1]} ${_selectedDate.day}';
   }
 
   Widget _slotReadingsList(List<int> values) {
@@ -548,85 +479,254 @@ class _HrvScreenState extends State<HrvScreen> {
     for (int i = 0; i < values.length; i++) {
       if (values[i] <= 0) continue;
       final minutes = i * 30;
-      final dt = DateTime(_selectedDate.year, _selectedDate.month,
-          _selectedDate.day, minutes ~/ 60, minutes % 60);
+      final dt = DateTime(
+        _selectedDate.year, _selectedDate.month, _selectedDate.day,
+        minutes ~/ 60, minutes % 60,
+      );
       entries.add((_fmtTime(dt), values[i]));
     }
     if (entries.isEmpty) return const SizedBox.shrink();
 
     return Container(
       decoration: BoxDecoration(
-          color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
-          child: Text('READINGS',
-              style: TextStyle(
-                  color: AppTheme.textSec,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1)),
-        ),
-        ...entries.asMap().entries.map((e) {
-          final time = e.value.$1;
-          final v = e.value.$2;
-          final color = _hrvColor(v);
-          final label = _hrvLabel(v);
-          final isLast = e.key == entries.length - 1;
-          return Column(children: [
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+            child: Text(
+              'READINGS',
+              style: _inter(10, weight: FontWeight.w600, color: _kSec, letterSpacing: 0.7),
+            ),
+          ),
+          ...entries.asMap().entries.map((e) {
+            final time = e.value.$1;
+            final v = e.value.$2;
+            final color = _hrvColor(v);
+            final label = _hrvLabel(v);
+            final isLast = e.key == entries.length - 1;
+            return Column(children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10)),
-                  child: Icon(Icons.monitor_heart_rounded,
-                      color: color, size: 18),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.monitor_heart_rounded, color: color, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(time,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14)),
+                            style: _inter(14, weight: FontWeight.w600)),
                         Text(label,
-                            style: TextStyle(color: color, fontSize: 11)),
-                      ]),
-                ),
-                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Text('$v',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 22)),
-                  const Text('ms',
-                      style: TextStyle(
-                          color: AppTheme.textSec, fontSize: 10)),
+                            style: _inter(11, color: color)),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('$v', style: _inter(22, weight: FontWeight.w700)),
+                      Text('ms', style: _inter(10, color: _kSec)),
+                    ],
+                  ),
                 ]),
-              ]),
-            ),
-            if (!isLast)
-              const Divider(color: AppTheme.div, height: 0.5, indent: 66),
-          ]);
-        }),
-      ]),
+              ),
+              if (!isLast)
+                const Divider(color: _kBorder, height: 0.5, indent: 66),
+            ]);
+          }),
+        ],
+      ),
     );
   }
 }
 
-// ── Chart painter ─────────────────────────────────────────────────────────────
+// ── Date row ──────────────────────────────────────────────────────────────────
 
-class _HrvBarPainter extends CustomPainter {
+class _HRVDateRow extends StatelessWidget {
+  final DateTime selectedDate;
+  final ValueChanged<DateTime> onDateSelected;
+  const _HRVDateRow({required this.selectedDate, required this.onDateSelected});
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (int i = 0; i < dates.length; i++) ...[
+            if (i > 0) const SizedBox(width: 16),
+            _buildItem(dates[i], today),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItem(DateTime d, DateTime today) {
+    final isToday = d == today;
+    final isFuture = d.isAfter(today);
+    final sel = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final isSelected = d == sel && !isToday;
+
+    if (isToday || isSelected) {
+      return GestureDetector(
+        onTap: isToday ? null : () => onDateSelected(d),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFF202020),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF363636)),
+          ),
+          child: Text(
+            isToday
+                ? 'Today, ${d.day} ${_months[d.month - 1]}'
+                : '${d.day} ${_months[d.month - 1]}',
+            style: _inter(13, weight: FontWeight.w500),
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: isFuture ? null : () => onDateSelected(d),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Text(
+          '${d.day}',
+          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
+        ),
+      ),
+    );
+  }
+}
+
+// ── HRV Chart Card ────────────────────────────────────────────────────────────
+
+class _HRVChartCard extends StatelessWidget {
+  final String headerLabel;
+  final String rangeLabel;
   final List<int> values;
-  const _HrvBarPainter({required this.values});
+  final List<String> xLabels;
+  final bool loading;
+
+  const _HRVChartCard({
+    required this.headerLabel,
+    required this.rangeLabel,
+    required this.values,
+    required this.xLabels,
+    required this.loading,
+  });
+
+  static const _yAxisW = 30.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(headerLabel,
+                  style: _inter(11,
+                      weight: FontWeight.w600,
+                      color: _kSec,
+                      letterSpacing: 0.6)),
+              Text(rangeLabel,
+                  style: _inter(11,
+                      weight: FontWeight.w500,
+                      color: const Color(0xFF999999))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 128,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: _yAxisW,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: ['100', '80', '60', '40']
+                        .map((l) => Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: Text(l, style: _inter(10, color: _kSec)),
+                            ))
+                        .toList(),
+                  ),
+                ),
+                Expanded(
+                  child: loading
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: AppTheme.hrvColor,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : CustomPaint(
+                          painter: _HRVBarPainter(values: values),
+                          child: const SizedBox.expand(),
+                        ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.only(left: _yAxisW),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: xLabels
+                  .map((l) => Text(l, style: _inter(10, color: _kSec)))
+                  .toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── HRV Bar Painter ───────────────────────────────────────────────────────────
+
+class _HRVBarPainter extends CustomPainter {
+  final List<int> values;
+  const _HRVBarPainter({required this.values});
+
+  static const _maxY   = 100.0;
+  static const _yLines = [100, 80, 60, 40, 20];
 
   static Color _barColor(int v) {
     if (v < 20) return AppTheme.danger;
@@ -638,37 +738,91 @@ class _HrvBarPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = _kGrid
+      ..strokeWidth = 0.5;
+    for (final y in _yLines) {
+      final yPos = size.height - (y / _maxY) * size.height;
+      canvas.drawLine(Offset(0, yPos), Offset(size.width, yPos), gridPaint);
+    }
+
     if (values.isEmpty) return;
     final nonZero = values.where((v) => v > 0).toList();
-    if (nonZero.isEmpty) return;
+    if (nonZero.isEmpty) {
+      return;
+    }
 
-    final maxVal = nonZero.reduce((a, b) => a > b ? a : b).toDouble();
     final n = values.length;
     final slotW = size.width / n;
-    final barW = (slotW * 0.7).clamp(1.0, 8.0);
-    final gap = slotW - barW;
+    final barW = (slotW * 0.55).clamp(2.0, 9.0);
 
     for (int i = 0; i < n; i++) {
       if (values[i] <= 0) continue;
-      final normalized = (values[i] / maxVal).clamp(0.0, 1.0);
-      final barH =
-          (normalized * size.height * 0.9).clamp(2.0, size.height);
-      final x = i * slotW + gap / 2;
+      final ratio = (values[i] / _maxY).clamp(0.0, 1.2);
+      final barH = (ratio * size.height).clamp(2.0, size.height);
+      final x = i * slotW + (slotW - barW) / 2;
       canvas.drawRRect(
-        RRect.fromLTRBR(x, size.height - barH, x + barW, size.height,
-            const Radius.circular(2)),
-        Paint()
-          ..color = _barColor(values[i])
-              .withValues(alpha: (0.5 + normalized * 0.5).clamp(0.5, 1.0)),
+        RRect.fromLTRBR(
+            x, size.height - barH, x + barW, size.height,
+            const Radius.circular(3)),
+        Paint()..color = _barColor(values[i]).withValues(alpha: 0.88),
       );
     }
   }
 
   @override
-  bool shouldRepaint(_HrvBarPainter old) => old.values != values;
+  bool shouldRepaint(_HRVBarPainter old) => old.values != values;
 }
 
-// ── Supporting widgets ────────────────────────────────────────────────────────
+// ── Stat card ─────────────────────────────────────────────────────────────────
+
+class _HRVStatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final String unit;
+  const _HRVStatCard({
+    required this.label,
+    required this.value,
+    required this.unit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: _inter(10,
+                  weight: FontWeight.w600,
+                  color: _kSec,
+                  letterSpacing: 0.7)),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(value, style: _inter(17, weight: FontWeight.w600)),
+              const SizedBox(width: 4),
+              Text(unit, style: _inter(11, color: _kSec)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text('know more >', style: _inter(11, color: _kSec)),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Legend dot ────────────────────────────────────────────────────────────────
 
 class _LegendDot extends StatelessWidget {
   final Color color;
@@ -680,22 +834,8 @@ class _LegendDot extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           CircleAvatar(radius: 3.5, backgroundColor: color),
-          const SizedBox(width: 3),
-          Text(label,
-              style:
-                  const TextStyle(color: AppTheme.textSec, fontSize: 9)),
+          const SizedBox(width: 4),
+          Text(label, style: _inter(9, color: _kSec2)),
         ],
       );
 }
-
-AppBar _darkBar(String title) => AppBar(
-      backgroundColor: Colors.black,
-      foregroundColor: Colors.white,
-      title: Text(title,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w600)),
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(0.5),
-        child: Container(color: AppTheme.div, height: 0.5),
-      ),
-    );

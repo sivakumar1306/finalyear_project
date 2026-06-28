@@ -22,6 +22,8 @@ import 'screens/reminders/drink_reminder_screen.dart';
 import 'screens/reminders/sedentary_reminder_screen.dart';
 import 'screens/ota/ota_screen.dart';
 import 'screens/sugar_lipids/sugar_lipids_screen.dart';
+import 'screens/settings/account_system_settings_screen.dart';
+import 'screens/settings/profile_edit_screen.dart';
 import 'theme/app_theme.dart';
 
 class QRingApp extends StatelessWidget {
@@ -58,6 +60,8 @@ class QRingApp extends StatelessWidget {
         '/ota': (_) => const OtaScreen(),
         '/sugar-lipids': (_) => const SugarLipidsScreen(),
         '/womens-health': (_) => const WomensHealthScreen(),
+        '/account-system-settings': (_) => const AccountSystemSettingsScreen(),
+        '/profile-edit': (_) => const ProfileEditScreen(),
       },
     );
   }

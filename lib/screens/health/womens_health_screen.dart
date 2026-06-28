@@ -1,7 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+
 
 // ── Data model ─────────────────────────────────────────────────────────────────
 
@@ -302,9 +304,9 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
               const SizedBox(height: 8),
 
               // ── Header ─────────────────────────────────────────────────
-              const Text(
+              Text(
                 'WOMEN\'S HEALTH',
-                style: TextStyle(
+                style: GoogleFonts.inter(
                   color: AppTheme.womenColor,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -312,9 +314,9 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Understand your changing rhythms with more clarity',
-                style: TextStyle(color: AppTheme.textSec, fontSize: 12),
+                style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
               ),
 
               const SizedBox(height: 24),
@@ -366,8 +368,8 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   AppBar _appBar() => AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: const Text('Women\'s Health',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        title: Text('Women\'s Health',
+            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
         actions: [
           if (_cycles.isNotEmpty)
             IconButton(
@@ -401,15 +403,15 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                     color: AppTheme.womenColor, size: 40),
               ),
               const SizedBox(height: 20),
-              const Text('Women\'s Health',
-                  style: TextStyle(
+              Text('Women\'s Health',
+                  style: GoogleFonts.inter(
                       color: Colors.white,
                       fontSize: 22,
                       fontWeight: FontWeight.w700)),
               const SizedBox(height: 10),
-              const Text(
+              Text(
                 'This feature is available for users who selected Female during onboarding.',
-                style: TextStyle(color: AppTheme.textSec, fontSize: 14),
+                style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 14),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -440,15 +442,15 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                   color: AppTheme.womenColor, size: 26),
             ),
             const SizedBox(height: 16),
-            const Text('Track your menstrual cycle',
-                style: TextStyle(
+            Text('Track your menstrual cycle',
+                style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Enter your last period date and cycle details to get predictions for your next period, ovulation, and fertile window.',
-              style: TextStyle(color: AppTheme.textSec, fontSize: 13),
+              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
             ),
           ]),
         ),
@@ -486,7 +488,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 const SizedBox(width: 10),
                 Text(
                   _fmt(_setupPeriodStart),
-                  style: const TextStyle(
+                  style: GoogleFonts.inter(
                       color: Colors.white, fontWeight: FontWeight.w500),
                 ),
                 const Spacer(),
@@ -542,8 +544,8 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                       height: 22,
                       child: CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 2.5))
-                  : const Text('Start Tracking',
-                      style: TextStyle(
+                  : Text('Start Tracking',
+                      style: GoogleFonts.inter(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: 16)),
@@ -575,9 +577,9 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'CYCLE DAY',
-                  style: TextStyle(
+                  style: GoogleFonts.inter(
                     color: AppTheme.textSec,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -587,7 +589,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 const SizedBox(height: 6),
                 Text(
                   'Day $day',
-                  style: const TextStyle(
+                  style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 34,
                     fontWeight: FontWeight.w600,
@@ -747,7 +749,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
             const SizedBox(width: 10),
             Text(
               'TODAY\'S INSIGHT',
-              style: TextStyle(
+              style: GoogleFonts.inter(
                 color: color,
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
@@ -758,7 +760,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
           const SizedBox(height: 12),
           Text(
             desc,
-            style: const TextStyle(
+            style: GoogleFonts.inter(
                 color: Colors.white, fontSize: 13, height: 1.55),
           ),
         ],
@@ -801,7 +803,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
           Expanded(
             child: Text(
               '${months[_calMonth.month - 1]} ${_calMonth.year}',
-              style: const TextStyle(
+              style: GoogleFonts.inter(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,
                   fontSize: 15),
@@ -825,7 +827,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
               .map((h) => Expanded(
                     child: Center(
                       child: Text(h,
-                          style: const TextStyle(
+                          style: GoogleFonts.inter(
                               color: AppTheme.textSec,
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
@@ -885,7 +887,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 children: [
                   Text(
                     '$dayNum',
-                    style: TextStyle(
+                    style: GoogleFonts.inter(
                       color: isToday ? AppTheme.gold : textColor,
                       fontSize: 12,
                       fontWeight:
@@ -981,14 +983,14 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('TODAY\'S SYMPTOMS',
-                          style: TextStyle(
+                      Text('TODAY\'S SYMPTOMS',
+                          style: GoogleFonts.inter(
                               color: AppTheme.womenColor,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.2)),
                       Text(dateLabel,
-                          style: const TextStyle(
+                          style: GoogleFonts.inter(
                               color: AppTheme.textSec, fontSize: 12)),
                     ]),
               ),
@@ -1032,10 +1034,10 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                           offset: _notes.length),
                     onChanged: (v) => _notes = v,
                     maxLines: 2,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
                     decoration: InputDecoration(
                       hintText: 'Add notes…',
-                      hintStyle: const TextStyle(color: AppTheme.textSec),
+                      hintStyle: GoogleFonts.inter(color: AppTheme.textSec),
                       filled: true,
                       fillColor: AppTheme.card2,
                       border: OutlineInputBorder(
@@ -1076,8 +1078,8 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                                 height: 20,
                                 child: CircularProgressIndicator(
                                     color: Colors.white, strokeWidth: 2))
-                            : const Text('Save',
-                                style: TextStyle(
+                            : Text('Save',
+                                style: GoogleFonts.inter(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w600,
                                     fontSize: 15)),
@@ -1112,10 +1114,10 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                     color: active ? AppTheme.womenColor : AppTheme.div),
               ),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Text(moodEmojis[i], style: const TextStyle(fontSize: 20)),
+                Text(moodEmojis[i], style: GoogleFonts.inter(fontSize: 20)),
                 const SizedBox(height: 2),
                 Text(moods[i],
-                    style: TextStyle(
+                    style: GoogleFonts.inter(
                         color: active ? AppTheme.womenColor : AppTheme.textSec,
                         fontSize: 9,
                         fontWeight: FontWeight.w600)),
@@ -1191,7 +1193,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                     size: 20),
                 const SizedBox(height: 4),
                 Text(item.label,
-                    style: TextStyle(
+                    style: GoogleFonts.inter(
                         color: item.active
                             ? AppTheme.womenColor
                             : AppTheme.textSec,
@@ -1220,10 +1222,10 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       decoration: BoxDecoration(
           color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
           child: Text('CYCLE HISTORY',
-              style: TextStyle(
+              style: GoogleFonts.inter(
                   color: AppTheme.textSec,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -1254,13 +1256,13 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                       Text(label,
-                          style: const TextStyle(
+                          style: GoogleFonts.inter(
                               color: Colors.white,
                               fontWeight: FontWeight.w600,
                               fontSize: 14)),
                       Text(
                           'Period: ${c.periodLength} days  ·  Started ${_fmt(c.periodStart)}',
-                          style: const TextStyle(
+                          style: GoogleFonts.inter(
                               color: AppTheme.textSec, fontSize: 12)),
                     ])),
                 Container(
@@ -1272,7 +1274,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                       border: Border.all(
                           color: AppTheme.womenColor.withValues(alpha: 0.3))),
                   child: Text('${c.cycleLength} days',
-                      style: const TextStyle(
+                      style: GoogleFonts.inter(
                           color: AppTheme.womenColor,
                           fontWeight: FontWeight.w600,
                           fontSize: 12)),
@@ -1324,8 +1326,8 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text('Log New Period',
-                    style: TextStyle(
+                Text('Log New Period',
+                    style: GoogleFonts.inter(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.w700)),
@@ -1363,7 +1365,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                             color: AppTheme.womenColor, size: 18),
                         const SizedBox(width: 10),
                         Text(_fmt(newStart),
-                            style: const TextStyle(
+                            style: GoogleFonts.inter(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w500)),
                         const Spacer(),
@@ -1431,8 +1433,8 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                               height: 20,
                               child: CircularProgressIndicator(
                                   color: Colors.white, strokeWidth: 2))
-                          : const Text('Save Period',
-                              style: TextStyle(
+                          : Text('Save Period',
+                              style: GoogleFonts.inter(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700,
                                   fontSize: 15)),
@@ -1542,7 +1544,7 @@ class _InfoBox extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             label,
-            style: TextStyle(
+            style: GoogleFonts.inter(
               color: AppTheme.textSec.withValues(alpha: 0.8),
               fontSize: 9,
               fontWeight: FontWeight.w700,
@@ -1552,7 +1554,7 @@ class _InfoBox extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: TextStyle(
+            style: GoogleFonts.inter(
               color: valueColor,
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -1563,7 +1565,7 @@ class _InfoBox extends StatelessWidget {
           const SizedBox(height: 3),
           Text(
             subtitle,
-            style: const TextStyle(
+            style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 10,
               fontWeight: FontWeight.w500,
@@ -1601,7 +1603,7 @@ class _ActionBtn extends StatelessWidget {
           child: Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 11,
               fontWeight: FontWeight.w600,
@@ -1632,7 +1634,7 @@ class _LegDot extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(label,
-              style: const TextStyle(color: AppTheme.textSec, fontSize: 10)),
+              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 10)),
         ],
       );
 }
@@ -1647,16 +1649,16 @@ class _StatCell extends StatelessWidget {
   Widget build(BuildContext context) => Expanded(
         child: Column(children: [
           Text(label,
-              style: const TextStyle(color: AppTheme.textSec, fontSize: 10)),
+              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 10)),
           const SizedBox(height: 4),
           Text(value,
-              style: const TextStyle(
+              style: GoogleFonts.inter(
                   color: Colors.white,
                   fontSize: 22,
                   fontWeight: FontWeight.w700)),
           Text(unit,
               style:
-                  const TextStyle(color: AppTheme.textSec, fontSize: 10)),
+                  GoogleFonts.inter(color: AppTheme.textSec, fontSize: 10)),
         ]),
       );
 }
@@ -1667,7 +1669,7 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(text,
-      style: const TextStyle(
+      style: GoogleFonts.inter(
           color: AppTheme.textSec,
           fontSize: 10,
           fontWeight: FontWeight.w700,
@@ -1684,7 +1686,7 @@ class _SetupField extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: const TextStyle(
+              style: GoogleFonts.inter(
                   color: AppTheme.textSec,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -1737,13 +1739,13 @@ class _StepperTile extends StatelessWidget {
                 text: TextSpan(children: [
                   TextSpan(
                       text: '$value ',
-                      style: const TextStyle(
+                      style: GoogleFonts.inter(
                           color: Colors.white,
                           fontSize: 20,
                           fontWeight: FontWeight.w700)),
                   TextSpan(
                       text: unit,
-                      style: const TextStyle(
+                      style: GoogleFonts.inter(
                           color: AppTheme.textSec, fontSize: 13)),
                 ]),
               ),

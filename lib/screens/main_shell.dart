@@ -203,8 +203,8 @@ class _BottomNav extends StatelessWidget {
                 onTap: () => onTap(2),
               ),
               _NavTab(
-                icon: Icons.person_rounded,
-                label: 'Profile',
+                icon: Icons.settings_rounded,
+                label: 'Settings',
                 active: selected == 3,
                 onTap: () => onTap(3),
               ),
