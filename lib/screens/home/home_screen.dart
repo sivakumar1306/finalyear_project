@@ -864,16 +864,46 @@ class _ActivityStat extends StatelessWidget {
 
 // ── Women's Health card (full-width) ─────────────────────────────────────────
 
-class _WomensHealthCard extends StatelessWidget {
+class _WomensHealthCard extends StatefulWidget {
   final VoidCallback? onTap;
   const _WomensHealthCard({this.onTap});
 
-  // Placeholder cycle data — replace with real tracking data when available.
-  static const int _cycleDay    = 14;
-  static const int _cycleLength = 28;
-  static const int _periodLen   = 5;
+  @override
+  State<_WomensHealthCard> createState() => _WomensHealthCardState();
+}
+
+class _WomensHealthCardState extends State<_WomensHealthCard> {
+  int _cycleDay    = 0;
+  int _cycleLength = 28;
+  int _periodLen   = 5;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCycle();
+  }
+
+  Future<void> _loadCycle() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      final rows = await SupabaseService.getCycles(user.id);
+      if (rows.isEmpty || !mounted) return;
+      final row = rows.first;
+      final periodStart = DateTime.parse(row['period_start'] as String);
+      final cycleLength = (row['cycle_length'] as num? ?? 28).toInt();
+      final periodLength = (row['period_length'] as num? ?? 5).toInt();
+      final day = DateTime.now().difference(periodStart).inDays + 1;
+      setState(() {
+        _cycleDay    = day.clamp(1, cycleLength);
+        _cycleLength = cycleLength;
+        _periodLen   = periodLength;
+      });
+    } catch (_) {}
+  }
 
   String get _phaseName {
+    if (_cycleDay <= 0) return '---';
     if (_cycleDay <= _periodLen) return 'Menstruation';
     if (_cycleDay <= 13) return 'Follicular';
     if (_cycleDay <= 16) return 'Ovulating';
@@ -881,6 +911,7 @@ class _WomensHealthCard extends StatelessWidget {
   }
 
   String get _footerText {
+    if (_cycleDay <= 0) return 'No cycle data logged yet';
     final daysLeft = _cycleLength - _cycleDay;
     if (_cycleDay <= _periodLen) return 'Period ongoing · ${_periodLen - _cycleDay + 1} days left';
     if (_cycleDay <= 13) return 'Next period in $daysLeft days';
@@ -892,7 +923,7 @@ class _WomensHealthCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final accentColor = AppTheme.womenColor;
     return _ShrinkButton(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
@@ -976,7 +1007,7 @@ class _WomensHealthCard extends StatelessWidget {
                     style: _inter(13, color: _kSec2),
                   ),
                   TextSpan(
-                    text: '$_cycleDay',
+                    text: _cycleDay > 0 ? '$_cycleDay' : '--',
                     style: GoogleFonts.inter(
                       fontSize: 28,
                       fontWeight: FontWeight.w200,
@@ -995,7 +1026,7 @@ class _WomensHealthCard extends StatelessWidget {
           width: double.infinity,
           child: CustomPaint(
             painter: _CycleBarPainter(
-              currentDay: _cycleDay,
+              currentDay: _cycleDay > 0 ? _cycleDay : 1,
               cycleLength: _cycleLength,
               periodLength: _periodLen,
             ),
@@ -1032,7 +1063,6 @@ class _WomensHealthCard extends StatelessWidget {
     if (last < text.length) spans.add(TextSpan(text: text.substring(last)));
     return spans;
   }
-
 }
 
 // ── Connect hint ──────────────────────────────────────────────────────────────

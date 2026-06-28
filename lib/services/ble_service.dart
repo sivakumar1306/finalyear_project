@@ -175,6 +175,12 @@ class BleService {
   Future<String> getPressureList(int startDay, int count) async =>
       await _methodChannel.invokeMethod<String>('getPressureList', {'startDay': startDay, 'count': count}) ?? '[]';
 
+  Future<String> getPressureSetting() async =>
+      await _methodChannel.invokeMethod<String>('getPressureSetting') ?? '{}';
+
+  Future<bool> setPressureSetting({required bool enable}) async =>
+      await _methodChannel.invokeMethod<bool>('setPressureSetting', {'enable': enable}) ?? false;
+
   Future<String> manualModePressure({required bool start}) async =>
       await _methodChannel.invokeMethod<String>('manualModePressure', {'start': start}) ?? '{}';
 

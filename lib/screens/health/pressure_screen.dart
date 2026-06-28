@@ -1,11 +1,61 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/vital_widgets.dart';
+
+// ── Local design tokens ───────────────────────────────────────────────────────
+
+const _kCard   = Color(0xFF141414);
+const _kBorder = Color(0xFF242424);
+const _kGrid   = Color(0xFF222222);
+const _kSec    = Color(0xFF666666);
+const _kSec2   = Color(0xFF888888);
+
+TextStyle _inter(
+  double size, {
+  FontWeight weight = FontWeight.w400,
+  Color color = Colors.white,
+  double? letterSpacing,
+  double? height,
+}) =>
+    GoogleFonts.inter(
+      fontSize: size,
+      fontWeight: weight,
+      color: color,
+      letterSpacing: letterSpacing,
+      height: height,
+    );
+
+// ── Stress label / color helpers ──────────────────────────────────────────────
+
+String _stressLabel(int v) {
+  if (v <= 0) return '';
+  if (v < 40) return 'Relaxed';
+  if (v < 60) return 'Normal';
+  if (v < 80) return 'Elevated';
+  return 'High';
+}
+
+Color _stressLevelColor(int v) {
+  if (v <= 0) return _kSec2;
+  if (v < 40) return AppTheme.success;
+  if (v < 60) return const Color(0xFFFBBF24);
+  if (v < 80) return AppTheme.stressColor;
+  return AppTheme.danger;
+}
+
+Color _barColor(int v) {
+  if (v < 40) return AppTheme.success;
+  if (v < 60) return const Color(0xFFFBBF24);
+  if (v < 80) return AppTheme.stressColor;
+  return AppTheme.danger;
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────────
 
 class PressureScreen extends StatefulWidget {
   const PressureScreen({super.key});
@@ -16,122 +66,232 @@ class PressureScreen extends StatefulWidget {
 class _PressureScreenState extends State<PressureScreen> {
   final _ble = BleService();
 
-  int _period = 0; // 0=Day, 1=Week, 2=Month
-  DateTime _selectedDate = DateTime.now();
-  List<Map<String, dynamic>> _readings = [];
-  bool _loadingData = false;
-  bool _measuring = false;
+  bool _loading      = false;
+  bool _loadingDay   = false;
+  bool _loadingTrend = false;
+  bool _measuring    = false;
 
-  int _stressValue = 0;
+  DateTime _selectedDate = DateTime.now();
+
+  int  _manualStress   = 0;
+  bool _settingEnabled = true;
+
+  // Today's ring data (in-memory)
+  List<int> _chartValues = [];
+  int _avgStress = 0, _minStress = 0, _maxStress = 0;
+
+  // Past-day Supabase stats
+  int _dayAvg = 0, _dayMin = 0, _dayMax = 0;
+
+  // 7-day trend
+  List<int> _trendValues = [];
+  int _trendMin = 0, _trendMax = 0;
+
+  // ── Computed ──────────────────────────────────────────────────────────────
+
+  bool get _isToday {
+    final n = DateTime.now();
+    return _selectedDate.year == n.year &&
+        _selectedDate.month == n.month &&
+        _selectedDate.day == n.day;
+  }
+
+  int get _displayAvg => _isToday ? _avgStress : _dayAvg;
+  int get _displayMin => _isToday ? _minStress : _dayMin;
+  int get _displayMax => _isToday ? _maxStress : _dayMax;
+
+  String _fmt(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  // ── Init ──────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadSettings();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && context.read<BleProvider>().isConnected) {
+        _fetchToday();
+      }
+      _load7DayTrend();
+    });
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Date selection ────────────────────────────────────────────────────────
 
-  static String stressLabel(int v) {
-    if (v <= 0) return 'No data';
-    if (v < 40) return 'Relaxed';
-    if (v < 60) return 'Normal';
-    if (v < 80) return 'Elevated';
-    return 'High';
+  void _onDateSelected(DateTime date) {
+    final n = DateTime.now();
+    final isToday = date.year == n.year &&
+        date.month == n.month &&
+        date.day == n.day;
+    setState(() {
+      _selectedDate = date;
+      _manualStress = 0;
+      if (isToday) { _dayAvg = _dayMin = _dayMax = 0; }
+    });
+    if (!isToday) _loadDayFromSupabase(date);
   }
 
-  static Color stressColor(int v) {
-    if (v <= 0) return AppTheme.textSec;
-    if (v < 40) return AppTheme.success;
-    if (v < 60) return const Color(0xFFFBBF24);
-    if (v < 80) return AppTheme.stressColor;
-    return AppTheme.danger;
+  // ── Ring fetch ────────────────────────────────────────────────────────────
+
+  Future<void> _fetchToday() async {
+    setState(() { _loading = true; _manualStress = 0; });
+    try {
+      final data = await _ble.getTodayPressure();
+      _parsePressureData(data);
+    } catch (_) {} finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
-  String _fmtTime(DateTime dt) {
-    final h = dt.hour;
-    final m = dt.minute.toString().padLeft(2, '0');
-    final ampm = h < 12 ? 'AM' : 'PM';
-    final h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    return '$h12:$m $ampm';
+  void _parsePressureData(String jsonStr) {
+    try {
+      final m = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final raw = (m['pressureArray'] as List<dynamic>? ?? [])
+          .map((v) => (v as num).toInt())
+          .toList();
+      final readings = raw.where((v) => v > 0).toList();
+      if (readings.isEmpty) return;
+
+      final avg = (readings.reduce((a, b) => a + b) / readings.length).round();
+      final minVal = readings.reduce((a, b) => a < b ? a : b);
+      final maxVal = readings.reduce((a, b) => a > b ? a : b);
+
+      if (!mounted) return;
+      setState(() {
+        _chartValues = raw;
+        _avgStress   = avg;
+        _minStress   = minVal;
+        _maxStress   = maxVal;
+        _selectedDate = DateTime.now();
+      });
+
+      context.read<BleProvider>().updateStressLatest(avg);
+      _saveRingDataToSupabase(avg);
+    } catch (_) {}
   }
 
-  // ── Data ──────────────────────────────────────────────────────────────────
+  Future<void> _saveRingDataToSupabase(int avgValue) async {
+    final user = SupabaseService.currentUser;
+    if (user == null || avgValue <= 0) return;
+    try {
+      final now  = DateTime.now();
+      final from = DateTime(now.year, now.month, now.day);
+      final to   = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      final existing = await SupabaseService.getStressReadings(
+        userId: user.id, from: from, to: to);
+      final hasRingData = existing.any((r) => r['source'] == 'ring');
+      if (!hasRingData) {
+        await SupabaseService.insertStress(
+          userId: user.id,
+          stressValue: avgValue,
+          measuredAt: now,
+          source: 'ring',
+        );
+      }
+    } catch (_) {}
+  }
 
-  Future<void> _loadData() async {
+  // ── Supabase fetches ──────────────────────────────────────────────────────
+
+  Future<void> _loadDayFromSupabase(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingData = true);
+    setState(() => _loadingDay = true);
     try {
-      final now = DateTime.now();
-      late DateTime from, to;
-      switch (_period) {
-        case 1:
-          from = DateTime(now.year, now.month, now.day)
-              .subtract(const Duration(days: 6));
-          to = DateTime(now.year, now.month, now.day, 23, 59, 59);
-        case 2:
-          from = DateTime(now.year, now.month, now.day)
-              .subtract(const Duration(days: 29));
-          to = DateTime(now.year, now.month, now.day, 23, 59, 59);
-        default:
-          from = DateTime(
-              _selectedDate.year, _selectedDate.month, _selectedDate.day);
-          to = DateTime(_selectedDate.year, _selectedDate.month,
-              _selectedDate.day, 23, 59, 59);
-      }
-      final data = await SupabaseService.getStressReadings(
-          userId: user.id, from: from, to: to);
-      if (mounted) {
+      final from = DateTime(date.year, date.month, date.day);
+      final to   = DateTime(date.year, date.month, date.day, 23, 59, 59);
+      final rows = await SupabaseService.getStressReadings(
+        userId: user.id, from: from, to: to);
+      if (!mounted) return;
+      final vals = rows
+          .map((r) => (r['stress_value'] as num? ?? 0).toInt())
+          .where((v) => v > 0)
+          .toList();
+      if (vals.isNotEmpty) {
         setState(() {
-          _readings = data;
-          // Show latest reading in the card
-          if (data.isNotEmpty) {
-            final sorted = [...data]
-              ..sort((a, b) => (b['measured_at'] as String)
-                  .compareTo(a['measured_at'] as String));
-            _stressValue =
-                (sorted.first['stress_value'] as num? ?? 0).toInt();
-          } else {
-            // Fall back to BleProvider cached value when no data for this period
-            _stressValue = 0;
-          }
+          _dayAvg = (vals.reduce((a, b) => a + b) / vals.length).round();
+          _dayMin = vals.reduce((a, b) => a < b ? a : b);
+          _dayMax = vals.reduce((a, b) => a > b ? a : b);
         });
       }
-    } catch (_) {
-    } finally {
-      if (mounted) setState(() => _loadingData = false);
+    } catch (_) {} finally {
+      if (mounted) setState(() => _loadingDay = false);
     }
+  }
+
+  Future<void> _load7DayTrend() async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    setState(() => _loadingTrend = true);
+    try {
+      final now  = DateTime.now();
+      final rows = await SupabaseService.getStressReadings(
+        userId: user.id,
+        from: now.subtract(const Duration(days: 6)),
+        to: now,
+      );
+      // Group readings by day and compute daily averages
+      final byDay = <String, List<int>>{};
+      for (final r in rows) {
+        final dt = DateTime.parse(r['measured_at'] as String).toLocal();
+        final v  = (r['stress_value'] as num? ?? 0).toInt();
+        if (v > 0) byDay.putIfAbsent(_fmt(dt), () => []).add(v);
+      }
+      final vals = List.generate(7, (i) {
+        final day     = now.subtract(Duration(days: 6 - i));
+        final dayVals = byDay[_fmt(day)];
+        if (dayVals == null || dayVals.isEmpty) return 0;
+        return (dayVals.reduce((a, b) => a + b) / dayVals.length).round();
+      });
+      final valid = vals.where((v) => v > 0).toList();
+      if (!mounted) return;
+      setState(() {
+        _trendValues = vals;
+        _trendMin    = valid.isEmpty ? 0 : valid.reduce((a, b) => a < b ? a : b);
+        _trendMax    = valid.isEmpty ? 0 : valid.reduce((a, b) => a > b ? a : b);
+      });
+    } catch (_) {} finally {
+      if (mounted) setState(() => _loadingTrend = false);
+    }
+  }
+
+  // ── Settings ──────────────────────────────────────────────────────────────
+
+  Future<void> _loadSettings() async {
+    if (!context.read<BleProvider>().isConnected) return;
+    try {
+      final json = await _ble
+          .getPressureSetting()
+          .timeout(const Duration(seconds: 5));
+      final m = jsonDecode(json) as Map<String, dynamic>;
+      if (mounted) setState(() => _settingEnabled = (m['enable'] as bool?) ?? true);
+    } catch (_) {}
+  }
+
+  Future<void> _saveSettings() async {
+    try {
+      await _ble.setPressureSetting(enable: _settingEnabled);
+    } catch (_) {}
   }
 
   // ── Manual measurement ────────────────────────────────────────────────────
 
-  Future<void> _toggleManual() async {
-    final start = !_measuring;
-    setState(() => _measuring = start);
+  Future<void> _startMeasurement() async {
+    if (_measuring) return;
+    setState(() { _measuring = true; _manualStress = 0; });
     try {
-      final result = await _ble.manualModePressure(start: start);
-      if (start) {
-        final m = jsonDecode(result) as Map<String, dynamic>;
-        final v = (m['value'] as num? ?? 0).toInt();
-        setState(() {
-          _measuring = false;
-          if (v > 0) _stressValue = v;
-        });
-        if (v > 0) await _saveMeasurement(v);
-      } else {
-        setState(() => _measuring = false);
-      }
-    } catch (e) {
+      final result = await _ble.manualModePressure(start: true);
+      if (!mounted) return;
+      final m = jsonDecode(result) as Map<String, dynamic>;
+      final v = (m['value'] as num? ?? 0).toInt();
       setState(() => _measuring = false);
-      if (mounted) {
-        final msg = e.toString().contains('TIMEOUT')
-            ? 'Timed out — make sure ring is worn snugly.'
-            : 'Error: $e';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
-        );
+      if (v > 0) {
+        setState(() => _manualStress = v);
+        await _saveMeasurement(v);
       }
+    } catch (_) {
+      if (mounted) setState(() => _measuring = false);
     }
   }
 
@@ -145,42 +305,18 @@ class _PressureScreenState extends State<PressureScreen> {
         measuredAt: DateTime.now(),
       );
       if (mounted) context.read<BleProvider>().updateStressLatest(value);
-      await _loadData();
     } catch (_) {}
   }
 
-  // ── Derived stats ─────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
-  ({String avg, String min, String max}) _stats() {
-    final vals = _readings
-        .map((r) => (r['stress_value'] as num? ?? 0).toInt())
-        .where((v) => v > 0)
-        .toList();
-    if (vals.isEmpty) return (avg: '--', min: '--', max: '--');
-    final avg = (vals.reduce((a, b) => a + b) / vals.length).round();
-    return (
-      avg: '$avg',
-      min: '${vals.reduce((a, b) => a < b ? a : b)}',
-      max: '${vals.reduce((a, b) => a > b ? a : b)}',
-    );
-  }
-
-  Map<String, int> _dayAverages() {
-    final sums = <String, int>{};
-    final counts = <String, int>{};
-    for (final r in _readings) {
-      final dt = DateTime.parse(r['measured_at'] as String).toLocal();
-      final key =
-          '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-      final v = (r['stress_value'] as num? ?? 0).toInt();
-      if (v <= 0) continue;
-      sums[key] = (sums[key] ?? 0) + v;
-      counts[key] = (counts[key] ?? 0) + 1;
-    }
-    return {
-      for (final k in sums.keys)
-        k: (sums[k]! / counts[k]!).round(),
-    };
+  List<String> _trendXLabels() {
+    final now  = DateTime.now();
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return List.generate(7, (i) {
+      final d = now.subtract(Duration(days: 6 - i));
+      return days[d.weekday - 1];
+    });
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -188,350 +324,580 @@ class _PressureScreenState extends State<PressureScreen> {
   @override
   Widget build(BuildContext context) {
     final connected = context.watch<BleProvider>().isConnected;
-    final s = _stats();
+
+    final currentValue = _measuring
+        ? '···'
+        : _manualStress > 0
+            ? '$_manualStress'
+            : _displayAvg > 0
+                ? '$_displayAvg'
+                : '--';
+
+    final currentLabel = _measuring
+        ? 'Measuring…'
+        : _stressLabel(_manualStress > 0 ? _manualStress : _displayAvg);
+
+    final currentLabelColor = _stressLevelColor(
+        _manualStress > 0 ? _manualStress : _displayAvg);
+
+    final hasData = _isToday && _chartValues.any((v) => v > 0);
+
+    final trendRangeLabel = _trendMin > 0 && _trendMax > 0
+        ? '$_trendMin - $_trendMax'
+        : '-- --';
 
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: _darkBar('Stress'),
-      body: RefreshIndicator(
-        color: AppTheme.gold,
-        backgroundColor: AppTheme.card,
-        onRefresh: _loadData,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 16),
-              if (_period == 0)
-                VitalDateSelector(
-                  selectedDate: _selectedDate,
-                  onDateSelected: (d) {
-                    setState(() => _selectedDate = d);
-                    _loadData();
-                  },
-                ),
-              const SizedBox(height: 12),
-              VitalPeriodTabs(onChanged: (i) {
-                setState(() {
-                  _period = i;
-                  if (i == 0) _selectedDate = DateTime.now();
-                });
-                _loadData();
-              }),
-              const SizedBox(height: 24),
-              _metricCard(),
-              const SizedBox(height: 16),
-              _chartCard(),
-              const SizedBox(height: 16),
-              VitalStatsRow(avg: s.avg, min: s.min, max: s.max),
-              const SizedBox(height: 16),
-              if (_period == 0) ...[
-                _dayReadingsList(),
-                const SizedBox(height: 16),
-              ],
-              VitalOneClickButton(
-                label: _measuring ? 'Stop Measurement' : 'One Click Measurement',
-                isStop: _measuring,
-                loading: _measuring,
-                enabled: connected,
-                onPressed: _toggleManual,
-              ),
-              if (_loadingData && !_measuring)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(
-                      child: CircularProgressIndicator(
-                          color: AppTheme.gold, strokeWidth: 2)),
-                ),
-              const SizedBox(height: 80),
-            ],
+      backgroundColor: AppTheme.bg,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bg,
+        foregroundColor: Colors.white,
+        centerTitle: true,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text('Stress', style: _inter(17, weight: FontWeight.w600)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            onPressed: () {},
           ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(0.5),
+          child: Container(color: _kBorder, height: 0.5),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 16),
+
+            // ── 1. Stress Detection toggle ─────────────────────────────────
+            _StressDetectionCard(
+              enabled: _settingEnabled,
+              onToggle: (v) {
+                setState(() => _settingEnabled = v);
+                _saveSettings();
+              },
+            ),
+            const SizedBox(height: 20),
+
+            // ── 2. Date row ────────────────────────────────────────────────
+            _StressDateRow(
+              selectedDate: _selectedDate,
+              onDateSelected: _onDateSelected,
+            ),
+            const SizedBox(height: 22),
+
+            // ── 3. Current stress value ────────────────────────────────────
+            Text(
+              'CURRENT STRESS LEVEL',
+              style: _inter(11,
+                  weight: FontWeight.w600,
+                  color: AppTheme.gold,
+                  letterSpacing: 1.2),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              currentValue,
+              style: _inter(52,
+                  weight: FontWeight.w300,
+                  color: Colors.white,
+                  height: 1.1),
+            ),
+            Text(
+              currentLabel,
+              style: _inter(13, color: currentLabelColor),
+            ),
+            const SizedBox(height: 16),
+
+            // ── 4. Daily chart ─────────────────────────────────────────────
+            _StressChartCard(
+              headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
+              rangeLabel: hasData
+                  ? '$_displayMin - $_displayMax'
+                  : '-- --',
+              values: _isToday ? _chartValues : [],
+              xLabels: const ['12am', '6am', '12pm', '6pm'],
+              loading: _loading || _loadingDay,
+            ),
+            const SizedBox(height: 10),
+
+            // ── 5. Stats row ───────────────────────────────────────────────
+            Row(children: [
+              Expanded(
+                child: _StressStatCard(
+                  label: 'AVERAGE',
+                  value: _displayAvg > 0 ? '$_displayAvg' : '--',
+                  level: _displayAvg,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _StressStatCard(
+                  label: 'MINIMUM',
+                  value: _displayMin > 0 ? '$_displayMin' : '--',
+                  level: _displayMin,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _StressStatCard(
+                  label: 'MAXIMUM',
+                  value: _displayMax > 0 ? '$_displayMax' : '--',
+                  level: _displayMax,
+                ),
+              ),
+            ]),
+            const SizedBox(height: 10),
+
+            // ── 6. Real-time measurement ───────────────────────────────────
+            _StressMeasurementCard(
+              latestStress: _manualStress,
+              measuring: _measuring,
+              enabled: connected && !_measuring,
+              onTap: _startMeasurement,
+            ),
+            const SizedBox(height: 20),
+
+            // ── 7. 7-day trend ─────────────────────────────────────────────
+            _StressChartCard(
+              headerLabel: 'LAST 7 DAYS TREND',
+              rangeLabel: trendRangeLabel,
+              values: _trendValues,
+              xLabels: _trendXLabels(),
+              loading: _loadingTrend,
+            ),
+            const SizedBox(height: 12),
+
+            // ── 8. Legend ──────────────────────────────────────────────────
+            Row(children: [
+              _LegendDot(color: AppTheme.success, label: 'Relaxed'),
+              const SizedBox(width: 10),
+              _LegendDot(color: const Color(0xFFFBBF24), label: 'Normal'),
+              const SizedBox(width: 10),
+              _LegendDot(color: AppTheme.stressColor, label: 'Elevated'),
+              const SizedBox(width: 10),
+              _LegendDot(color: AppTheme.danger, label: 'High'),
+            ]),
+
+            const SizedBox(height: 80),
+          ],
         ),
       ),
     );
   }
+}
 
-  // ── Widgets ───────────────────────────────────────────────────────────────
+// ── Stress Detection card ─────────────────────────────────────────────────────
 
-  Widget _metricCard() => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-              color: AppTheme.stressColor.withValues(alpha: 0.25)),
-        ),
-        child: Row(children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-                color: AppTheme.stressColor.withValues(alpha: 0.15),
-                shape: BoxShape.circle),
-            child: const Icon(Icons.psychology_rounded,
-                color: AppTheme.stressColor, size: 30),
+class _StressDetectionCard extends StatelessWidget {
+  final bool enabled;
+  final ValueChanged<bool> onToggle;
+  const _StressDetectionCard({required this.enabled, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Stress Detection',
+                    style: _inter(15, weight: FontWeight.w600)),
+                const SizedBox(height: 5),
+                Text(
+                  'Enable continuous stress monitoring. '
+                  'The ring tracks your stress levels throughout the day automatically.',
+                  style: _inter(12, color: _kSec2, height: 1.45),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
-          const SizedBox(width: 16),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('STRESS LEVEL',
-                style: TextStyle(
-                    color: AppTheme.stressColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.5)),
-            const SizedBox(height: 4),
-            Text(
-              _measuring ? '···' : (_stressValue > 0 ? '$_stressValue' : '--'),
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 52,
-                  fontWeight: FontWeight.w700,
-                  height: 1.0),
-            ),
-            Text(
-              _measuring ? 'Measuring…' : stressLabel(_stressValue),
-              style: TextStyle(
-                  color: stressColor(_stressValue),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600),
-            ),
-          ]),
-        ]),
+          Switch(
+            value: enabled,
+            onChanged: onToggle,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Date row ──────────────────────────────────────────────────────────────────
+
+class _StressDateRow extends StatelessWidget {
+  final DateTime selectedDate;
+  final ValueChanged<DateTime> onDateSelected;
+  const _StressDateRow({required this.selectedDate, required this.onDateSelected});
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final now   = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (int i = 0; i < dates.length; i++) ...[
+            if (i > 0) const SizedBox(width: 16),
+            _buildItem(dates[i], today),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItem(DateTime d, DateTime today) {
+    final isToday    = d == today;
+    final isFuture   = d.isAfter(today);
+    final sel        = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final isSelected = d == sel && !isToday;
+
+    if (isToday || isSelected) {
+      return GestureDetector(
+        onTap: isToday ? null : () => onDateSelected(d),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFF202020),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF363636)),
+          ),
+          child: Text(
+            isToday
+                ? 'Today, ${d.day} ${_months[d.month - 1]}'
+                : '${d.day} ${_months[d.month - 1]}',
+            style: _inter(13, weight: FontWeight.w500),
+          ),
+        ),
       );
-
-  Widget _chartCard() {
-    final label = _period == 0
-        ? 'TODAY\'S READINGS'
-        : (_period == 1 ? 'LAST 7 DAYS' : 'LAST 30 DAYS');
-
-    Widget chart;
-    if (_readings.isEmpty) {
-      chart = const Center(
-          child: Text('No data for this period',
-              style: TextStyle(color: AppTheme.textSec, fontSize: 12)));
-    } else if (_period == 0) {
-      chart = CustomPaint(painter: _StressDayChartPainter(_readings));
-    } else {
-      chart = CustomPaint(
-          painter: _StressRangeChartPainter(
-              _dayAverages(), _period == 1 ? 7 : 30));
     }
+
+    return GestureDetector(
+      onTap: isFuture ? null : () => onDateSelected(d),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Text(
+          '${d.day}',
+          style: _inter(15,
+              color: isFuture ? const Color(0xFF333333) : _kSec2),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Stress Chart Card ─────────────────────────────────────────────────────────
+
+class _StressChartCard extends StatelessWidget {
+  final String headerLabel;
+  final String rangeLabel;
+  final List<int> values;
+  final List<String> xLabels;
+  final bool loading;
+
+  const _StressChartCard({
+    required this.headerLabel,
+    required this.rangeLabel,
+    required this.values,
+    required this.xLabels,
+    required this.loading,
+  });
+
+  static const _yAxisW = 30.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(headerLabel,
+                  style: _inter(11,
+                      weight: FontWeight.w600,
+                      color: _kSec,
+                      letterSpacing: 0.6)),
+              Text(rangeLabel,
+                  style: _inter(11,
+                      weight: FontWeight.w500,
+                      color: const Color(0xFF999999))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Y-axis + chart
+          SizedBox(
+            height: 128,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: _yAxisW,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: ['100', '75', '50', '25']
+                        .map((l) => Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: Text(l, style: _inter(10, color: _kSec)),
+                            ))
+                        .toList(),
+                  ),
+                ),
+                Expanded(
+                  child: loading
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: AppTheme.stressColor,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : CustomPaint(
+                          painter: _StressBarPainter(values: values),
+                          child: const SizedBox.expand(),
+                        ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          // X-axis labels (offset to align with chart area)
+          Padding(
+            padding: const EdgeInsets.only(left: _yAxisW),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: xLabels
+                  .map((l) => Text(l, style: _inter(10, color: _kSec)))
+                  .toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Stress Bar Painter ────────────────────────────────────────────────────────
+
+class _StressBarPainter extends CustomPainter {
+  final List<int> values;
+  const _StressBarPainter({required this.values});
+
+  static const _maxY   = 100.0;
+  static const _yLines = [100, 75, 50, 25];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Horizontal grid lines
+    final gridPaint = Paint()
+      ..color = _kGrid
+      ..strokeWidth = 0.5;
+    for (final y in _yLines) {
+      final yPos = size.height - (y / _maxY) * size.height;
+      canvas.drawLine(Offset(0, yPos), Offset(size.width, yPos), gridPaint);
+    }
+
+    if (values.isEmpty) return;
+    final n    = values.length;
+    final slotW = size.width / n;
+    final barW  = (slotW * 0.55).clamp(2.0, 9.0);
+
+    for (int i = 0; i < n; i++) {
+      if (values[i] <= 0) continue;
+      final ratio = (values[i] / _maxY).clamp(0.0, 1.0);
+      final barH  = (ratio * size.height).clamp(2.0, size.height);
+      final x     = i * slotW + (slotW - barW) / 2;
+      canvas.drawRRect(
+        RRect.fromLTRBR(
+            x, size.height - barH, x + barW, size.height,
+            const Radius.circular(3)),
+        Paint()..color = _barColor(values[i]).withValues(alpha: 0.88),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StressBarPainter old) => old.values != values;
+}
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
+
+class _StressStatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final int level;
+
+  const _StressStatCard({
+    required this.label,
+    required this.value,
+    required this.level,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: _inter(10,
+                  weight: FontWeight.w600,
+                  color: _kSec,
+                  letterSpacing: 0.7)),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(value, style: _inter(17, weight: FontWeight.w600)),
+              const SizedBox(width: 4),
+              Text(level > 0 ? '/100' : '--',
+                  style: _inter(11, color: _kSec)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            level > 0 ? _stressLabel(level) : '--',
+            style: _inter(11, color: _stressLevelColor(level)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Real-time measurement card ────────────────────────────────────────────────
+
+class _StressMeasurementCard extends StatelessWidget {
+  final int latestStress;
+  final bool measuring;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  const _StressMeasurementCard({
+    required this.latestStress,
+    required this.measuring,
+    required this.enabled,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final stressText = measuring
+        ? '···'
+        : latestStress > 0
+            ? '$latestStress'
+            : '--';
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-          color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label,
-            style: const TextStyle(
-                color: AppTheme.textSec,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1)),
-        const SizedBox(height: 12),
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: const [
-                Text('100',
-                    style: TextStyle(
-                        color: Color(0xFF555555), fontSize: 9)),
-                SizedBox(height: 24),
-                Text('60',
-                    style: TextStyle(
-                        color: Color(0xFF555555), fontSize: 9)),
-                SizedBox(height: 24),
-                Text('40',
-                    style: TextStyle(
-                        color: Color(0xFF555555), fontSize: 9)),
-              ]),
-          const SizedBox(width: 8),
-          Expanded(
-              child: SizedBox(height: 120, child: chart)),
-        ]),
-        const SizedBox(height: 8),
-        Row(children: const [
-          _LegendDot(color: AppTheme.success, label: 'Relaxed'),
-          SizedBox(width: 10),
-          _LegendDot(color: Color(0xFFFBBF24), label: 'Normal'),
-          SizedBox(width: 10),
-          _LegendDot(color: AppTheme.stressColor, label: 'Elevated'),
-          SizedBox(width: 10),
-          _LegendDot(color: AppTheme.danger, label: 'High'),
-        ]),
-      ]),
-    );
-  }
-
-  Widget _dayReadingsList() {
-    if (_readings.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-            color: AppTheme.card,
-            borderRadius: BorderRadius.circular(16)),
-        child: const Center(
-            child: Text('No readings for this day',
-                style: TextStyle(color: AppTheme.textSec))),
-      );
-    }
-    final sorted = [..._readings]
-      ..sort((a, b) =>
-          (b['measured_at'] as String).compareTo(a['measured_at'] as String));
-
-    return Container(
-      decoration: BoxDecoration(
-          color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
-          child: Text('READINGS',
-              style: TextStyle(
-                  color: AppTheme.textSec,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1)),
-        ),
-        ...sorted.asMap().entries.map((e) {
-          final r = e.value;
-          final dt = DateTime.parse(r['measured_at'] as String).toLocal();
-          final v = (r['stress_value'] as num? ?? 0).toInt();
-          final label = r['label'] as String? ?? stressLabel(v);
-          final color = stressColor(v);
-          final isLast = e.key == sorted.length - 1;
-          return Column(children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 12),
-              child: Row(children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10)),
-                  child: Icon(Icons.psychology_rounded,
-                      color: color, size: 18),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text(_fmtTime(dt),
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14)),
-                      Text(label,
-                          style: TextStyle(
-                              color: color, fontSize: 11)),
-                    ])),
-                Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                  Text('$v',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 22)),
-                  const Text('/100',
-                      style: TextStyle(
-                          color: AppTheme.textSec, fontSize: 10)),
-                ]),
-              ]),
+        color: _kCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Real Time Stress',
+                  style: _inter(14, weight: FontWeight.w500)),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    stressText,
+                    style: _inter(15,
+                        weight: FontWeight.w600,
+                        color: measuring || latestStress > 0
+                            ? Colors.white
+                            : _kSec2),
+                  ),
+                  const SizedBox(width: 4),
+                  Text('/100', style: _inter(11, color: _kSec)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: enabled ? onTap : null,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF2E2E2E)),
+              ),
+              child: Center(
+                child: measuring
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: enabled ? AppTheme.stressColor : _kSec,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        'Click to start measurement',
+                        style: _inter(14,
+                            weight: FontWeight.w500,
+                            color: enabled ? Colors.white70 : _kSec),
+                      ),
+              ),
             ),
-            if (!isLast)
-              const Divider(
-                  color: AppTheme.div, height: 0.5, indent: 66),
-          ]);
-        }),
-      ]),
+          ),
+        ],
+      ),
     );
   }
 }
 
-// ── Chart painters ────────────────────────────────────────────────────────────
-
-Color _barColor(int v) {
-  if (v < 40) return AppTheme.success;
-  if (v < 60) return const Color(0xFFFBBF24);
-  if (v < 80) return AppTheme.stressColor;
-  return AppTheme.danger;
-}
-
-/// Day: scatter bars positioned by time of day
-class _StressDayChartPainter extends CustomPainter {
-  final List<Map<String, dynamic>> readings;
-  const _StressDayChartPainter(this.readings);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Distribute bars across 24h; cluster nearby readings
-    const slots = 24;
-    final slotW = size.width / slots;
-    final barW = slotW * 0.65;
-
-    for (final r in readings) {
-      final dt = DateTime.parse(r['measured_at'] as String).toLocal();
-      final v = (r['stress_value'] as num? ?? 0).toInt();
-      if (v <= 0) continue;
-      final slot = dt.hour.clamp(0, slots - 1);
-      final x = slot * slotW + (slotW - barW) / 2;
-      final barH = (v / 100.0 * size.height * 0.9).clamp(3.0, size.height);
-      canvas.drawRRect(
-        RRect.fromLTRBR(
-            x, size.height - barH, x + barW, size.height,
-            const Radius.circular(4)),
-        Paint()..color = _barColor(v),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_StressDayChartPainter old) =>
-      old.readings != readings;
-}
-
-/// Week/Month: one bar per day showing average stress
-class _StressRangeChartPainter extends CustomPainter {
-  final Map<String, int> dayAvgs;
-  final int days;
-  const _StressRangeChartPainter(this.dayAvgs, this.days);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final now = DateTime.now();
-    final slotW = size.width / days;
-    final barW = slotW * 0.6;
-
-    for (int i = 0; i < days; i++) {
-      final day = now.subtract(Duration(days: days - 1 - i));
-      final key =
-          '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-      final v = dayAvgs[key];
-      if (v == null || v <= 0) continue;
-      final x = i * slotW + (slotW - barW) / 2;
-      final barH = (v / 100.0 * size.height * 0.9).clamp(3.0, size.height);
-      canvas.drawRRect(
-        RRect.fromLTRBR(
-            x, size.height - barH, x + barW, size.height,
-            const Radius.circular(4)),
-        Paint()..color = _barColor(v),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_StressRangeChartPainter old) =>
-      old.dayAvgs != dayAvgs || old.days != days;
-}
-
-// ── Supporting widgets ────────────────────────────────────────────────────────
+// ── Legend dot ────────────────────────────────────────────────────────────────
 
 class _LegendDot extends StatelessWidget {
   final Color color;
@@ -544,21 +910,7 @@ class _LegendDot extends StatelessWidget {
         children: [
           CircleAvatar(radius: 3.5, backgroundColor: color),
           const SizedBox(width: 3),
-          Text(label,
-              style:
-                  const TextStyle(color: AppTheme.textSec, fontSize: 9)),
+          Text(label, style: _inter(10, color: _kSec)),
         ],
       );
 }
-
-AppBar _darkBar(String title) => AppBar(
-      backgroundColor: Colors.black,
-      foregroundColor: Colors.white,
-      title: Text(title,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w600)),
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(0.5),
-        child: Container(color: AppTheme.div, height: 0.5),
-      ),
-    );

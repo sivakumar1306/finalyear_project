@@ -597,6 +597,14 @@ class BleProvider extends ChangeNotifier {
 
   Future<bool> connect(ScannedDevice device) async {
     try {
+      // Disconnect first — BlePlugin polls isConnected globally (not per-address).
+      // If the auto-reconnect to a previous ring already set isConnected=true,
+      // the new connect call would immediately return success for the wrong device.
+      await _ble.disconnect();
+      _isConnected    = false;
+      _isReconnecting = false;
+      notifyListeners();
+
       final ok = await _ble.connect(device.address);
       if (ok) {
         _deviceName    = device.name;

@@ -882,8 +882,13 @@ class BlePlugin(private val context: Context) {
                 object : BleOperateManager.HealthDataCallback<SleepDisplay> {
                     override fun onSuccess(data: SleepDisplay) {
                         if (done.compareAndSet(false, true)) {
+                            // Compute JSON on the callback thread so the try/catch
+                            // actually covers it — mainHandler.post{} runs after
+                            // the try/catch scope exits and exceptions inside it
+                            // are uncaught on the main thread.
                             try {
-                                mainHandler.post { result.success(gson.toJson(sleepDisplayToMap(data))) }
+                                val json = gson.toJson(sleepDisplayToMap(data))
+                                mainHandler.post { result.success(json) }
                             } catch (e: Exception) {
                                 mainHandler.post { result.error("PARSE_FAILED", e.message, null) }
                             }
@@ -898,7 +903,12 @@ class BlePlugin(private val context: Context) {
         } catch (e: Exception) {
             if (done.compareAndSet(false, true))
                 mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+            return
         }
+        mainHandler.postDelayed({
+            if (done.compareAndSet(false, true))
+                result.error("TIMEOUT", "Sleep data fetch timed out", null)
+        }, 20_000L)
     }
 
     private fun getSleep(call: MethodCall, result: MethodChannel.Result) {
@@ -907,7 +917,12 @@ class BlePlugin(private val context: Context) {
             dayIndex,
             object : BleOperateManager.HealthDataCallback<SleepDisplay> {
                 override fun onSuccess(data: SleepDisplay) {
-                    mainHandler.post { result.success(gson.toJson(sleepDisplayToMap(data))) }
+                    try {
+                        val json = gson.toJson(sleepDisplayToMap(data))
+                        mainHandler.post { result.success(json) }
+                    } catch (e: Exception) {
+                        mainHandler.post { result.error("PARSE_FAILED", e.message, null) }
+                    }
                 }
                 override fun onError(code: Int, message: String?) {
                     mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
@@ -1055,16 +1070,23 @@ class BlePlugin(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────
 
     private fun getTodayPressure(result: MethodChannel.Result) {
+        val done = java.util.concurrent.atomic.AtomicBoolean(false)
         BleOperateManager.getInstance().getTodayPressure(
             object : BleOperateManager.HealthDataCallback<PressureRsp> {
                 override fun onSuccess(data: PressureRsp) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
+                    if (done.compareAndSet(false, true))
+                        mainHandler.post { result.success(gson.toJson(data)) }
                 }
                 override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                    if (done.compareAndSet(false, true))
+                        mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
                 }
             }
         )
+        mainHandler.postDelayed({
+            if (done.compareAndSet(false, true))
+                result.error("TIMEOUT", "Pressure data fetch timed out", null)
+        }, 20_000L)
     }
 
     private fun getPressure(call: MethodCall, result: MethodChannel.Result) {

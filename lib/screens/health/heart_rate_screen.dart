@@ -121,6 +121,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   void _parseHrData(String jsonStr) {
     try {
       final m = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final offset = (m['offset'] as num? ?? 0).toInt();
       final raw = (m['e'] as List<dynamic>? ?? [])
           .map((v) => (v as num).toInt())
           .toList();
@@ -131,9 +132,25 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       final minVal = readings.reduce((a, b) => a < b ? a : b);
       final maxVal = readings.reduce((a, b) => a > b ? a : b);
 
+      // Build a full-day array so each bar sits at its correct clock position.
+      // Slot 0 = midnight; slot width = _settingInterval minutes.
+      final totalSlots = 24 * 60 ~/ _settingInterval;
+      final fullDay = List<int>.filled(totalSlots, 0);
+      for (int i = 0; i < raw.length; i++) {
+        final slot = offset + i;
+        if (slot < totalSlots) fullDay[slot] = raw[i];
+      }
+
+      // Ring firmware pre-fills the entire day — zero out future slots.
+      final nowMins = DateTime.now().hour * 60 + DateTime.now().minute;
+      final currentSlot = nowMins ~/ _settingInterval;
+      for (int i = currentSlot + 1; i < totalSlots; i++) {
+        fullDay[i] = 0;
+      }
+
       if (!mounted) return;
       setState(() {
-        _chartValues = raw;
+        _chartValues = fullDay;
         _avgHr = avg;
         _minHr = minVal;
         _maxHr = maxVal;
@@ -356,7 +373,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
               headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
               rangeLabel: dailyRangeLabel,
               values: _isToday ? _chartValues : [],
-              xLabels: const ['12am', '6am', '12pm', '6pm'],
+              xLabels: const ['12am', '6am', '12pm', '6pm', ''],
               loading: _loading || _loadingDay,
             ),
             const SizedBox(height: 10),

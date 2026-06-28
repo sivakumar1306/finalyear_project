@@ -127,15 +127,21 @@ class _MainShellState extends State<MainShell> {
         backgroundColor: AppTheme.bg,
         body: Stack(
           children: [
-            IndexedStack(
-              index: _tab,
-              children: const [
-                HomeScreen(),
-                AssistScreen(),
-                RecordsScreen(),
-                SettingsScreen(),
-                WorkoutsScreen(),
-              ],
+            Consumer<BleProvider>(
+              builder: (context, ble, child) => AbsorbPointer(
+                absorbing: ble.isSyncing,
+                child: child,
+              ),
+              child: IndexedStack(
+                index: _tab,
+                children: const [
+                  HomeScreen(),
+                  AssistScreen(),
+                  RecordsScreen(),
+                  SettingsScreen(),
+                  WorkoutsScreen(),
+                ],
+              ),
             ),
             Positioned(
               top: 0, left: 0, right: 0,

@@ -143,8 +143,8 @@ class _HrvScreenState extends State<HrvScreen> {
         return;
       }
 
-      // SDK: HRVRsp.pressureArray → key 'd' in obfuscated payload
-      // One value per 30 min; 0 = no reading.
+      final offset = (decoded['offset'] as num? ?? 0).toInt();
+      // SDK: HRVRsp key 'd' — one value per 30-min slot; 0 = no reading.
       final raw = (decoded['d'] as List<dynamic>? ?? [])
           .map((v) => (v as num).toInt())
           .toList();
@@ -159,9 +159,26 @@ class _HrvScreenState extends State<HrvScreen> {
       final maxVal = readings.reduce((a, b) => a > b ? a : b);
       final minVal = readings.reduce((a, b) => a < b ? a : b);
 
+      // Expand to the full 48-slot (24 h) array so bar positions and the
+      // readings list timestamps both reflect correct clock times.
+      // Slot i = midnight + i*30 min.
+      const totalSlots = 48;
+      final fullDay = List<int>.filled(totalSlots, 0);
+      for (int i = 0; i < raw.length; i++) {
+        final slot = offset + i;
+        if (slot < totalSlots) fullDay[slot] = raw[i];
+      }
+
+      // Ring firmware pre-fills the entire day — zero out future slots.
+      final nowMins = DateTime.now().hour * 60 + DateTime.now().minute;
+      final currentSlot = nowMins ~/ 30;
+      for (int i = currentSlot + 1; i < totalSlots; i++) {
+        fullDay[i] = 0;
+      }
+
       if (!mounted) return;
       setState(() {
-        _chartValues = raw;
+        _chartValues = fullDay;
         _avgHrv = avg;
         _minHrv = minVal;
         _maxHrv = maxVal;
@@ -307,7 +324,7 @@ class _HrvScreenState extends State<HrvScreen> {
 
   List<String> _chartXLabels() {
     final now = DateTime.now();
-    if (_period == 0) return ['12am', '6am', '12pm', '6pm'];
+    if (_period == 0) return ['12am', '6am', '12pm', '6pm', ''];
     if (_period == 1) {
       const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       return List.generate(7, (i) {

@@ -10,7 +10,7 @@ import '../../theme/app_theme.dart';
 // ── Alphahuman ring detection ─────────────────────────────────────────────────
 // Add new ring model name prefixes here to detect future Alphahuman rings.
 // Examples: 'R09_', 'AH_', 'ALPHA_'
-const _kAlphahumanPrefixes = ['R08_'];
+const _kAlphahumanPrefixes = ['R08_','R02_'];
 
 bool _isAlphahumanRing(String name) => _kAlphahumanPrefixes
     .any((p) => name.toUpperCase().startsWith(p.toUpperCase()));
@@ -107,6 +107,7 @@ class _RingScanSheetState extends State<_RingScanSheet>
     if (!mounted) return;
     setState(() => _connectingAddress = null);
     if (ok) {
+      _ble.syncAllFromRing();
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Connected to ${device.name}'),
