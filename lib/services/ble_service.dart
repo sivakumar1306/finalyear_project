@@ -200,11 +200,11 @@ class BleService {
   Future<bool> setTemperatureSetting({required bool enable, required int interval}) async =>
       await _methodChannel.invokeMethod<bool>('setTemperatureSetting', {'enable': enable, 'interval': interval}) ?? false;
 
-  Future<bool> syncAutoTemperature() async =>
-      await _methodChannel.invokeMethod<bool>('syncAutoTemperature') ?? false;
+  Future<String> syncAutoTemperature() async =>
+      await _methodChannel.invokeMethod<String>('syncAutoTemperature') ?? '{}';
 
-  Future<bool> syncManualTemperature() async =>
-      await _methodChannel.invokeMethod<bool>('syncManualTemperature') ?? false;
+  Future<String> syncManualTemperature() async =>
+      await _methodChannel.invokeMethod<String>('syncManualTemperature') ?? '[]';
 
   // ── Sport Records ──────────────────────────────────────────────────
   Future<String> getSportRecords() async =>

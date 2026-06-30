@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -7,10 +8,27 @@ import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import 'ring_scan_sheet.dart';
 
-// ── Local design tokens ───────────────────────────────────────────────────────
+// ── Design tokens ─────────────────────────────────────────────────────────────
 
-const _kBorder = Color(0xFF242424);
-const _kSec2   = Color(0xFF888888);
+const _kSec2       = Color(0xFF888888);
+const _kCardBg     = Color(0x0FFFFFFF);   // rgba(255,255,255,0.06)
+const _kCardBorder = Color(0x17FFFFFF);   // rgba(255,255,255,0.09)
+const _kBtnBg      = Color(0x08FFFFFF);   // rgba(255,255,255,0.03)
+const _kBtnBorder  = Color(0x14FFFFFF);   // rgba(255,255,255,0.08)
+
+// DESIGN.md per-metric orb colors (soft, desaturated)
+const _kOrbHr       = Color(0xFFC96B6B);
+const _kOrbSleep    = Color(0xFF6B82D9);
+const _kOrbStress   = Color(0xFF6BC99B);
+const _kOrbHrv      = Color(0xFFC9A86E);
+const _kOrbSpo2     = Color(0xFF73D4F8);
+const _kOrbBp       = Color(0xFFD97A7A);
+const _kOrbTemp     = Color(0xFFE3B76A);
+const _kOrbWomen    = Color(0xFFD88CC8);
+const _kOrbActivity = Color(0xFFC9A86E);
+const _kOrbSport    = Color(0xFFD97706);
+
+// ── Status helpers ────────────────────────────────────────────────────────────
 
 String _stressStatus(int v) {
   if (v <= 0) return 'No data';
@@ -25,6 +43,20 @@ Color _stressColor(int v) {
   if (v < 40) return AppTheme.success;
   if (v < 60) return const Color(0xFFFBBF24);
   if (v < 80) return AppTheme.stressColor;
+  return AppTheme.danger;
+}
+
+String _tempStatus(double v) {
+  if (v < 36.0) return 'Low';
+  if (v <= 37.2) return 'Normal';
+  if (v <= 38.0) return 'Elevated';
+  return 'Fever';
+}
+
+Color _tempStatusColor(double v) {
+  if (v < 36.0) return AppTheme.spo2Color;
+  if (v <= 37.2) return AppTheme.success;
+  if (v <= 38.0) return const Color(0xFFFBBF24);
   return AppTheme.danger;
 }
 
@@ -79,8 +111,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (_) {}
   }
-
-  // ── Label/status helpers ──────────────────────────────────────────────────
 
   String get _greeting {
     final h = DateTime.now().hour;
@@ -150,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static Color _sleepStatusColor(int score) {
     if (score <= 0) return _kSec2;
     if (score >= 80) return AppTheme.success;
-    if (score >= 60) return AppTheme.sleepColor;
+    if (score >= 60) return _kOrbSleep;
     if (score >= 40) return const Color(0xFFFBBF24);
     return AppTheme.danger;
   }
@@ -164,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return RefreshIndicator(
       color: AppTheme.gold,
-      backgroundColor: AppTheme.card,
+      backgroundColor: const Color(0xFF111111),
       onRefresh: () async {
         await ble.checkConnection();
         await _loadUserProfile();
@@ -189,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
 
-                // ── Row 1: Steps / Distance / Calories ────────────────────
+                // ── Activity ─────────────────────────────────────────────
                 _ActivityCard(
                   steps: ble.todaySteps,
                   distanceM: ble.todayDistanceM,
@@ -199,7 +229,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // ── Row 2: Women's Health (full-width, females only) ──────
+                // ── Stress (full-width) ───────────────────────────────────
+                _StressCard(
+                  value: ble.latestStressValue,
+                  connected: ble.isConnected,
+                  onTap: () => Navigator.pushNamed(context, '/pressure'),
+                ),
+                const SizedBox(height: 12),
+
+                // ── Women's Health (full-width, female only) ──────────────
                 if (_gender.toLowerCase() == 'female') ...[
                   _WomensHealthCard(
                     onTap: () => Navigator.pushNamed(context, '/womens-health'),
@@ -207,26 +245,42 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 12),
                 ],
 
-                // ── Row 3: Heart Rate + Blood Oxygen ──────────────────────
+                // ── Sleep + HRV ───────────────────────────────────────────
                 Row(children: [
                   Expanded(
                     child: _HomeCard(
-                      label: 'Heart Rate',
-                      value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
-                      unit: ble.todayAvgHr > 0 ? 'bpm' : '',
-                      status: ble.todayAvgHr > 0
-                          ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
-                              ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
-                              : _hrStatus(ble.todayAvgHr))
+                      label: 'Sleep',
+                      value: _sleepDurationLabel(ble.todaySleepDuration),
+                      unit: '',
+                      status: ble.todaySleepDuration > 0
+                          ? _sleepStatus(ble.todaySleepScore)
                           : 'No data',
-                      statusColor: ble.todayAvgHr > 0 ? AppTheme.hrColor : _kSec2,
-                      accentColor: AppTheme.hrColor,
-                      sparkData: const [0.45, 0.5, 0.55, 0.5, 0.6, 0.55, 0.5, 0.48, 0.52, 0.58, 0.54, 0.5],
+                      statusColor: _sleepStatusColor(ble.todaySleepScore),
+                      orbColor: _kOrbSleep,
+                      sparkData: const [0.5, 0.7, 0.9, 0.8, 0.6, 0.4, 0.3, 0.5, 0.7, 0.8, 0.6, 0.4],
                       connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/heart-rate'),
+                      onTap: () => Navigator.pushNamed(context, '/sleep'),
                     ),
                   ),
                   const SizedBox(width: 12),
+                  Expanded(
+                    child: _HomeCard(
+                      label: 'HRV',
+                      value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
+                      unit: ble.todayAvgHrv > 0 ? 'ms' : '',
+                      status: _hrvStatus(ble.todayAvgHrv),
+                      statusColor: ble.todayAvgHrv > 0 ? _kOrbHrv : _kSec2,
+                      orbColor: _kOrbHrv,
+                      sparkData: const [0.5, 0.6, 0.45, 0.7, 0.55, 0.8, 0.6, 0.5, 0.45, 0.65, 0.7, 0.55],
+                      connected: ble.isConnected,
+                      onTap: () => Navigator.pushNamed(context, '/hrv'),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+
+                // ── Blood Oxygen + Heart Rate ──────────────────────────────
+                Row(children: [
                   Expanded(
                     child: _HomeCard(
                       label: 'Blood Oxygen',
@@ -237,85 +291,35 @@ class _HomeScreenState extends State<HomeScreen> {
                               ? 'Range: ${ble.todayMinSpo2}-${ble.todayMaxSpo2}%'
                               : _spo2Status(ble.todayAvgSpo2))
                           : 'No data',
-                      statusColor: ble.todayAvgSpo2 > 0 ? AppTheme.spo2Color : _kSec2,
-                      accentColor: AppTheme.spo2Color,
+                      statusColor: ble.todayAvgSpo2 > 0 ? _kOrbSpo2 : _kSec2,
+                      orbColor: _kOrbSpo2,
                       sparkData: const [0.96, 0.97, 0.96, 0.98, 0.97, 0.99, 0.98, 0.97, 0.96, 0.98, 0.97, 0.99],
                       connected: ble.isConnected,
                       onTap: () => Navigator.pushNamed(context, '/blood-oxygen'),
                     ),
                   ),
-                ]),
-                const SizedBox(height: 12),
-
-                // ── Row 4: Blood Pressure + HRV ───────────────────────────
-                Row(children: [
-                  Expanded(
-                    child: _HomeCard(
-                      label: 'Blood Pressure',
-                      value: ble.latestBpSbp > 0
-                          ? '${ble.latestBpSbp}/${ble.latestBpDbp}'
-                          : '--/--',
-                      unit: ble.latestBpSbp > 0 ? 'mmHg' : '',
-                      status: ble.latestBpSbp > 0 ? 'Latest reading' : 'No data',
-                      statusColor: ble.latestBpSbp > 0 ? AppTheme.bpColor : _kSec2,
-                      accentColor: AppTheme.bpColor,
-                      sparkData: const [0.6, 0.65, 0.6, 0.68, 0.65, 0.6, 0.64, 0.67, 0.64, 0.6, 0.65, 0.62],
-                      connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
-                    ),
-                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: _HomeCard(
-                      label: 'HRV',
-                      value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
-                      unit: ble.todayAvgHrv > 0 ? 'ms' : '',
-                      status: _hrvStatus(ble.todayAvgHrv),
-                      statusColor: ble.todayAvgHrv > 0 ? AppTheme.hrvColor : _kSec2,
-                      accentColor: AppTheme.hrvColor,
-                      sparkData: const [0.5, 0.6, 0.45, 0.7, 0.55, 0.8, 0.6, 0.5, 0.45, 0.65, 0.7, 0.55],
-                      connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/hrv'),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 12),
-
-                // ── Row 5: Sleep + Temperature ─────────────────────────────
-                Row(children: [
-                  Expanded(
-                    child: _HomeCard(
-                      label: 'Sleep',
-                      value: _sleepDurationLabel(ble.todaySleepDuration),
-                      unit: '',
-                      status: ble.todaySleepDuration > 0
-                          ? 'Score: ${ble.todaySleepScore} · ${_sleepStatus(ble.todaySleepScore)}'
+                      label: 'Heart Rate',
+                      value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
+                      unit: ble.todayAvgHr > 0 ? 'bpm' : '',
+                      status: ble.todayAvgHr > 0
+                          ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
+                              ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
+                              : _hrStatus(ble.todayAvgHr))
                           : 'No data',
-                      statusColor: _sleepStatusColor(ble.todaySleepScore),
-                      accentColor: AppTheme.sleepColor,
-                      sparkData: const [0.5, 0.7, 0.9, 0.8, 0.6, 0.4, 0.3, 0.5, 0.7, 0.8, 0.6, 0.4],
+                      statusColor: ble.todayAvgHr > 0 ? _kOrbHr : _kSec2,
+                      orbColor: _kOrbHr,
+                      sparkData: const [0.45, 0.5, 0.55, 0.5, 0.6, 0.55, 0.5, 0.48, 0.52, 0.58, 0.54, 0.5],
                       connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/sleep'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _HomeCard(
-                      label: 'Temperature',
-                      value: '--',
-                      unit: '°F',
-                      status: 'No data',
-                      statusColor: _kSec2,
-                      accentColor: AppTheme.tempColor,
-                      sparkData: const [0.5, 0.52, 0.51, 0.53, 0.52, 0.51, 0.5, 0.52, 0.53, 0.51, 0.5, 0.52],
-                      connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/temperature'),
+                      onTap: () => Navigator.pushNamed(context, '/heart-rate'),
                     ),
                   ),
                 ]),
                 const SizedBox(height: 12),
 
-                // ── Row 6: Sport + Stress ──────────────────────────────────
+                // ── Sport + Temperature ───────────────────────────────────
                 Row(children: [
                   Expanded(
                     child: _HomeCard(
@@ -323,10 +327,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       value: _workoutDurationLabel(workout.todayWorkoutDurationS),
                       unit: workout.todayWorkoutDurationS > 0 ? 'today' : '',
                       status: workout.todayWorkoutDurationS > 0 ? 'Active today' : 'No activity',
-                      statusColor: workout.todayWorkoutDurationS > 0
-                          ? const Color(0xFFD97706)
-                          : _kSec2,
-                      accentColor: const Color(0xFFD97706),
+                      statusColor: workout.todayWorkoutDurationS > 0 ? _kOrbSport : _kSec2,
+                      orbColor: _kOrbSport,
                       sparkData: const [0.2, 0.3, 0.5, 0.4, 0.6, 0.7, 0.5, 0.3, 0.2, 0.4, 0.5, 0.3],
                       connected: ble.isConnected,
                       onTap: () => Navigator.pushNamed(context, '/workouts'),
@@ -335,21 +337,42 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _HomeCard(
-                      label: 'Stress',
-                      value: ble.latestStressValue > 0 ? '${ble.latestStressValue}' : '--',
-                      unit: '',
-                      status: _stressStatus(ble.latestStressValue),
-                      statusColor: _stressColor(ble.latestStressValue),
-                      accentColor: AppTheme.stressColor,
-                      sparkData: const [0.30, 0.45, 0.38, 0.52, 0.48, 0.55, 0.42, 0.38, 0.47, 0.35, 0.40, 0.30],
+                      label: 'Temperature',
+                      value: ble.latestTempC > 0
+                          ? ble.latestTempC.toStringAsFixed(1)
+                          : '--',
+                      unit: ble.latestTempC > 0 ? '°C' : '',
+                      status: ble.latestTempC > 0
+                          ? _tempStatus(ble.latestTempC)
+                          : 'No data',
+                      statusColor: ble.latestTempC > 0
+                          ? _tempStatusColor(ble.latestTempC)
+                          : _kSec2,
+                      orbColor: _kOrbTemp,
+                      sparkData: const [0.5, 0.52, 0.51, 0.53, 0.52, 0.51, 0.5, 0.52, 0.53, 0.51, 0.5, 0.52],
                       connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/pressure'),
+                      onTap: () => Navigator.pushNamed(context, '/temperature'),
                     ),
                   ),
                 ]),
+                const SizedBox(height: 12),
+
+                // ── Blood Pressure (full-width) ────────────────────────────
+                _HomeCard(
+                  label: 'Blood Pressure',
+                  value: ble.latestBpSbp > 0
+                      ? '${ble.latestBpSbp}/${ble.latestBpDbp}'
+                      : '--/--',
+                  unit: ble.latestBpSbp > 0 ? 'mmHg' : '',
+                  status: ble.latestBpSbp > 0 ? 'Normal' : 'No data',
+                  statusColor: ble.latestBpSbp > 0 ? _kOrbBp : _kSec2,
+                  orbColor: _kOrbBp,
+                  sparkData: const [0.6, 0.65, 0.6, 0.68, 0.65, 0.6, 0.64, 0.67, 0.64, 0.6, 0.65, 0.62],
+                  connected: ble.isConnected,
+                  onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
+                ),
                 const SizedBox(height: 20),
 
-                // ── Edit Cards button ──────────────────────────────────────
                 const _EditCardsButton(),
                 const SizedBox(height: 100),
               ]),
@@ -387,7 +410,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildGreetingRow(BleProvider ble) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -415,7 +438,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Text(
-        'ALL METRICS  TODAY',
+        'ALL METRICS  ·  TODAY',
         style: _inter(11,
             weight: FontWeight.w700,
             color: AppTheme.gold.withValues(alpha: 0.85),
@@ -425,86 +448,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── Device pill ───────────────────────────────────────────────────────────────
-
-class _DevicePill extends StatelessWidget {
-  final BleProvider ble;
-  const _DevicePill({required this.ble});
-
-  @override
-  Widget build(BuildContext context) {
-    final connected    = ble.isConnected;
-    final reconnecting = ble.isReconnecting;
-    final battery      = ble.battery;
-
-    return GestureDetector(
-      onTap: () => showRingScanSheet(context),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1C1C1C),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: connected
-                ? AppTheme.gold.withValues(alpha: 0.25)
-                : _kBorder,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (reconnecting)
-              const SizedBox(
-                width: 7, height: 7,
-                child: CircularProgressIndicator(strokeWidth: 1.5, color: AppTheme.gold),
-              )
-            else
-              Container(
-                width: 7, height: 7,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: connected ? AppTheme.success : const Color(0xFF555555),
-                ),
-              ),
-            const SizedBox(width: 6),
-            Text(
-              ble.deviceName.isNotEmpty ? ble.deviceName : 'Ring',
-              style: _inter(12, weight: FontWeight.w500),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            if (battery >= 0) ...[
-              const SizedBox(width: 5),
-              Icon(
-                battery > 60
-                    ? Icons.battery_full_rounded
-                    : battery > 30
-                        ? Icons.battery_3_bar_rounded
-                        : Icons.battery_1_bar_rounded,
-                color: battery > 20 ? _kSec2 : AppTheme.danger,
-                size: 14,
-              ),
-              Text('$battery%', style: _inter(11, color: _kSec2)),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Generic half-width metric card ────────────────────────────────────────────
-
-// ── Shrink Click Animation Widget ───────────────────────────────────────────
+// ── Shrink press animation ────────────────────────────────────────────────────
 
 class _ShrinkButton extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
-
-  const _ShrinkButton({
-    required this.child,
-    this.onTap,
-  });
+  const _ShrinkButton({required this.child, this.onTap});
 
   @override
   State<_ShrinkButton> createState() => _ShrinkButtonState();
@@ -512,60 +461,117 @@ class _ShrinkButton extends StatefulWidget {
 
 class _ShrinkButtonState extends State<_ShrinkButton>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 100),
+  );
+  late final Animation<double> _scale =
+      Tween<double>(begin: 1.0, end: 0.96).animate(
+          CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
 
   @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 100),
-    );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.96).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onTapDown(TapDownDetails details) {
-    if (widget.onTap != null) {
-      _controller.forward();
-    }
-  }
-
-  void _onTapUp(TapUpDetails details) {
-    if (widget.onTap != null) {
-      _controller.reverse();
-      widget.onTap!();
-    }
-  }
-
-  void _onTapCancel() {
-    if (widget.onTap != null) {
-      _controller.reverse();
-    }
-  }
+  void dispose() { _ctrl.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown: _onTapDown,
-      onTapUp: _onTapUp,
-      onTapCancel: _onTapCancel,
+      onTapDown:   (_) { if (widget.onTap != null) _ctrl.forward(); },
+      onTapUp:     (_) { if (widget.onTap != null) { _ctrl.reverse(); widget.onTap!(); } },
+      onTapCancel: ()  { if (widget.onTap != null) _ctrl.reverse(); },
       behavior: HitTestBehavior.opaque,
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: widget.child,
+      child: ScaleTransition(scale: _scale, child: widget.child),
+    );
+  }
+}
+
+// ── Glass card foundation ─────────────────────────────────────────────────────
+
+class _GlassCard extends StatelessWidget {
+  final Color orbColor;
+  final Widget child;
+  final double? height;
+  final VoidCallback? onTap;
+  final bool orbOnRight;
+
+  const _GlassCard({
+    required this.orbColor,
+    required this.child,
+    this.height,
+    this.onTap,
+    this.orbOnRight = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Full-width cards get a larger orb; half-width cards fill ~75% of the card area.
+    final double orbSize   = height == null ? 240 : 200;
+    final double orbOffset = height == null ? -78 : -52;
+
+    return _ShrinkButton(
+      onTap: onTap,
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: _kCardBg,
+          border: Border.all(color: _kCardBorder, width: 0.5),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(19.5),
+          child: Stack(
+            children: [
+              // Ambient orb — blurred circle clipped by card
+              Positioned(
+                bottom: orbOffset,
+                right: orbOnRight ? orbOffset : null,
+                left:  orbOnRight ? null : orbOffset,
+                child: ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                  child: Container(
+                    width: orbSize,
+                    height: orbSize,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: orbColor.withValues(alpha: 0.34),
+                    ),
+                  ),
+                ),
+              ),
+              // Fixed height: Positioned.fill gives Column tight constraints so Spacer works.
+              // Variable height: plain Padding lets Stack size to the child content.
+              if (height != null)
+                Positioned.fill(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: child,
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: child,
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
+
+// ── Chevron button (glass) ────────────────────────────────────────────────────
+
+Widget _chevron() => Container(
+  width: 26, height: 26,
+  decoration: BoxDecoration(
+    shape: BoxShape.circle,
+    color: Colors.white.withValues(alpha: 0.08),
+    border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+  ),
+  child: const Icon(Icons.chevron_right_rounded, color: Colors.white54, size: 16),
+);
+
+// ── Generic half-width metric card ────────────────────────────────────────────
 
 class _HomeCard extends StatelessWidget {
   final String label;
@@ -573,7 +579,7 @@ class _HomeCard extends StatelessWidget {
   final String unit;
   final String status;
   final Color statusColor;
-  final Color accentColor;
+  final Color orbColor;
   final List<double> sparkData;
   final bool connected;
   final VoidCallback? onTap;
@@ -584,7 +590,7 @@ class _HomeCard extends StatelessWidget {
     required this.unit,
     required this.status,
     required this.statusColor,
-    required this.accentColor,
+    required this.orbColor,
     required this.sparkData,
     required this.connected,
     this.onTap,
@@ -592,130 +598,207 @@ class _HomeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _ShrinkButton(
+    return _GlassCard(
+      orbColor: orbColor,
+      height: 162,
       onTap: onTap,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: const Color(0xFF1A1A1A),
-        ),
-        child: Container(
-          height: 162,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                accentColor.withValues(alpha: 0.12),
-                accentColor.withValues(alpha: 0.02),
-              ],
-            ),
-            border: Border.all(
-              color: accentColor.withValues(alpha: 0.15),
-              width: 1.0,
-            ),
-          ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top row: Title and arrow
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: _inter(13, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.08),
-                      ),
-                      child: const Icon(
-                        Icons.chevron_right_rounded,
-                        color: Colors.white70,
-                        size: 16,
-                      ),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                // Middle row: Value/Unit and Graph/Sparkline
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    // Value & Unit
-                    Expanded(
-                      flex: 3,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Flexible(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                value,
-                                style: GoogleFonts.inter(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w200,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (unit.isNotEmpty) ...[
-                            const SizedBox(width: 3),
-                            Text(
-                              unit,
-                              style: _inter(11, weight: FontWeight.w600, color: Colors.white60),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Sparkline
-                    Expanded(
-                      flex: 2,
-                      child: SizedBox(
-                        height: 28,
-                        child: connected
-                            ? CustomPaint(
-                                painter: _SparkPainter(accentColor, sparkData),
-                              )
-                            : const _ConnectHint(compact: true),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Bottom row: Status
-                Text(
-                  status,
-                  style: _inter(11, color: statusColor, weight: FontWeight.w500),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: _inter(13,
+                      weight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.85)),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
+              ),
+              _chevron(),
+            ],
           ),
-        ),
+          const Spacer(),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                flex: 3,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          value,
+                          style: GoogleFonts.inter(
+                            fontSize: 30,
+                            fontWeight: FontWeight.w200,
+                            color: Colors.white.withValues(alpha: 0.95),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (unit.isNotEmpty) ...[
+                      const SizedBox(width: 3),
+                      Text(
+                        unit,
+                        style: _inter(11,
+                            weight: FontWeight.w500,
+                            color: Colors.white.withValues(alpha: 0.5)),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: SizedBox(
+                  height: 28,
+                  child: connected
+                      ? CustomPaint(
+                          painter: _SparkPainter(orbColor, sparkData),
+                        )
+                      : const _ConnectHint(compact: true),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            status,
+            style: _inter(11, color: statusColor, weight: FontWeight.w500),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 }
 
-// ── Activity card (full-width: steps + distance + calories) ──────────────────
+// ── Full-width Stress card ────────────────────────────────────────────────────
 
+class _StressCard extends StatelessWidget {
+  final int value;
+  final bool connected;
+  final VoidCallback? onTap;
+
+  static const _barData = [
+    0.30, 0.45, 0.38, 0.52, 0.48, 0.42, 0.55, 0.38, 0.47, 0.35,
+    0.60, 0.55, 0.48, 0.40, 0.35, 0.42, 0.50, 0.45, 0.38, 0.30,
+    0.40, 0.35, 0.28, 0.32,
+  ];
+
+  const _StressCard({required this.value, required this.connected, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final status = _stressStatus(value);
+    final color  = _stressColor(value);
+
+    return _GlassCard(
+      orbColor: _kOrbStress,
+      orbOnRight: false,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Stress',
+                  style: _inter(13, weight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.85))),
+              _chevron(),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                value > 0 ? '$value' : '--',
+                style: GoogleFonts.inter(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w200,
+                    color: Colors.white.withValues(alpha: 0.95)),
+              ),
+              const SizedBox(width: 8),
+              Text(status, style: _inter(13, color: color, weight: FontWeight.w500)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 36,
+            width: double.infinity,
+            child: connected
+                ? CustomPaint(painter: _BarChartPainter(_kOrbStress, _barData))
+                : const _ConnectHint(),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Daily Average',
+                        style: _inter(10,
+                            color: Colors.white.withValues(alpha: 0.4),
+                            weight: FontWeight.w400)),
+                    const SizedBox(height: 2),
+                    Text(value > 0 ? '$value' : '--',
+                        style: _inter(13,
+                            weight: FontWeight.w600,
+                            color: Colors.white.withValues(alpha: 0.85))),
+                    Text(status,
+                        style: _inter(10,
+                            color: color, weight: FontWeight.w400)),
+                  ],
+                ),
+              ),
+              Container(width: 0.5, height: 36,
+                  color: Colors.white.withValues(alpha: 0.08)),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Daily Range',
+                          style: _inter(10,
+                              color: Colors.white.withValues(alpha: 0.4),
+                              weight: FontWeight.w400)),
+                      const SizedBox(height: 2),
+                      Text(value > 0 ? '${(value * 0.8).round()}-$value' : '--',
+                          style: _inter(13,
+                              weight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.85))),
+                      Text(status,
+                          style: _inter(10,
+                              color: color, weight: FontWeight.w400)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Activity card (full-width) ────────────────────────────────────────────────
 
 class _ActivityCard extends StatelessWidget {
   final int steps;
@@ -736,104 +819,72 @@ class _ActivityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasData = steps > 0;
     final km = distanceM / 1000;
-    final accentColor = AppTheme.stepsColor;
 
-    return _ShrinkButton(
+    return _GlassCard(
+      orbColor: _kOrbActivity,
+      orbOnRight: true,
       onTap: onTap,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: const Color(0xFF1A1A1A),
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                accentColor.withValues(alpha: 0.12),
-                accentColor.withValues(alpha: 0.02),
-              ],
-            ),
-            border: Border.all(
-              color: accentColor.withValues(alpha: 0.15),
-              width: 1.0,
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Activity',
+                  style: _inter(13,
+                      weight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.85))),
+              _chevron(),
+            ],
           ),
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 16),
+          IntrinsicHeight(
+            child: Row(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Activity',
-                      style: _inter(13, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9)),
-                    ),
-                    Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.08),
-                      ),
-                      child: const Icon(
-                        Icons.chevron_right_rounded,
-                        color: Colors.white70,
-                        size: 16,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                IntrinsicHeight(
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _ActivityStat(
-                          value: hasData ? '$steps' : '--',
-                          unit: 'steps',
-                          color: AppTheme.stepsColor,
-                        ),
-                      ),
-                      VerticalDivider(color: accentColor.withValues(alpha: 0.15), width: 1, thickness: 0.5),
-                      Expanded(
-                        child: _ActivityStat(
-                          value: hasData ? km.toStringAsFixed(2) : '--',
-                          unit: 'km',
-                          color: AppTheme.success,
-                        ),
-                      ),
-                      VerticalDivider(color: accentColor.withValues(alpha: 0.15), width: 1, thickness: 0.5),
-                      Expanded(
-                        child: _ActivityStat(
-                          value: hasData ? '$calories' : '--',
-                          unit: 'kcal',
-                          color: const Color(0xFFD97706),
-                        ),
-                      ),
-                    ],
+                Expanded(
+                  child: _ActivityStat(
+                    value: hasData ? '$steps' : '--',
+                    unit: 'steps',
+                    color: _kOrbActivity,
                   ),
                 ),
-                const SizedBox(height: 14),
-                if (connected)
-                  SizedBox(
-                    height: 28,
-                    width: double.infinity,
-                    child: CustomPaint(
-                      painter: _SparkPainter(
-                        AppTheme.stepsColor,
-                        const [0.2, 0.4, 0.6, 0.5, 0.7, 0.8, 0.6, 0.5, 0.7, 0.9, 0.7, 0.5],
-                      ),
+                VerticalDivider(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    width: 1, thickness: 0.5),
+                Expanded(
+                  child: _ActivityStat(
+                    value: hasData ? km.toStringAsFixed(2) : '--',
+                    unit: 'km',
+                    color: AppTheme.success,
+                  ),
+                ),
+                VerticalDivider(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    width: 1, thickness: 0.5),
+                Expanded(
+                  child: _ActivityStat(
+                    value: hasData ? '$calories' : '--',
+                    unit: 'kcal',
+                    color: _kOrbSport,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 28,
+            width: double.infinity,
+            child: connected
+                ? CustomPaint(
+                    painter: _SparkPainter(
+                      _kOrbActivity,
+                      const [0.2, 0.4, 0.6, 0.5, 0.7, 0.8, 0.6, 0.5, 0.7, 0.9, 0.7, 0.5],
                     ),
                   )
-                else
-                  const _ConnectHint(),
-              ],
+                : const _ConnectHint(),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -862,18 +913,18 @@ class _ActivityStat extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 24,
               fontWeight: FontWeight.w200,
-              color: Colors.white,
+              color: Colors.white.withValues(alpha: 0.95),
             ),
           ),
           const SizedBox(height: 2),
-          Text(unit, style: _inter(11, color: color, weight: FontWeight.w600)),
+          Text(unit, style: _inter(11, color: color, weight: FontWeight.w500)),
         ],
       ),
     );
   }
 }
 
-// ── Women's Health card (full-width) ─────────────────────────────────────────
+// ── Women's Health card ───────────────────────────────────────────────────────
 
 class _WomensHealthCard extends StatefulWidget {
   final VoidCallback? onTap;
@@ -901,8 +952,8 @@ class _WomensHealthCardState extends State<_WomensHealthCard> {
       final rows = await SupabaseService.getCycles(user.id);
       if (rows.isEmpty || !mounted) return;
       final row = rows.first;
-      final periodStart = DateTime.parse(row['period_start'] as String);
-      final cycleLength = (row['cycle_length'] as num? ?? 28).toInt();
+      final periodStart  = DateTime.parse(row['period_start'] as String);
+      final cycleLength  = (row['cycle_length'] as num? ?? 28).toInt();
       final periodLength = (row['period_length'] as num? ?? 5).toInt();
       final day = DateTime.now().difference(periodStart).inDays + 1;
       setState(() {
@@ -924,155 +975,172 @@ class _WomensHealthCardState extends State<_WomensHealthCard> {
   String get _footerText {
     if (_cycleDay <= 0) return 'No cycle data logged yet';
     final daysLeft = _cycleLength - _cycleDay;
-    if (_cycleDay <= _periodLen) return 'Period ongoing · ${_periodLen - _cycleDay + 1} days left';
-    if (_cycleDay <= 13) return 'Next period in $daysLeft days';
-    if (_cycleDay <= 16) return 'Next period in $daysLeft days · fertile window now';
+    if (_cycleDay <= _periodLen) return 'Period · ${_periodLen - _cycleDay + 1} days left';
+    if (_cycleDay <= 16) return 'Fertile window · $daysLeft days to next';
     return 'Next period in $daysLeft days';
   }
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = AppTheme.womenColor;
-    return _ShrinkButton(
+    return _GlassCard(
+      orbColor: _kOrbWomen,
+      orbOnRight: true,
       onTap: widget.onTap,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: const Color(0xFF1A1A1A),
-        ),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                accentColor.withValues(alpha: 0.12),
-                accentColor.withValues(alpha: 0.02),
-              ],
-            ),
-            border: Border.all(
-              color: accentColor.withValues(alpha: 0.15),
-              width: 1.0,
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.nightlight_round,
+                      color: _kOrbWomen, size: 13),
+                  const SizedBox(width: 5),
+                  Text('CYCLE',
+                      style: _inter(11,
+                          weight: FontWeight.w700,
+                          color: _kOrbWomen,
+                          letterSpacing: 1.2)),
+                ],
+              ),
+              _chevron(),
+            ],
           ),
-          child: _body(),
-        ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  _phaseName,
+                  style: _inter(18,
+                      weight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.95)),
+                ),
+              ),
+              RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: 'Day ',
+                      style: _inter(13,
+                          color: Colors.white.withValues(alpha: 0.45)),
+                    ),
+                    TextSpan(
+                      text: _cycleDay > 0 ? '$_cycleDay' : '--',
+                      style: GoogleFonts.inter(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w200,
+                        color: Colors.white.withValues(alpha: 0.95),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 24,
+            width: double.infinity,
+            child: _cycleDay > 0
+                ? CustomPaint(
+                    painter: _CycleBarPainter(
+                      currentDay: _cycleDay,
+                      cycleLength: _cycleLength,
+                      periodLength: _periodLen,
+                    ),
+                  )
+                : const SizedBox(),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _footerText,
+            style: _inter(11, color: Colors.white.withValues(alpha: 0.4)),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
+}
 
-  Widget _body() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
+// ── Device pill ───────────────────────────────────────────────────────────────
+
+class _DevicePill extends StatelessWidget {
+  final BleProvider ble;
+  const _DevicePill({required this.ble});
+
+  @override
+  Widget build(BuildContext context) {
+    final connected    = ble.isConnected;
+    final reconnecting = ble.isReconnecting;
+    final battery      = ble.battery;
+
+    return GestureDetector(
+      onTap: () => showRingScanSheet(context),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: _kCardBg,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _kCardBorder, width: 0.5),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.nightlight_round, color: AppTheme.womenColor, size: 14),
-                const SizedBox(width: 6),
-                Text(
-                  'CYCLE',
-                  style: _inter(11,
-                      weight: FontWeight.w700,
-                      color: AppTheme.womenColor,
-                      letterSpacing: 1.4),
-                ),
-              ],
-            ),
-            Container(
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.08),
-              ),
-              child: const Icon(
-                Icons.chevron_right_rounded,
-                color: Colors.white70,
-                size: 16,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        // Phase + day number
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Text(
-                _phaseName,
-                style: _inter(18, weight: FontWeight.w600, color: Colors.white),
-              ),
-            ),
-            RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: 'Day ',
-                    style: _inter(13, color: _kSec2),
-                  ),
-                  TextSpan(
-                    text: _cycleDay > 0 ? '$_cycleDay' : '--',
-                    style: GoogleFonts.inter(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w200,
-                      color: Colors.white,
+                if (reconnecting)
+                  const SizedBox(
+                    width: 7, height: 7,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 1.5, color: AppTheme.gold),
+                  )
+                else
+                  Container(
+                    width: 7, height: 7,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: connected
+                          ? AppTheme.success
+                          : Colors.white.withValues(alpha: 0.2),
                     ),
                   ),
+                const SizedBox(width: 6),
+                Text(
+                  ble.deviceName.isNotEmpty ? ble.deviceName : 'Ring',
+                  style: _inter(12, weight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (battery >= 0) ...[
+                  const SizedBox(width: 5),
+                  Icon(
+                    battery > 60
+                        ? Icons.battery_full_rounded
+                        : battery > 30
+                            ? Icons.battery_3_bar_rounded
+                            : Icons.battery_1_bar_rounded,
+                    color: battery > 20
+                        ? Colors.white.withValues(alpha: 0.5)
+                        : AppTheme.danger,
+                    size: 14,
+                  ),
+                  Text('$battery%',
+                      style: _inter(11,
+                          color: Colors.white.withValues(alpha: 0.5))),
                 ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        // Cycle bar
-        SizedBox(
-          height: 26,
-          width: double.infinity,
-          child: CustomPaint(
-            painter: _CycleBarPainter(
-              currentDay: _cycleDay > 0 ? _cycleDay : 1,
-              cycleLength: _cycleLength,
-              periodLength: _periodLen,
+              ],
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        // Footer
-        RichText(
-          text: TextSpan(
-            style: _inter(11, color: _kSec2),
-            children: _buildFooterSpans(),
-          ),
-        ),
-      ],
+      ),
     );
-  }
-
-  List<InlineSpan> _buildFooterSpans() {
-    final text = _footerText;
-    final boldParts = RegExp(r'\d+ days?');
-    final spans = <InlineSpan>[];
-    int last = 0;
-    for (final m in boldParts.allMatches(text)) {
-      if (m.start > last) {
-        spans.add(TextSpan(text: text.substring(last, m.start)));
-      }
-      spans.add(TextSpan(
-        text: m.group(0),
-        style: _inter(11,
-            weight: FontWeight.w700, color: AppTheme.womenColor),
-      ));
-      last = m.end;
-    }
-    if (last < text.length) spans.add(TextSpan(text: text.substring(last)));
-    return spans;
   }
 }
 
@@ -1085,96 +1153,26 @@ class _ConnectHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (compact) {
-      return const Align(
+      return Align(
         alignment: Alignment.centerRight,
-        child: Icon(
-          Icons.bluetooth_disabled_rounded,
-          size: 16,
-          color: Color(0xFF555555),
-        ),
+        child: Icon(Icons.bluetooth_disabled_rounded,
+            size: 16, color: Colors.white.withValues(alpha: 0.2)),
       );
     }
     return SizedBox(
       height: 26,
       child: Row(
         children: [
-          const Icon(Icons.bluetooth_disabled_rounded, size: 11, color: Color(0xFF555555)),
+          Icon(Icons.bluetooth_disabled_rounded,
+              size: 11, color: Colors.white.withValues(alpha: 0.2)),
           const SizedBox(width: 5),
-          Text(
-            'Connect Ring to Track',
-            style: _inter(10, color: const Color(0xFF555555)),
-          ),
+          Text('Connect Ring to Track',
+              style: _inter(10,
+                  color: Colors.white.withValues(alpha: 0.3))),
         ],
       ),
     );
   }
-}
-
-// ── Cycle bar painter ─────────────────────────────────────────────────────────
-
-class _CycleBarPainter extends CustomPainter {
-  final int currentDay;
-  final int cycleLength;
-  final int periodLength;
-
-  const _CycleBarPainter({
-    required this.currentDay,
-    required this.cycleLength,
-    required this.periodLength,
-  });
-
-  static const _pink   = AppTheme.womenColor;          // menstruation / ovulation
-  static const _dark   = Color(0xFF2A2A2A);             // follicular / luteal track
-  static const _marker = AppTheme.womenColor;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const barH   = 6.0;
-    const radius = Radius.circular(3);
-    final barY   = size.height - barH - 6; // leave 6px above for marker
-
-    final Paint trackPaint = Paint()..color = _dark;
-    final Paint pinkPaint  = Paint()..color = _pink;
-
-    // Full track background
-    canvas.drawRRect(
-      RRect.fromLTRBR(0, barY, size.width, barY + barH, radius),
-      trackPaint,
-    );
-
-    // Phase widths as fraction of cycleLength
-    final double dayW = size.width / cycleLength;
-
-    // Segment 1: Menstruation (days 1 – periodLength)
-    final double menW = dayW * periodLength;
-    canvas.drawRRect(
-      RRect.fromLTRBR(0, barY, menW, barY + barH, radius),
-      pinkPaint,
-    );
-
-    // Segment 2: Ovulation window (days 13–16)
-    final double ovStart = dayW * 12;
-    final double ovEnd   = dayW * 16;
-    canvas.drawRect(
-      Rect.fromLTRB(ovStart, barY, ovEnd, barY + barH),
-      pinkPaint,
-    );
-
-    // Current day marker triangle ▼
-    final double markerX = dayW * (currentDay - 0.5);
-    final markerPath = Path()
-      ..moveTo(markerX - 5, 0)
-      ..lineTo(markerX + 5, 0)
-      ..lineTo(markerX, 7)
-      ..close();
-    canvas.drawPath(markerPath, Paint()..color = _marker);
-  }
-
-  @override
-  bool shouldRepaint(_CycleBarPainter old) =>
-      old.currentDay != currentDay ||
-      old.cycleLength != cycleLength ||
-      old.periodLength != periodLength;
 }
 
 // ── Edit Cards button ─────────────────────────────────────────────────────────
@@ -1186,34 +1184,24 @@ class _EditCardsButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return _ShrinkButton(
       onTap: () {},
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: const Color(0xFF1A1A1A),
-        ),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withValues(alpha: 0.06),
-                Colors.white.withValues(alpha: 0.02),
-              ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: _kBtnBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _kBtnBorder, width: 0.5),
             ),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.1),
-              width: 1.0,
-            ),
-          ),
-          child: const Center(
-            child: Text(
-              'Edit Cards',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Colors.white60,
+            child: Center(
+              child: Text(
+                'Edit Cards',
+                style: _inter(14,
+                    weight: FontWeight.w500,
+                    color: Colors.white.withValues(alpha: 0.5)),
               ),
             ),
           ),
@@ -1242,16 +1230,17 @@ class _SparkPainter extends CustomPainter {
       if (i == 0) {
         path.moveTo(x, y);
       } else {
-        final px = (i - 1) * step;
-        final py = size.height - data[i - 1] * size.height * 0.9;
+        final px  = (i - 1) * step;
+        final py  = size.height - data[i - 1] * size.height * 0.9;
         final cpx = (px + x) / 2;
         path.cubicTo(cpx, py, cpx, y, x, y);
       }
     }
+
     canvas.drawPath(
       path,
       Paint()
-        ..color = color.withValues(alpha: 0.75)
+        ..color = color.withValues(alpha: 0.7)
         ..strokeWidth = 1.5
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round,
@@ -1263,3 +1252,98 @@ class _SparkPainter extends CustomPainter {
       old.color != color || old.data != data;
 }
 
+class _BarChartPainter extends CustomPainter {
+  final Color color;
+  final List<double> data;
+  const _BarChartPainter(this.color, this.data);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.isEmpty) return;
+    final barW = (size.width / data.length) - 2;
+
+    for (int i = 0; i < data.length; i++) {
+      final x   = i * (barW + 2);
+      final h   = data[i] * size.height;
+      final y   = size.height - h;
+
+      // Color ramp: low = green orb, mid = yellow, high = red
+      final Color barColor;
+      if (data[i] < 0.4) {
+        barColor = _kOrbStress;
+      } else if (data[i] < 0.65) {
+        barColor = const Color(0xFFFBBF24);
+      } else {
+        barColor = _kOrbHr;
+      }
+
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, y, barW, h),
+          const Radius.circular(2),
+        ),
+        Paint()..color = barColor.withValues(alpha: 0.75),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BarChartPainter old) =>
+      old.color != color || old.data != data;
+}
+
+// ── Cycle bar painter ─────────────────────────────────────────────────────────
+
+class _CycleBarPainter extends CustomPainter {
+  final int currentDay;
+  final int cycleLength;
+  final int periodLength;
+
+  const _CycleBarPainter({
+    required this.currentDay,
+    required this.cycleLength,
+    required this.periodLength,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const barH   = 4.0;
+    const radius = Radius.circular(2);
+    final barY   = size.height - barH - 6;
+
+    canvas.drawRRect(
+      RRect.fromLTRBR(0, barY, size.width, barY + barH, radius),
+      Paint()..color = Colors.white.withValues(alpha: 0.08),
+    );
+
+    final double dayW = size.width / cycleLength;
+
+    canvas.drawRRect(
+      RRect.fromLTRBR(0, barY, dayW * periodLength, barY + barH, radius),
+      Paint()..color = _kOrbWomen.withValues(alpha: 0.8),
+    );
+
+    final double ovStart = dayW * 12;
+    final double ovEnd   = dayW * 16;
+    canvas.drawRect(
+      Rect.fromLTRB(ovStart, barY, ovEnd, barY + barH),
+      Paint()..color = _kOrbWomen.withValues(alpha: 0.8),
+    );
+
+    final double markerX = dayW * (currentDay - 0.5);
+    canvas.drawPath(
+      Path()
+        ..moveTo(markerX - 4, 0)
+        ..lineTo(markerX + 4, 0)
+        ..lineTo(markerX, 6)
+        ..close(),
+      Paint()..color = _kOrbWomen,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CycleBarPainter old) =>
+      old.currentDay != currentDay ||
+      old.cycleLength != cycleLength ||
+      old.periodLength != periodLength;
+}

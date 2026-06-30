@@ -34,6 +34,10 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   bool _settingEnabled = true;
   int _settingIntervalSec = 5;
 
+  // Raw JSON for debug viewer
+  String _rawJson = '';
+  bool _jsonExpanded = true;
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   bool get _isToday {
@@ -82,7 +86,10 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _loadTodayFromSupabase();
-      if (context.read<BleProvider>().isConnected) _loadSettings();
+      if (context.read<BleProvider>().isConnected) {
+        _loadSettings();
+        _syncAuto(); // fetch live from ring and populate JSON viewer
+      }
     });
   }
 
@@ -120,8 +127,10 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     setState(() => _syncing = true);
     try {
       final data = await _ble.getTodayTemperature();
+      _setRawJson('getTodayTemperature', data);
       _parseTempPayload(data, source: 'auto');
     } catch (e) {
+      _setRawJson('getTodayTemperature ERROR', e.toString());
       _showError(e.toString());
     } finally {
       if (mounted) setState(() => _syncing = false);
@@ -131,14 +140,11 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   Future<void> _syncAuto() async {
     setState(() => _syncing = true);
     try {
-      final ok = await _ble.syncAutoTemperature();
-      if (ok) {
-        final data = await _ble.getTodayTemperature();
-        _parseTempPayload(data, source: 'auto');
-      } else {
-        _showError('Sync returned no data.');
-      }
+      final data = await _ble.syncAutoTemperature();
+      _setRawJson('syncAutoTemperature (TemperatureEntity)', data);
+      _parseTempPayload(data, source: 'auto');
     } catch (e) {
+      _setRawJson('syncAutoTemperature ERROR', e.toString());
       _showError(e.toString());
     } finally {
       if (mounted) setState(() => _syncing = false);
@@ -148,18 +154,24 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   Future<void> _syncManual() async {
     setState(() => _syncing = true);
     try {
-      final ok = await _ble.syncManualTemperature();
-      if (ok) {
-        final data = await _ble.getTodayTemperature();
-        _parseTempPayload(data, source: 'manual');
-      } else {
-        _showError('Measurement returned no data.');
-      }
+      final data = await _ble.syncManualTemperature();
+      _setRawJson('syncManualTemperature (TemperatureOnceEntity[])', data);
+      _parseTempPayload(data, source: 'manual');
     } catch (e) {
+      _setRawJson('syncManualTemperature ERROR', e.toString());
       _showError(e.toString());
     } finally {
       if (mounted) setState(() => _syncing = false);
     }
+  }
+
+  void _setRawJson(String label, String raw) {
+    String pretty = raw;
+    try {
+      final decoded = jsonDecode(raw);
+      pretty = const JsonEncoder.withIndent('  ').convert(decoded);
+    } catch (_) {}
+    if (mounted) setState(() => _rawJson = '// $label\n$pretty');
   }
 
   // ── Payload parsing ────────────────────────────────────────────────────────
@@ -334,11 +346,14 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
 
   void _showError(String msg) {
     if (!mounted) return;
-    final clean = msg.contains('TIMEOUT')
-        ? 'Ring timed out — wear it snugly and try again.'
-        : msg.length > 80
-            ? msg.substring(0, 80)
-            : msg;
+    final String clean;
+    if (msg.contains('TIMEOUT')) {
+      clean = 'Ring timed out — wear it snugly and try again.';
+    } else if (msg.contains('ACTION_FAILED')) {
+      clean = 'Ring rejected sync — see JSON viewer for error code.';
+    } else {
+      clean = msg.length > 100 ? msg.substring(0, 100) : msg;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(clean), backgroundColor: AppTheme.danger));
   }
@@ -442,6 +457,8 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                           color: AppTheme.gold, strokeWidth: 2)),
                 ),
 
+              const SizedBox(height: 16),
+              _jsonViewerCard(),
               const SizedBox(height: 80),
             ],
           ),
@@ -728,6 +745,67 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
           ),
         ]),
       );
+
+  Widget _jsonViewerCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D1117),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF30363D)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => setState(() => _jsonExpanded = !_jsonExpanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(children: [
+                const Icon(Icons.data_object_rounded,
+                    color: Color(0xFF58A6FF), size: 15),
+                const SizedBox(width: 8),
+                const Text('RAW JSON',
+                    style: TextStyle(
+                        color: Color(0xFF58A6FF),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2)),
+                const Spacer(),
+                if (_rawJson.isEmpty)
+                  const Text('no data yet',
+                      style: TextStyle(
+                          color: Color(0xFF8B949E), fontSize: 10))
+                else
+                  Icon(
+                    _jsonExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: const Color(0xFF8B949E),
+                    size: 18,
+                  ),
+              ]),
+            ),
+          ),
+          if (_jsonExpanded && _rawJson.isNotEmpty) ...[
+            const Divider(color: Color(0xFF30363D), height: 0.5),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.all(14),
+              child: SelectableText(
+                _rawJson,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  color: Color(0xFFE6EDF3),
+                  height: 1.6,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _monitorCard(bool connected) => Container(
         margin: const EdgeInsets.only(bottom: 8),

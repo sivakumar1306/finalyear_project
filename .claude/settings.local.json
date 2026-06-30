@@ -45,7 +45,30 @@
       "Bash(javap -verbose -p \"com/oudmon/ble/base/bean/SleepDisplay.class\")",
       "PowerShell(Get-Item \"C:\\\\Jeffrey\\\\new-flutter\\\\build\\\\app\\\\outputs\\\\flutter-apk\\\\app-release.apk\" | Select-Object Name, @{N='Size MB';E={[math]::Round\\($_.Length/1MB,1\\)}}, LastWriteTime)",
       "Bash(flutter doctor *)",
-      "Bash(flutter devices *)"
+      "Bash(flutter devices *)",
+      "Bash(Get-Content *)",
+      "Bash(javap -p \"com/oudmon/ble/base/communication/file/FileHandle.class\")",
+      "Bash(javap -p -c \"com/oudmon/ble/base/communication/file/FileHandle.class\")",
+      "Bash(javap -p \"com/oudmon/ble/base/bluetooth/BleOperateManager.class\")",
+      "Bash(grep -A 40 'lambda$submitManagedFileTask$2')",
+      "Bash(javap -p \"com/oudmon/ble/base/communication/JPackageManager.class\")",
+      "Bash(javap -p -c \"com/oudmon/ble/base/bluetooth/BleOperateManager.class\")",
+      "Bash(javap -p \"com/oudmon/ble/base/bluetooth/queue/BleThreadManager.class\")",
+      "Bash(javap -p -c \"com/oudmon/ble/base/bluetooth/queue/BleConsumer.class\")",
+      "Bash(awk '/public void manualTemperature\\\\\\(com\\\\.oudmon/,/^  public void man/')",
+      "Bash(awk '/public void registerCallback/,/^  public void / { if \\(/^  public void / && !/registerCallback/\\) exit; print }')",
+      "Bash(javap -p -c \"com/oudmon/ble/base/request/EnableNotifyRequest.class\")",
+      "Bash(javap -p \"com/oudmon/ble/base/request/EnableNotifyRequest.class\")",
+      "Read(//c/Users/fixadmin/AppData/Local/Temp/claude/C--Jeffrey-new-flutter/ec33dd30-3fb4-48f3-b0e9-dab966f9b658/scratchpad/**)",
+      "Bash(unzip -o /c/Jeffrey/new-flutter/android/app/libs/qring_sdk_1.0.0.19.aar -d aar_contents2)",
+      "Bash(javap -p -c com/oudmon/ble/base/request/EnableNotifyRequest.class)",
+      "Bash(javap -p com/oudmon/ble/base/request/BaseRequest.class)",
+      "Bash(javap -p -c \"com/oudmon/ble/base/bluetooth/BleOperateManager\\\\$6.class\")",
+      "Bash(javap -verbose com/oudmon/ble/base/communication/file/FileHandle.class)",
+      "Bash(javap -verbose com/oudmon/ble/base/communication/bigData/LargeDataHandler.class)",
+      "Bash(grep -v \"//\\\\|method\\\\|class\\\\|descriptor\")",
+      "Bash(javap -c -p -verbose com/oudmon/ble/base/communication/bigData/LargeDataHandler.class)",
+      "Bash(dart analyze *)"
     ]
   }
 }

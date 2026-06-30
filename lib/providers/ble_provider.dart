@@ -56,6 +56,9 @@ class BleProvider extends ChangeNotifier {
   int _todaySleepDuration = 0; // seconds
   int _todaySleepScore    = 0;
 
+  // Temperature state
+  double _latestTempC = 0.0;
+
   // Background ring sync state
   bool   _isSyncing     = false;
   String _syncStep      = '';
@@ -97,6 +100,8 @@ class BleProvider extends ChangeNotifier {
 
   int get todaySleepDuration => _todaySleepDuration;
   int get todaySleepScore    => _todaySleepScore;
+
+  double get latestTempC => _latestTempC;
 
   bool   get isSyncing    => _isSyncing;
   String get syncStep     => _syncStep;
@@ -143,6 +148,11 @@ class BleProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateTempLatest(double valueC) {
+    _latestTempC = valueC;
+    notifyListeners();
+  }
+
   // ── Constructor ───────────────────────────────────────────────────────────
 
   BleProvider() {
@@ -155,6 +165,7 @@ class BleProvider extends ChangeNotifier {
     _loadLatestStressFromSupabase();
     _loadTodayHrvFromSupabase();
     _loadTodaySleepFromSupabase();
+    _loadLatestTempFromSupabase();
   }
 
   // ── Event listener ────────────────────────────────────────────────────────
@@ -307,10 +318,18 @@ class BleProvider extends ChangeNotifier {
       if (!alive()) return;
       _syncProgress = 0.8; _syncStep = 'Sleep'; notifyListeners();
 
-      // 5. Sleep (80% → 100%)
+      // 5. Sleep (80% → 90%)
       try {
         final json = await _ble.getTodaySleep().timeout(kTimeout);
         _parseAndSaveSleep(json);
+      } catch (_) {}
+      if (!alive()) return;
+      _syncProgress = 0.9; _syncStep = 'Temperature'; notifyListeners();
+
+      // 6. Temperature (90% → 100%) — use syncAutoTemperature to fetch from ring
+      try {
+        final json = await _ble.syncAutoTemperature().timeout(const Duration(seconds: 15));
+        _parseAndSaveTemp(json);
       } catch (_) {}
       if (!alive()) return;
       _syncProgress = 1.0; notifyListeners();
@@ -400,6 +419,57 @@ class BleProvider extends ChangeNotifier {
       _todaySleepScore    = score;
       notifyListeners();
       _saveSleepToDb(total, deep, light, rem, awake, score, st, et);
+    } catch (_) {}
+  }
+
+  void _parseAndSaveTemp(String jsonStr) {
+    try {
+      final decoded = jsonDecode(jsonStr);
+      double latestVal = 0.0;
+      DateTime? latestTime;
+
+      if (decoded is List && decoded.isNotEmpty) {
+        // TemperatureOnceEntity list: [{mTime, mValue}, ...]
+        for (final item in decoded) {
+          final m = item as Map<String, dynamic>;
+          final ts = (m['mTime'] as num?)?.toInt() ?? (m['a'] as num?)?.toInt();
+          var val = (m['mValue'] as num?)?.toDouble() ?? (m['b'] as num?)?.toDouble();
+          if (ts == null || val == null || val <= 0) continue;
+          if (val > 100) val /= 10;
+          final dt = DateTime.fromMillisecondsSinceEpoch(ts * 1000).toLocal();
+          if (latestTime == null || dt.isAfter(latestTime)) {
+            latestTime = dt;
+            latestVal = val;
+          }
+        }
+      } else if (decoded is Map<String, dynamic>) {
+        // TemperatureEntity: interval array
+        final rawVals = (decoded['mValues'] as List<dynamic>?)
+            ?? (decoded['d'] as List<dynamic>?);
+        if (rawVals != null) {
+          for (final raw in rawVals.reversed) {
+            var v = (raw as num).toDouble();
+            if (v <= 0) continue;
+            if (v > 100) v /= 10;
+            latestVal = v;
+            break;
+          }
+        }
+      }
+
+      if (latestVal <= 0) return;
+      _latestTempC = latestVal;
+      notifyListeners();
+
+      final user = SupabaseService.currentUser;
+      if (user != null) {
+        SupabaseService.insertTemp(
+          userId: user.id,
+          measuredAt: latestTime ?? DateTime.now(),
+          valueC: latestVal,
+          source: 'auto',
+        ).catchError((_) {});
+      }
     } catch (_) {}
   }
 
@@ -549,6 +619,21 @@ class BleProvider extends ChangeNotifier {
         _todaySleepDuration = (data['total_duration'] as num? ?? 0).toInt();
         _todaySleepScore    = (data['sleep_score']    as num? ?? 0).toInt();
         notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadLatestTempFromSupabase() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      final data = await SupabaseService.getLatestTemp(user.id);
+      if (data != null) {
+        final v = (data['value_c'] as num? ?? 0).toDouble();
+        if (v > 0) {
+          _latestTempC = v;
+          notifyListeners();
+        }
       }
     } catch (_) {}
   }

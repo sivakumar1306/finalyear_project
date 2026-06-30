@@ -2,6 +2,7 @@ package com.medxai.qring_flutter
 
 import android.bluetooth.BluetoothDevice
 import android.app.Application
+import android.util.Log
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -21,10 +22,13 @@ import com.oudmon.ble.base.communication.bigData.IntervalBloodOxygenEntity
 import com.oudmon.ble.base.communication.bigData.bean.IntervalHeartRateEntity
 import com.oudmon.ble.base.communication.bigData.bean.IntervalTemperatureEntity
 import com.oudmon.ble.base.communication.bigData.resp.IIntervalHeartRateCallback
+import com.oudmon.ble.base.communication.dfu_temperature.TemperatureEntity
+import com.oudmon.ble.base.communication.dfu_temperature.TemperatureOnceEntity
 import com.oudmon.ble.base.communication.entity.BlePressure
 import com.oudmon.ble.base.communication.entity.BleStepDetails
 import com.oudmon.ble.base.communication.entity.StartEndTimeEntity
 import com.oudmon.ble.base.communication.file.FileHandle
+import com.oudmon.ble.base.communication.file.SimpleCallback
 import com.oudmon.ble.base.communication.req.BloodOxygenSettingReq
 import com.oudmon.ble.base.communication.req.BpSettingReq
 import com.oudmon.ble.base.communication.req.DeviceSupportReq
@@ -1172,11 +1176,14 @@ class BlePlugin(private val context: Context) {
     // Temperature
     // ─────────────────────────────────────────────────────────────────
 
+    // Fetches today's interval temperature using BleOperateManager.getTemperatures (day 0, count 1)
     private fun getTodayTemperature(result: MethodChannel.Result) {
-        BleOperateManager.getInstance().getTodayTemperature(
-            object : BleOperateManager.HealthDataCallback<IntervalTemperatureEntity> {
-                override fun onSuccess(data: IntervalTemperatureEntity) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
+        BleOperateManager.getInstance().getTemperatures(
+            0, 1,
+            object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>> {
+                override fun onSuccess(data: List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>) {
+                    val entity = data.firstOrNull()?.data
+                    mainHandler.post { result.success(gson.toJson(entity)) }
                 }
                 override fun onError(code: Int, message: String?) {
                     mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
@@ -1187,11 +1194,12 @@ class BlePlugin(private val context: Context) {
 
     private fun getTemperature(call: MethodCall, result: MethodChannel.Result) {
         val dayIndex = call.argument<Int>("dayIndex") ?: 0
-        BleOperateManager.getInstance().getTemperature(
-            dayIndex,
-            object : BleOperateManager.HealthDataCallback<IntervalTemperatureEntity> {
-                override fun onSuccess(data: IntervalTemperatureEntity) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
+        BleOperateManager.getInstance().getTemperatures(
+            dayIndex, 1,
+            object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>> {
+                override fun onSuccess(data: List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>) {
+                    val entity = data.firstOrNull()?.data
+                    mainHandler.post { result.success(gson.toJson(entity)) }
                 }
                 override fun onError(code: Int, message: String?) {
                     mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
@@ -1236,14 +1244,96 @@ class BlePlugin(private val context: Context) {
         )
     }
 
+    // Syncs continuous body temperature via FileHandle; waits for onUpdateTemperature callback.
     private fun syncAutoTemperature(result: MethodChannel.Result) {
+        val done = AtomicBoolean(false)
+        Log.d("TempSync", "syncAutoTemperature: starting clearCallback+registerCallback+initRegister+startObtainTemperatureSeries(2)")
+        val timeoutRunnable = Runnable {
+            if (done.compareAndSet(false, true)) {
+                Log.e("TempSync", "syncAutoTemperature: TIMED OUT after 30s — onUpdateTemperature never fired")
+                FileHandle.getInstance().clearCallback()
+                result.error("TIMEOUT", "Temperature auto sync timed out — ring did not send data", null)
+            }
+        }
+        FileHandle.getInstance().clearCallback()
+        FileHandle.getInstance().registerCallback(object : SimpleCallback() {
+            override fun onUpdateTemperature(data: TemperatureEntity) {
+                Log.d("TempSync", "syncAutoTemperature: onUpdateTemperature fired, data=${gson.toJson(data)}")
+                if (done.compareAndSet(false, true)) {
+                    mainHandler.removeCallbacks(timeoutRunnable)
+                    FileHandle.getInstance().clearCallback()
+                    mainHandler.post { result.success(gson.toJson(data)) }
+                }
+            }
+            override fun onUpdateTemperatureList(array: MutableList<TemperatureOnceEntity>?) {
+                Log.d("TempSync", "syncAutoTemperature: onUpdateTemperatureList fired size=${array?.size ?: 0}")
+                if (done.compareAndSet(false, true)) {
+                    mainHandler.removeCallbacks(timeoutRunnable)
+                    FileHandle.getInstance().clearCallback()
+                    mainHandler.post { result.success(gson.toJson(array)) }
+                }
+            }
+            override fun onActionResult(type: Int, errCode: Int) {
+                Log.d("TempSync", "syncAutoTemperature: onActionResult type=$type errCode=$errCode")
+                if (errCode != 0 && done.compareAndSet(false, true)) {
+                    mainHandler.removeCallbacks(timeoutRunnable)
+                    FileHandle.getInstance().clearCallback()
+                    mainHandler.post {
+                        result.error("ACTION_FAILED", "Ring rejected: type=$type errCode=$errCode", null)
+                    }
+                }
+            }
+        })
+        // NOTE: initRegister() is for file UPLOAD (watch faces). Temperature sync does NOT use it —
+        // calling it puts the ring in file-receive mode and blocks startObtainTemperatureSeries.
+        Log.d("TempSync", "syncAutoTemperature: calling startObtainTemperatureSeries(2)")
         FileHandle.getInstance().startObtainTemperatureSeries(2)
-        result.success(true)
+        mainHandler.postDelayed(timeoutRunnable, 30_000L)
     }
 
+    // Syncs manual/single temperature readings via FileHandle; waits for onUpdateTemperatureList.
     private fun syncManualTemperature(result: MethodChannel.Result) {
+        val done = AtomicBoolean(false)
+        Log.d("TempSync", "syncManualTemperature: starting clearCallback+registerCallback+initRegister+startObtainTemperatureOnce(0)")
+        val timeoutRunnable = Runnable {
+            if (done.compareAndSet(false, true)) {
+                Log.e("TempSync", "syncManualTemperature: TIMED OUT after 30s — onUpdateTemperatureList never fired")
+                FileHandle.getInstance().clearCallback()
+                result.error("TIMEOUT", "Temperature manual sync timed out — ring did not send data", null)
+            }
+        }
+        FileHandle.getInstance().clearCallback()
+        FileHandle.getInstance().registerCallback(object : SimpleCallback() {
+            override fun onUpdateTemperatureList(array: MutableList<TemperatureOnceEntity>?) {
+                Log.d("TempSync", "syncManualTemperature: onUpdateTemperatureList fired size=${array?.size ?: 0}")
+                if (done.compareAndSet(false, true)) {
+                    mainHandler.removeCallbacks(timeoutRunnable)
+                    FileHandle.getInstance().clearCallback()
+                    mainHandler.post { result.success(gson.toJson(array)) }
+                }
+            }
+            override fun onUpdateTemperature(data: TemperatureEntity) {
+                Log.d("TempSync", "syncManualTemperature: onUpdateTemperature fired (unexpected for manual)")
+                if (done.compareAndSet(false, true)) {
+                    mainHandler.removeCallbacks(timeoutRunnable)
+                    FileHandle.getInstance().clearCallback()
+                    mainHandler.post { result.success(gson.toJson(data)) }
+                }
+            }
+            override fun onActionResult(type: Int, errCode: Int) {
+                Log.d("TempSync", "syncManualTemperature: onActionResult type=$type errCode=$errCode")
+                if (errCode != 0 && done.compareAndSet(false, true)) {
+                    mainHandler.removeCallbacks(timeoutRunnable)
+                    FileHandle.getInstance().clearCallback()
+                    mainHandler.post {
+                        result.error("ACTION_FAILED", "Ring rejected: type=$type errCode=$errCode", null)
+                    }
+                }
+            }
+        })
+        Log.d("TempSync", "syncManualTemperature: calling startObtainTemperatureOnce(0)")
         FileHandle.getInstance().startObtainTemperatureOnce(0)
-        result.success(true)
+        mainHandler.postDelayed(timeoutRunnable, 30_000L)
     }
 
     // ─────────────────────────────────────────────────────────────────
