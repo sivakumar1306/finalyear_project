@@ -5,26 +5,52 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
-import '../../theme/app_theme.dart';
 
-// ── Design tokens ──────────────────────────────────────────────────────────────
-const _kBg   = Color(0xFF000000);
-const _kCard = Color(0xFF111111);
-const _kDiv  = Color(0xFF1E1E1E);
-const _kSec  = Color(0xFF444444);
-const _kSec2 = Color(0xFF777777);
 
+// ── Design tokens ───────────────────────────────────────────────────────────
+const _kBg         = Color(0xFF050505);
 const _kStepsColor = Color(0xFF4ADE80);
 const _kDistColor  = Color(0xFF60A5FA);
 const _kCalColor   = Color(0xFFFB923C);
 
+const List<String> _monthAbbr = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
 TextStyle _t(double s,
-    {FontWeight w = FontWeight.w400,
-    Color c = Colors.white,
-    double? ls,
-    double? h}) =>
+    {FontWeight w = FontWeight.w400, Color? c, double? ls}) =>
     GoogleFonts.inter(
-        fontSize: s, fontWeight: w, color: c, letterSpacing: ls, height: h);
+      fontSize: s,
+      fontWeight: w,
+      color: c ?? Colors.white.withValues(alpha: 0.95),
+      letterSpacing: ls,
+    );
+
+BoxDecoration _glass({double r = 20}) => BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(r),
+      border:
+          Border.all(color: Colors.white.withValues(alpha: 0.09), width: 0.5),
+    );
+
+Widget _circleIconButton({required Widget icon, required VoidCallback onTap}) =>
+    GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.03),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 0.5,
+          ),
+        ),
+        child: Center(child: icon),
+      ),
+    );
 
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -37,35 +63,35 @@ class StepsScreen extends StatefulWidget {
 class _StepsScreenState extends State<StepsScreen> {
   final _ble = BleService();
 
-  int  _period      = 0; // 0=Day, 1=Week, 2=Month
-  bool _syncingRing = false;
-  bool _loadingHist = false;
+  bool _dayLoad = false;
 
-  // Today's raw totals (from ring)
+  DateTime _selectedDate = DateTime.now();
+
+  // Today's totals from ring (cached so switching back to today is instant)
   int    _totalSteps = 0;
   int    _totalCal   = 0;
   double _totalDistM = 0.0;
 
-  // Today's 15-min interval slots (96 slots = 24h) for day charts
+  // The currently displayed day's values (may be a past day loaded from Supabase)
+  int    _daySteps = 0;
+  int    _dayCal   = 0;
+  double _dayDistM = 0.0;
+
+  // 96-slot 15-min intervals for today's bar charts (only populated for today)
   List<int>    _stepsSlots = List.filled(96, 0);
   List<int>    _calSlots   = List.filled(96, 0);
   List<double> _distSlots  = List.filled(96, 0.0);
 
-  // Weekly history (7 days)
-  List<int>    _weekSteps = [];
-  List<int>    _weekCal   = [];
-  List<double> _weekDist  = [];
 
-  // Monthly history (30 days)
-  List<int>    _monthSteps = [];
-  List<int>    _monthCal   = [];
-  List<double> _monthDist  = [];
-
-  // ── Lifecycle ───────────────────────────────────────────────────────────────
+  bool _isToday(DateTime d) {
+    final now = DateTime.now();
+    return d.year == now.year && d.month == now.month && d.day == now.day;
+  }
 
   @override
   void initState() {
     super.initState();
+    _selectedDate = DateTime.now();
     WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
 
@@ -76,26 +102,28 @@ class _StepsScreenState extends State<StepsScreen> {
         _totalSteps = ble.todaySteps;
         _totalCal   = ble.todayCalories;
         _totalDistM = ble.todayDistanceM;
+        _daySteps   = ble.todaySteps;
+        _dayCal     = ble.todayCalories;
+        _dayDistM   = ble.todayDistanceM;
         _stepsSlots = List<int>.from(ble.todayStepsByInterval);
       });
     }
     await _syncFromRing();
-    await _loadHistory();
   }
 
-  // ── Ring sync (Day) ─────────────────────────────────────────────────────────
+  // ── Ring sync (today only) ────────────────────────────────────────────────
 
   Future<void> _syncFromRing() async {
-    if (_syncingRing || !mounted) return;
-    setState(() => _syncingRing = true);
+    if (_dayLoad || !mounted) return;
+    setState(() => _dayLoad = true);
     try {
       final json = await _ble.getTodaySteps();
-      if (mounted) _parseAndApply(json);
+      if (mounted) _parseRingData(json);
     } catch (_) {}
-    if (mounted) setState(() => _syncingRing = false);
+    if (mounted) setState(() => _dayLoad = false);
   }
 
-  void _parseAndApply(String jsonStr) {
+  void _parseRingData(String jsonStr) {
     try {
       final decoded = jsonDecode(jsonStr);
       final list    = decoded is List ? decoded : <dynamic>[];
@@ -127,9 +155,14 @@ class _StepsScreenState extends State<StepsScreen> {
         _totalSteps = totalSteps;
         _totalCal   = totalCal;
         _totalDistM = totalDist;
-        _stepsSlots = stepSlots;
-        _calSlots   = calSlots;
-        _distSlots  = distSlots;
+        if (_isToday(_selectedDate)) {
+          _daySteps   = totalSteps;
+          _dayCal     = totalCal;
+          _dayDistM   = totalDist;
+          _stepsSlots = stepSlots;
+          _calSlots   = calSlots;
+          _distSlots  = distSlots;
+        }
       });
       context.read<BleProvider>().updateStepsData(
           totalSteps, totalCal, totalDist, stepSlots);
@@ -151,80 +184,86 @@ class _StepsScreenState extends State<StepsScreen> {
     } catch (_) {}
   }
 
-  // ── Supabase history (Week / Month) ────────────────────────────────────────
+  // ── Past-day Supabase lookup ──────────────────────────────────────────────
 
-  Future<void> _loadHistory() async {
+  Future<void> _loadPastDayData(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null || !mounted) return;
-    setState(() => _loadingHist = true);
+    setState(() => _dayLoad = true);
     try {
-      final now  = DateTime.now();
-      final rows = await SupabaseService.getStepsHistory(
-          userId: user.id,
-          from: now.subtract(const Duration(days: 29)),
-          to: now);
+      final start = DateTime(date.year, date.month, date.day);
+      final end   = start.add(const Duration(days: 1));
+      final rows  = await SupabaseService.getStepsHistory(
+          userId: user.id, from: start, to: end);
       if (!mounted) return;
       setState(() {
-        _weekSteps  = _buildInt(rows, now, 7,  'steps');
-        _weekCal    = _buildInt(rows, now, 7,  'calories');
-        _weekDist   = _buildDbl(rows, now, 7,  'distance_m');
-        _monthSteps = _buildInt(rows, now, 30, 'steps');
-        _monthCal   = _buildInt(rows, now, 30, 'calories');
-        _monthDist  = _buildDbl(rows, now, 30, 'distance_m');
+        if (rows.isEmpty) {
+          _daySteps = 0;
+          _dayCal   = 0;
+          _dayDistM = 0.0;
+        } else {
+          final row  = rows.first;
+          _daySteps  = (row['steps'] as num? ?? 0).toInt();
+          _dayCal    = (row['calories'] as num? ?? 0).toInt();
+          _dayDistM  = (row['distance_m'] as num? ?? 0.0).toDouble();
+        }
+        // No 15-min interval breakdown available for past days
+        _stepsSlots = List.filled(96, 0);
+        _calSlots   = List.filled(96, 0);
+        _distSlots  = List.filled(96, 0.0);
       });
     } catch (_) {}
-    if (mounted) setState(() => _loadingHist = false);
+    if (mounted) setState(() => _dayLoad = false);
   }
 
-  List<int> _buildInt(List rows, DateTime now, int n, String key) =>
-      List.generate(n, (i) {
-        final d   = now.subtract(Duration(days: n - 1 - i));
-        final row = rows.firstWhere(
-            (r) => r['date'] == _fmt(d), orElse: () => {});
-        return (row[key] as num? ?? 0).toInt();
+  // ── Date selection ────────────────────────────────────────────────────────
+
+  void _onDateSelected(DateTime date) {
+    final today        = DateTime.now();
+    final startOfToday = DateTime(today.year, today.month, today.day);
+    final startOfDate  = DateTime(date.year, date.month, date.day);
+    if (startOfDate.isAfter(startOfToday)) return; // block future dates
+
+    setState(() => _selectedDate = date);
+
+    if (_isToday(date)) {
+      // Restore cached today totals immediately, then re-sync from ring
+      setState(() {
+        _daySteps = _totalSteps;
+        _dayCal   = _totalCal;
+        _dayDistM = _totalDistM;
       });
-
-  List<double> _buildDbl(List rows, DateTime now, int n, String key) =>
-      List.generate(n, (i) {
-        final d   = now.subtract(Duration(days: n - 1 - i));
-        final row = rows.firstWhere(
-            (r) => r['date'] == _fmt(d), orElse: () => {});
-        return (row[key] as num? ?? 0.0).toDouble();
+      _syncFromRing();
+    } else {
+      // Clear slots — past days have no interval data
+      setState(() {
+        _stepsSlots = List.filled(96, 0);
+        _calSlots   = List.filled(96, 0);
+        _distSlots  = List.filled(96, 0.0);
       });
-
-  String _fmt(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-  // ── Period-resolved display values ──────────────────────────────────────────
-
-  int get _dispSteps {
-    if (_period == 1) return _weekSteps.fold(0, (a, b) => a + b);
-    if (_period == 2) return _monthSteps.fold(0, (a, b) => a + b);
-    return _totalSteps;
+      _loadPastDayData(date);
+    }
   }
 
-  int get _dispCal {
-    if (_period == 1) return _weekCal.fold(0, (a, b) => a + b);
-    if (_period == 2) return _monthCal.fold(0, (a, b) => a + b);
-    return _totalCal;
+  // ── Display value getters ─────────────────────────────────────────────────
+
+  int get _dispSteps => _daySteps;
+  int get _dispCal   => _dayCal;
+  double get _dispDistM => _dayDistM;
+
+  String get _dayLabel {
+    if (_isToday(_selectedDate)) return 'Today';
+    return '${_selectedDate.day} ${_monthAbbr[_selectedDate.month - 1]}';
   }
 
-  double get _dispDistM {
-    if (_period == 1) return _weekDist.fold(0.0, (a, b) => a + b);
-    if (_period == 2) return _monthDist.fold(0.0, (a, b) => a + b);
-    return _totalDistM;
-  }
+  bool get _loading => _dayLoad;
 
-  String get _periodLabel =>
-      _period == 2 ? 'This Month' : _period == 1 ? 'This Week' : 'Today';
-
-  // ── Activity score (daily average for the period) ───────────────────────────
+  // ── Activity score ────────────────────────────────────────────────────────
 
   int get _activityScore {
-    final days     = _period == 2 ? 30.0 : _period == 1 ? 7.0 : 1.0;
-    final avgSteps = _dispSteps / days;
-    final avgCal   = _dispCal   / days;
-    final avgDistM = _dispDistM / days;
+    final avgSteps = _dispSteps.toDouble();
+    final avgCal   = _dispCal.toDouble();
+    final avgDistM = _dispDistM;
     final s = (avgSteps / 8000 * 60).clamp(0.0, 60.0);
     final c = (avgCal   / 250   * 25).clamp(0.0, 25.0);
     final d = (avgDistM / 5000  * 15).clamp(0.0, 15.0);
@@ -240,164 +279,152 @@ class _StepsScreenState extends State<StepsScreen> {
     return 'Highly active';
   }
 
-  // ── Build ───────────────────────────────────────────────────────────────────
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final now     = DateTime.now();
-    final loading = _period == 0 ? _syncingRing : _loadingHist;
+    final now = DateTime.now();
 
     return Scaffold(
       backgroundColor: _kBg,
       appBar: AppBar(
         backgroundColor: _kBg,
-        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
+        leading: Center(
+          child: _circleIconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                color: Colors.white, size: 16),
+            onTap: () => Navigator.pop(context),
+          ),
+        ),
         title: Text('Activity', style: _t(17, w: FontWeight.w600)),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert_rounded, color: Colors.white, size: 22),
-            onPressed: () {},
+          Center(
+            child: _circleIconButton(
+              icon: const Icon(Icons.more_vert_rounded,
+                  color: Colors.white, size: 18),
+              onTap: () {},
+            ),
           ),
+          const SizedBox(width: 16),
         ],
       ),
       body: RefreshIndicator(
-        color: AppTheme.gold,
+        color: const Color(0xFFC9A86E),
         backgroundColor: const Color(0xFF1C1C1C),
         onRefresh: () async {
-          await _syncFromRing();
-          await _loadHistory();
+          if (_isToday(_selectedDate)) {
+            await _syncFromRing();
+          } else {
+            await _loadPastDayData(_selectedDate);
+          }
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Date strip ──────────────────────────────────────────────────
-              _DateStrip(now: now),
-              const Divider(color: _kDiv, height: 0.5, thickness: 0.5),
-
-              // ── Period tabs ─────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                child: _PeriodTabs(
-                    selected: _period,
-                    onChanged: (i) => setState(() => _period = i)),
+              // ── Interactive date strip ───────────────────────────────────
+              _DateStrip(
+                now: now,
+                selectedDate: _selectedDate,
+                onDateSelected: _onDateSelected,
+              ),
+              Divider(
+                color: Colors.white.withValues(alpha: 0.06),
+                height: 0.5,
+                thickness: 0.5,
               ),
 
-              // ── Activity Score ──────────────────────────────────────────────
+              // ── Activity Score ───────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 22, 16, 0),
                 child: _ActivityScore(
                     score: _activityScore,
                     label: _scoreLabel,
-                    syncing: loading),
+                    loading: _loading),
               ),
 
-              // ── Data Details ────────────────────────────────────────────────
+              // ── Workout and Sports link ──────────────────────────────────
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: const _DataDetailsRow(),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                child: GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/workouts'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
+                    decoration: _glass(r: 16),
+                    child: Row(children: [
+                      Text('Workout and Sports',
+                          style: _t(14, w: FontWeight.w500, c: Colors.white.withValues(alpha: 0.95))),
+                      const Spacer(),
+                      Icon(Icons.chevron_right_rounded,
+                          color: Colors.white.withValues(alpha: 0.35),
+                          size: 20),
+                    ]),
+                  ),
+                ),
               ),
 
-              // ── Summary cards (always shown) ────────────────────────────────
+              // ── Stats row ────────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                 child: Row(children: [
-                  Expanded(child: _MetricCard(
-                      label: 'Total Steps',
-                      sublabel: _periodLabel,
-                      value: _dispSteps > 0 ? '$_dispSteps' : '--',
-                      color: _kStepsColor)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _MetricCard(
-                      label: 'Distance',
-                      sublabel: _periodLabel,
-                      value: _dispDistM > 0
-                          ? '${_dispDistM.toStringAsFixed(0)} m'
-                          : '--',
-                      color: _kDistColor)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _MetricCard(
-                      label: 'Calories',
-                      sublabel: _periodLabel,
-                      value: _dispCal > 0 ? '$_dispCal' : '--',
-                      color: _kCalColor)),
+                  Expanded(
+                      child: _StatCard(
+                          label: 'Total Steps',
+                          value: _dispSteps > 0 ? '$_dispSteps' : '-- --',
+                          color: _kStepsColor)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                      child: _StatCard(
+                          label: 'Total Mileage',
+                          value: _dispDistM > 0
+                              ? '${(_dispDistM / 1000).toStringAsFixed(2)} km'
+                              : '-- --',
+                          color: _kDistColor)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                      child: _StatCard(
+                          label: 'Total Calories', // Capitalized for UI consistency
+                          value: _dispCal > 0 ? '$_dispCal' : '-- --',
+                          color: _kCalColor)),
                 ]),
               ),
 
-              // ── Day charts (Steps / Distance / Calories) ────────────────────
-              if (_period == 0) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: _SingleChart(
-                    title: 'STEPS · TODAY',
-                    legendValue: '$_totalSteps steps',
-                    peakSuffix: 'steps',
-                    color: _kStepsColor,
-                    values: _toHourlyInt(_stepsSlots),
-                    xLabels: _hourXLabels,
-                    loading: _syncingRing,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: _SingleChart(
-                    title: 'DISTANCE · TODAY',
-                    legendValue: '${_totalDistM.toStringAsFixed(0)} m',
-                    peakSuffix: 'm',
-                    color: _kDistColor,
-                    values: _toHourlyDbl(_distSlots),
-                    xLabels: _hourXLabels,
-                    loading: _syncingRing,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: _SingleChart(
-                    title: 'CALORIES · TODAY',
-                    legendValue: '$_totalCal kcal',
-                    peakSuffix: 'kcal',
-                    color: _kCalColor,
-                    values: _toHourlyInt(_calSlots),
-                    xLabels: _hourXLabels,
-                    loading: _syncingRing,
-                  ),
-                ),
+              // ── Day charts ───────────────────────────────────────────────
+              ...[
+                _chartPad(_ChartCard(
+                  title: 'STEPS',
+                  subtitle: _dayLabel.toUpperCase(),
+                  summary: _daySteps > 0 ? '$_daySteps steps' : '0 steps',
+                  color: _kStepsColor,
+                  values: _toHourlyInt(_stepsSlots),
+                  xLabels: _hourXLabels,
+                  loading: _loading,
+                )),
+                _chartPad(_ChartCard(
+                  title: 'DISTANCE',
+                  subtitle: _dayLabel.toUpperCase(),
+                  summary: _dayDistM > 0
+                      ? '${_dayDistM.toStringAsFixed(0)} m'
+                      : '0 km',
+                  color: _kDistColor,
+                  values: _toHourlyDbl(_distSlots),
+                  xLabels: _hourXLabels,
+                  loading: _loading,
+                )),
+                _chartPad(_ChartCard(
+                  title: 'CALORIES',
+                  subtitle: _dayLabel.toUpperCase(),
+                  summary: _dayCal > 0 ? '$_dayCal kcal' : '0 kcal',
+                  color: _kCalColor,
+                  values: _toHourlyInt(_calSlots),
+                  xLabels: _hourXLabels,
+                  loading: _loading,
+                )),
               ],
-
-              // ── Week chart ──────────────────────────────────────────────────
-              if (_period == 1)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: _SingleChart(
-                    title: 'STEPS · LAST 7 DAYS',
-                    legendValue: '$_dispSteps steps total',
-                    color: _kStepsColor,
-                    values: _weekSteps
-                        .map((v) => v.toDouble())
-                        .toList(),
-                    xLabels: _weekXLabels(now),
-                    loading: _loadingHist,
-                  ),
-                ),
-
-              // ── Month chart ─────────────────────────────────────────────────
-              if (_period == 2)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: _SingleChart(
-                    title: 'STEPS · LAST 30 DAYS',
-                    legendValue: '$_dispSteps steps total',
-                    color: _kStepsColor,
-                    values: _monthSteps
-                        .map((v) => v.toDouble())
-                        .toList(),
-                    xLabels: const ['1','5','10','15','20','25','30'],
-                    loading: _loadingHist,
-                  ),
-                ),
 
               const SizedBox(height: 100),
             ],
@@ -407,19 +434,19 @@ class _StepsScreenState extends State<StepsScreen> {
     );
   }
 
-  List<String> _weekXLabels(DateTime now) {
-    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-    return List.generate(
-        7, (i) => days[now.subtract(Duration(days: 6 - i)).weekday - 1]);
-  }
+  Widget _chartPad(Widget child) =>
+      Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 0), child: child);
 
-  // Collapse 96 × 15-min slots into 24 hourly buckets for day charts
-  List<double> _toHourlyInt(List<int> slots) =>
-      List.generate(24, (h) =>
-          slots.sublist(h * 4, h * 4 + 4).fold(0, (a, b) => a + b).toDouble());
+List<double> _toHourlyInt(List<int> slots) => List.generate(
+      24,
+      (h) => slots
+          .sublist(h * 4, h * 4 + 4)
+          .fold(0, (a, b) => a + b)
+          .toDouble());
 
-  List<double> _toHourlyDbl(List<double> slots) =>
-      List.generate(24, (h) =>
+  List<double> _toHourlyDbl(List<double> slots) => List.generate(
+      24,
+      (h) =>
           slots.sublist(h * 4, h * 4 + 4).fold(0.0, (a, b) => a + b));
 
   static const _hourXLabels = ['12am', '6am', '12pm', '6pm', '12am'];
@@ -429,101 +456,76 @@ class _StepsScreenState extends State<StepsScreen> {
 
 class _DateStrip extends StatelessWidget {
   final DateTime now;
-  const _DateStrip({required this.now});
+  final DateTime selectedDate;
+  final ValueChanged<DateTime> onDateSelected;
 
-  static const _dayAbbr  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  static const _monthAbbr = ['Jan','Feb','Mar','Apr','May','Jun',
-                              'Jul','Aug','Sep','Oct','Nov','Dec'];
+  const _DateStrip({
+    required this.now,
+    required this.selectedDate,
+    required this.onDateSelected,
+  });
+
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   @override
   Widget build(BuildContext context) {
+    final startOfToday = DateTime(now.year, now.month, now.day);
+
     return SizedBox(
-      height: 62,
+      height: 54,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        itemCount: 7,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: 10,
         itemBuilder: (_, i) {
-          final offset  = i - 3;
-          final date    = now.add(Duration(days: offset));
-          final isToday = offset == 0;
+          final offset     = i - 6; // -6 … +3
+          final date       = now.add(Duration(days: offset));
+          final startOfDay = DateTime(date.year, date.month, date.day);
+          final isToday    = _sameDay(date, now);
+          final isSelected = _sameDay(date, selectedDate);
+          final isFuture   = startOfDay.isAfter(startOfToday);
 
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: isToday ? 94 : 40,
-            margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 10),
-            decoration: BoxDecoration(
-              color: isToday
-                  ? AppTheme.gold.withValues(alpha: 0.12)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              border: isToday
-                  ? Border.all(
-                      color: AppTheme.gold.withValues(alpha: 0.35))
-                  : null,
-            ),
-            child: isToday
-                ? Center(
-                    child: Text(
-                      'Today, ${date.day} ${_monthAbbr[date.month - 1]}',
-                      style: _t(10, w: FontWeight.w600, c: AppTheme.gold),
-                      maxLines: 1,
+          return GestureDetector(
+            onTap: isFuture ? null : () => onDateSelected(date),
+            child: Center(
+              child: isSelected
+                  ? Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: Text(
+                        isToday
+                            ? 'Today, ${date.day} ${_monthAbbr[date.month - 1]}'
+                            : '${date.day} ${_monthAbbr[date.month - 1]}',
+                        style: _t(13,
+                            w: FontWeight.w500,
+                            c: Colors.white.withValues(alpha: 0.95)),
+                      ),
+                    )
+                  : Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                      child: Text(
+                        '${date.day}',
+                        style: _t(14,
+                            w: FontWeight.w400,
+                            c: isFuture
+                                ? Colors.white.withValues(alpha: 0.18)
+                                : Colors.white.withValues(alpha: 0.4)),
+                      ),
                     ),
-                  )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('${date.day}', style: _t(13, c: _kSec2)),
-                      const SizedBox(height: 1),
-                      Text(_dayAbbr[date.weekday - 1],
-                          style: _t(9, c: _kSec)),
-                    ],
-                  ),
+            ),
           );
         },
       ),
-    );
-  }
-}
-
-// ── Period tabs ───────────────────────────────────────────────────────────────
-
-class _PeriodTabs extends StatelessWidget {
-  final int selected;
-  final ValueChanged<int> onChanged;
-  const _PeriodTabs({required this.selected, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    const tabs = ['Day', 'Week', 'Month'];
-    return Row(
-      children: tabs.asMap().entries.map((e) {
-        final active = e.key == selected;
-        return GestureDetector(
-          onTap: () => onChanged(e.key),
-          child: Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-            decoration: BoxDecoration(
-              color: active
-                  ? AppTheme.gold.withValues(alpha: 0.10)
-                  : _kCard,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: active
-                      ? AppTheme.gold.withValues(alpha: 0.45)
-                      : _kDiv),
-            ),
-            child: Text(
-              e.value,
-              style: _t(13,
-                  w: active ? FontWeight.w600 : FontWeight.w400,
-                  c: active ? AppTheme.gold : _kSec2),
-            ),
-          ),
-        );
-      }).toList(),
     );
   }
 }
@@ -533,9 +535,9 @@ class _PeriodTabs extends StatelessWidget {
 class _ActivityScore extends StatelessWidget {
   final int score;
   final String label;
-  final bool syncing;
+  final bool loading;
   const _ActivityScore(
-      {required this.score, required this.label, required this.syncing});
+      {required this.score, required this.label, required this.loading});
 
   @override
   Widget build(BuildContext context) {
@@ -543,199 +545,224 @@ class _ActivityScore extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('ACTIVITY SCORE',
-            style: _t(10, w: FontWeight.w700, c: _kSec2, ls: 1.6)),
-        const SizedBox(height: 6),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            syncing
-                ? const SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: CircularProgressIndicator(
-                        color: AppTheme.gold, strokeWidth: 2))
-                : Text('$score',
-                    style: _t(60, w: FontWeight.w700, h: 1.0)),
-            const SizedBox(width: 10),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text('/100', style: _t(16, c: _kSec2)),
-            ),
-          ],
-        ),
-        const SizedBox(height: 3),
-        Text(label, style: _t(13, c: _kSec2)),
+            style: _t(10,
+                w: FontWeight.w700,
+                c: const Color(0xFFC9A86E),
+                ls: 1.6)),
+        const SizedBox(height: 8),
+        loading
+            ? const SizedBox(
+                width: 48,
+                height: 48,
+                child: CircularProgressIndicator(
+                    color: Color(0xFFC9A86E), strokeWidth: 2))
+            : Text('$score',
+                style: _t(54,
+                    w: FontWeight.w300,
+                    c: Colors.white.withValues(alpha: 0.95))),
+        const SizedBox(height: 4),
+        Text(label,
+            style: _t(14, c: Colors.white.withValues(alpha: 0.55))),
       ],
     );
   }
 }
 
-// ── Data Details row ──────────────────────────────────────────────────────────
+// ── Stat card ─────────────────────────────────────────────────────────────────
 
-class _DataDetailsRow extends StatelessWidget {
-  const _DataDetailsRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _kDiv),
-      ),
-      child: Row(
-        children: [
-          Text('Data Details', style: _t(14, w: FontWeight.w500)),
-          const Spacer(),
-          const Icon(Icons.chevron_right_rounded, color: _kSec2, size: 20),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Metric summary card ───────────────────────────────────────────────────────
-
-class _MetricCard extends StatelessWidget {
-  final String label, sublabel, value;
+class _StatCard extends StatelessWidget {
+  final String label;
+  final String value;
   final Color color;
-  const _MetricCard({
-    required this.label,
-    required this.sublabel,
-    required this.value,
-    required this.color,
-  });
+  const _StatCard(
+      {required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _kDiv),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      decoration: _glass(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: _t(10, c: _kSec2, w: FontWeight.w500)),
-          Text(sublabel, style: _t(9, c: _kSec)),
-          const SizedBox(height: 7),
+          Text(label,
+              style: _t(10,
+                  w: FontWeight.w500,
+                  c: Colors.white.withValues(alpha: 0.4))),
+          const SizedBox(height: 12),
           Text(value,
-              style: _t(15, w: FontWeight.w700),
+              style: _t(18,
+                  w: FontWeight.w600,
+                  c: Colors.white.withValues(alpha: 0.95)),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 7),
-          Text('know more >', style: _t(10, c: color, w: FontWeight.w500)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Text('know more',
+                  style: _t(9,
+                      w: FontWeight.w400,
+                      c: Colors.white.withValues(alpha: 0.35))),
+              const SizedBox(width: 2),
+              Icon(Icons.chevron_right_rounded,
+                  color: Colors.white.withValues(alpha: 0.35), size: 10),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-// ── Single chart card (week / month) ─────────────────────────────────────────
+// ── Chart card ────────────────────────────────────────────────────────────────
 
-class _SingleChart extends StatelessWidget {
+class _ChartCard extends StatefulWidget {
   final String title;
-  final String legendValue;
-  final String peakSuffix;
+  final String subtitle;
+  final String summary;
   final Color color;
   final List<double> values;
   final List<String> xLabels;
   final bool loading;
 
-  const _SingleChart({
+  const _ChartCard({
     required this.title,
-    required this.legendValue,
+    required this.subtitle,
+    required this.summary,
     required this.color,
     required this.values,
     required this.xLabels,
     required this.loading,
-    this.peakSuffix = 'steps',
   });
 
-  List<double> get _normalised {
-    if (values.isEmpty) return [];
-    final mx = values.reduce((a, b) => a > b ? a : b);
-    if (mx <= 0) return List.filled(values.length, 0.0);
-    return values.map((v) => v / mx).toList();
+  @override
+  State<_ChartCard> createState() => _ChartCardState();
+}
+
+class _ChartCardState extends State<_ChartCard> {
+  int? _selectedIndex;
+
+  List<double> get _norm {
+    if (widget.values.isEmpty) return [];
+    final mx = widget.values.reduce((a, b) => a > b ? a : b);
+    if (mx <= 0) return List.filled(widget.values.length, 0.0);
+    return widget.values.map((v) => v / mx).toList();
+  }
+
+  void _handleTapOrDrag(Offset localPos, Size size) {
+    if (widget.values.isEmpty) return;
+    final n = widget.values.length;
+    final slotW = size.width / n;
+    int idx = (localPos.dx / slotW).floor();
+    idx = idx.clamp(0, n - 1);
+    if (_selectedIndex != idx) {
+      setState(() {
+        _selectedIndex = idx;
+      });
+    }
+  }
+
+  void _clearSelection() {
+    if (_selectedIndex != null) {
+      setState(() {
+        _selectedIndex = null;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final norm    = _normalised;
+    final norm    = _norm;
     final hasData = norm.isNotEmpty && norm.any((v) => v > 0);
-    final maxVal  = values.isEmpty
-        ? 0
-        : values.reduce((a, b) => a > b ? a : b).toInt();
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kDiv),
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      decoration: _glass(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          Row(children: [
-            Text(title,
-                style: _t(10, w: FontWeight.w700, c: _kSec2, ls: 0.8)),
-            const Spacer(),
-            Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                    color: color, shape: BoxShape.circle)),
-            const SizedBox(width: 5),
-            Text(legendValue,
-                style: _t(11, w: FontWeight.w600, c: _kSec2)),
-          ]),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                widget.title.toUpperCase(),
+                style: _t(11,
+                    w: FontWeight.w700,
+                    c: Colors.white.withValues(alpha: 0.9),
+                    ls: 0.8),
+              ),
+              Text(
+                widget.summary.toUpperCase(),
+                style: _t(11,
+                    w: FontWeight.w700,
+                    c: Colors.white.withValues(alpha: 0.9),
+                    ls: 0.8),
+              ),
+            ],
+          ),
 
-          // Peak label
-          if (!loading && hasData) ...[
-            const SizedBox(height: 4),
-            Text('Peak: $maxVal $peakSuffix',
-                style: _t(10, c: color.withValues(alpha: 0.8))),
-          ],
+          const SizedBox(height: 16),
 
-          const SizedBox(height: 14),
-
-          // Chart
+          // Chart body
           SizedBox(
-            height: 120,
+            height: 239,
             width: double.infinity,
-            child: loading
+            child: widget.loading
                 ? Center(
                     child: SizedBox(
-                        width: 22,
-                        height: 22,
+                        width: 20,
+                        height: 20,
                         child: CircularProgressIndicator(
-                            color: color, strokeWidth: 1.5)))
+                            color: widget.color, strokeWidth: 1.5)))
                 : !hasData
                     ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.bar_chart_rounded,
-                                color: _kSec.withValues(alpha: 0.5),
-                                size: 32),
+                                color: Colors.white.withValues(alpha: 0.13),
+                                size: 28),
                             const SizedBox(height: 6),
-                            Text('No data yet',
-                                style: _t(12, c: _kSec2)),
+                            Text('No data',
+                                style: _t(11,
+                                    c: Colors.white.withValues(alpha: 0.3))),
                           ],
                         ))
-                    : CustomPaint(
-                        painter: _BarPainter(values: norm, color: color)),
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final size = Size(constraints.maxWidth, constraints.maxHeight);
+                          return GestureDetector(
+                            // Added LongPress explicitly for "click and hold" behavior
+                            onLongPressStart: (details) => _handleTapOrDrag(details.localPosition, size),
+                            onLongPressMoveUpdate: (details) => _handleTapOrDrag(details.localPosition, size),
+                            onLongPressEnd: (_) => _clearSelection(),
+                            onTapDown: (details) => _handleTapOrDrag(details.localPosition, size),
+                            onTapUp: (_) => _clearSelection(),
+                            onTapCancel: () => _clearSelection(),
+                            // Using HorizontalDrag instead of Pan to allow vertical scrolling safely
+                            onHorizontalDragStart: (details) => _handleTapOrDrag(details.localPosition, size),
+                            onHorizontalDragUpdate: (details) => _handleTapOrDrag(details.localPosition, size),
+                            onHorizontalDragEnd: (_) => _clearSelection(),
+                            onHorizontalDragCancel: () => _clearSelection(),
+                            child: CustomPaint(
+                              size: size,
+                              painter: _BarPainter(
+                                values: norm,
+                                rawValues: widget.values,
+                                color: widget.color,
+                                selectedIndex: _selectedIndex,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
           ),
 
-          // X-axis
-          if (!loading) ...[
+          // X-axis labels
+          if (!widget.loading) ...[
             const SizedBox(height: 8),
-            _XAxisRow(labels: xLabels, count: values.length),
+            _XAxisRow(labels: widget.xLabels, count: widget.values.length),
           ],
         ],
       ),
@@ -750,23 +777,26 @@ class _XAxisRow extends StatelessWidget {
   final int count;
   const _XAxisRow({required this.labels, required this.count});
 
-  static const _style = TextStyle(color: Color(0xFF3A3A3A), fontSize: 9);
-
   @override
   Widget build(BuildContext context) {
-    // For monthly (30 bars), only show 7 evenly-spaced labels
     final toShow = labels.length <= 10 ? labels : _sparse(labels);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: toShow.map((l) => Text(l, style: _style)).toList(),
+      children: toShow
+          .map((l) => Text(l,
+              style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.35),
+                  fontSize: 9)))
+          .toList(),
     );
   }
 
   List<String> _sparse(List<String> all) {
-    // Pick ~7 labels spread across the list
     final step = (all.length / 6).ceil();
     final out  = <String>[];
-    for (int i = 0; i < all.length; i += step) { out.add(all[i]); }
+    for (int i = 0; i < all.length; i += step) {
+      out.add(all[i]);
+    }
     if (out.last != all.last) out.add(all.last);
     return out;
   }
@@ -776,45 +806,168 @@ class _XAxisRow extends StatelessWidget {
 
 class _BarPainter extends CustomPainter {
   final List<double> values;
+  final List<double> rawValues;
   final Color color;
-  const _BarPainter({required this.values, required this.color});
+  final int? selectedIndex;
+
+  const _BarPainter({
+    required this.values,
+    required this.rawValues,
+    required this.color,
+    required this.selectedIndex,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty) return;
-    final n      = values.length;
-    final slotW  = size.width / n;
-    final barW   = n > 20
-        ? (slotW * 0.55).clamp(2.0, 6.0)
-        : (slotW * 0.55).clamp(8.0, 30.0);
-    final padL   = (slotW - barW) / 2;
+    final n     = values.length;
+    final slotW = size.width / n;
+    final barW  = n > 20
+        ? (slotW * 0.6).clamp(1.5, 6.0)
+        : (slotW * 0.6).clamp(6.0, 24.0);
+    final padL  = (slotW - barW) / 2;
 
-    // Subtle top grid line
-    canvas.drawLine(
-      const Offset(0, 0),
-      Offset(size.width, 0),
-      Paint()
-        ..color = _kDiv
-        ..strokeWidth = 0.5,
-    );
+    // Draw horizontal dashed grid lines (at 25%, 50%, 75% height)
+    final gridPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.05)
+      ..strokeWidth = 0.5
+      ..style = PaintingStyle.stroke;
 
+    for (int j = 1; j <= 3; j++) {
+      final y = size.height * (j * 0.25);
+      _drawDashedLine(canvas, Offset(0, y), Offset(size.width, y), gridPaint, 4.0, 3.0);
+    }
+
+    // Draw bars
     for (int i = 0; i < n; i++) {
       if (values[i] <= 0) continue;
       final ratio = values[i];
-      final barH  = (ratio * size.height * 0.93).clamp(2.0, size.height);
+      final barH  = (ratio * size.height * 0.75).clamp(2.0, size.height * 0.75);
       final x     = i * slotW + padL;
+      final yTop  = size.height - barH;
+
+      // Select color based on ratio (as seen in Graphs-Activity.png)
+      Color barColor;
+      if (ratio >= 0.9) {
+        barColor = const Color(0xFFC9A86E);
+      } else if (ratio >= 0.65) {
+        barColor = Colors.white.withValues(alpha: 0.85);
+      } else {
+        barColor = const Color(0xFF6BC99B);
+      }
+
+      if (selectedIndex == i) {
+        barColor = barColor.withValues(alpha: 1.0);
+      }
+
       canvas.drawRRect(
-        RRect.fromLTRBR(
-            x, size.height - barH, x + barW, size.height,
-            const Radius.circular(3)),
-        Paint()
-          ..color = color
-              .withValues(alpha: (0.35 + ratio * 0.65).clamp(0.35, 1.0)),
+        RRect.fromRectAndCorners(
+          Rect.fromLTRB(x, yTop, x + barW, size.height),
+          topLeft: const Radius.circular(3),
+          topRight: const Radius.circular(3),
+        ),
+        Paint()..color = barColor,
+      );
+    }
+
+    // Draw tooltip
+    if (selectedIndex != null &&
+        selectedIndex! >= 0 &&
+        selectedIndex! < values.length &&
+        values[selectedIndex!] > 0) {
+      final idx = selectedIndex!;
+      final ratio = values[idx];
+      final rawVal = rawValues[idx];
+      final barH  = (ratio * size.height * 0.75).clamp(2.0, size.height * 0.75);
+      final xCenter = idx * slotW + padL + barW / 2;
+      final yTop  = size.height - barH;
+
+      final valStr = _formatValue(rawVal);
+
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: valStr,
+          style: GoogleFonts.inter(
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+
+      const padX = 8.0;
+      const padY = 4.0;
+      final tooltipW = textPainter.width + padX * 2;
+      final tooltipH = textPainter.height + padY * 2;
+
+      double rectLeft = xCenter - tooltipW / 2;
+      rectLeft = rectLeft.clamp(2.0, size.width - tooltipW - 2.0);
+      
+      double rectTop = yTop - tooltipH - 6.0;
+      bool isBelow = false;
+
+      // Ensure tooltip remains visible if space above is insufficient
+      if (rectTop < 0) {
+        rectTop = yTop + 6.0;
+        isBelow = true;
+      }
+
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(rectLeft, rectTop, tooltipW, tooltipH),
+          const Radius.circular(6),
+        ),
+        Paint()..color = const Color(0xFF000000),
+      );
+
+      final path = Path();
+      if (isBelow) {
+        path.moveTo(xCenter - 4, rectTop);
+        path.lineTo(xCenter + 4, rectTop);
+        path.lineTo(xCenter, yTop + 2);
+      } else {
+        path.moveTo(xCenter - 4, rectTop + tooltipH);
+        path.lineTo(xCenter + 4, rectTop + tooltipH);
+        path.lineTo(xCenter, yTop - 2);
+      }
+      path.close();
+      
+      canvas.drawPath(path, Paint()..color = const Color(0xFF000000));
+
+      textPainter.paint(
+        canvas,
+        Offset(rectLeft + padX, rectTop + padY),
       );
     }
   }
 
+  void _drawDashedLine(Canvas canvas, Offset p1, Offset p2, Paint paint, double dashWidth, double dashSpace) {
+    double distance = (p2 - p1).distance;
+    int count = (distance / (dashWidth + dashSpace)).floor();
+    for (int i = 0; i < count; i++) {
+      double startFraction = (i * (dashWidth + dashSpace)) / distance;
+      double endFraction = (startFraction + dashWidth / distance).clamp(0.0, 1.0);
+      canvas.drawLine(
+        Offset.lerp(p1, p2, startFraction)!,
+        Offset.lerp(p1, p2, endFraction)!,
+        paint,
+      );
+    }
+  }
+
+  String _formatValue(double val) {
+    if (val == val.toInt().toDouble()) {
+      return val.toInt().toString();
+    }
+    return val.toStringAsFixed(1);
+  }
+
   @override
   bool shouldRepaint(_BarPainter old) =>
-      old.values != values || old.color != color;
+      old.values != values ||
+      old.rawValues != rawValues ||
+      old.color != color ||
+      old.selectedIndex != selectedIndex;
 }

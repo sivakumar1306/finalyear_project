@@ -12,6 +12,7 @@ import 'screens/health/pressure_screen.dart';
 import 'screens/health/temperature_screen.dart';
 import 'screens/health/womens_health_screen.dart';
 import 'screens/health/sport_record_screen.dart';
+import 'screens/workouts/workouts_screen.dart';
 import 'screens/settings/device_settings_screen.dart';
 import 'screens/settings/health_settings_screen.dart';
 import 'screens/settings/notification_settings_screen.dart';
@@ -49,6 +50,7 @@ class QRingApp extends StatelessWidget {
         '/pressure': (_) => const PressureScreen(),
         '/temperature': (_) => const TemperatureScreen(),
         '/sport-record': (_) => const SportRecordScreen(),
+        '/workouts': (_) => const WorkoutsScreen(),
         '/device-settings': (_) => const DeviceSettingsScreen(),
         '/health-settings': (_) => const HealthSettingsScreen(),
         '/notification-settings': (_) => const NotificationSettingsScreen(),

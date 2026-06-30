@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
+import '../../providers/workout_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import 'ring_scan_sheet.dart';
@@ -129,6 +130,15 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${m}m';
   }
 
+  static String _workoutDurationLabel(int seconds) {
+    if (seconds <= 0) return '--';
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    if (h > 0 && m > 0) return '${h}h ${m}m';
+    if (h > 0) return '${h}h';
+    return '${m}m';
+  }
+
   static String _sleepStatus(int score) {
     if (score <= 0) return 'No data';
     if (score >= 80) return 'Excellent';
@@ -149,7 +159,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ble = context.watch<BleProvider>();
+    final ble     = context.watch<BleProvider>();
+    final workout = context.watch<WorkoutProvider>();
 
     return RefreshIndicator(
       color: AppTheme.gold,
@@ -309,16 +320,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: _HomeCard(
                       label: 'Sport',
-                      value: ble.todayCalories > 0 ? '${ble.todayCalories}' : '--',
-                      unit: 'Kcal',
-                      status: ble.todayCalories > 0 ? 'Active today' : 'No activity',
-                      statusColor: ble.todayCalories > 0
+                      value: _workoutDurationLabel(workout.todayWorkoutDurationS),
+                      unit: workout.todayWorkoutDurationS > 0 ? 'today' : '',
+                      status: workout.todayWorkoutDurationS > 0 ? 'Active today' : 'No activity',
+                      statusColor: workout.todayWorkoutDurationS > 0
                           ? const Color(0xFFD97706)
                           : _kSec2,
                       accentColor: const Color(0xFFD97706),
                       sparkData: const [0.2, 0.3, 0.5, 0.4, 0.6, 0.7, 0.5, 0.3, 0.2, 0.4, 0.5, 0.3],
                       connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/sport-record'),
+                      onTap: () => Navigator.pushNamed(context, '/workouts'),
                     ),
                   ),
                   const SizedBox(width: 12),

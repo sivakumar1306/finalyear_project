@@ -32,6 +32,8 @@ class WorkoutProvider extends ChangeNotifier {
   final List<int> _hrReadings = [];
   int _latestHr = 0;
 
+  int _todayWorkoutDurationS = 0;
+
   bool get isWorkoutActive => _isWorkoutActive;
   WorkoutCategory? get currentCategory => _currentCategory;
   String? get currentSport => _currentSport;
@@ -44,6 +46,7 @@ class WorkoutProvider extends ChangeNotifier {
   int get avgHr => _hrReadings.isEmpty
       ? 0
       : (_hrReadings.reduce((a, b) => a + b) / _hrReadings.length).round();
+  int get todayWorkoutDurationS => _todayWorkoutDurationS;
 
   // Completes after the initial SharedPreferences check; used by MainShell
   // to redirect to the active workout screen on app resume.
@@ -51,6 +54,28 @@ class WorkoutProvider extends ChangeNotifier {
 
   WorkoutProvider() {
     initialized = _resumeIfActive();
+    loadTodayWorkoutDuration();
+  }
+
+  Future<void> loadTodayWorkoutDuration() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+      final rows = await SupabaseService.getWorkoutHistory(
+        userId: user.id,
+        from: startOfDay,
+        to: endOfDay,
+      );
+      int total = 0;
+      for (final row in rows) {
+        total += (row['duration_s'] as num? ?? 0).toInt();
+      }
+      _todayWorkoutDurationS = total;
+      notifyListeners();
+    } catch (_) {}
   }
 
   Future<SharedPreferences> _getPrefs() async {
@@ -205,6 +230,7 @@ class WorkoutProvider extends ChangeNotifier {
     _hrReadings.clear();
     _latestHr = 0;
     notifyListeners();
+    loadTodayWorkoutDuration();
 
     return session;
   }

@@ -9,7 +9,6 @@ import 'home/home_screen.dart';
 import 'assist/assist_screen.dart';
 import 'records/records_screen.dart';
 import 'settings/settings_screen.dart';
-import 'workouts/workouts_screen.dart';
 import 'workouts/active_workout_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -30,7 +29,6 @@ class _MainShellState extends State<MainShell> {
       if (!mounted) return;
       final workout = context.read<WorkoutProvider>();
       if (workout.isWorkoutActive) {
-        setState(() => _tab = 4);
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const ActiveWorkoutScreen()),
         );
@@ -40,7 +38,7 @@ class _MainShellState extends State<MainShell> {
 
   void _onTabTap(int index) {
     final workout = context.read<WorkoutProvider>();
-    if (workout.isWorkoutActive && index != 4) {
+    if (workout.isWorkoutActive) {
       _showWorkoutLockSheet();
       return;
     }
@@ -98,7 +96,6 @@ class _MainShellState extends State<MainShell> {
                 ),
                 onPressed: () {
                   Navigator.of(context).pop();
-                  setState(() => _tab = 4);
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => const ActiveWorkoutScreen(),
@@ -128,18 +125,26 @@ class _MainShellState extends State<MainShell> {
         backgroundColor: const Color.fromRGBO(8, 8, 8, 1),
         body: Stack(
           children: [
-            IndexedStack(
-              index: _tab,
-              children: const [
-                HomeScreen(),
-                AssistScreen(),
-                RecordsScreen(),
-                SettingsScreen(),
-                WorkoutsScreen(),
-              ],
+            // Block all card taps / Navigator.push calls while sync is running.
+            // AbsorbPointer sits on the IndexedStack only — the bottomNavigationBar
+            // lives outside this Stack so tab switching remains usable.
+            Consumer<BleProvider>(
+              builder: (context, ble, child) => AbsorbPointer(
+                absorbing: ble.isSyncing,
+                child: child!,
+              ),
+              child: IndexedStack(
+                index: _tab,
+                children: const [
+                  HomeScreen(),
+                  AssistScreen(),
+                  RecordsScreen(),
+                  SettingsScreen(),
+                ],
+              ),
             ),
-            // Sync overlay — always pointer-transparent so users can navigate
-            // to screens mid-sync. Bottom nav remains fully usable.
+            // Overlay is pointer-transparent — the AbsorbPointer above handles
+            // blocking; this just renders the progress visually.
             Consumer<BleProvider>(
               builder: (context, ble, _) => IgnorePointer(
                 child: AnimatedOpacity(
@@ -205,12 +210,6 @@ class _BottomNav extends StatelessWidget {
                 label: 'Settings',
                 active: selected == 3,
                 onTap: () => onTap(3),
-              ),
-              _NavTab(
-                icon: Icons.directions_run_rounded,
-                label: 'Workouts',
-                active: selected == 4,
-                onTap: () => onTap(4),
               ),
             ],
           ),

@@ -275,7 +275,7 @@ class BleProvider extends ChangeNotifier {
     _syncStep     = 'Steps';
     notifyListeners();
 
-    const kTimeout = Duration(seconds: 15);
+    const kTimeout = Duration(seconds: 8);
 
     try {
       // 1. Steps (0% → 20%)
