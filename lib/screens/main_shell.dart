@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/ble_provider.dart';
@@ -124,33 +125,30 @@ class _MainShellState extends State<MainShell> {
         statusBarIconBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: AppTheme.bg,
+        backgroundColor: const Color.fromRGBO(8, 8, 8, 1),
         body: Stack(
           children: [
-            Consumer<BleProvider>(
-              builder: (context, ble, child) => AbsorbPointer(
-                absorbing: ble.isSyncing,
-                child: child,
-              ),
-              child: IndexedStack(
-                index: _tab,
-                children: const [
-                  HomeScreen(),
-                  AssistScreen(),
-                  RecordsScreen(),
-                  SettingsScreen(),
-                  WorkoutsScreen(),
-                ],
-              ),
+            IndexedStack(
+              index: _tab,
+              children: const [
+                HomeScreen(),
+                AssistScreen(),
+                RecordsScreen(),
+                SettingsScreen(),
+                WorkoutsScreen(),
+              ],
             ),
-            Positioned(
-              top: 0, left: 0, right: 0,
-              child: Consumer<BleProvider>(
-                builder: (context, ble, _) => AnimatedSlide(
-                  offset: ble.isSyncing ? Offset.zero : const Offset(0, -1),
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeInOut,
-                  child: _SyncBanner(step: ble.syncStep),
+            // Sync overlay — always pointer-transparent so users can navigate
+            // to screens mid-sync. Bottom nav remains fully usable.
+            Consumer<BleProvider>(
+              builder: (context, ble, _) => IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: ble.isSyncing ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 300),
+                  child: _SyncOverlay(
+                    progress: ble.syncProgress,
+                    step: ble.syncStep,
+                  ),
                 ),
               ),
             ),
@@ -222,41 +220,75 @@ class _BottomNav extends StatelessWidget {
   }
 }
 
-// ── Sync banner ───────────────────────────────────────────────────────────────
+// ── Sync overlay (circular progress) ─────────────────────────────────────────
 
-class _SyncBanner extends StatelessWidget {
+class _SyncOverlay extends StatelessWidget {
+  final double progress;
   final String step;
-  const _SyncBanner({required this.step});
+  const _SyncOverlay({required this.progress, required this.step});
 
   @override
   Widget build(BuildContext context) {
-    final topPad = MediaQuery.of(context).padding.top;
     return Container(
-      width: double.infinity,
-      color: AppTheme.gold,
-      padding: EdgeInsets.fromLTRB(16, topPad + 8, 16, 10),
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              step.isEmpty ? 'Syncing ring data...' : 'Syncing $step...',
-              style: const TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
+      color: Colors.black.withValues(alpha: 0.78),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 112,
+              height: 112,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0.0, end: progress),
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeOut,
+                builder: (context, value, _) {
+                  final pct = (value * 100).round();
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        value: value,
+                        strokeWidth: 5.0,
+                        backgroundColor: Colors.white.withValues(alpha: 0.12),
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.gold),
+                      ),
+                      Text(
+                        '$pct%',
+                        style: GoogleFonts.inter(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w300,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 20),
+            Text(
+              'Syncing Ring',
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 6),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Text(
+                step.isEmpty ? 'Preparing...' : step,
+                key: ValueKey(step),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Colors.white.withValues(alpha: 0.55),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

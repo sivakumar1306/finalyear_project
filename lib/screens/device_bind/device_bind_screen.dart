@@ -69,7 +69,6 @@ class _DeviceBindScreenState extends State<DeviceBindScreen> {
     if (!mounted) return;
     setState(() => _connectingAddress = null);
     if (ok) {
-      ble.syncAllFromRing();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Connected to ${device.name}'),
         backgroundColor: Colors.green,

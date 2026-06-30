@@ -366,9 +366,9 @@ class BlePlugin(private val context: Context) {
         try {
             BleOperateManager.getInstance().getTodayHeartRate(
                 object : BleOperateManager.HealthDataCallback<ReadHeartRateRsp> {
-                    override fun onSuccess(data: ReadHeartRateRsp) {
+                    override fun onSuccess(data: ReadHeartRateRsp?) {
                         if (done.compareAndSet(false, true))
-                            mainHandler.post { result.success(gson.toJson(data)) }
+                            mainHandler.post { result.success(if (data != null) gson.toJson(data) else "{}") }
                     }
                     override fun onError(code: Int, message: String?) {
                         if (done.compareAndSet(false, true))
@@ -512,9 +512,9 @@ class BlePlugin(private val context: Context) {
         val done = AtomicBoolean(false)
         BleOperateManager.getInstance().getTodayBloodPressure(
             object : BleOperateManager.HealthDataCallback<List<BlePressure>> {
-                override fun onSuccess(data: List<BlePressure>) {
+                override fun onSuccess(data: List<BlePressure>?) {
                     if (done.compareAndSet(false, true)) {
-                        val mapped = data.map { p: BlePressure -> mapOf("sbp" to p.sbp, "dbp" to p.dbp, "time" to p.time) }
+                        val mapped = (data ?: emptyList()).map { p: BlePressure -> mapOf("sbp" to p.sbp, "dbp" to p.dbp, "time" to p.time) }
                         mainHandler.post { result.success(gson.toJson(mapped)) }
                     }
                 }
@@ -630,11 +630,10 @@ class BlePlugin(private val context: Context) {
         try {
             BleOperateManager.getInstance().getTodayBloodOxygen(
                 object : BleOperateManager.HealthDataCallback<BloodOxygenEntity> {
-                    override fun onSuccess(data: BloodOxygenEntity) {
+                    override fun onSuccess(data: BloodOxygenEntity?) {
                         if (done.compareAndSet(false, true)) {
+                            if (data == null) { mainHandler.post { result.success("{}") }; return }
                             try {
-                                // Use getters so R8 renames call-site and definition consistently.
-                                // Gson on the entity directly uses reflected field names (obfuscated).
                                 val map = mapOf(
                                     "dateStr"   to (data.getDateStr() ?: ""),
                                     "maxArray"  to (data.getMaxArray()  ?: emptyList<Int>()),
@@ -880,12 +879,9 @@ class BlePlugin(private val context: Context) {
         try {
             BleOperateManager.getInstance().getTodaySleep(
                 object : BleOperateManager.HealthDataCallback<SleepDisplay> {
-                    override fun onSuccess(data: SleepDisplay) {
+                    override fun onSuccess(data: SleepDisplay?) {
                         if (done.compareAndSet(false, true)) {
-                            // Compute JSON on the callback thread so the try/catch
-                            // actually covers it — mainHandler.post{} runs after
-                            // the try/catch scope exits and exceptions inside it
-                            // are uncaught on the main thread.
+                            if (data == null) { mainHandler.post { result.success("{}") }; return }
                             try {
                                 val json = gson.toJson(sleepDisplayToMap(data))
                                 mainHandler.post { result.success(json) }
@@ -974,9 +970,9 @@ class BlePlugin(private val context: Context) {
         try {
             BleOperateManager.getInstance().getTodayHrv(
                 object : BleOperateManager.HealthDataCallback<HRVRsp> {
-                    override fun onSuccess(data: HRVRsp) {
+                    override fun onSuccess(data: HRVRsp?) {
                         if (done.compareAndSet(false, true))
-                            mainHandler.post { result.success(gson.toJson(data)) }
+                            mainHandler.post { result.success(if (data != null) gson.toJson(data) else "{}") }
                     }
                     override fun onError(code: Int, message: String?) {
                         if (done.compareAndSet(false, true))
@@ -1073,9 +1069,9 @@ class BlePlugin(private val context: Context) {
         val done = java.util.concurrent.atomic.AtomicBoolean(false)
         BleOperateManager.getInstance().getTodayPressure(
             object : BleOperateManager.HealthDataCallback<PressureRsp> {
-                override fun onSuccess(data: PressureRsp) {
+                override fun onSuccess(data: PressureRsp?) {
                     if (done.compareAndSet(false, true))
-                        mainHandler.post { result.success(gson.toJson(data)) }
+                        mainHandler.post { result.success(if (data != null) gson.toJson(data) else "{}") }
                 }
                 override fun onError(code: Int, message: String?) {
                     if (done.compareAndSet(false, true))

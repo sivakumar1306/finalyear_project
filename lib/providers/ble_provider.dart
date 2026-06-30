@@ -57,8 +57,13 @@ class BleProvider extends ChangeNotifier {
   int _todaySleepScore    = 0;
 
   // Background ring sync state
-  bool   _isSyncing = false;
-  String _syncStep  = '';
+  bool   _isSyncing     = false;
+  String _syncStep      = '';
+  double _syncProgress  = 0.0;
+  int    _syncGen       = 0; // incremented to cancel a stale in-progress sync
+
+  // Delay (seconds) before issuing SDK commands after a connection event.
+  int _connectDelaySeconds = 1;
 
   // ── Getters ───────────────────────────────────────────────────────────────
 
@@ -93,8 +98,9 @@ class BleProvider extends ChangeNotifier {
   int get todaySleepDuration => _todaySleepDuration;
   int get todaySleepScore    => _todaySleepScore;
 
-  bool   get isSyncing => _isSyncing;
-  String get syncStep  => _syncStep;
+  bool   get isSyncing    => _isSyncing;
+  String get syncStep     => _syncStep;
+  double get syncProgress => _syncProgress;
 
   // ── Manual update methods (called by individual screens) ──────────────────
 
@@ -161,7 +167,7 @@ class BleProvider extends ChangeNotifier {
         case 'connectionState':
           _isConnected = data['connected'] as bool? ?? false;
           if (_isConnected) {
-            _onConnected();
+            _onConnected(delay: _connectDelaySeconds);
           } else {
             _battery = -1;
           }
@@ -200,9 +206,10 @@ class BleProvider extends ChangeNotifier {
     if (_deviceAddress.isNotEmpty) {
       _isConnected = await _ble.isConnected();
       if (_isConnected) {
-        _onConnected();
+        _onConnected(delay: 1);
         notifyListeners();
       } else {
+        _connectDelaySeconds = 1;
         _reconnectToSaved();
       }
     }
@@ -210,7 +217,6 @@ class BleProvider extends ChangeNotifier {
 
   Future<void> checkConnection() async {
     _isConnected = await _ble.isConnected();
-    if (_isConnected) _onConnected();
     notifyListeners();
   }
 
@@ -222,18 +228,21 @@ class BleProvider extends ChangeNotifier {
       final ok = await _ble.connect(_deviceAddress);
       if (ok) {
         _isConnected = true;
-        _onConnected();
+        // _onConnected() is triggered by the connectionState event from the SDK,
+        // which fires when the ring is fully ready (green light). Calling it here
+        // (on raw GATT connect) is too early and causes sync to hang.
       }
     } catch (_) {}
     _isReconnecting = false;
     notifyListeners();
   }
 
-  void _onConnected() {
-    _initThenSync();
+  void _onConnected({int delay = 3}) {
+    _initThenSync(delay);
   }
 
-  Future<void> _initThenSync() async {
+  Future<void> _initThenSync(int delaySeconds) async {
+    await Future.delayed(Duration(seconds: delaySeconds));
     // Await setTime so the ring finishes its daily midnight reset before we
     // start fetching metrics. Skipping this await was the cause of the
     // blood-oxygen SDK crash at 12:03 AM.
@@ -243,56 +252,78 @@ class BleProvider extends ChangeNotifier {
     if (_isConnected) syncAllFromRing();
   }
 
+  // ── Sync cancellation ─────────────────────────────────────────────────────
+
+  void _cancelSync() {
+    if (!_isSyncing) return;
+    _syncGen++;
+    _isSyncing    = false;
+    _syncStep     = '';
+    _syncProgress = 0.0;
+    notifyListeners();
+  }
+
   // ── Background ring sync (all metrics sequentially) ───────────────────────
 
   Future<void> syncAllFromRing() async {
     if (_isSyncing || !_isConnected) return;
-    _isSyncing = true;
+    final myGen = ++_syncGen;
+    bool alive() => _syncGen == myGen;
+
+    _isSyncing    = true;
+    _syncProgress = 0.0;
+    _syncStep     = 'Steps';
     notifyListeners();
 
-    try {
-      // 1. Steps
-      try {
-        _syncStep = 'steps';
-        notifyListeners();
-        await syncTodayStepsFromRing();
-      } catch (_) {}
+    const kTimeout = Duration(seconds: 15);
 
-      // 2. Heart Rate
+    try {
+      // 1. Steps (0% → 20%)
+      try { await syncTodayStepsFromRing().timeout(kTimeout); } catch (_) {}
+      if (!alive()) return;
+      _syncProgress = 0.2; _syncStep = 'Heart Rate'; notifyListeners();
+
+      // 2. Heart Rate (20% → 40%)
       try {
-        _syncStep = 'heart rate';
-        notifyListeners();
-        final json = await _ble.getTodayHeartRate();
+        final json = await _ble.getTodayHeartRate().timeout(kTimeout);
         _parseAndSaveHr(json);
       } catch (_) {}
+      if (!alive()) return;
+      _syncProgress = 0.4; _syncStep = 'Blood Oxygen'; notifyListeners();
 
-      // 3. Blood Oxygen
+      // 3. Blood Oxygen (40% → 60%)
       try {
-        _syncStep = 'blood oxygen';
-        notifyListeners();
-        final json = await _ble.getTodayBloodOxygen();
+        final json = await _ble.getTodayBloodOxygen().timeout(kTimeout);
         _parseAndSaveSpo2(json);
       } catch (_) {}
+      if (!alive()) return;
+      _syncProgress = 0.6; _syncStep = 'HRV'; notifyListeners();
 
-      // 4. HRV
+      // 4. HRV (60% → 80%)
       try {
-        _syncStep = 'HRV';
-        notifyListeners();
-        final json = await _ble.getTodayHrv();
+        final json = await _ble.getTodayHrv().timeout(kTimeout);
         _parseAndSaveHrv(json);
       } catch (_) {}
+      if (!alive()) return;
+      _syncProgress = 0.8; _syncStep = 'Sleep'; notifyListeners();
 
-      // 5. Sleep
+      // 5. Sleep (80% → 100%)
       try {
-        _syncStep = 'sleep';
-        notifyListeners();
-        final json = await _ble.getTodaySleep();
+        final json = await _ble.getTodaySleep().timeout(kTimeout);
         _parseAndSaveSleep(json);
       } catch (_) {}
+      if (!alive()) return;
+      _syncProgress = 1.0; notifyListeners();
+
+      // Brief pause so user sees 100% before overlay hides
+      await Future.delayed(const Duration(milliseconds: 700));
     } finally {
-      _isSyncing = false;
-      _syncStep  = '';
-      notifyListeners();
+      if (alive()) {
+        _isSyncing    = false;
+        _syncStep     = '';
+        _syncProgress = 0.0;
+        notifyListeners();
+      }
     }
   }
 
@@ -529,7 +560,7 @@ class BleProvider extends ChangeNotifier {
     _syncingSteps = true;
     notifyListeners();
     try {
-      final json    = await _ble.getTodaySteps();
+      final json    = await _ble.getTodaySteps().timeout(const Duration(seconds: 15));
       final decoded = jsonDecode(json);
       final list    = decoded is List ? decoded : <dynamic>[];
       int totalSteps = 0, totalCal = 0;
@@ -597,12 +628,13 @@ class BleProvider extends ChangeNotifier {
 
   Future<bool> connect(ScannedDevice device) async {
     try {
-      // Disconnect first — BlePlugin polls isConnected globally (not per-address).
-      // If the auto-reconnect to a previous ring already set isConnected=true,
-      // the new connect call would immediately return success for the wrong device.
+      // Cancel any in-progress sync so stale SDK callbacks don't collide with
+      // the new ring's data, then disconnect before connecting to the new ring.
+      _cancelSync();
       await _ble.disconnect();
       _isConnected    = false;
       _isReconnecting = false;
+      _connectDelaySeconds = 2;
       notifyListeners();
 
       final ok = await _ble.connect(device.address);
@@ -613,7 +645,9 @@ class BleProvider extends ChangeNotifier {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('device_name',    device.name);
         await prefs.setString('device_address', device.address);
-        _onConnected();
+        // _onConnected() is triggered by the connectionState event from the SDK,
+        // which fires when the ring is fully ready (green light). Calling it here
+        // (on raw GATT connect) is too early and causes sync to hang.
         notifyListeners();
       }
       return ok;
@@ -631,7 +665,6 @@ class BleProvider extends ChangeNotifier {
       final ok = await _ble.connect(_deviceAddress);
       if (ok) {
         _isConnected = true;
-        _onConnected();
         notifyListeners();
       }
       return ok;
@@ -641,6 +674,7 @@ class BleProvider extends ChangeNotifier {
   }
 
   Future<void> disconnect() async {
+    _cancelSync();
     await _ble.disconnect();
     _isConnected = false;
     _battery     = -1;

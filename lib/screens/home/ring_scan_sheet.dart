@@ -107,7 +107,6 @@ class _RingScanSheetState extends State<_RingScanSheet>
     if (!mounted) return;
     setState(() => _connectingAddress = null);
     if (ok) {
-      _ble.syncAllFromRing();
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Connected to ${device.name}'),
