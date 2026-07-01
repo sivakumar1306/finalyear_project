@@ -19,6 +19,7 @@ import 'screens/settings/notification_settings_screen.dart';
 import 'screens/settings/target_profile_screen.dart';
 import 'screens/settings/display_settings_screen.dart';
 import 'screens/settings/advanced_settings_screen.dart';
+import 'screens/settings/touch_control_screen.dart';
 import 'screens/reminders/drink_reminder_screen.dart';
 import 'screens/reminders/sedentary_reminder_screen.dart';
 import 'screens/ota/ota_screen.dart';
@@ -57,6 +58,7 @@ class QRingApp extends StatelessWidget {
         '/target-profile': (_) => const TargetProfileScreen(),
         '/display-settings': (_) => const DisplaySettingsScreen(),
         '/advanced-settings': (_) => const AdvancedSettingsScreen(),
+        '/touch-control': (_) => const TouchControlScreen(),
         '/drink-reminder': (_) => const DrinkReminderScreen(),
         '/sedentary-reminder': (_) => const SedentaryReminderScreen(),
         '/ota': (_) => const OtaScreen(),

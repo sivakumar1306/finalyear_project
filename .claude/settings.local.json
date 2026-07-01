@@ -68,7 +68,20 @@
       "Bash(javap -verbose com/oudmon/ble/base/communication/bigData/LargeDataHandler.class)",
       "Bash(grep -v \"//\\\\|method\\\\|class\\\\|descriptor\")",
       "Bash(javap -c -p -verbose com/oudmon/ble/base/communication/bigData/LargeDataHandler.class)",
-      "Bash(dart analyze *)"
+      "Bash(dart analyze *)",
+      "Bash(unzip -l qring_sdk_1.0.0.19.aar)",
+      "Bash(mkdir -p /tmp_classes_list)",
+      "Bash(unzip -p qring_sdk_1.0.0.19.aar classes.jar)",
+      "Bash(unzip -o -j qring_sdk_1.0.0.19.aar classes.jar -d \"C:/Users/fixadmin/AppData/Local/Temp/claude/C--Jeffrey-new-flutter/4a66ff5e-d27f-49ca-9b6a-92cd097e6694/scratchpad\")",
+      "Bash(unzip -l \"C:/Users/fixadmin/AppData/Local/Temp/claude/C--Jeffrey-new-flutter/4a66ff5e-d27f-49ca-9b6a-92cd097e6694/scratchpad/classes.jar\")",
+      "Bash(unzip -o -j \"/c/Jeffrey/new-flutter/android/app/libs/qring_sdk_1.0.0.19.aar\" classes.jar -d \"/c/Users/fixadmin/AppData/Local/Temp/claude/C--Jeffrey-new-flutter/4a66ff5e-d27f-49ca-9b6a-92cd097e6694/scratchpad\")",
+      "Read(//c/Users/fixadmin/AppData/Local/Temp/claude/C--Jeffrey-new-flutter/4a66ff5e-d27f-49ca-9b6a-92cd097e6694/scratchpad/**)",
+      "Bash(unzip -l \"/c/Users/fixadmin/AppData/Local/Temp/claude/C--Jeffrey-new-flutter/4a66ff5e-d27f-49ca-9b6a-92cd097e6694/scratchpad/classes.jar\")",
+      "Bash(unzip -o \"../classes.jar\" \"com/oudmon/ble/base/communication/rsp/DeviceNotifyRsp*.class\")",
+      "Bash(javap -p \"com/oudmon/ble/base/communication/rsp/DeviceNotifyRsp.class\")",
+      "Bash(unzip -o \"../classes.jar\" \"com/oudmon/ble/base/communication/CommandHandle*.class\")",
+      "Bash(javap -p \"com/oudmon/ble/base/communication/CommandHandle.class\")",
+      "Bash(./gradlew :app:compileDebugKotlin --console=plain)"
     ]
   }
 }

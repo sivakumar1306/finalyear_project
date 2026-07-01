@@ -161,6 +161,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onChanged: (v) => setState(() => _gestureControls = v),
                   ),
                   _divider(),
+                  _SettingsRow.arrow(
+                    icon: Icons.touch_app_rounded,
+                    title: 'Touch Control',
+                    onTap: () => Navigator.pushNamed(context, '/touch-control'),
+                  ),
+                  _divider(),
                   _SettingsRow.arrow(icon: Icons.gps_fixed_rounded, title: 'Find Device'),
                   _divider(),
                   _SettingsRow.arrow(icon: Icons.notifications_outlined, title: 'Notifications'),

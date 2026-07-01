@@ -241,6 +241,15 @@ class BleService {
   Future<bool> setAdvancedSetting(String jsonData) async =>
       await _methodChannel.invokeMethod<bool>('setAdvancedSetting', {'data': jsonData}) ?? false;
 
+  // ── Touch Control ──────────────────────────────────────────────────
+  Future<String> getTouchControlSetting() async =>
+      await _methodChannel.invokeMethod<String>('getTouchControlSetting') ?? '{}';
+
+  Future<String> setTouchControlSetting({required bool enable, int strength = 5}) async =>
+      await _methodChannel.invokeMethod<String>(
+          'setTouchControlSetting', {'enable': enable, 'strength': strength}) ??
+      '{}';
+
   // ── Reminders ──────────────────────────────────────────────────────
   Future<String> getDrinkReminder() async =>
       await _methodChannel.invokeMethod<String>('getDrinkReminder') ?? '{}';

@@ -46,6 +46,7 @@ import com.oudmon.ble.base.communication.req.SetANCSReq
 import com.oudmon.ble.base.communication.req.SetTimeReq
 import com.oudmon.ble.base.communication.req.SimpleKeyReq
 import com.oudmon.ble.base.communication.req.TemperatureSettingReq
+import com.oudmon.ble.base.communication.req.TouchControlReq
 import com.oudmon.ble.base.communication.responseImpl.DeviceNotifyListener
 import com.oudmon.ble.base.communication.rsp.BaseRspCmd
 import com.oudmon.ble.base.communication.rsp.BatteryRsp
@@ -59,6 +60,7 @@ import com.oudmon.ble.base.communication.rsp.ReadHeartRateRsp
 import com.oudmon.ble.base.communication.rsp.SetTimeRsp
 import com.oudmon.ble.base.communication.rsp.SleepNewProtoResp
 import com.oudmon.ble.base.communication.rsp.StartHeartRateRsp
+import com.oudmon.ble.base.communication.rsp.TouchControlResp
 import com.oudmon.ble.base.communication.sport.SportPlusHandle
 import com.oudmon.ble.base.scan.BleScannerHelper
 import com.oudmon.ble.base.scan.ScanRecord
@@ -102,7 +104,8 @@ class BlePlugin(private val context: Context) {
                         "deviceNotification",
                         mapOf(
                             "dataType" to resultEntity.dataType,
-                            "status" to resultEntity.status
+                            "status" to resultEntity.status,
+                            "loadData" to (resultEntity.loadData?.map { it.toInt() and 0xFF } ?: emptyList<Int>())
                         )
                     )
                 }
@@ -191,6 +194,8 @@ class BlePlugin(private val context: Context) {
             "setTargetAndProfile"        -> result.success(true)
             "getAdvancedSettings"        -> result.success("{}")
             "setAdvancedSetting"         -> result.success(true)
+            "getTouchControlSetting"     -> getTouchControlSetting(result)
+            "setTouchControlSetting"     -> setTouchControlSetting(call, result)
             "getDrinkReminder"           -> getDrinkReminder(result)
             "getSedentaryReminder"       -> getSedentaryReminder(result)
             "startOta"                   -> startOta(call, result)
@@ -1415,6 +1420,32 @@ class BlePlugin(private val context: Context) {
             MusicSwitchReq.getWriteInstance(enable),
             ICommandResponse<BaseRspCmd> { _ ->
                 mainHandler.post { result.success(true) }
+            }
+        )
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Touch Control
+    // ─────────────────────────────────────────────────────────────────
+
+    // appType: 0=close 1=music 2=video 3=muslim 4=ebook 5=camera 6=phone call 7=game 8=heart 9=touch event
+    private fun getTouchControlSetting(result: MethodChannel.Result) {
+        CommandHandle.getInstance().executeReqCmd(
+            TouchControlReq.getReadInstance(true),
+            ICommandResponse<TouchControlResp> { rsp ->
+                mainHandler.post { result.success(gson.toJson(rsp)) }
+            }
+        )
+    }
+
+    private fun setTouchControlSetting(call: MethodCall, result: MethodChannel.Result) {
+        val enable = call.argument<Boolean>("enable") ?: true
+        val strength = call.argument<Int>("strength") ?: 5
+        val appType = if (enable) 9 else 0
+        CommandHandle.getInstance().executeReqCmd(
+            TouchControlReq.getWriteInstance(appType, true, strength),
+            ICommandResponse<TouchControlResp> { rsp ->
+                mainHandler.post { result.success(gson.toJson(rsp)) }
             }
         )
     }
