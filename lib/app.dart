@@ -20,6 +20,9 @@ import 'screens/settings/target_profile_screen.dart';
 import 'screens/settings/display_settings_screen.dart';
 import 'screens/settings/advanced_settings_screen.dart';
 import 'screens/settings/touch_control_screen.dart';
+import 'screens/settings/alarms_notifications_screen.dart';
+import 'screens/settings/select_notifications_screen.dart';
+import 'screens/settings/fall_detection_screen.dart';
 import 'screens/reminders/drink_reminder_screen.dart';
 import 'screens/reminders/sedentary_reminder_screen.dart';
 import 'screens/ota/ota_screen.dart';
@@ -59,6 +62,9 @@ class QRingApp extends StatelessWidget {
         '/display-settings': (_) => const DisplaySettingsScreen(),
         '/advanced-settings': (_) => const AdvancedSettingsScreen(),
         '/touch-control': (_) => const TouchControlScreen(),
+        '/alarms-notifications': (_) => const AlarmsNotificationsScreen(),
+        '/select-notifications': (_) => const SelectNotificationsScreen(),
+        '/fall-detection': (_) => const FallDetectionScreen(),
         '/drink-reminder': (_) => const DrinkReminderScreen(),
         '/sedentary-reminder': (_) => const SedentaryReminderScreen(),
         '/ota': (_) => const OtaScreen(),

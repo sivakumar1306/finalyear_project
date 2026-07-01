@@ -14,9 +14,11 @@ class MainActivity : FlutterActivity() {
     companion object {
         const val BLE_METHOD_CHANNEL = "com.medxai.qring/ble"
         const val BLE_EVENT_CHANNEL = "com.medxai.qring/ble_events"
+        const val PHONE_MODE_METHOD_CHANNEL = "com.medxai.qring/phone_mode"
     }
 
     private lateinit var blePlugin: BlePlugin
+    private lateinit var phoneModePlugin: PhoneModePlugin
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,6 +54,15 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             BLE_EVENT_CHANNEL
         ).setStreamHandler(blePlugin.eventStreamHandler)
+
+        phoneModePlugin = PhoneModePlugin(this)
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            PHONE_MODE_METHOD_CHANNEL
+        ).setMethodCallHandler { call, result ->
+            phoneModePlugin.handleMethodCall(call, result)
+        }
     }
 
     override fun onDestroy() {

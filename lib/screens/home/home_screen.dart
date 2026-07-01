@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../providers/workout_provider.dart';
+import '../../providers/alarm_mode_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import 'ring_scan_sheet.dart';
@@ -219,6 +220,30 @@ class _HomeScreenState extends State<HomeScreen> {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
 
+                // ── Alarms + Heart Rate ────────────────────────────────────
+                Row(children: [
+                  const Expanded(child: _AlarmCard()),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _HomeCard(
+                      label: 'Heart Rate',
+                      value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
+                      unit: ble.todayAvgHr > 0 ? 'bpm' : '',
+                      status: ble.todayAvgHr > 0
+                          ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
+                              ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
+                              : _hrStatus(ble.todayAvgHr))
+                          : 'No data',
+                      statusColor: ble.todayAvgHr > 0 ? _kOrbHr : _kSec2,
+                      orbColor: _kOrbHr,
+                      sparkData: const [0.45, 0.5, 0.55, 0.5, 0.6, 0.55, 0.5, 0.48, 0.52, 0.58, 0.54, 0.5],
+                      connected: ble.isConnected,
+                      onTap: () => Navigator.pushNamed(context, '/heart-rate'),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+
                 // ── Activity ─────────────────────────────────────────────
                 _ActivityCard(
                   steps: ble.todaySteps,
@@ -279,7 +304,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ]),
                 const SizedBox(height: 12),
 
-                // ── Blood Oxygen + Heart Rate ──────────────────────────────
+                // ── Blood Oxygen + Sport ───────────────────────────────────
                 Row(children: [
                   Expanded(
                     child: _HomeCard(
@@ -301,28 +326,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _HomeCard(
-                      label: 'Heart Rate',
-                      value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
-                      unit: ble.todayAvgHr > 0 ? 'bpm' : '',
-                      status: ble.todayAvgHr > 0
-                          ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
-                              ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
-                              : _hrStatus(ble.todayAvgHr))
-                          : 'No data',
-                      statusColor: ble.todayAvgHr > 0 ? _kOrbHr : _kSec2,
-                      orbColor: _kOrbHr,
-                      sparkData: const [0.45, 0.5, 0.55, 0.5, 0.6, 0.55, 0.5, 0.48, 0.52, 0.58, 0.54, 0.5],
-                      connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/heart-rate'),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 12),
-
-                // ── Sport + Temperature ───────────────────────────────────
-                Row(children: [
-                  Expanded(
-                    child: _HomeCard(
                       label: 'Sport',
                       value: _workoutDurationLabel(workout.todayWorkoutDurationS),
                       unit: workout.todayWorkoutDurationS > 0 ? 'today' : '',
@@ -334,7 +337,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       onTap: () => Navigator.pushNamed(context, '/workouts'),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                ]),
+                const SizedBox(height: 12),
+
+                // ── Temperature + Blood Pressure ──────────────────────────
+                Row(children: [
                   Expanded(
                     child: _HomeCard(
                       label: 'Temperature',
@@ -354,23 +361,23 @@ class _HomeScreenState extends State<HomeScreen> {
                       onTap: () => Navigator.pushNamed(context, '/temperature'),
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _HomeCard(
+                      label: 'Blood Pressure',
+                      value: ble.latestBpSbp > 0
+                          ? '${ble.latestBpSbp}/${ble.latestBpDbp}'
+                          : '--/--',
+                      unit: ble.latestBpSbp > 0 ? 'mmHg' : '',
+                      status: ble.latestBpSbp > 0 ? 'Normal' : 'No data',
+                      statusColor: ble.latestBpSbp > 0 ? _kOrbBp : _kSec2,
+                      orbColor: _kOrbBp,
+                      sparkData: const [0.6, 0.65, 0.6, 0.68, 0.65, 0.6, 0.64, 0.67, 0.64, 0.6, 0.65, 0.62],
+                      connected: ble.isConnected,
+                      onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
+                    ),
+                  ),
                 ]),
-                const SizedBox(height: 12),
-
-                // ── Blood Pressure (full-width) ────────────────────────────
-                _HomeCard(
-                  label: 'Blood Pressure',
-                  value: ble.latestBpSbp > 0
-                      ? '${ble.latestBpSbp}/${ble.latestBpDbp}'
-                      : '--/--',
-                  unit: ble.latestBpSbp > 0 ? 'mmHg' : '',
-                  status: ble.latestBpSbp > 0 ? 'Normal' : 'No data',
-                  statusColor: ble.latestBpSbp > 0 ? _kOrbBp : _kSec2,
-                  orbColor: _kOrbBp,
-                  sparkData: const [0.6, 0.65, 0.6, 0.68, 0.65, 0.6, 0.64, 0.67, 0.64, 0.6, 0.65, 0.62],
-                  connected: ble.isConnected,
-                  onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
-                ),
                 const SizedBox(height: 20),
 
                 const _EditCardsButton(),
@@ -492,6 +499,7 @@ class _GlassCard extends StatelessWidget {
   final double? height;
   final VoidCallback? onTap;
   final bool orbOnRight;
+  final double? orbOffset;
 
   const _GlassCard({
     required this.orbColor,
@@ -499,13 +507,15 @@ class _GlassCard extends StatelessWidget {
     this.height,
     this.onTap,
     this.orbOnRight = true,
+    this.orbOffset,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Full-width cards get a larger orb; half-width cards fill ~75% of the card area.
-    final double orbSize   = height == null ? 240 : 200;
-    final double orbOffset = height == null ? -78 : -52;
+    // Small fixed-height cards get a large orb so the ambient glow covers
+    // ~90% of the card; full-width auto-height cards keep a corner glow.
+    const double resolvedOrbSize   = 240;
+    final double resolvedOrbOffset = orbOffset ?? (height == null ? -78 : -56);
 
     return _ShrinkButton(
       onTap: onTap,
@@ -522,14 +532,16 @@ class _GlassCard extends StatelessWidget {
             children: [
               // Ambient orb — blurred circle clipped by card
               Positioned(
-                bottom: orbOffset,
-                right: orbOnRight ? orbOffset : null,
-                left:  orbOnRight ? null : orbOffset,
+                bottom: resolvedOrbOffset,
+                right: orbOnRight ? resolvedOrbOffset : null,
+                left:  orbOnRight ? null : resolvedOrbOffset,
                 child: ImageFiltered(
                   imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-                  child: Container(
-                    width: orbSize,
-                    height: orbSize,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 320),
+                    curve: Curves.easeInOut,
+                    width: resolvedOrbSize,
+                    height: resolvedOrbSize,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: orbColor.withValues(alpha: 0.34),
@@ -600,7 +612,7 @@ class _HomeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _GlassCard(
       orbColor: orbColor,
-      height: 162,
+      height: 160,
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -707,6 +719,8 @@ class _StressCard extends StatelessWidget {
     return _GlassCard(
       orbColor: _kOrbStress,
       orbOnRight: false,
+      height: 205,
+      orbOffset: -78,
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -720,7 +734,7 @@ class _StressCard extends StatelessWidget {
               _chevron(),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
@@ -736,7 +750,7 @@ class _StressCard extends StatelessWidget {
               Text(status, style: _inter(13, color: color, weight: FontWeight.w500)),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           SizedBox(
             height: 36,
             width: double.infinity,
@@ -744,7 +758,7 @@ class _StressCard extends StatelessWidget {
                 ? CustomPaint(painter: _BarChartPainter(_kOrbStress, _barData))
                 : const _ConnectHint(),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -919,6 +933,165 @@ class _ActivityStat extends StatelessWidget {
           const SizedBox(height: 2),
           Text(unit, style: _inter(11, color: color, weight: FontWeight.w500)),
         ],
+      ),
+    );
+  }
+}
+
+// ── Alarms card ────────────────────────────────────────────────────────────────
+
+class _AlarmModeInfo {
+  final String title;
+  final String subtitle;
+  final String segmentLabel;
+  final Color color;
+  final IconData icon;
+  const _AlarmModeInfo(this.title, this.subtitle, this.segmentLabel, this.color, this.icon);
+}
+
+const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
+  PhoneMode.focus: _AlarmModeInfo(
+      'Focus', 'Until 13:00', 'Focus', AppTheme.gold, Icons.adjust_rounded),
+  PhoneMode.base: _AlarmModeInfo(
+      'Normal', 'All alerts on', 'Base', AppTheme.gold, Icons.circle_outlined),
+  PhoneMode.prayer: _AlarmModeInfo(
+      'Prayer mode', 'Dhuhr 13:14', 'Prayer', _kOrbStress, Icons.self_improvement_rounded),
+};
+
+class _AlarmCard extends StatelessWidget {
+  const _AlarmCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<AlarmModeProvider>();
+    final mode = provider.mode;
+    final info = _kAlarmModeInfo[mode]!;
+    return _GlassCard(
+      orbColor: info.color,
+      height: 160,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('ALARMS',
+                  style: _inter(11,
+                      weight: FontWeight.w700,
+                      color: Colors.white.withValues(alpha: 0.5),
+                      letterSpacing: 1.2)),
+              _chevron(),
+            ],
+          ),
+          const Spacer(),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 280),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: (child, anim) =>
+                FadeTransition(opacity: anim, child: child),
+            child: Column(
+              key: ValueKey(mode),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  info.title,
+                  style: GoogleFonts.inter(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w600,
+                      color: info.color),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(info.subtitle,
+                    style: _inter(11, color: Colors.white.withValues(alpha: 0.5))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _AlarmModeSelector(
+            mode: mode,
+            onChanged: (m) => requestPhoneMode(context, provider, m),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Rounded, glass-background container holding all three modes — Focus, Base,
+// Prayer — always visible with their icon and label; the active mode is
+// highlighted with its accent color.
+class _AlarmModeSelector extends StatelessWidget {
+  final PhoneMode mode;
+  final ValueChanged<PhoneMode> onChanged;
+  const _AlarmModeSelector({required this.mode, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: _kBtnBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kBtnBorder, width: 0.5),
+      ),
+      child: Row(
+        children: PhoneMode.values.map((m) {
+          return Expanded(
+            child: _AlarmSegment(
+              mode: m,
+              selected: m == mode,
+              onTap: () => onChanged(m),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _AlarmSegment extends StatelessWidget {
+  final PhoneMode mode;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _AlarmSegment({required this.mode, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final info = _kAlarmModeInfo[mode]!;
+    final color = selected ? info.color : Colors.white.withValues(alpha: 0.45);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        decoration: BoxDecoration(
+          color: info.color.withValues(alpha: selected ? 0.16 : 0),
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: info.color.withValues(alpha: selected ? 0.5 : 0), width: 1),
+        ),
+        alignment: Alignment.center,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(info.icon, size: 14, color: color),
+              const SizedBox(width: 4),
+              Text(
+                info.segmentLabel,
+                style: _inter(11, weight: FontWeight.w600, color: color),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

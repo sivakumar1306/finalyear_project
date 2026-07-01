@@ -81,7 +81,16 @@
       "Bash(javap -p \"com/oudmon/ble/base/communication/rsp/DeviceNotifyRsp.class\")",
       "Bash(unzip -o \"../classes.jar\" \"com/oudmon/ble/base/communication/CommandHandle*.class\")",
       "Bash(javap -p \"com/oudmon/ble/base/communication/CommandHandle.class\")",
-      "Bash(./gradlew :app:compileDebugKotlin --console=plain)"
+      "Bash(./gradlew :app:compileDebugKotlin --console=plain)",
+      "Bash(flutter run *)",
+      "Bash(tee /c/Users/fixadmin/AppData/Local/Temp/claude/C--Jeffrey-new-flutter/287d921a-2645-40ec-8434-b96b63292227/scratchpad/flutter_run.log)",
+      "Bash(echo \"started in background, pid $!\")",
+      "Bash(adb devices *)",
+      "Bash(/c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe devices *)",
+      "Bash(/c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe install *)",
+      "Bash(\"/c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe\" shell *)",
+      "Bash(\"/c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe\" exec-out *)",
+      "Read(//c/Users/fixadmin/AppData/Local/Temp/claude/C--Jeffrey-new-flutter/287d921a-2645-40ec-8434-b96b63292227/scratchpad/**)"
     ]
   }
 }

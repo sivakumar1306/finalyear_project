@@ -167,6 +167,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () => Navigator.pushNamed(context, '/touch-control'),
                   ),
                   _divider(),
+                  _SettingsRow.arrow(
+                    icon: Icons.alarm_rounded,
+                    title: 'Alarms & Notifications',
+                    onTap: () => Navigator.pushNamed(context, '/alarms-notifications'),
+                  ),
+                  _divider(),
+                  _SettingsRow.arrow(
+                    icon: Icons.health_and_safety_rounded,
+                    title: 'Fall Detection',
+                    onTap: () => Navigator.pushNamed(context, '/fall-detection'),
+                  ),
+                  _divider(),
                   _SettingsRow.arrow(icon: Icons.gps_fixed_rounded, title: 'Find Device'),
                   _divider(),
                   _SettingsRow.arrow(icon: Icons.notifications_outlined, title: 'Notifications'),

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'providers/ble_provider.dart';
 import 'providers/workout_provider.dart';
+import 'providers/alarm_mode_provider.dart';
 import 'services/supabase_service.dart';
 import 'app.dart';
 
@@ -34,6 +35,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => BleProvider()),
         ChangeNotifierProvider(create: (_) => WorkoutProvider()),
+        ChangeNotifierProvider(create: (_) => AlarmModeProvider()),
       ],
       child: const QRingApp(),
     ),
