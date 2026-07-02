@@ -448,7 +448,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'ALL METRICS  ·  TODAY',
         style: _inter(11,
             weight: FontWeight.w700,
-            color: AppTheme.gold.withValues(alpha: 0.85),
+            color: Colors.white.withValues(alpha: 0.38),
             letterSpacing: 1.5),
       ),
     );
@@ -968,45 +968,61 @@ class _AlarmCard extends StatelessWidget {
     final info = _kAlarmModeInfo[mode]!;
     return _GlassCard(
       orbColor: info.color,
-      height: 160,
+      height: 165, // Updated height to exactly 165px
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('ALARMS',
-                  style: _inter(11,
-                      weight: FontWeight.w700,
-                      color: Colors.white.withValues(alpha: 0.5),
-                      letterSpacing: 1.2)),
-              _chevron(),
-            ],
-          ),
-          const Spacer(),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 280),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            transitionBuilder: (child, anim) =>
-                FadeTransition(opacity: anim, child: child),
-            child: Column(
-              key: ValueKey(mode),
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  info.title,
-                  style: GoogleFonts.inter(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w600,
-                      color: info.color),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(info.subtitle,
-                    style: _inter(11, color: Colors.white.withValues(alpha: 0.5))),
-              ],
+          // Tapping this region (everything except the mode buttons below)
+          // opens the system Alarms & notifications settings screen.
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () =>
+                  Navigator.pushNamed(context, '/alarms-notifications'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('ALARMS',
+                          style: _inter(11,
+                              weight: FontWeight.w700,
+                              color: info.color, // Matched to screenshot (colors dynamically change per mode)
+                              letterSpacing: 1.2)),
+                      _chevron(),
+                    ],
+                  ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 280),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: (child, anim) =>
+                        FadeTransition(opacity: anim, child: child),
+                    child: Column(
+                      key: ValueKey(mode),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          info.title,
+                          style: GoogleFonts.inter(
+                              fontSize: 24, 
+                              fontWeight: FontWeight.w500,
+                              color: info.color),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(info.subtitle,
+                            style: _inter(13,
+                                color: Colors.white.withValues(alpha: 0.6))),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -1031,21 +1047,21 @@ class _AlarmModeSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 40,
+      width: 152, // Specified width
+      height: 46, // Specified height
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: _kBtnBg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(23), // Fully rounded ends matching the visual pill shape
         border: Border.all(color: _kBtnBorder, width: 0.5),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: PhoneMode.values.map((m) {
-          return Expanded(
-            child: _AlarmSegment(
-              mode: m,
-              selected: m == mode,
-              onTap: () => onChanged(m),
-            ),
+          return _AlarmSegment(
+            mode: m,
+            selected: m == mode,
+            onTap: () => onChanged(m),
           );
         }).toList(),
       ),
@@ -1071,32 +1087,30 @@ class _AlarmSegment extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOut,
-        margin: const EdgeInsets.symmetric(horizontal: 2),
+        width: 46.66, // Specified width
+        height: 40, // Specified height
         decoration: BoxDecoration(
           color: info.color.withValues(alpha: selected ? 0.16 : 0),
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(20), // Highly rounded individual selected states
           border: Border.all(color: info.color.withValues(alpha: selected ? 0.5 : 0), width: 1),
         ),
         alignment: Alignment.center,
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(info.icon, size: 14, color: color),
-              const SizedBox(width: 4),
-              Text(
-                info.segmentLabel,
-                style: _inter(11, weight: FontWeight.w600, color: color),
-              ),
-            ],
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center, // Vertically center icon and text
+          children: [
+            Icon(info.icon, size: 14, color: color), // Specified icon size
+            const SizedBox(height: 2), // Small gap between icon and text
+            Text(
+              info.segmentLabel,
+              style: _inter(10, weight: FontWeight.w500, color: color), // Specified text size
+            ),
+          ],
         ),
       ),
     );
   }
 }
-
 // ── Women's Health card ───────────────────────────────────────────────────────
 
 class _WomensHealthCard extends StatefulWidget {
