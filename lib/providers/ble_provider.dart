@@ -48,6 +48,9 @@ class BleProvider extends ChangeNotifier {
 
   // Stress state
   int _latestStressValue = 0;
+  int _todayAvgStress = 0;
+  int _todayMinStress = 0;
+  int _todayMaxStress = 0;
 
   // HRV state
   int _todayAvgHrv = 0;
@@ -96,6 +99,9 @@ class BleProvider extends ChangeNotifier {
   int get latestBpSbp       => _latestBpSbp;
   int get latestBpDbp       => _latestBpDbp;
   int get latestStressValue => _latestStressValue;
+  int get todayAvgStress => _todayAvgStress;
+  int get todayMinStress => _todayMinStress;
+  int get todayMaxStress => _todayMaxStress;
   int get todayAvgHrv       => _todayAvgHrv;
 
   int get todaySleepDuration => _todaySleepDuration;
@@ -265,6 +271,14 @@ class BleProvider extends ChangeNotifier {
       final m = jsonDecode(await _ble.getLatestReading('stress'));
       if (m is! Map<String, dynamic>) return false;
       _latestStressValue = (m['value'] as num?)?.toInt() ?? 0;
+      try {
+        final summary = jsonDecode(await _ble.getTodaySummary('stress')) as Map<String, dynamic>;
+        if ((summary['count'] as num? ?? 0) > 0) {
+          _todayAvgStress = (summary['avg'] as num?)?.round() ?? 0;
+          _todayMinStress = (summary['min'] as num?)?.toInt() ?? 0;
+          _todayMaxStress = (summary['max'] as num?)?.toInt() ?? 0;
+        }
+      } catch (_) {}
       notifyListeners();
       return true;
     } catch (_) { return false; }

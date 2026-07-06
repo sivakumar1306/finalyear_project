@@ -23,7 +23,7 @@ const _kOrbStress   = Color(0xFF6BC99B);
 const _kOrbSpo2     = Color(0xFF73D4F8);
 const _kOrbBp       = Color(0xFFD97A7A);
 const _kOrbWomen    = Color(0xFFD88CC8);
-const _kOrbActivity = Color(0xFFC9A86E);
+const _kOrbActivity = Color(0xFFE08A4A);
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -218,6 +218,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 // ── Stress (full-width) ───────────────────────────────────
                 _StressCard(
                   value: ble.latestStressValue,
+                  avgStress: ble.todayAvgStress,
+                  minStress: ble.todayMinStress,
+                  maxStress: ble.todayMaxStress,
                   connected: ble.isConnected,
                   onTap: () => Navigator.pushNamed(context, '/pressure'),
                 ),
@@ -430,6 +433,7 @@ class _GlassCard extends StatelessWidget {
   final VoidCallback? onTap;
   final bool orbOnRight;
   final double? orbOffset;
+  final double orbAlpha;
 
   const _GlassCard({
     required this.orbColor,
@@ -438,6 +442,7 @@ class _GlassCard extends StatelessWidget {
     this.onTap,
     this.orbOnRight = true,
     this.orbOffset,
+    this.orbAlpha = 0.34,
   });
 
   @override
@@ -474,7 +479,7 @@ class _GlassCard extends StatelessWidget {
                     height: resolvedOrbSize,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: orbColor.withValues(alpha: 0.34),
+                      color: orbColor.withValues(alpha: orbAlpha),
                     ),
                   ),
                 ),
@@ -630,6 +635,9 @@ class _HomeCard extends StatelessWidget {
 
 class _StressCard extends StatelessWidget {
   final int value;
+  final int avgStress;
+  final int minStress;
+  final int maxStress;
   final bool connected;
   final VoidCallback? onTap;
 
@@ -639,7 +647,14 @@ class _StressCard extends StatelessWidget {
     0.40, 0.35, 0.28, 0.32,
   ];
 
-  const _StressCard({required this.value, required this.connected, this.onTap});
+  const _StressCard({
+    required this.value,
+    required this.avgStress,
+    required this.minStress,
+    required this.maxStress,
+    required this.connected,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -700,13 +715,13 @@ class _StressCard extends StatelessWidget {
                             color: Colors.white.withValues(alpha: 0.4),
                             weight: FontWeight.w400)),
                     const SizedBox(height: 2),
-                    Text(value > 0 ? '$value' : '--',
+                    Text(avgStress > 0 ? '$avgStress' : '--',
                         style: _inter(13,
                             weight: FontWeight.w600,
                             color: Colors.white.withValues(alpha: 0.85))),
-                    Text(status,
+                    Text(_stressStatus(avgStress),
                         style: _inter(10,
-                            color: color, weight: FontWeight.w400)),
+                            color: _stressColor(avgStress), weight: FontWeight.w400)),
                   ],
                 ),
               ),
@@ -723,13 +738,13 @@ class _StressCard extends StatelessWidget {
                               color: Colors.white.withValues(alpha: 0.4),
                               weight: FontWeight.w400)),
                       const SizedBox(height: 2),
-                      Text(value > 0 ? '${(value * 0.8).round()}-$value' : '--',
+                      Text(maxStress > 0 ? '$minStress-$maxStress' : '--',
                           style: _inter(13,
                               weight: FontWeight.w600,
                               color: Colors.white.withValues(alpha: 0.85))),
-                      Text(status,
+                      Text(_stressStatus(maxStress),
                           style: _inter(10,
-                              color: color, weight: FontWeight.w400)),
+                              color: _stressColor(maxStress), weight: FontWeight.w400)),
                     ],
                   ),
                 ),
@@ -760,6 +775,7 @@ class _ActivityScoreCard extends StatelessWidget {
     return _GlassCard(
       orbColor: _kOrbActivity,
       orbOnRight: true,
+      orbAlpha: 0.25,
       height: 165,
       onTap: onTap,
       child: Column(
