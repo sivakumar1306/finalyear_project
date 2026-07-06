@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import java.util.concurrent.atomic.AtomicBoolean
 
-// Continuously round-robins HR -> SpO2 -> Stress -> BP -> Steps (HRV/Temperature skipped
+// Continuously round-robins Steps -> HR -> SpO2 -> Stress -> BP (HRV/Temperature skipped
 // while disabled) with a 1-minute cooldown between full cycles, persisting every reading
 // to Room and publishing a NewReadingEvent for future analyzer modules. Driven by
 // BleConnectionService.onCreate()/onDestroy() — never runs standalone.
@@ -38,8 +38,8 @@ object MeasurementLoopManager {
     private const val OWNER = "loop"
 
     private val sequence = listOf(
-        Vital.HEART_RATE, Vital.SPO2, Vital.STRESS, Vital.BLOOD_PRESSURE,
-        Vital.STEPS, Vital.HRV, Vital.TEMPERATURE
+        Vital.STEPS, Vital.HEART_RATE, Vital.SPO2, Vital.STRESS, Vital.BLOOD_PRESSURE,
+        Vital.HRV, Vital.TEMPERATURE
     )
 
     private val gson = Gson()
@@ -314,8 +314,8 @@ object MeasurementLoopManager {
         }, MEASURE_TIMEOUT_MS)
     }
 
-    // Guarded behind MeasurementConfig — disabled by default until HRV one-click reliability
-    // is fixed separately. manualModeHrv has no built-in zero-filtering, so it's applied here.
+    // manualModeHrv has no built-in zero-filtering (unlike HR/SpO2/BP/Stress), so it's
+    // applied here — same pattern, just checking getHrv() first (see comment below).
     private fun measureHrv(cycleId: Long, onDone: () -> Unit) {
         if (!MeasurementCoordinator.tryAcquire(OWNER)) { onDone(); return }
         val done = AtomicBoolean(false)
@@ -334,7 +334,12 @@ object MeasurementLoopManager {
             BleOperateManager.getInstance().manualModeHrv(
                 ICommandResponse<StartHeartRateRsp> { rsp ->
                     if (done.get()) return@ICommandResponse
-                    val value = rsp.getValue()
+                    // HRV comes back through the dedicated getHrv() field, not the generic
+                    // getValue() field used by HR/SpO2/BP/Stress — confirmed against the
+                    // official SDK sample (HrvActivity.kt) and the bundled SDK's compiled
+                    // StartHeartRateRsp class. Checking getValue() only (the original bug)
+                    // meant this never saw a real reading.
+                    val value = if (rsp.getHrv() > 0) rsp.getHrv() else rsp.getValue()
                     if (value > 0 && done.compareAndSet(false, true)) {
                         persist(Vital.HRV, cycleId, value.toDouble()) {
                             repository.insertHrv(value, cycleId, "auto_cycle")

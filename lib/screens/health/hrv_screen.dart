@@ -44,6 +44,8 @@ class _HrvScreenState extends State<HrvScreen> {
   bool _loading      = false;
   bool _loadingDay   = false;
   bool _loadingTrend = false;
+  bool _measuring    = false;
+  int  _manualHrv    = 0;
 
   DateTime _selectedDate = DateTime.now();
 
@@ -210,6 +212,67 @@ class _HrvScreenState extends State<HrvScreen> {
         maxHrv: max,
         sampleCount: count,
       );
+    } catch (_) {}
+  }
+
+  // ── Manual "Measure Now" (for debugging the one-click HRV path) ───────────
+
+  Future<void> _startMeasurement() async {
+    if (_measuring) return;
+    setState(() { _measuring = true; _manualHrv = 0; });
+    try {
+      final result = await _ble.manualModeHrv(start: true);
+      int liveVal = 0;
+      try {
+        final m = jsonDecode(result) as Map<String, dynamic>;
+        liveVal = (m['value'] as num?)?.toInt() ?? 0;
+      } catch (_) {}
+      if (!mounted) return;
+      setState(() {
+        _measuring = false;
+        if (liveVal > 0) _manualHrv = liveVal;
+      });
+      if (liveVal > 0) await _saveSingleMeasurement(liveVal);
+    } catch (_) {
+      if (mounted) setState(() => _measuring = false);
+    }
+  }
+
+  Future<void> _saveSingleMeasurement(int hrv) async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    try {
+      final existing = await SupabaseService.getHrvForDate(user.id, DateTime.now());
+      int newAvg, newMin, newMax, newCount;
+      final prevCount = (existing?['sample_count'] as num? ?? 0).toInt();
+      if (existing != null && prevCount > 0) {
+        final prevAvg = (existing['avg_hrv'] as num).toInt();
+        final prevMin = (existing['min_hrv'] as num).toInt();
+        final prevMax = (existing['max_hrv'] as num).toInt();
+        newCount = prevCount + 1;
+        newAvg = ((prevAvg * prevCount + hrv) / newCount).round();
+        newMin = hrv < prevMin ? hrv : prevMin;
+        newMax = hrv > prevMax ? hrv : prevMax;
+      } else {
+        newAvg = newMin = newMax = hrv;
+        newCount = 1;
+      }
+      await SupabaseService.upsertHrv(
+        userId: user.id,
+        date: DateTime.now(),
+        avgHrv: newAvg,
+        minHrv: newMin,
+        maxHrv: newMax,
+        sampleCount: newCount,
+      );
+      if (mounted) {
+        context.read<BleProvider>().updateHrvLatest(newAvg);
+        setState(() {
+          _avgHrv = newAvg;
+          _minHrv = newMin;
+          _maxHrv = newMax;
+        });
+      }
     } catch (_) {}
   }
 
@@ -421,6 +484,15 @@ class _HrvScreenState extends State<HrvScreen> {
                 ),
               ]),
               const SizedBox(height: 10),
+
+              // ── 4b. Real-time measurement ───────────────────────────────
+              _RealTimeCard(
+                latestHrv: _manualHrv,
+                measuring: _measuring,
+                enabled: connected && !_measuring,
+                onTap: _startMeasurement,
+              ),
+              const SizedBox(height: 20),
 
               // ── 5. 7-day trend ─────────────────────────────────────────
               _HRVChartCard(
@@ -816,6 +888,95 @@ class _HRVStatCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text('know more >', style: _inter(11, color: _kSec)),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Real-time measurement card ────────────────────────────────────────────────
+
+class _RealTimeCard extends StatelessWidget {
+  final int latestHrv;
+  final bool measuring;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  const _RealTimeCard({
+    required this.latestHrv,
+    required this.measuring,
+    required this.enabled,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hrvText = measuring
+        ? '···'
+        : latestHrv > 0
+            ? '$latestHrv'
+            : '--';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Real Time HRV',
+                  style: _inter(14, weight: FontWeight.w500)),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(hrvText,
+                      style: _inter(15,
+                          weight: FontWeight.w600,
+                          color: measuring || latestHrv > 0
+                              ? Colors.white
+                              : _kSec2)),
+                  const SizedBox(width: 4),
+                  Text('ms', style: _inter(11, color: _kSec)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: enabled ? onTap : null,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF2E2E2E)),
+              ),
+              child: Center(
+                child: measuring
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: enabled ? AppTheme.hrvColor : _kSec,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        'Click to start measurement',
+                        style: _inter(14,
+                            weight: FontWeight.w500,
+                            color: enabled ? Colors.white70 : _kSec),
+                      ),
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
-import '../../providers/workout_provider.dart';
 import '../../providers/alarm_mode_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
@@ -21,10 +20,8 @@ const _kBtnBorder  = Color(0x14FFFFFF);   // rgba(255,255,255,0.08)
 const _kOrbHr       = Color(0xFFC96B6B);
 const _kOrbSleep    = Color(0xFF6B82D9);
 const _kOrbStress   = Color(0xFF6BC99B);
-const _kOrbHrv      = Color(0xFFC9A86E);
 const _kOrbSpo2     = Color(0xFF73D4F8);
 const _kOrbBp       = Color(0xFFD97A7A);
-const _kOrbTemp     = Color(0xFFE3B76A);
 const _kOrbWomen    = Color(0xFFD88CC8);
 const _kOrbActivity = Color(0xFFC9A86E);
 const _kOrbSport    = Color(0xFFD97706);
@@ -44,20 +41,6 @@ Color _stressColor(int v) {
   if (v < 40) return AppTheme.success;
   if (v < 60) return const Color(0xFFFBBF24);
   if (v < 80) return AppTheme.stressColor;
-  return AppTheme.danger;
-}
-
-String _tempStatus(double v) {
-  if (v < 36.0) return 'Low';
-  if (v <= 37.2) return 'Normal';
-  if (v <= 38.0) return 'Elevated';
-  return 'Fever';
-}
-
-Color _tempStatusColor(double v) {
-  if (v < 36.0) return AppTheme.spo2Color;
-  if (v <= 37.2) return AppTheme.success;
-  if (v <= 38.0) return const Color(0xFFFBBF24);
   return AppTheme.danger;
 }
 
@@ -129,15 +112,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${d[now.weekday - 1]} · ${now.day.toString().padLeft(2,'0')} ${m[now.month - 1]}';
   }
 
-  static String _hrvStatus(int v) {
-    if (v <= 0) return 'No data';
-    if (v < 20) return 'Very Low';
-    if (v < 40) return 'Low';
-    if (v < 60) return 'Normal';
-    if (v < 80) return 'Good';
-    return 'Excellent';
-  }
-
   static String _spo2Status(int v) {
     if (v <= 0) return 'No data';
     if (v >= 95) return 'Normal';
@@ -153,15 +127,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   static String _sleepDurationLabel(int seconds) {
-    if (seconds <= 0) return '--';
-    final h = seconds ~/ 3600;
-    final m = (seconds % 3600) ~/ 60;
-    if (h > 0 && m > 0) return '${h}h ${m}m';
-    if (h > 0) return '${h}h';
-    return '${m}m';
-  }
-
-  static String _workoutDurationLabel(int seconds) {
     if (seconds <= 0) return '--';
     final h = seconds ~/ 3600;
     final m = (seconds % 3600) ~/ 60;
@@ -190,8 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ble     = context.watch<BleProvider>();
-    final workout = context.watch<WorkoutProvider>();
+    final ble = context.watch<BleProvider>();
 
     return RefreshIndicator(
       color: AppTheme.gold,
@@ -270,7 +234,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 12),
                 ],
 
-                // ── Sleep + HRV ───────────────────────────────────────────
+                // ── Sleep + Blood Oxygen ───────────────────────────────────
+                // HRV, Sport, and Temperature cards removed for now (HRV one-click
+                // measurement isn't reliable yet; Sport/Temperature deprioritized) —
+                // re-add once ready.
                 Row(children: [
                   Expanded(
                     child: _HomeCard(
@@ -290,24 +257,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _HomeCard(
-                      label: 'HRV',
-                      value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
-                      unit: ble.todayAvgHrv > 0 ? 'ms' : '',
-                      status: _hrvStatus(ble.todayAvgHrv),
-                      statusColor: ble.todayAvgHrv > 0 ? _kOrbHrv : _kSec2,
-                      orbColor: _kOrbHrv,
-                      sparkData: const [0.5, 0.6, 0.45, 0.7, 0.55, 0.8, 0.6, 0.5, 0.45, 0.65, 0.7, 0.55],
-                      connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/hrv'),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 12),
-
-                // ── Blood Oxygen + Sport ───────────────────────────────────
-                Row(children: [
-                  Expanded(
-                    child: _HomeCard(
                       label: 'Blood Oxygen',
                       value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
                       unit: ble.todayAvgSpo2 > 0 ? '%' : '',
@@ -323,45 +272,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       onTap: () => Navigator.pushNamed(context, '/blood-oxygen'),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _HomeCard(
-                      label: 'Sport',
-                      value: _workoutDurationLabel(workout.todayWorkoutDurationS),
-                      unit: workout.todayWorkoutDurationS > 0 ? 'today' : '',
-                      status: workout.todayWorkoutDurationS > 0 ? 'Active today' : 'No activity',
-                      statusColor: workout.todayWorkoutDurationS > 0 ? _kOrbSport : _kSec2,
-                      orbColor: _kOrbSport,
-                      sparkData: const [0.2, 0.3, 0.5, 0.4, 0.6, 0.7, 0.5, 0.3, 0.2, 0.4, 0.5, 0.3],
-                      connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/workouts'),
-                    ),
-                  ),
                 ]),
                 const SizedBox(height: 12),
 
-                // ── Temperature + Blood Pressure ──────────────────────────
+                // ── Blood Pressure ─────────────────────────────────────────
                 Row(children: [
-                  Expanded(
-                    child: _HomeCard(
-                      label: 'Temperature',
-                      value: ble.latestTempC > 0
-                          ? ble.latestTempC.toStringAsFixed(1)
-                          : '--',
-                      unit: ble.latestTempC > 0 ? '°C' : '',
-                      status: ble.latestTempC > 0
-                          ? _tempStatus(ble.latestTempC)
-                          : 'No data',
-                      statusColor: ble.latestTempC > 0
-                          ? _tempStatusColor(ble.latestTempC)
-                          : _kSec2,
-                      orbColor: _kOrbTemp,
-                      sparkData: const [0.5, 0.52, 0.51, 0.53, 0.52, 0.51, 0.5, 0.52, 0.53, 0.51, 0.5, 0.52],
-                      connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/temperature'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
                   Expanded(
                     child: _HomeCard(
                       label: 'Blood Pressure',

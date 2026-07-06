@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
-import '../providers/ble_provider.dart';
 import '../providers/workout_provider.dart';
 import 'home/home_screen.dart';
 import 'assist/assist_screen.dart';
@@ -124,40 +123,13 @@ class _MainShellState extends State<MainShell> {
       ),
       child: Scaffold(
         backgroundColor: const Color.fromRGBO(8, 8, 8, 1),
-        body: Stack(
-          children: [
-            // Block all card taps / Navigator.push calls while sync is running.
-            // AbsorbPointer sits on the IndexedStack only — the bottomNavigationBar
-            // lives outside this Stack so tab switching remains usable.
-            Consumer<BleProvider>(
-              builder: (context, ble, child) => AbsorbPointer(
-                absorbing: ble.isSyncing,
-                child: child!,
-              ),
-              child: IndexedStack(
-                index: _tab,
-                children: const [
-                  HomeScreen(),
-                  AssistScreen(),
-                  RecordsScreen(),
-                  SettingsScreen(),
-                ],
-              ),
-            ),
-            // Overlay is pointer-transparent — the AbsorbPointer above handles
-            // blocking; this just renders the progress visually.
-            Consumer<BleProvider>(
-              builder: (context, ble, _) => IgnorePointer(
-                child: AnimatedOpacity(
-                  opacity: ble.isSyncing ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 300),
-                  child: _SyncOverlay(
-                    progress: ble.syncProgress,
-                    step: ble.syncStep,
-                  ),
-                ),
-              ),
-            ),
+        body: IndexedStack(
+          index: _tab,
+          children: const [
+            HomeScreen(),
+            AssistScreen(),
+            RecordsScreen(),
+            SettingsScreen(),
           ],
         ),
         bottomNavigationBar: _BottomNav(
@@ -201,80 +173,6 @@ class _BottomNav extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Sync overlay (circular progress) ─────────────────────────────────────────
-
-class _SyncOverlay extends StatelessWidget {
-  final double progress;
-  final String step;
-  const _SyncOverlay({required this.progress, required this.step});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.black.withValues(alpha: 0.78),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 112,
-              height: 112,
-              child: TweenAnimationBuilder<double>(
-                tween: Tween<double>(begin: 0.0, end: progress),
-                duration: const Duration(milliseconds: 500),
-                curve: Curves.easeOut,
-                builder: (context, value, _) {
-                  final pct = (value * 100).round();
-                  return Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CircularProgressIndicator(
-                        value: value,
-                        strokeWidth: 5.0,
-                        backgroundColor: Colors.white.withValues(alpha: 0.12),
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.gold),
-                      ),
-                      Text(
-                        '$pct%',
-                        style: GoogleFonts.inter(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w300,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Syncing Ring',
-              style: GoogleFonts.inter(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 6),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: Text(
-                step.isEmpty ? 'Preparing...' : step,
-                key: ValueKey(step),
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: 0.55),
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

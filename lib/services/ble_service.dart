@@ -165,6 +165,9 @@ class BleService {
   Future<String> getHrvList(int startDay, int count) async =>
       await _methodChannel.invokeMethod<String>('getHrvList', {'startDay': startDay, 'count': count}) ?? '[]';
 
+  Future<String> manualModeHrv({required bool start}) async =>
+      await _methodChannel.invokeMethod<String>('manualModeHrv', {'start': start}) ?? '{}';
+
   // ── Pressure ───────────────────────────────────────────────────────
   Future<String> getTodayPressure() async =>
       await _methodChannel.invokeMethod<String>('getTodayPressure') ?? '{}';

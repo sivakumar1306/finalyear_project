@@ -1228,12 +1228,29 @@ class BlePlugin(private val context: Context) {
 
     private fun manualModeHrv(call: MethodCall, result: MethodChannel.Result) {
         val start = call.argument<Boolean>("start") ?: true
+        val done = AtomicBoolean(false)
         BleOperateManager.getInstance().manualModeHrv(
             ICommandResponse<StartHeartRateRsp> { rsp ->
-                mainHandler.post { result.success(gson.toJson(rsp)) }
+                // HRV comes back through the dedicated getHrv() field, not the generic
+                // getValue() field used by HR/SpO2/BP/Stress — confirmed against the SDK
+                // sample (HrvActivity.kt) and the bundled SDK's StartHeartRateRsp class.
+                val value = if (rsp.getHrv() > 0) rsp.getHrv() else rsp.getValue()
+                val shouldRespond = if (start) value > 0 else true
+                if (shouldRespond && done.compareAndSet(false, true)) {
+                    mainHandler.post {
+                        result.success(gson.toJson(mapOf("value" to value, "status" to rsp.status)))
+                    }
+                }
             },
             !start
         )
+        if (start) {
+            mainHandler.postDelayed({
+                if (done.compareAndSet(false, true)) {
+                    result.error("TIMEOUT", "HRV measurement timed out", null)
+                }
+            }, 60000)
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────
