@@ -14,6 +14,12 @@ enum PhoneModeResult { applied, needsDndAccess, unsupported }
 /// blocks ringer/notification-policy changes without it. iOS has no public
 /// API for a third-party app to control system DND or Silent mode, so there
 /// [setMode] only updates local state.
+///
+/// Prayer mode's "auto turn DND back off after 1 minute" timer is implemented
+/// natively (PhoneModePlugin), not with a Dart Timer — a Dart Timer lives in
+/// the Flutter engine's isolate, which Android can destroy when the app is
+/// closed/swiped away even though the app's foreground service keeps the
+/// process itself alive, so it would silently never fire.
 class AlarmModeProvider extends ChangeNotifier {
   static const _channel = MethodChannel('com.medxai.qring/phone_mode');
 
@@ -53,7 +59,12 @@ class AlarmModeProvider extends ChangeNotifier {
           break;
         case PhoneMode.prayer:
           await _channel.invokeMethod('setSilentMode', {'enabled': false});
-          await _channel.invokeMethod('setDoNotDisturb', {'enabled': true});
+          // autoOffAfterOneMinute tells the native side to schedule its own
+          // (process-lifetime) timer to flip DND back off — see class doc.
+          await _channel.invokeMethod('setDoNotDisturb', {
+            'enabled': true,
+            'autoOffAfterOneMinute': true,
+          });
           break;
         case PhoneMode.base:
           await _channel.invokeMethod('setDoNotDisturb', {'enabled': false});

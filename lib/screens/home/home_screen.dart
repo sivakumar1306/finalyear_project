@@ -664,22 +664,22 @@ class _StressCard extends StatelessWidget {
     return _GlassCard(
       orbColor: _kOrbStress,
       orbOnRight: false,
-      height: 205,
       orbOffset: -78,
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Stress',
-                  style: _inter(13, weight: FontWeight.w500,
-                      color: Colors.white.withValues(alpha: 0.85))),
+                  style: _inter(15, weight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.9))),
               _chevron(),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
@@ -688,14 +688,14 @@ class _StressCard extends StatelessWidget {
                 value > 0 ? '$value' : '--',
                 style: GoogleFonts.inter(
                     fontSize: 36,
-                    fontWeight: FontWeight.w200,
+                    fontWeight: FontWeight.w300,
                     color: Colors.white.withValues(alpha: 0.95)),
               ),
               const SizedBox(width: 8),
               Text(status, style: _inter(13, color: color, weight: FontWeight.w500)),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           SizedBox(
             height: 36,
             width: double.infinity,
@@ -703,60 +703,72 @@ class _StressCard extends StatelessWidget {
                 ? CustomPaint(painter: _BarChartPainter(_kOrbStress, _barData))
                 : const _ConnectHint(),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
+          
+          // Horizontal Divider added here
+          Container(
+            height: 1,
+            width: double.infinity,
+            color: Colors.white.withValues(alpha: 0.08),
+          ),
+          const SizedBox(height: 12),
+          
           Row(
             children: [
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center, // Centered
                   children: [
                     Text('Daily Average',
-                        style: _inter(10,
+                        style: _inter(11,
                             color: Colors.white.withValues(alpha: 0.4),
-                            weight: FontWeight.w400)),
-                    const SizedBox(height: 2),
+                            weight: FontWeight.w500)),
+                    const SizedBox(height: 4),
                     Text(avgStress > 0 ? '$avgStress' : '--',
-                        style: _inter(13,
-                            weight: FontWeight.w600,
-                            color: Colors.white.withValues(alpha: 0.85))),
+                        style: GoogleFonts.inter(
+                            fontSize: 22, // Increased size to match design
+                            fontWeight: FontWeight.w300, // Thinner font weight
+                            color: Colors.white.withValues(alpha: 0.95))),
+                    const SizedBox(height: 2),
                     Text(_stressStatus(avgStress),
-                        style: _inter(10,
-                            color: _stressColor(avgStress), weight: FontWeight.w400)),
+                        style: _inter(11,
+                            color: Colors.white.withValues(alpha: 0.5), // Muted grey instead of active color
+                            weight: FontWeight.w400)),
                   ],
                 ),
               ),
-              Container(width: 0.5, height: 36,
+              Container(width: 1, height: 40,
                   color: Colors.white.withValues(alpha: 0.08)),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Daily Range',
-                          style: _inter(10,
-                              color: Colors.white.withValues(alpha: 0.4),
-                              weight: FontWeight.w400)),
-                      const SizedBox(height: 2),
-                      Text(maxStress > 0 ? '$minStress-$maxStress' : '--',
-                          style: _inter(13,
-                              weight: FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.85))),
-                      Text(_stressStatus(maxStress),
-                          style: _inter(10,
-                              color: _stressColor(maxStress), weight: FontWeight.w400)),
-                    ],
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center, // Centered
+                  children: [
+                    Text('Daily Range',
+                        style: _inter(11,
+                            color: Colors.white.withValues(alpha: 0.4),
+                            weight: FontWeight.w500)),
+                    const SizedBox(height: 4),
+                    Text(maxStress > 0 ? '$minStress-$maxStress' : '--',
+                        style: GoogleFonts.inter(
+                            fontSize: 22, // Increased size to match design
+                            fontWeight: FontWeight.w300, // Thinner font weight
+                            color: Colors.white.withValues(alpha: 0.95))),
+                    const SizedBox(height: 2),
+                    Text(_stressStatus(maxStress),
+                        style: _inter(11,
+                            color: Colors.white.withValues(alpha: 0.5), // Muted grey instead of active color
+                            weight: FontWeight.w400)),
+                  ],
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 4),
         ],
       ),
     );
   }
 }
-
 // ── Activity score card ────────────────────────────────────────────────────────
 
 class _ActivityScoreCard extends StatelessWidget {
