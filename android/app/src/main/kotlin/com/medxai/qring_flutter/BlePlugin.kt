@@ -66,9 +66,21 @@ import com.oudmon.ble.base.communication.sport.SportPlusHandle
 import com.oudmon.ble.base.scan.BleScannerHelper
 import com.oudmon.ble.base.scan.ScanRecord
 import com.oudmon.ble.base.scan.ScanWrapperCallback
+import com.medxai.qring_flutter.data.MeasurementConfig
+import com.medxai.qring_flutter.data.ReadingRepository
+import com.medxai.qring_flutter.data.Vital
+import com.medxai.qring_flutter.events.NewReadingEvent
+import com.medxai.qring_flutter.sync.SupabaseConfig
+import com.medxai.qring_flutter.sync.SupabaseSyncManager
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import kotlinx.coroutines.launch
+import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
+import java.time.LocalDate
+import java.time.ZoneId
 
 class BlePlugin(private val context: Context) {
 
@@ -117,7 +129,24 @@ class BlePlugin(private val context: Context) {
             BleOperateManager.getInstance().init()
         } catch (_: Exception) {}
         registerDeviceListener()
+        MeasurementConfig.init(context.applicationContext)
+        SupabaseConfig.init(context.applicationContext)
+        EventBus.getDefault().register(this)
         instance = this
+    }
+
+    // Forwards native-side readings (persisted by MeasurementLoopManager) to Dart over the
+    // existing ble_events EventChannel — no new channel needed.
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    fun onNewReading(event: NewReadingEvent) {
+        val data = mutableMapOf<String, Any>(
+            "vital" to event.vital.name,
+            "readingId" to event.readingId,
+            "cycleId" to event.cycleId,
+            "measuredAt" to event.measuredAt
+        )
+        event.primaryValue?.let { data["primaryValue"] = it }
+        sendEvent("newReading", data)
     }
 
     private fun registerDeviceListener() {
@@ -242,6 +271,26 @@ class BlePlugin(private val context: Context) {
                 WorkoutService.stop(context)
                 result.success(true)
             }
+            "getReadings"                -> getReadings(call, result)
+            "getTodaySummary"            -> getTodaySummary(call, result)
+            "getLatestReading"           -> getLatestReading(call, result)
+            "getStepsToday"              -> getStepsToday(result)
+            "getSyncStatus"              -> getSyncStatus(result)
+            "getMeasurementCycleHistory" -> getMeasurementCycleHistory(call, result)
+            "setVitalEnabled"            -> setVitalEnabled(call, result)
+            "getVitalEnabled"            -> getVitalEnabled(call, result)
+            "setMasterLoopEnabled"       -> {
+                MeasurementConfig.setMasterEnabled(call.argument<Boolean>("enabled") ?: true)
+                result.success(true)
+            }
+            "getMasterLoopEnabled"       -> result.success(MeasurementConfig.isMasterEnabled())
+            "setSyncEnabled"             -> {
+                MeasurementConfig.setSyncEnabled(call.argument<Boolean>("enabled") ?: true)
+                result.success(true)
+            }
+            "getSyncEnabled"             -> result.success(MeasurementConfig.isSyncEnabled())
+            "configureSync"              -> configureSync(call, result)
+            "forceSyncNow"               -> result.success(SupabaseSyncManager.forceSyncNow())
             else                         -> result.notImplemented()
         }
     }
@@ -348,6 +397,7 @@ class BlePlugin(private val context: Context) {
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         _isConnected = true
         sendEvent("connectionState", mapOf("connected" to true))
+        MeasurementLoopManager.onRingConnected()
 
         val result = pendingConnectResult
         pendingConnectResult = null
@@ -363,6 +413,7 @@ class BlePlugin(private val context: Context) {
         pendingConnectResult = null
         _isConnected = false
         sendEvent("connectionState", mapOf("connected" to false))
+        MeasurementLoopManager.onRingDisconnected()
     }
 
     // Fires for any successful connection, including ones BleConnectionService's background
@@ -1625,6 +1676,187 @@ class BlePlugin(private val context: Context) {
     }
 
     // ─────────────────────────────────────────────────────────────────
+    // Local readings (Room, via MeasurementLoopManager's local DB)
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun repo() = ReadingRepository.getInstance(context)
+
+    private fun todayBoundsMs(): Pair<Long, Long> {
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now(zone)
+        val start = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val end = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
+        return start to end
+    }
+
+    private fun requireVital(call: MethodCall, result: MethodChannel.Result): Vital? {
+        val key = call.argument<String>("vital")
+        if (key == null) { result.error("INVALID_ARG", "vital required", null); return null }
+        val vital = Vital.fromKey(key)
+        if (vital == null) { result.error("INVALID_ARG", "unknown vital $key", null); return null }
+        return vital
+    }
+
+    private fun getReadings(call: MethodCall, result: MethodChannel.Result) {
+        val vital = requireVital(call, result) ?: return
+        val fromMs = (call.argument<Number>("fromMs") ?: 0L).toLong()
+        val toMs = (call.argument<Number>("toMs") ?: System.currentTimeMillis()).toLong()
+        val limit = call.argument<Int>("limit") ?: 1000
+        repo().ioScope.launch {
+            val json = try {
+                when (vital) {
+                    Vital.HEART_RATE -> gson.toJson(repo().heartRateBetween(fromMs, toMs, limit))
+                    Vital.SPO2 -> gson.toJson(repo().spo2Between(fromMs, toMs, limit))
+                    Vital.STRESS -> gson.toJson(repo().stressBetween(fromMs, toMs, limit))
+                    Vital.BLOOD_PRESSURE -> gson.toJson(repo().bpBetween(fromMs, toMs, limit))
+                    Vital.HRV -> gson.toJson(repo().hrvBetween(fromMs, toMs, limit))
+                    Vital.TEMPERATURE -> gson.toJson(repo().temperatureBetween(fromMs, toMs, limit))
+                    Vital.STEPS -> gson.toJson(repo().stepsBetween(fromMs, toMs, limit))
+                }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(json) }
+        }
+    }
+
+    private fun getTodaySummary(call: MethodCall, result: MethodChannel.Result) {
+        val vital = requireVital(call, result) ?: return
+        val (dayStart, dayEnd) = todayBoundsMs()
+        repo().ioScope.launch {
+            val map: Map<String, Any?> = try {
+                when (vital) {
+                    Vital.HEART_RATE -> {
+                        val agg = repo().heartRateAggregate(dayStart, dayEnd)
+                        val last = repo().latestHeartRate()
+                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
+                            "lastValue" to last?.valueBpm, "lastMeasuredAt" to last?.measuredAt)
+                    }
+                    Vital.SPO2 -> {
+                        val agg = repo().spo2Aggregate(dayStart, dayEnd)
+                        val last = repo().latestSpo2()
+                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
+                            "lastValue" to last?.valuePct, "lastMeasuredAt" to last?.measuredAt)
+                    }
+                    Vital.STRESS -> {
+                        val agg = repo().stressAggregate(dayStart, dayEnd)
+                        val last = repo().latestStress()
+                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
+                            "lastValue" to last?.value, "lastMeasuredAt" to last?.measuredAt)
+                    }
+                    Vital.BLOOD_PRESSURE -> {
+                        val agg = repo().bpAggregate(dayStart, dayEnd)
+                        val last = repo().latestBloodPressure()
+                        mapOf(
+                            "avgSbp" to agg.avgSbp, "minSbp" to agg.minSbp, "maxSbp" to agg.maxSbp,
+                            "avgDbp" to agg.avgDbp, "minDbp" to agg.minDbp, "maxDbp" to agg.maxDbp,
+                            "count" to agg.count,
+                            "lastSbp" to last?.systolic, "lastDbp" to last?.diastolic, "lastMeasuredAt" to last?.measuredAt
+                        )
+                    }
+                    Vital.HRV -> {
+                        val agg = repo().hrvAggregate(dayStart, dayEnd)
+                        val last = repo().latestHrv()
+                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
+                            "lastValue" to last?.valueMs, "lastMeasuredAt" to last?.measuredAt)
+                    }
+                    Vital.TEMPERATURE -> {
+                        val agg = repo().temperatureAggregate(dayStart, dayEnd)
+                        val last = repo().latestTemperature()
+                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
+                            "lastValue" to last?.valueC, "lastMeasuredAt" to last?.measuredAt)
+                    }
+                    Vital.STEPS -> {
+                        val agg = repo().stepsAggregate(dayStart, dayEnd)
+                        mapOf("steps" to agg?.steps, "caloriesKcal" to agg?.caloriesKcal,
+                            "distanceM" to agg?.distanceM, "capturedAt" to agg?.capturedAt)
+                    }
+                }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(gson.toJson(map)) }
+        }
+    }
+
+    private fun getLatestReading(call: MethodCall, result: MethodChannel.Result) {
+        val vital = requireVital(call, result) ?: return
+        repo().ioScope.launch {
+            val json = try {
+                when (vital) {
+                    Vital.HEART_RATE -> gson.toJson(repo().latestHeartRate())
+                    Vital.SPO2 -> gson.toJson(repo().latestSpo2())
+                    Vital.STRESS -> gson.toJson(repo().latestStress())
+                    Vital.BLOOD_PRESSURE -> gson.toJson(repo().latestBloodPressure())
+                    Vital.HRV -> gson.toJson(repo().latestHrv())
+                    Vital.TEMPERATURE -> gson.toJson(repo().latestTemperature())
+                    Vital.STEPS -> gson.toJson(repo().latestStepsSnapshot())
+                }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(json) }
+        }
+    }
+
+    private fun getStepsToday(result: MethodChannel.Result) {
+        repo().ioScope.launch {
+            val json = try {
+                gson.toJson(repo().latestStepsSnapshot())
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(json) }
+        }
+    }
+
+    private fun getSyncStatus(result: MethodChannel.Result) {
+        repo().ioScope.launch {
+            val pending = try { repo().pendingRowCount() } catch (_: Exception) { 0 }
+            val status = SupabaseSyncManager.getSyncStatus() + mapOf("pendingRowCount" to pending)
+            mainHandler.post { result.success(gson.toJson(status)) }
+        }
+    }
+
+    private fun getMeasurementCycleHistory(call: MethodCall, result: MethodChannel.Result) {
+        val fromMs = (call.argument<Number>("fromMs") ?: 0L).toLong()
+        val toMs = (call.argument<Number>("toMs") ?: System.currentTimeMillis()).toLong()
+        repo().ioScope.launch {
+            val json = try {
+                gson.toJson(repo().cyclesBetween(fromMs, toMs))
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(json) }
+        }
+    }
+
+    private fun setVitalEnabled(call: MethodCall, result: MethodChannel.Result) {
+        val vital = requireVital(call, result) ?: return
+        MeasurementConfig.setEnabled(vital, call.argument<Boolean>("enabled") ?: true)
+        result.success(true)
+    }
+
+    private fun getVitalEnabled(call: MethodCall, result: MethodChannel.Result) {
+        val vital = requireVital(call, result) ?: return
+        result.success(MeasurementConfig.isEnabled(vital))
+    }
+
+    private fun configureSync(call: MethodCall, result: MethodChannel.Result) {
+        val url = call.argument<String>("url") ?: run { result.error("INVALID_ARG", "url required", null); return }
+        val anonKey = call.argument<String>("anonKey") ?: run { result.error("INVALID_ARG", "anonKey required", null); return }
+        val userId = call.argument<String>("userId") ?: run { result.error("INVALID_ARG", "userId required", null); return }
+        val accessToken = call.argument<String>("accessToken")
+        SupabaseConfig.configure(url, anonKey, userId, accessToken)
+        result.success(true)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
     // Event helpers
     // ─────────────────────────────────────────────────────────────────
 
@@ -1638,6 +1870,7 @@ class BlePlugin(private val context: Context) {
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         BleScannerHelper.getInstance().stopScan(context)
         BleOperateManager.getInstance().removeNotifyListener(NOTIFY_KEY)
+        EventBus.getDefault().unregister(this)
         if (instance === this) instance = null
     }
 }

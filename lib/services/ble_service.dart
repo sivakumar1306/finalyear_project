@@ -276,4 +276,71 @@ class BleService {
       _methodChannel.invokeMethod('startWorkout', {'type': type, 'startTimeMs': startTimeMs});
 
   Future<void> stopWorkout() => _methodChannel.invokeMethod('stopWorkout');
+
+  // ── Local readings (Room, via the continuous background measurement loop) ──
+  // vital keys: heart_rate | spo2 | stress | blood_pressure | steps | hrv | temperature
+
+  Future<String> getReadings(String vital, {int? fromMs, int? toMs, int limit = 1000}) async =>
+      await _methodChannel.invokeMethod<String>('getReadings', {
+        'vital': vital,
+        'fromMs': fromMs ?? 0,
+        'toMs': toMs ?? DateTime.now().millisecondsSinceEpoch,
+        'limit': limit,
+      }) ??
+      '[]';
+
+  Future<String> getTodaySummary(String vital) async =>
+      await _methodChannel.invokeMethod<String>('getTodaySummary', {'vital': vital}) ?? '{}';
+
+  Future<String> getLatestReading(String vital) async =>
+      await _methodChannel.invokeMethod<String>('getLatestReading', {'vital': vital}) ?? '{}';
+
+  Future<String> getStepsToday() async =>
+      await _methodChannel.invokeMethod<String>('getStepsToday') ?? '{}';
+
+  Future<String> getSyncStatus() async =>
+      await _methodChannel.invokeMethod<String>('getSyncStatus') ?? '{}';
+
+  Future<String> getMeasurementCycleHistory({int? fromMs, int? toMs}) async =>
+      await _methodChannel.invokeMethod<String>('getMeasurementCycleHistory', {
+        'fromMs': fromMs ?? 0,
+        'toMs': toMs ?? DateTime.now().millisecondsSinceEpoch,
+      }) ??
+      '[]';
+
+  Future<bool> setVitalEnabled(String vital, bool enabled) async =>
+      await _methodChannel.invokeMethod<bool>('setVitalEnabled', {'vital': vital, 'enabled': enabled}) ?? false;
+
+  Future<bool> getVitalEnabled(String vital) async =>
+      await _methodChannel.invokeMethod<bool>('getVitalEnabled', {'vital': vital}) ?? false;
+
+  Future<bool> setMasterLoopEnabled(bool enabled) async =>
+      await _methodChannel.invokeMethod<bool>('setMasterLoopEnabled', {'enabled': enabled}) ?? false;
+
+  Future<bool> getMasterLoopEnabled() async =>
+      await _methodChannel.invokeMethod<bool>('getMasterLoopEnabled') ?? false;
+
+  Future<bool> setSyncEnabled(bool enabled) async =>
+      await _methodChannel.invokeMethod<bool>('setSyncEnabled', {'enabled': enabled}) ?? false;
+
+  Future<bool> getSyncEnabled() async =>
+      await _methodChannel.invokeMethod<bool>('getSyncEnabled') ?? false;
+
+  // Debug/testing only — triggers the 6h Supabase push immediately instead of waiting.
+  Future<bool> forceSyncNow() async =>
+      await _methodChannel.invokeMethod<bool>('forceSyncNow') ?? false;
+
+  Future<bool> configureSync({
+    required String url,
+    required String anonKey,
+    required String userId,
+    String? accessToken,
+  }) async =>
+      await _methodChannel.invokeMethod<bool>('configureSync', {
+        'url': url,
+        'anonKey': anonKey,
+        'userId': userId,
+        'accessToken': accessToken,
+      }) ??
+      false;
 }

@@ -17,6 +17,7 @@ import com.oudmon.ble.base.bluetooth.BleOperateManager
 import com.oudmon.ble.base.communication.CommandHandle
 import com.oudmon.ble.base.communication.Constants
 import com.oudmon.ble.base.communication.req.SimpleKeyReq
+import com.medxai.qring_flutter.sync.SupabaseSyncManager
 
 class BleConnectionService : Service() {
 
@@ -93,6 +94,10 @@ class BleConnectionService : Service() {
 
         // Start first check after a short delay to let SDK settle
         handler.postDelayed(checkRunnable, 4_000L)
+
+        // Both are no-ops while their respective MeasurementConfig flag is off.
+        MeasurementLoopManager.start(applicationContext)
+        SupabaseSyncManager.start(applicationContext)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -103,6 +108,8 @@ class BleConnectionService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        MeasurementLoopManager.stop()
+        SupabaseSyncManager.stop()
         super.onDestroy()
     }
 

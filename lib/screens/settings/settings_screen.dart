@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
+import '../../services/ble_service.dart';
 import '../../theme/app_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -14,6 +16,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _gestureControls = false;
   bool _lowBatteryPrompt = false;
+  final _ble = BleService();
+  bool _syncing = false;
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +129,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
+            const SizedBox(height: 12),
+
+            // TODO(debug): temporary — remove once the streaming pipeline is verified.
+            // Forces the 6h Supabase push to run immediately instead of waiting.
+            GestureDetector(
+              onTap: _syncing ? null : _forceSyncNow,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppTheme.gold.withValues(alpha: 0.4)),
+                ),
+                child: Center(
+                  child: _syncing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.gold),
+                        )
+                      : Text(
+                          'DEBUG: Force Supabase Sync Now',
+                          style: GoogleFonts.inter(
+                            color: AppTheme.gold,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+
             const SizedBox(height: 28),
 
             Text(
@@ -230,6 +267,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _divider() => const Divider(height: 1, color: AppTheme.div, indent: 0, endIndent: 0);
+
+  // TODO(debug): temporary — remove once the streaming pipeline is verified.
+  Future<void> _forceSyncNow() async {
+    setState(() => _syncing = true);
+    String message;
+    try {
+      final started = await _ble.forceSyncNow();
+      if (!started) {
+        message = 'Not started — is a ring connected and are you logged in?';
+      } else {
+        // Give the push a moment to run, then show the resulting status.
+        await Future.delayed(const Duration(seconds: 3));
+        final status = jsonDecode(await _ble.getSyncStatus()) as Map<String, dynamic>;
+        final lastSuccess = (status['lastPushSuccessAt'] as num? ?? 0).toInt();
+        final pending = (status['pendingRowCount'] as num? ?? 0).toInt();
+        final lastSuccessStr = lastSuccess > 0
+            ? DateTime.fromMillisecondsSinceEpoch(lastSuccess).toLocal().toString()
+            : 'never';
+        message = 'Push triggered.\nLast success: $lastSuccessStr\nPending rows: $pending';
+      }
+    } catch (e) {
+      message = 'Error: $e';
+    }
+    if (!mounted) return;
+    setState(() => _syncing = false);
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.card2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Force Sync', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+        content: Text(message, style: GoogleFonts.inter(color: AppTheme.textSec)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK', style: GoogleFonts.inter(color: AppTheme.gold)),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _confirmUnbind(BuildContext context) async {
     final ok = await showDialog<bool>(

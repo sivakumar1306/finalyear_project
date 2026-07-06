@@ -158,7 +158,10 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       });
 
       context.read<BleProvider>().updateHrData(avg, minVal, maxVal);
-      _saveHrToSupabase(avg, minVal, maxVal, readings.length);
+      // Not saved to Supabase here — this chart reflects the ring's own periodic
+      // auto-tracking (a separate data source from the new continuous one-click
+      // measurement loop), and the daily aggregate is now pushed natively by
+      // SupabaseSyncManager from local Room to avoid a duplicate/conflicting write.
     } catch (_) {}
   }
 

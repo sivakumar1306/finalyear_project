@@ -175,22 +175,10 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
       });
 
       context.read<BleProvider>().updateSpo2Data(avg, minVal, maxVal);
-      _saveToSupabase(avg, minVal, maxVal, readings.length);
-    } catch (_) {}
-  }
-
-  Future<void> _saveToSupabase(int avg, int min, int max, int count) async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
-    try {
-      await SupabaseService.upsertSpo2(
-        userId: user.id,
-        date: DateTime.now(),
-        avgSpo2: avg,
-        minSpo2: min,
-        maxSpo2: max,
-        sampleCount: count,
-      );
+      // Not saved to Supabase here — this chart reflects the ring's own periodic
+      // auto-tracking (a separate data source from the new continuous one-click
+      // measurement loop), and the daily aggregate is now pushed natively by
+      // SupabaseSyncManager from local Room to avoid a duplicate/conflicting write.
     } catch (_) {}
   }
 

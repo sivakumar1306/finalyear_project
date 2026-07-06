@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -44,4 +45,8 @@ dependencies {
     implementation("org.greenrobot:eventbus:3.3.1")
     implementation("com.tencent:mmkv:1.3.9")
     implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
+    implementation("androidx.room:room-runtime:2.7.1")
+    implementation("androidx.room:room-ktx:2.7.1")
+    ksp("androidx.room:room-compiler:2.7.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

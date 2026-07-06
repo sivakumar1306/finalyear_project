@@ -104,6 +104,7 @@ class WorkoutService : Service() {
             BleOperateManager.getInstance(applicationContext as Application)
         } catch (_: Exception) {}
 
+        MeasurementCoordinator.isWorkoutActive = true
         createNotificationChannel()
         val elapsed = System.currentTimeMillis() - workoutStartMs
         try {
@@ -134,6 +135,7 @@ class WorkoutService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        MeasurementCoordinator.isWorkoutActive = false
         super.onDestroy()
     }
 
@@ -243,6 +245,10 @@ class WorkoutService : Service() {
     }
 
     private fun measureSpo2() {
+        if (!MeasurementCoordinator.tryAcquire("workout")) {
+            spo2InProgress.set(false)
+            return
+        }
         try {
             BleOperateManager.getInstance().manualModeSpO2(
                 ICommandResponse<StartHeartRateRsp> { rsp ->
@@ -250,18 +256,27 @@ class WorkoutService : Service() {
                     if (spo2 > 0) {
                         prefs.edit().putLong("flutter.workout_latest_spo2", spo2.toLong()).apply()
                     }
+                    MeasurementCoordinator.release("workout")
                     spo2InProgress.set(false)
                 },
                 false
             )
             // Timeout in case measurement never completes
-            handler.postDelayed({ spo2InProgress.set(false) }, 65_000L)
+            handler.postDelayed({
+                MeasurementCoordinator.release("workout")
+                spo2InProgress.set(false)
+            }, 65_000L)
         } catch (_: Exception) {
+            MeasurementCoordinator.release("workout")
             spo2InProgress.set(false)
         }
     }
 
     private fun measureBp() {
+        if (!MeasurementCoordinator.tryAcquire("workout")) {
+            bpInProgress.set(false)
+            return
+        }
         try {
             BleOperateManager.getInstance().manualModeBP(
                 ICommandResponse<StartHeartRateRsp> { rsp ->
@@ -273,12 +288,17 @@ class WorkoutService : Service() {
                             .putLong("flutter.workout_latest_dbp", dbp.toLong())
                             .apply()
                     }
+                    MeasurementCoordinator.release("workout")
                     bpInProgress.set(false)
                 },
                 false
             )
-            handler.postDelayed({ bpInProgress.set(false) }, 65_000L)
+            handler.postDelayed({
+                MeasurementCoordinator.release("workout")
+                bpInProgress.set(false)
+            }, 65_000L)
         } catch (_: Exception) {
+            MeasurementCoordinator.release("workout")
             bpInProgress.set(false)
         }
     }

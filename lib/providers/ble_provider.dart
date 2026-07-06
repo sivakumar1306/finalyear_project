@@ -158,11 +158,12 @@ class BleProvider extends ChangeNotifier {
   BleProvider() {
     _loadSavedDevice();
     _listenEvents();
-    _loadTodayFromSupabase();
-    _loadTodayHrFromSupabase();
-    _loadTodaySpo2FromSupabase();
-    _loadLatestBpFromSupabase();
-    _loadLatestStressFromSupabase();
+    // HR/SpO2/Stress/BP/Steps are now continuously acquired by the native background
+    // loop and stored in local Room — read from there first, only falling back to
+    // Supabase if local is empty (e.g. very first run before the loop has produced data).
+    _loadTodayVitalsFromLocal();
+    // HRV/Temperature are unrelated passive "ask the ring what it already recorded"
+    // reads, not part of the new one-click measurement loop — left untouched.
     _loadTodayHrvFromSupabase();
     _loadTodaySleepFromSupabase();
     _loadLatestTempFromSupabase();
@@ -203,8 +204,93 @@ class BleProvider extends ChangeNotifier {
           _isScanning = false;
           notifyListeners();
           break;
+        case 'newReading':
+          _onNewReadingEvent(data);
+          break;
       }
     });
+  }
+
+  // ── Local-DB-backed vitals (continuous background measurement loop) ──────
+  //
+  // HR/SpO2/Stress/BP/Steps are now acquired continuously by the native
+  // MeasurementLoopManager and stored in local Room, independent of whether
+  // this screen/provider is alive. These helpers read that local DB (the
+  // single source of truth) rather than re-triggering ring measurements.
+
+  void _onNewReadingEvent(Map<String, dynamic> data) {
+    switch (data['vital'] as String?) {
+      case 'HEART_RATE': _refreshHrFromLocal(); break;
+      case 'SPO2': _refreshSpo2FromLocal(); break;
+      case 'STRESS': _refreshStressFromLocal(); break;
+      case 'BLOOD_PRESSURE': _refreshBpFromLocal(); break;
+      case 'STEPS': _refreshStepsFromLocal(); break;
+    }
+  }
+
+  Future<void> _loadTodayVitalsFromLocal() async {
+    if (!await _refreshHrFromLocal()) await _loadTodayHrFromSupabase();
+    if (!await _refreshSpo2FromLocal()) await _loadTodaySpo2FromSupabase();
+    if (!await _refreshStressFromLocal()) await _loadLatestStressFromSupabase();
+    if (!await _refreshBpFromLocal()) await _loadLatestBpFromSupabase();
+    if (!await _refreshStepsFromLocal()) await _loadTodayFromSupabase();
+  }
+
+  Future<bool> _refreshHrFromLocal() async {
+    try {
+      final m = jsonDecode(await _ble.getTodaySummary('heart_rate')) as Map<String, dynamic>;
+      if ((m['count'] as num? ?? 0) <= 0) return false;
+      _todayAvgHr = (m['avg'] as num?)?.round() ?? 0;
+      _todayMinHr = (m['min'] as num?)?.toInt() ?? 0;
+      _todayMaxHr = (m['max'] as num?)?.toInt() ?? 0;
+      notifyListeners();
+      return true;
+    } catch (_) { return false; }
+  }
+
+  Future<bool> _refreshSpo2FromLocal() async {
+    try {
+      final m = jsonDecode(await _ble.getTodaySummary('spo2')) as Map<String, dynamic>;
+      if ((m['count'] as num? ?? 0) <= 0) return false;
+      _todayAvgSpo2 = (m['avg'] as num?)?.round() ?? 0;
+      _todayMinSpo2 = (m['min'] as num?)?.toInt() ?? 0;
+      _todayMaxSpo2 = (m['max'] as num?)?.toInt() ?? 0;
+      notifyListeners();
+      return true;
+    } catch (_) { return false; }
+  }
+
+  Future<bool> _refreshStressFromLocal() async {
+    try {
+      final m = jsonDecode(await _ble.getLatestReading('stress'));
+      if (m is! Map<String, dynamic>) return false;
+      _latestStressValue = (m['value'] as num?)?.toInt() ?? 0;
+      notifyListeners();
+      return true;
+    } catch (_) { return false; }
+  }
+
+  Future<bool> _refreshBpFromLocal() async {
+    try {
+      final m = jsonDecode(await _ble.getLatestReading('blood_pressure'));
+      if (m is! Map<String, dynamic>) return false;
+      _latestBpSbp = (m['systolic'] as num?)?.toInt() ?? 0;
+      _latestBpDbp = (m['diastolic'] as num?)?.toInt() ?? 0;
+      notifyListeners();
+      return true;
+    } catch (_) { return false; }
+  }
+
+  Future<bool> _refreshStepsFromLocal() async {
+    try {
+      final m = jsonDecode(await _ble.getStepsToday());
+      if (m is! Map<String, dynamic>) return false;
+      _todaySteps     = (m['steps'] as num?)?.toInt() ?? 0;
+      _todayCalories  = (m['caloriesKcal'] as num?)?.toInt() ?? 0;
+      _todayDistanceM = (m['distanceM'] as num?)?.toDouble() ?? 0.0;
+      notifyListeners();
+      return true;
+    } catch (_) { return false; }
   }
 
   // ── Device management ─────────────────────────────────────────────────────
@@ -276,6 +362,11 @@ class BleProvider extends ChangeNotifier {
 
   // ── Background ring sync (all metrics sequentially) ───────────────────────
 
+  // HR/SpO2/Steps/Stress/BP are no longer acquired here — the native background
+  // MeasurementLoopManager now continuously owns those (see _refresh*FromLocal above).
+  // This only covers the vitals still fetched via passive "ask the ring what it already
+  // recorded" calls: HRV and Temperature (their one-click loop entries stay disabled
+  // until separately fixed), plus Sleep (out of scope for this pipeline).
   Future<void> syncAllFromRing() async {
     if (_isSyncing || !_isConnected) return;
     final myGen = ++_syncGen;
@@ -283,50 +374,29 @@ class BleProvider extends ChangeNotifier {
 
     _isSyncing    = true;
     _syncProgress = 0.0;
-    _syncStep     = 'Steps';
+    _syncStep     = 'HRV';
     notifyListeners();
 
     const kTimeout = Duration(seconds: 8);
 
     try {
-      // 1. Steps (0% → 20%)
-      try { await syncTodayStepsFromRing().timeout(kTimeout); } catch (_) {}
-      if (!alive()) return;
-      _syncProgress = 0.2; _syncStep = 'Heart Rate'; notifyListeners();
-
-      // 2. Heart Rate (20% → 40%)
-      try {
-        final json = await _ble.getTodayHeartRate().timeout(kTimeout);
-        _parseAndSaveHr(json);
-      } catch (_) {}
-      if (!alive()) return;
-      _syncProgress = 0.4; _syncStep = 'Blood Oxygen'; notifyListeners();
-
-      // 3. Blood Oxygen (40% → 60%)
-      try {
-        final json = await _ble.getTodayBloodOxygen().timeout(kTimeout);
-        _parseAndSaveSpo2(json);
-      } catch (_) {}
-      if (!alive()) return;
-      _syncProgress = 0.6; _syncStep = 'HRV'; notifyListeners();
-
-      // 4. HRV (60% → 80%)
+      // 1. HRV (0% → 33%)
       try {
         final json = await _ble.getTodayHrv().timeout(kTimeout);
         _parseAndSaveHrv(json);
       } catch (_) {}
       if (!alive()) return;
-      _syncProgress = 0.8; _syncStep = 'Sleep'; notifyListeners();
+      _syncProgress = 0.33; _syncStep = 'Sleep'; notifyListeners();
 
-      // 5. Sleep (80% → 90%)
+      // 2. Sleep (33% → 66%)
       try {
         final json = await _ble.getTodaySleep().timeout(kTimeout);
         _parseAndSaveSleep(json);
       } catch (_) {}
       if (!alive()) return;
-      _syncProgress = 0.9; _syncStep = 'Temperature'; notifyListeners();
+      _syncProgress = 0.66; _syncStep = 'Temperature'; notifyListeners();
 
-      // 6. Temperature (90% → 100%) — use syncAutoTemperature to fetch from ring
+      // 3. Temperature (66% → 100%) — use syncAutoTemperature to fetch from ring
       try {
         final json = await _ble.syncAutoTemperature().timeout(const Duration(seconds: 15));
         _parseAndSaveTemp(json);
@@ -347,41 +417,6 @@ class BleProvider extends ChangeNotifier {
   }
 
   // ── Parse & save helpers (used by sync, no setState) ─────────────────────
-
-  void _parseAndSaveHr(String jsonStr) {
-    try {
-      final m   = jsonDecode(jsonStr) as Map<String, dynamic>;
-      final raw = (m['e'] as List<dynamic>? ?? []).map((v) => (v as num).toInt()).toList();
-      final readings = raw.where((v) => v > 0).toList();
-      if (readings.isEmpty) return;
-      final avg = (readings.reduce((a, b) => a + b) / readings.length).round();
-      final min = readings.reduce((a, b) => a < b ? a : b);
-      final max = readings.reduce((a, b) => a > b ? a : b);
-      _todayAvgHr = avg; _todayMinHr = min; _todayMaxHr = max;
-      notifyListeners();
-      _saveHrToDb(avg, min, max, readings.length);
-    } catch (_) {}
-  }
-
-  void _parseAndSaveSpo2(String jsonStr) {
-    try {
-      final decoded = jsonDecode(jsonStr);
-      if (decoded == null || decoded is! Map<String, dynamic>) return;
-      final maxRaw = (decoded['maxArray'] as List<dynamic>? ?? []).map((v) => (v as num).toInt()).toList();
-      final minRaw = (decoded['minArray'] as List<dynamic>? ?? []).map((v) => (v as num).toInt()).toList();
-      final readings = maxRaw.where((v) => v > 0).toList();
-      if (readings.isEmpty) return;
-      final avg = (readings.reduce((a, b) => a + b) / readings.length).round();
-      final max = readings.reduce((a, b) => a > b ? a : b);
-      final minReadings = minRaw.where((v) => v > 0).toList();
-      final min = minReadings.isNotEmpty
-          ? minReadings.reduce((a, b) => a < b ? a : b)
-          : readings.reduce((a, b) => a < b ? a : b);
-      _todayAvgSpo2 = avg; _todayMinSpo2 = min; _todayMaxSpo2 = max;
-      notifyListeners();
-      _saveSpo2ToDb(avg, min, max, readings.length);
-    } catch (_) {}
-  }
 
   void _parseAndSaveHrv(String jsonStr) {
     try {
@@ -474,28 +509,6 @@ class BleProvider extends ChangeNotifier {
   }
 
   // ── DB save helpers ───────────────────────────────────────────────────────
-
-  Future<void> _saveHrToDb(int avg, int min, int max, int count) async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
-    try {
-      await SupabaseService.upsertHr(
-        userId: user.id, date: DateTime.now(),
-        avgHr: avg, minHr: min, maxHr: max, sampleCount: count,
-      );
-    } catch (_) {}
-  }
-
-  Future<void> _saveSpo2ToDb(int avg, int min, int max, int count) async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
-    try {
-      await SupabaseService.upsertSpo2(
-        userId: user.id, date: DateTime.now(),
-        avgSpo2: avg, minSpo2: min, maxSpo2: max, sampleCount: count,
-      );
-    } catch (_) {}
-  }
 
   Future<void> _saveHrvToDb(int avg, int min, int max, int count) async {
     final user = SupabaseService.currentUser;
@@ -638,43 +651,15 @@ class BleProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  // ── Steps sync (also called from StepsScreen) ─────────────────────────────
-
+  // ── Steps refresh (also called from StepsScreen for pull-to-refresh) ──────
+  // Steps are now captured every measurement cycle by the native loop and stored
+  // locally — this just re-reads that local snapshot rather than re-fetching the
+  // ring/upserting Supabase itself (the native SupabaseSyncManager owns that now).
   Future<void> syncTodayStepsFromRing() async {
     if (_syncingSteps) return;
     _syncingSteps = true;
     notifyListeners();
-    try {
-      final json    = await _ble.getTodaySteps().timeout(const Duration(seconds: 15));
-      final decoded = jsonDecode(json);
-      final list    = decoded is List ? decoded : <dynamic>[];
-      int totalSteps = 0, totalCal = 0;
-      double totalDist = 0.0;
-      final slots = List<int>.filled(96, 0);
-      for (final item in list) {
-        final m     = item as Map<String, dynamic>;
-        final d     = (m['d'] as num? ?? 0).toInt();
-        final steps = (m['f'] as num? ?? 0).toInt();
-        final cal   = (m['e'] as num? ?? 0).toInt() ~/ 1000;
-        final dist  = (m['g'] as num? ?? 0).toDouble();
-        totalSteps += steps;
-        totalCal   += cal;
-        totalDist  += dist;
-        if (d >= 0 && d < 96) slots[d] += steps;
-      }
-      _todayStepsByInterval = slots;
-      _todaySteps     = totalSteps;
-      _todayCalories  = totalCal;
-      _todayDistanceM = totalDist;
-      notifyListeners();
-      final user = SupabaseService.currentUser;
-      if (user != null && (totalSteps > 0 || totalCal > 0)) {
-        await SupabaseService.upsertSteps(
-          userId: user.id, date: DateTime.now(),
-          steps: totalSteps, calories: totalCal, distanceM: totalDist,
-        );
-      }
-    } catch (_) {}
+    await _refreshStepsFromLocal();
     _syncingSteps = false;
     notifyListeners();
   }

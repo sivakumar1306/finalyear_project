@@ -26,10 +26,31 @@ Future<void> _requestPermissionsAndStartService() async {
   } catch (_) {}
 }
 
+// Caches Supabase config natively so the background MeasurementLoopManager/
+// SupabaseSyncManager (running inside BleConnectionService) can push local Room data
+// independent of whether the Dart engine is currently running. Re-called on every auth
+// state change since native code can't refresh the session token on its own.
+Future<void> _configureNativeSync() async {
+  final user = SupabaseService.currentUser;
+  if (user == null) return;
+  try {
+    await _bleChannel.invokeMethod('configureSync', {
+      'url': SupabaseService.url,
+      'anonKey': SupabaseService.anonKey,
+      'userId': user.id,
+      'accessToken': SupabaseService.accessToken,
+    });
+    await _bleChannel.invokeMethod('setMasterLoopEnabled', {'enabled': true});
+    await _bleChannel.invokeMethod('setSyncEnabled', {'enabled': true});
+  } catch (_) {}
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _requestPermissionsAndStartService();
   await SupabaseService.initialize();
+  await _configureNativeSync();
+  SupabaseService.client.auth.onAuthStateChange.listen((_) => _configureNativeSync());
   runApp(
     MultiProvider(
       providers: [

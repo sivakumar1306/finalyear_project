@@ -13,6 +13,12 @@ class SupabaseService {
 
   static User? get currentUser => client.auth.currentUser;
 
+  // Exposed so the native side (BleConnectionService's SupabaseSyncManager) can be
+  // configured to push local Room data directly, independent of the Dart engine.
+  static String get url => _url;
+  static String get anonKey => _anonKey;
+  static String? get accessToken => client.auth.currentSession?.accessToken;
+
   static Future<AuthResponse> signUp(String email, String password) {
     return client.auth.signUp(email: email, password: password);
   }
