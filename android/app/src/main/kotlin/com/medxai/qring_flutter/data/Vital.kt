@@ -3,10 +3,10 @@ package com.medxai.qring_flutter.data
 enum class Vital(val defaultEnabled: Boolean) {
     HEART_RATE(true),
     SPO2(true),
-    // Temporarily disabled: consistently failed to get a valid reading in testing (0/2
-    // completed cycles, ring worn) and may have contributed to a ring getting stuck
-    // mid-measurement. Schema/hooks stay ready — flip via setVitalEnabled once root-caused.
-    STRESS(false),
+    // Re-enabled: manual "Measure Now" for stress confirmed working reliably, and the
+    // settle-delay fix in MeasurementLoopManager (POST_STOP_SETTLE_MS) means even a
+    // timed-out stress measurement can no longer leave the ring stuck mid-measurement.
+    STRESS(true),
     BLOOD_PRESSURE(true),
     STEPS(true),
     HRV(false),

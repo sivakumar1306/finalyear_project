@@ -743,11 +743,22 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
+  // This is the "Unbind" action (Settings screen) — it must forget the device, not just
+  // drop the live connection. Previously it left device_name/device_address in
+  // SharedPreferences untouched, so BleConnectionService's native 8s reconnect loop (which
+  // reads that same prefs key directly, independent of Dart/login state) would just
+  // reconnect to the "unbound" ring again moments later — including popping Android's
+  // system BLE pairing dialog unprompted, before the user even reaches the login screen.
   Future<void> disconnect() async {
     _cancelSync();
     await _ble.disconnect();
-    _isConnected = false;
-    _battery     = -1;
+    _isConnected    = false;
+    _battery        = -1;
+    _deviceName     = '';
+    _deviceAddress  = '';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('device_name');
+    await prefs.remove('device_address');
     notifyListeners();
   }
 
