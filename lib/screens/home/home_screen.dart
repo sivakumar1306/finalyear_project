@@ -24,7 +24,6 @@ const _kOrbSpo2     = Color(0xFF73D4F8);
 const _kOrbBp       = Color(0xFFD97A7A);
 const _kOrbWomen    = Color(0xFFD88CC8);
 const _kOrbActivity = Color(0xFFC9A86E);
-const _kOrbSport    = Color(0xFFD97706);
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -126,6 +125,23 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Above normal';
   }
 
+  // Same formula as steps_screen.dart's _activityScore — kept in sync so the
+  // home dashboard and the Steps detail screen always show the same number.
+  static int _computeActivityScore(int steps, double distanceM, int calories) {
+    final s = (steps / 8000 * 60).clamp(0.0, 60.0);
+    final c = (calories / 250 * 25).clamp(0.0, 25.0);
+    final d = (distanceM / 5000 * 15).clamp(0.0, 15.0);
+    return (s + c + d).round().clamp(0, 100);
+  }
+
+  static String _activityScoreLabel(int score) {
+    if (score == 0)  return 'Lack of exercise';
+    if (score < 25)  return 'Sedentary';
+    if (score < 50)  return 'Lightly active';
+    if (score < 75)  return 'Moderately active';
+    return 'Highly active';
+  }
+
   static String _sleepDurationLabel(int seconds) {
     if (seconds <= 0) return '--';
     final h = seconds ~/ 3600;
@@ -184,38 +200,19 @@ class _HomeScreenState extends State<HomeScreen> {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
 
-                // ── Alarms + Heart Rate ────────────────────────────────────
+                // ── Alarms + Activity Score ────────────────────────────────
                 Row(children: [
                   const Expanded(child: _AlarmCard()),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _HomeCard(
-                      label: 'Heart Rate',
-                      value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
-                      unit: ble.todayAvgHr > 0 ? 'bpm' : '',
-                      status: ble.todayAvgHr > 0
-                          ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
-                              ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
-                              : _hrStatus(ble.todayAvgHr))
-                          : 'No data',
-                      statusColor: ble.todayAvgHr > 0 ? _kOrbHr : _kSec2,
-                      orbColor: _kOrbHr,
-                      sparkData: const [0.45, 0.5, 0.55, 0.5, 0.6, 0.55, 0.5, 0.48, 0.52, 0.58, 0.54, 0.5],
-                      connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/heart-rate'),
+                    child: _ActivityScoreCard(
+                      score: _computeActivityScore(
+                          ble.todaySteps, ble.todayDistanceM, ble.todayCalories),
+                      hasData: ble.todaySteps > 0,
+                      onTap: () => Navigator.pushNamed(context, '/steps'),
                     ),
                   ),
                 ]),
-                const SizedBox(height: 12),
-
-                // ── Activity ─────────────────────────────────────────────
-                _ActivityCard(
-                  steps: ble.todaySteps,
-                  distanceM: ble.todayDistanceM,
-                  calories: ble.todayCalories,
-                  connected: ble.isConnected,
-                  onTap: () => Navigator.pushNamed(context, '/steps'),
-                ),
                 const SizedBox(height: 12),
 
                 // ── Stress (full-width) ───────────────────────────────────
@@ -275,8 +272,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 ]),
                 const SizedBox(height: 12),
 
-                // ── Blood Pressure ─────────────────────────────────────────
+                // ── Heart Rate + Blood Pressure ───────────────────────────
                 Row(children: [
+                  Expanded(
+                    child: _HomeCard(
+                      label: 'Heart Rate',
+                      value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
+                      unit: ble.todayAvgHr > 0 ? 'bpm' : '',
+                      status: ble.todayAvgHr > 0
+                          ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
+                              ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
+                              : _hrStatus(ble.todayAvgHr))
+                          : 'No data',
+                      statusColor: ble.todayAvgHr > 0 ? _kOrbHr : _kSec2,
+                      orbColor: _kOrbHr,
+                      sparkData: const [0.45, 0.5, 0.55, 0.5, 0.6, 0.55, 0.5, 0.48, 0.52, 0.58, 0.54, 0.5],
+                      connected: ble.isConnected,
+                      onTap: () => Navigator.pushNamed(context, '/heart-rate'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: _HomeCard(
                       label: 'Blood Pressure',
@@ -727,31 +742,25 @@ class _StressCard extends StatelessWidget {
   }
 }
 
-// ── Activity card (full-width) ────────────────────────────────────────────────
+// ── Activity score card ────────────────────────────────────────────────────────
 
-class _ActivityCard extends StatelessWidget {
-  final int steps;
-  final double distanceM;
-  final int calories;
-  final bool connected;
+class _ActivityScoreCard extends StatelessWidget {
+  final int score;
+  final bool hasData;
   final VoidCallback? onTap;
 
-  const _ActivityCard({
-    required this.steps,
-    required this.distanceM,
-    required this.calories,
-    required this.connected,
+  const _ActivityScoreCard({
+    required this.score,
+    required this.hasData,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hasData = steps > 0;
-    final km = distanceM / 1000;
-
     return _GlassCard(
       orbColor: _kOrbActivity,
       orbOnRight: true,
+      height: 165,
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -760,93 +769,28 @@ class _ActivityCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Activity',
-                  style: _inter(13,
+                  style: _inter(15,
                       weight: FontWeight.w500,
-                      color: Colors.white.withValues(alpha: 0.85))),
+                      color: Colors.white.withValues(alpha: 0.9))),
               _chevron(),
             ],
           ),
-          const SizedBox(height: 16),
-          IntrinsicHeight(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _ActivityStat(
-                    value: hasData ? '$steps' : '--',
-                    unit: 'steps',
-                    color: _kOrbActivity,
-                  ),
-                ),
-                VerticalDivider(
-                    color: Colors.white.withValues(alpha: 0.08),
-                    width: 1, thickness: 0.5),
-                Expanded(
-                  child: _ActivityStat(
-                    value: hasData ? km.toStringAsFixed(2) : '--',
-                    unit: 'km',
-                    color: AppTheme.success,
-                  ),
-                ),
-                VerticalDivider(
-                    color: Colors.white.withValues(alpha: 0.08),
-                    width: 1, thickness: 0.5),
-                Expanded(
-                  child: _ActivityStat(
-                    value: hasData ? '$calories' : '--',
-                    unit: 'kcal',
-                    color: _kOrbSport,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 28,
-            width: double.infinity,
-            child: connected
-                ? CustomPaint(
-                    painter: _SparkPainter(
-                      _kOrbActivity,
-                      const [0.2, 0.4, 0.6, 0.5, 0.7, 0.8, 0.6, 0.5, 0.7, 0.9, 0.7, 0.5],
-                    ),
-                  )
-                : const _ConnectHint(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActivityStat extends StatelessWidget {
-  final String value;
-  final String unit;
-  final Color color;
-
-  const _ActivityStat({
-    required this.value,
-    required this.unit,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+          const SizedBox(height: 12),
+          Divider(color: Colors.white.withValues(alpha: 0.08), height: 1, thickness: 0.5),
+          const Spacer(),
           Text(
-            value,
+            hasData ? '$score' : '--',
             style: GoogleFonts.inter(
-              fontSize: 24,
-              fontWeight: FontWeight.w200,
+              fontSize: 40,
+              fontWeight: FontWeight.w300,
               color: Colors.white.withValues(alpha: 0.95),
             ),
           ),
           const SizedBox(height: 2),
-          Text(unit, style: _inter(11, color: color, weight: FontWeight.w500)),
+          Text(
+            _HomeScreenState._activityScoreLabel(score),
+            style: _inter(13, weight: FontWeight.w500, color: _kOrbActivity),
+          ),
         ],
       ),
     );

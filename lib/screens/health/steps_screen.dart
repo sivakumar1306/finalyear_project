@@ -82,7 +82,6 @@ class _StepsScreenState extends State<StepsScreen> {
   List<int>    _calSlots   = List.filled(96, 0);
   List<double> _distSlots  = List.filled(96, 0.0);
 
-
   bool _isToday(DateTime d) {
     final now = DateTime.now();
     return d.year == now.year && d.month == now.month && d.day == now.day;

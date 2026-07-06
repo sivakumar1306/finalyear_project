@@ -86,9 +86,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     super.initState();
     _loadSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && context.read<BleProvider>().isConnected) {
-        _fetchToday();
-      }
+      // Local DB read — doesn't need a live ring connection, unlike the old
+      // direct-ring-fetch this replaced.
+      _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
   }
@@ -106,63 +106,65 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     if (!isToday) _loadDayFromSupabase(date);
   }
 
-  // ── Ring fetch ────────────────────────────────────────────────────────────────
+  // ── Local DB fetch (today) ──────────────────────────────────────────────────
+  // Reads from the local Room DB the background streaming loop writes to,
+  // instead of hitting the ring directly — works even when the ring isn't
+  // currently connected, and stays consistent with the home screen's card
+  // (which reads the same local DB via BleProvider).
 
-  Future<void> _fetchToday() async {
+  Future<void> _fetchTodayFromLocalDb() async {
     setState(() { _loading = true; _manualHr = 0; });
     try {
-      final data = await _ble.getTodayHeartRate();
-      _parseHrData(data);
-    } catch (_) {} finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
+      final now = DateTime.now();
+      final dayStart = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+      final dayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999)
+          .millisecondsSinceEpoch;
 
-  void _parseHrData(String jsonStr) {
-    try {
-      final m = jsonDecode(jsonStr) as Map<String, dynamic>;
-      final offset = (m['offset'] as num? ?? 0).toInt();
-      final raw = (m['e'] as List<dynamic>? ?? [])
-          .map((v) => (v as num).toInt())
-          .toList();
-      final readings = raw.where((v) => v > 0).toList();
-      if (readings.isEmpty) return;
+      final summaryJson = await _ble.getTodaySummary('heart_rate');
+      final summary = jsonDecode(summaryJson) as Map<String, dynamic>;
+      final count = (summary['count'] as num? ?? 0).toInt();
 
-      final avg = (readings.reduce((a, b) => a + b) / readings.length).round();
-      final minVal = readings.reduce((a, b) => a < b ? a : b);
-      final maxVal = readings.reduce((a, b) => a > b ? a : b);
-
-      // Build a full-day array so each bar sits at its correct clock position.
-      // Slot 0 = midnight; slot width = _settingInterval minutes.
-      final totalSlots = 24 * 60 ~/ _settingInterval;
-      final fullDay = List<int>.filled(totalSlots, 0);
-      for (int i = 0; i < raw.length; i++) {
-        final slot = offset + i;
-        if (slot < totalSlots) fullDay[slot] = raw[i];
-      }
-
-      // Ring firmware pre-fills the entire day — zero out future slots.
-      final nowMins = DateTime.now().hour * 60 + DateTime.now().minute;
-      final currentSlot = nowMins ~/ _settingInterval;
-      for (int i = currentSlot + 1; i < totalSlots; i++) {
-        fullDay[i] = 0;
+      final hourly = List<int>.filled(24, 0);
+      if (count > 0) {
+  final readingsJson =
+            await _ble.getReadings('heart_rate', fromMs: dayStart, toMs: dayEnd, limit: 1000);
+        debugPrint('HR_DEBUG2 readingsJson=$readingsJson');
+        final decoded = jsonDecode(readingsJson);
+        final list = decoded is List ? decoded : <dynamic>[];
+        final sums = List<int>.filled(24, 0);
+        final counts = List<int>.filled(24, 0);
+        for (final item in list) {
+          final m = item as Map<String, dynamic>;
+          final bpm = (m['valueBpm'] as num? ?? 0).toInt();
+          final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
+          debugPrint('HR_DEBUG2 item=$m bpm=$bpm measuredAt=$measuredAt');
+          if (bpm <= 0 || measuredAt <= 0) continue;
+          final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
+          sums[h] += bpm;
+          counts[h] += 1;
+        }
+        for (int h = 0; h < 24; h++) {
+          if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
+        }
+        debugPrint('HR_DEBUG2 hourly=$hourly');
       }
 
       if (!mounted) return;
+      final avg = (summary['avg'] as num?)?.round() ?? 0;
+      final minVal = (summary['min'] as num?)?.toInt() ?? 0;
+      final maxVal = (summary['max'] as num?)?.toInt() ?? 0;
       setState(() {
-        _chartValues = fullDay;
+        _chartValues = hourly;
         _avgHr = avg;
         _minHr = minVal;
         _maxHr = maxVal;
         _selectedDate = DateTime.now();
       });
-
       context.read<BleProvider>().updateHrData(avg, minVal, maxVal);
-      // Not saved to Supabase here — this chart reflects the ring's own periodic
-      // auto-tracking (a separate data source from the new continuous one-click
-      // measurement loop), and the daily aggregate is now pushed natively by
-      // SupabaseSyncManager from local Room to avoid a duplicate/conflicting write.
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _saveHrToSupabase(int avg, int min, int max, int count) async {

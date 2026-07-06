@@ -25,6 +25,15 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+            // R8 was already renaming/stripping fields on our Gson-serialized data
+            // classes in release builds even without this explicitly set (Flutter's
+            // Gradle plugin appears to default it on) — declaring it explicitly here
+            // so proguardFiles(...) below is actually guaranteed to be consulted.
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
