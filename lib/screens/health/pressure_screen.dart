@@ -110,9 +110,8 @@ class _PressureScreenState extends State<PressureScreen> {
     super.initState();
     _loadSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && context.read<BleProvider>().isConnected) {
-        _fetchToday();
-      }
+      // Local DB read — doesn't need a live ring connection.
+      _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
   }
@@ -132,64 +131,60 @@ class _PressureScreenState extends State<PressureScreen> {
     if (!isToday) _loadDayFromSupabase(date);
   }
 
-  // ── Ring fetch ────────────────────────────────────────────────────────────
+  // ── Local DB fetch (today) ──────────────────────────────────────────────────
+  // Reads from the local Room DB the background streaming loop writes to,
+  // instead of hitting the ring directly — works even when the ring isn't
+  // currently connected, and stays consistent with the home screen's card.
 
-  Future<void> _fetchToday() async {
+  Future<void> _fetchTodayFromLocalDb() async {
     setState(() { _loading = true; _manualStress = 0; });
     try {
-      final data = await _ble.getTodayPressure();
-      _parsePressureData(data);
-    } catch (_) {} finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
+      final now = DateTime.now();
+      final dayStart = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+      final dayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999)
+          .millisecondsSinceEpoch;
 
-  void _parsePressureData(String jsonStr) {
-    try {
-      final m = jsonDecode(jsonStr) as Map<String, dynamic>;
-      final raw = (m['pressureArray'] as List<dynamic>? ?? [])
-          .map((v) => (v as num).toInt())
-          .toList();
-      final readings = raw.where((v) => v > 0).toList();
-      if (readings.isEmpty) return;
+      final summary = jsonDecode(await _ble.getTodaySummary('stress')) as Map<String, dynamic>;
+      final count = (summary['count'] as num? ?? 0).toInt();
 
-      final avg = (readings.reduce((a, b) => a + b) / readings.length).round();
-      final minVal = readings.reduce((a, b) => a < b ? a : b);
-      final maxVal = readings.reduce((a, b) => a > b ? a : b);
+      final hourly = List<int>.filled(24, 0);
+      if (count > 0) {
+        final readingsJson =
+            await _ble.getReadings('stress', fromMs: dayStart, toMs: dayEnd, limit: 1000);
+        final decoded = jsonDecode(readingsJson);
+        final list = decoded is List ? decoded : <dynamic>[];
+        final sums = List<int>.filled(24, 0);
+        final counts = List<int>.filled(24, 0);
+        for (final item in list) {
+          final m = item as Map<String, dynamic>;
+          final value = (m['value'] as num? ?? 0).toInt();
+          final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
+          if (value <= 0 || measuredAt <= 0) continue;
+          final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
+          sums[h] += value;
+          counts[h] += 1;
+        }
+        for (int h = 0; h < 24; h++) {
+          if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
+        }
+      }
 
       if (!mounted) return;
+      final avg = (summary['avg'] as num?)?.round() ?? 0;
+      final minVal = (summary['min'] as num?)?.toInt() ?? 0;
+      final maxVal = (summary['max'] as num?)?.toInt() ?? 0;
       setState(() {
-        _chartValues = raw;
+        _chartValues = hourly;
         _avgStress   = avg;
         _minStress   = minVal;
         _maxStress   = maxVal;
         _selectedDate = DateTime.now();
       });
-
       context.read<BleProvider>().updateStressLatest(avg);
-      _saveRingDataToSupabase(avg);
-    } catch (_) {}
-  }
-
-  Future<void> _saveRingDataToSupabase(int avgValue) async {
-    final user = SupabaseService.currentUser;
-    if (user == null || avgValue <= 0) return;
-    try {
-      final now  = DateTime.now();
-      final from = DateTime(now.year, now.month, now.day);
-      final to   = DateTime(now.year, now.month, now.day, 23, 59, 59);
-      final existing = await SupabaseService.getStressReadings(
-        userId: user.id, from: from, to: to);
-      final hasRingData = existing.any((r) => r['source'] == 'ring');
-      if (!hasRingData) {
-        await SupabaseService.insertStress(
-          userId: user.id,
-          stressValue: avgValue,
-          measuredAt: now,
-          source: 'ring',
-        );
-      }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   // ── Supabase fetches ──────────────────────────────────────────────────────
