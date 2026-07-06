@@ -104,7 +104,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             // Unbind button
             GestureDetector(
-              onTap: () {},
+              onTap: () => _confirmUnbind(context),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -230,6 +230,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _divider() => const Divider(height: 1, color: AppTheme.div, indent: 0, endIndent: 0);
+
+  Future<void> _confirmUnbind(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.card2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Unbind ring',
+            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+        content: Text('This will disconnect and remove the pairing with your ring.',
+            style: GoogleFonts.inter(color: AppTheme.textSec)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Unbind',
+                style: GoogleFonts.inter(
+                    color: AppTheme.danger, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) {
+      await context.read<BleProvider>().disconnect();
+    }
+  }
 }
 
 class _SettingsRow extends StatelessWidget {

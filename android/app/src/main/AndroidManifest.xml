@@ -44,7 +44,7 @@
 
     <application
         android:label="QRing"
-        android:name="${applicationName}"
+        android:name=".QRingApplication"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true">
         <activity

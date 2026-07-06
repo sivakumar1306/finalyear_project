@@ -951,9 +951,9 @@ class _AlarmModeInfo {
 
 const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
   PhoneMode.focus: _AlarmModeInfo(
-      'Focus', 'Until 13:00', 'Focus', AppTheme.gold, Icons.adjust_rounded),
+      'Focus', 'Until 13:00', 'Focus', AppTheme.focus, Icons.adjust_rounded),
   PhoneMode.base: _AlarmModeInfo(
-      'Normal', 'All alerts on', 'Base', AppTheme.gold, Icons.circle_outlined),
+      'Normal', 'All alerts on', 'Base', AppTheme.base, Icons.circle_outlined),
   PhoneMode.prayer: _AlarmModeInfo(
       'Prayer mode', 'Dhuhr 13:14', 'Prayer', _kOrbStress, Icons.self_improvement_rounded),
 };
@@ -1047,7 +1047,7 @@ class _AlarmModeSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 152, // Specified width
+      width: 162, // Specified width
       height: 46, // Specified height
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(

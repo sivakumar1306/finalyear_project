@@ -1,5 +1,6 @@
 package com.medxai.qring_flutter
 
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.app.Application
 import android.util.Log
@@ -71,11 +72,35 @@ import io.flutter.plugin.common.MethodChannel
 
 class BlePlugin(private val context: Context) {
 
+    companion object {
+        private const val TAG = "BlePlugin"
+        private const val CONNECT_TIMEOUT_MS = 60_000L
+        private const val INIT_COMMAND_DELAY_MS = 400L
+        private const val INIT_RETRY_TIMEOUT_MS = 4_000L
+        private const val INIT_MAX_ATTEMPTS = 3
+
+        var instance: BlePlugin? = null
+            private set
+    }
+
     private val gson = Gson()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var eventSink: EventChannel.EventSink? = null
     private val NOTIFY_KEY = 999
     private var _isConnected = false
+    private var pendingConnectResult: MethodChannel.Result? = null
+    private var deviceAddress: String? = null
+    private var pendingBondFallback: Runnable? = null
+
+    // Populated by QRingBluetoothReceiver.onCharacteristicRead once the SDK broadcasts them.
+    var cachedFirmwareVersion: String = ""
+    var cachedHardwareVersion: String = ""
+
+    private val connectTimeoutRunnable = Runnable {
+        val r = pendingConnectResult
+        pendingConnectResult = null
+        r?.let { mainHandler.post { it.error("TIMEOUT", "Connection timed out", null) } }
+    }
 
     val eventStreamHandler = object : EventChannel.StreamHandler {
         override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -92,6 +117,7 @@ class BlePlugin(private val context: Context) {
             BleOperateManager.getInstance().init()
         } catch (_: Exception) {}
         registerDeviceListener()
+        instance = this
     }
 
     private fun registerDeviceListener() {
@@ -286,40 +312,128 @@ class BlePlugin(private val context: Context) {
         val address = call.argument<String>("address") ?: run {
             result.error("INVALID_ARG", "address required", null); return
         }
+        deviceAddress = address
         BleScannerHelper.getInstance().stopScan(context)
-        BleOperateManager.getInstance().connectDirectly(address)
 
-        var attempts = 0
-        val maxAttempts = 60
-        val pollRunnable = object : Runnable {
-            override fun run() {
-                attempts++
-                val connected = BleOperateManager.getInstance().isConnected
-                if (connected) {
-                    _isConnected = true
-                    sendEvent("connectionState", mapOf("connected" to true))
-                    // Enable BLE notifications for large data (blood oxygen, sleep, etc.)
-                    // Must be called after service discovery or large data callbacks never fire.
-                    LargeDataHandler.getInstance().initEnable()
-                    CommandHandle.getInstance().executeReqCmd(
-                        SimpleKeyReq(Constants.CMD_BIND_SUCCESS), null
-                    )
-                    mainHandler.post { result.success(true) }
-                } else if (attempts >= maxAttempts) {
-                    mainHandler.post { result.error("TIMEOUT", "Connection timed out", null) }
-                } else {
-                    mainHandler.postDelayed(this, 1000L)
-                }
-            }
+        if (BleOperateManager.getInstance().isConnected) {
+            // Already connected (e.g. reconnecting to a live session) — the SDK will not
+            // re-fire onServiceDiscovered(), so resolve immediately instead of waiting for it.
+            _isConnected = true
+            mainHandler.post { result.success(true) }
+            return
         }
-        mainHandler.postDelayed(pollRunnable, 1000L)
+
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
+        pendingConnectResult = result
+        mainHandler.postDelayed(connectTimeoutRunnable, CONNECT_TIMEOUT_MS)
+        BleOperateManager.getInstance().connectDirectly(address)
     }
 
     private fun disconnect(result: MethodChannel.Result) {
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
+        pendingConnectResult = null
         BleOperateManager.getInstance().unBindDevice()
         _isConnected = false
         sendEvent("connectionState", mapOf("connected" to false))
         result.success(null)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Connection lifecycle callbacks (invoked by QRingBluetoothReceiver)
+    // ─────────────────────────────────────────────────────────────────
+
+    // The SDK requires waiting for onServiceDiscovered() before sending any commands —
+    // sending them right off the raw GATT-connected state can be answered with no response.
+    fun onServiceDiscovered() {
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
+        _isConnected = true
+        sendEvent("connectionState", mapOf("connected" to true))
+
+        val result = pendingConnectResult
+        pendingConnectResult = null
+        result?.let { r -> mainHandler.post { r.success(true) } }
+
+        // Give the phone/device GATT and notify state a moment to settle before sending
+        // the bind-success command — sending immediately can receive no response.
+        mainHandler.postDelayed({ readDeviceCapabilityAndPairIfNeeded() }, INIT_COMMAND_DELAY_MS)
+    }
+
+    fun onDeviceDisconnected() {
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
+        pendingConnectResult = null
+        _isConnected = false
+        sendEvent("connectionState", mapOf("connected" to false))
+    }
+
+    // Fires for any successful connection, including ones BleConnectionService's background
+    // reconnect loop initiates directly (bypassing connect()) — keeps isAlreadyBonded() working
+    // regardless of who triggered the connection.
+    fun onDeviceAddressKnown(address: String) {
+        deviceAddress = address
+    }
+
+    // Called by QRingSystemBluetoothReceiver when a bond attempt ends in BOND_NONE
+    // (rejected/cancelled/timed out) — unblocks whatever init command was waiting on it.
+    fun onBondFailed() {
+        val fallback = pendingBondFallback
+        pendingBondFallback = null
+        fallback?.let { mainHandler.post(it) }
+    }
+
+    private fun isAlreadyBonded(): Boolean {
+        val address = deviceAddress ?: return false
+        return try {
+            BluetoothAdapter.getDefaultAdapter()?.getRemoteDevice(address)?.bondState == BluetoothDevice.BOND_BONDED
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // Devices with supportBlePair = true require the app to trigger system Bluetooth
+    // pairing after connecting; until that bond exists, the ring's firmware silently
+    // ignores every command (no error, just no response). If it's already bonded, skip
+    // straight to sendBindSuccessWithRetry() — concurrent GATT writes during an in-flight
+    // pairing handshake can starve the handshake itself, so the two must not overlap.
+    private fun readDeviceCapabilityAndPairIfNeeded() {
+        CommandHandle.getInstance().executeReqCmd(
+            DeviceSupportReq.getReadInstance(),
+            ICommandResponse<DeviceSupportFunctionRsp> { rsp ->
+                Log.d(TAG, "DeviceSupportReq: supportBlePair=${rsp.supportBlePair}, alreadyBonded=${isAlreadyBonded()}")
+                if (rsp.supportBlePair && !isAlreadyBonded()) {
+                    Log.d(TAG, "Device requires BLE pairing — calling bleCreateBond(), deferring other init commands")
+                    // If bonding succeeds, QRingSystemBluetoothReceiver reconnects the GATT
+                    // link, which re-enters this whole flow fresh (and isAlreadyBonded() will
+                    // then be true). If it fails, onBondFailed() runs this fallback so the app
+                    // isn't stuck silently.
+                    pendingBondFallback = Runnable { sendBindSuccessWithRetry() }
+                    BleOperateManager.getInstance().bleCreateBond()
+                } else {
+                    sendBindSuccessWithRetry()
+                }
+            }
+        )
+    }
+
+    private fun sendBindSuccessWithRetry(attempt: Int = 1) {
+        var responded = false
+        val timeoutRunnable = Runnable {
+            if (!responded) {
+                if (attempt < INIT_MAX_ATTEMPTS) {
+                    Log.w(TAG, "CMD_BIND_SUCCESS attempt $attempt got no response, retrying")
+                    sendBindSuccessWithRetry(attempt + 1)
+                } else {
+                    Log.e(TAG, "CMD_BIND_SUCCESS: no response after $INIT_MAX_ATTEMPTS attempts")
+                }
+            }
+        }
+        mainHandler.postDelayed(timeoutRunnable, INIT_RETRY_TIMEOUT_MS)
+        CommandHandle.getInstance().executeReqCmd(
+            SimpleKeyReq(Constants.CMD_BIND_SUCCESS),
+            ICommandResponse<BaseRspCmd> {
+                responded = true
+                mainHandler.removeCallbacks(timeoutRunnable)
+            }
+        )
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -342,9 +456,10 @@ class BlePlugin(private val context: Context) {
     }
 
     private fun getFirmwareVersion(result: MethodChannel.Result) {
-        // Firmware version is broadcast by the SDK after connect; return empty until device sends it
+        // Populated by QRingBluetoothReceiver.onCharacteristicRead once the SDK broadcasts it;
+        // empty until the device has sent it (shortly after connect).
         mainHandler.post {
-            result.success(mapOf("hardware" to "", "firmware" to "", "model" to ""))
+            result.success(mapOf("hardware" to cachedHardwareVersion, "firmware" to cachedFirmwareVersion, "model" to ""))
         }
     }
 
@@ -1520,7 +1635,9 @@ class BlePlugin(private val context: Context) {
     }
 
     fun onDestroy() {
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
         BleScannerHelper.getInstance().stopScan(context)
         BleOperateManager.getInstance().removeNotifyListener(NOTIFY_KEY)
+        if (instance === this) instance = null
     }
 }

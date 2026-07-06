@@ -90,7 +90,31 @@
       "Bash(/c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe install *)",
       "Bash(\"/c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe\" shell *)",
       "Bash(\"/c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe\" exec-out *)",
-      "Read(//c/Users/fixadmin/AppData/Local/Temp/claude/C--Jeffrey-new-flutter/287d921a-2645-40ec-8434-b96b63292227/scratchpad/**)"
+      "Read(//c/Users/fixadmin/AppData/Local/Temp/claude/C--Jeffrey-new-flutter/287d921a-2645-40ec-8434-b96b63292227/scratchpad/**)",
+      "Bash(./gradlew.bat :app:compileDebugKotlin --console=plain)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices -l 2>&1)",
+      "Bash(/c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe shell *)",
+      "Bash(/c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe logcat *)",
+      "Bash(nohup /c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe logcat QRingBleReceiver:D BlePlugin:D TempSync:D BleTTest:D flutter:D AndroidRuntime:E *:S)",
+      "Bash(echo \"logcat PID: $!\")",
+      "Bash(/c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe pull *)",
+      "Bash(MSYS_NO_PATHCONV=1 /c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe shell screencap -p /sdcard/qring_screen_1.png)",
+      "Bash(MSYS_NO_PATHCONV=1 /c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe pull /sdcard/qring_screen_1.png /c/Jeffrey/new-flutter/.scratch_logs/screen_1.png)",
+      "Bash(MSYS_NO_PATHCONV=1 $ADB pull *)",
+      "Bash(MSYS_NO_PATHCONV=1 /c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe shell screencap -p /sdcard/bt_settings.png)",
+      "Bash(MSYS_NO_PATHCONV=1 /c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe pull /sdcard/bt_settings.png '__TRACKED_VAR__\\\\bt_settings.png')",
+      "Bash(MSYS_NO_PATHCONV=1 /c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe shell screencap -p /sdcard/bt_device.png)",
+      "Bash(MSYS_NO_PATHCONV=1 /c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe pull /sdcard/bt_device.png '__TRACKED_VAR__\\\\bt_device.png')",
+      "Bash(nohup /c/Users/fixadmin/AppData/Local/Android/Sdk/platform-tools/adb.exe logcat QRingBleReceiver:D QRingSystemBt:D BlePlugin:D TempSync:D *:S)",
+      "Bash(echo \"capturing, PID $!\")",
+      "Bash(sh -c 'sleep 25; cat /tmp/qring_logcat6.txt')",
+      "Bash(pkill -f \"adb.*logcat\")",
+      "Bash(sh -c 'sleep 40; cat /tmp/qring_logcat_new_sdk.txt')",
+      "Bash(sh -c 'sleep 30; cat /tmp/qring_logcat_new_sdk.txt')",
+      "Bash(sh -c 'sleep 45; echo DONE')",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:codeberg.org)"
     ]
   }
 }
