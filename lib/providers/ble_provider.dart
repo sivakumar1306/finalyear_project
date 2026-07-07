@@ -234,6 +234,14 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
+  /// Dev/testing only — seeds the local DB with [hoursBack] hours of plausible
+  /// readings (no ring connection needed) and refreshes the vitals shown in the
+  /// app, so data survives a reinstall's data wipe without needing to re-pair.
+  Future<void> seedDemoData({int hoursBack = 3}) async {
+    await _ble.seedDemoData(hoursBack: hoursBack);
+    await _loadTodayVitalsFromLocal();
+  }
+
   Future<void> _loadTodayVitalsFromLocal() async {
     if (!await _refreshHrFromLocal()) await _loadTodayHrFromSupabase();
     if (!await _refreshSpo2FromLocal()) await _loadTodaySpo2FromSupabase();

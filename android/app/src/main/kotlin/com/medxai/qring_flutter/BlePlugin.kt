@@ -291,6 +291,7 @@ class BlePlugin(private val context: Context) {
             "getSyncEnabled"             -> result.success(MeasurementConfig.isSyncEnabled())
             "configureSync"              -> configureSync(call, result)
             "forceSyncNow"               -> result.success(SupabaseSyncManager.forceSyncNow())
+            "seedDemoData"               -> seedDemoData(call, result)
             else                         -> result.notImplemented()
         }
     }
@@ -1816,6 +1817,18 @@ class BlePlugin(private val context: Context) {
                 return@launch
             }
             mainHandler.post { result.success(json) }
+        }
+    }
+
+    private fun seedDemoData(call: MethodCall, result: MethodChannel.Result) {
+        val hoursBack = (call.argument<Number>("hoursBack") ?: 3L).toLong()
+        repo().ioScope.launch {
+            try {
+                repo().seedDemoData(hoursBack)
+                mainHandler.post { result.success(true) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("SEED_FAILED", e.message, null) }
+            }
         }
     }
 

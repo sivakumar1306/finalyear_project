@@ -100,6 +100,70 @@ class ReadingRepository private constructor(context: Context) {
     suspend fun markTemperatureSynced(ids: List<Long>, at: Long) = withContext(Dispatchers.IO) { db.temperatureDao().markSynced(ids, at) }
     suspend fun markStepsSynced(ids: List<Long>, at: Long) = withContext(Dispatchers.IO) { db.stepsSnapshotDao().markSynced(ids, at) }
 
+    // ── Demo data seeding (dev/testing only) ────────────────────────
+    //
+    // Fills the last `hoursBack` hours with synthetic-but-plausible readings so a
+    // freshly reinstalled app has something to show without needing the ring
+    // connected. Inserted rows are tagged source = "demo_seed" and get real
+    // historical `measuredAt` timestamps (not "now"), unlike the live insert*
+    // helpers above.
+    suspend fun seedDemoData(hoursBack: Long = 3): Unit = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val start = now - hoursBack * 3_600_000L
+        val cycleId = db.measurementCycleDao().insert(
+            MeasurementCycleEntity(startedAt = start, completedAt = now, status = "COMPLETED")
+        )
+        val rnd = kotlin.random.Random(now)
+
+        // Heart rate / SpO2 / stress / HRV / steps: every 5 minutes across the window.
+        var cumulativeSteps = 0
+        var cumulativeCalories = 0
+        var cumulativeDistance = 0.0
+        var t = start
+        while (t <= now) {
+            db.heartRateDao().insert(
+                HeartRateReadingEntity(valueBpm = 58 + rnd.nextInt(25), measuredAt = t, cycleId = cycleId, source = "demo_seed")
+            )
+            db.spo2Dao().insert(
+                Spo2ReadingEntity(valuePct = 95 + rnd.nextInt(5), measuredAt = t, cycleId = cycleId, source = "demo_seed")
+            )
+            val stress = 15 + rnd.nextInt(50)
+            val label = when { stress < 30 -> "relaxed"; stress < 60 -> "normal"; else -> "elevated" }
+            db.stressDao().insert(
+                StressReadingEntity(value = stress, label = label, measuredAt = t, cycleId = cycleId, source = "demo_seed")
+            )
+            db.hrvDao().insert(
+                HrvReadingEntity(valueMs = 30 + rnd.nextInt(40), measuredAt = t, cycleId = cycleId, source = "demo_seed")
+            )
+            val steps = 20 + rnd.nextInt(80)
+            cumulativeSteps += steps
+            cumulativeCalories += (steps * 0.04).toInt().coerceAtLeast(1)
+            cumulativeDistance += steps * 0.75
+            db.stepsSnapshotDao().insert(
+                StepsSnapshotEntity(
+                    steps = cumulativeSteps, caloriesKcal = cumulativeCalories, distanceM = cumulativeDistance,
+                    capturedAt = t, cycleId = cycleId, source = "demo_seed"
+                )
+            )
+            t += 5 * 60_000L
+        }
+
+        // Blood pressure / temperature: measured less often, every 30 minutes.
+        var tSlow = start
+        while (tSlow <= now) {
+            db.bloodPressureDao().insert(
+                BloodPressureReadingEntity(
+                    systolic = 108 + rnd.nextInt(20), diastolic = 68 + rnd.nextInt(14),
+                    measuredAt = tSlow, cycleId = cycleId, source = "demo_seed"
+                )
+            )
+            db.temperatureDao().insert(
+                TemperatureReadingEntity(valueC = 36.1 + rnd.nextDouble() * 0.9, measuredAt = tSlow, cycleId = cycleId, source = "demo_seed")
+            )
+            tSlow += 30 * 60_000L
+        }
+    }
+
     suspend fun pendingRowCount(): Int = withContext(Dispatchers.IO) {
         db.heartRateDao().unsyncedCount() + db.spo2Dao().unsyncedCount() + db.stressDao().unsyncedCount() +
             db.bloodPressureDao().unsyncedCount() + db.hrvDao().unsyncedCount() +

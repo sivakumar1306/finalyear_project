@@ -311,6 +311,12 @@ class BleService {
       }) ??
       '[]';
 
+  /// Dev/testing only — fills the local Room DB with plausible readings spanning
+  /// the last [hoursBack] hours, so a freshly reinstalled app has data to show
+  /// without needing the ring connected.
+  Future<bool> seedDemoData({int hoursBack = 3}) async =>
+      await _methodChannel.invokeMethod<bool>('seedDemoData', {'hoursBack': hoursBack}) ?? false;
+
   Future<bool> setVitalEnabled(String vital, bool enabled) async =>
       await _methodChannel.invokeMethod<bool>('setVitalEnabled', {'vital': vital, 'enabled': enabled}) ?? false;
 
