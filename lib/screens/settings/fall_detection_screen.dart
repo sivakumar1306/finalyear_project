@@ -10,9 +10,10 @@ import '../../theme/app_theme.dart';
 enum _FallTier { low, medium, high }
 
 class _EmergencyContact {
-  String name;
-  String phone;
-  _EmergencyContact(this.name, this.phone);
+  final int? id;
+  final String name;
+  final String phone;
+  _EmergencyContact({this.id, required this.name, required this.phone});
 }
 
 class FallDetectionScreen extends StatefulWidget {
@@ -28,10 +29,10 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   _FallTier? _debugTier;
   _FallTier? _ignoredForTier;
 
-  final List<_EmergencyContact> _contacts = [
-    _EmergencyContact('Default Emergency (Default)', '101'),
-    _EmergencyContact('Mom', '+91 000 000 0000'),
-  ];
+  // Persisted natively (Room), not widget state — fetched on load, seeded with two
+  // defaults the first time the table is empty.
+  List<_EmergencyContact> _contacts = [];
+  bool _loadingContacts = true;
 
   String _address = 'Flat 101, SingleBar avenue...';
   String _instructions = '';
@@ -45,6 +46,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   void initState() {
     super.initState();
     _loadRealRisk();
+    _loadContacts();
   }
 
   Future<void> _loadRealRisk() async {
@@ -54,6 +56,41 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
       _realRisk = risk;
       _loadingRisk = false;
     });
+  }
+
+  Future<void> _loadContacts() async {
+    final ble = context.read<BleProvider>();
+    var rows = await ble.getEmergencyContacts();
+    if (rows.isEmpty) {
+      // First run — seed the same two defaults the old in-memory demo used, but for real.
+      await ble.addEmergencyContact('Default Emergency (Default)', '101');
+      await ble.addEmergencyContact('Mom', '+91 000 000 0000');
+      rows = await ble.getEmergencyContacts();
+    }
+    if (!mounted) return;
+    setState(() {
+      _contacts = rows
+          .map((r) => _EmergencyContact(
+                id: (r['id'] as num?)?.toInt(),
+                name: r['name'] as String? ?? '',
+                phone: r['phone'] as String? ?? '',
+              ))
+          .toList();
+      _loadingContacts = false;
+    });
+  }
+
+  Future<void> _simulateRiskTrigger() async {
+    final ble = context.read<BleProvider>();
+    await ble.simulateFallRiskTrigger();
+    // The native side computes and logs this asynchronously (EventBus + a background
+    // coroutine) — give it a moment before re-fetching.
+    await Future.delayed(const Duration(milliseconds: 600));
+    await _loadRealRisk();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Posted a real 135bpm reading — risk score above should update')),
+    );
   }
 
   _FallTier _tierFromScore(int score) {
@@ -105,11 +142,11 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
         ],
       ),
     );
-    if (saved == true && nameCtl.text.trim().isNotEmpty) {
-      setState(() {
-        _contacts.add(_EmergencyContact(nameCtl.text.trim(), phoneCtl.text.trim()));
-      });
-    }
+    if (saved != true || nameCtl.text.trim().isEmpty) return;
+    if (!mounted) return;
+    final ble = context.read<BleProvider>();
+    await ble.addEmergencyContact(nameCtl.text.trim(), phoneCtl.text.trim());
+    await _loadContacts();
   }
 
   Future<void> _editAddress() async {
@@ -198,6 +235,9 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                     const SnackBar(content: Text('Simulated fall event — check your notification shade')),
                   );
                   break;
+                case 'risk_trigger':
+                  _simulateRiskTrigger();
+                  break;
               }
             },
             itemBuilder: (_) => [
@@ -206,6 +246,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
               const PopupMenuItem(value: 'clear', child: Text('Simulate: Clear (auto)', style: TextStyle(color: Colors.white))),
               const PopupMenuDivider(),
               const PopupMenuItem(value: 'notify', child: Text('Simulate: Fall notification', style: TextStyle(color: Colors.white))),
+              const PopupMenuItem(value: 'risk_trigger', child: Text('Simulate: Trigger risk analysis', style: TextStyle(color: Colors.white))),
             ],
           ),
         ],
@@ -261,12 +302,18 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
           const SizedBox(height: 20),
           const _SectionLabel('EMERGENCY DETAILS'),
           const SizedBox(height: 8),
-          ..._contacts.asMap().entries.map(
-                (e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _ContactRow(contact: e.value),
+          if (_loadingContacts)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: CircularProgressIndicator(color: AppTheme.gold)),
+            )
+          else
+            ..._contacts.asMap().entries.map(
+                  (e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _ContactRow(contact: e.value),
+                  ),
                 ),
-              ),
           _ActionRow(
             icon: Icons.add_rounded,
             label: 'Add a new contact',

@@ -298,6 +298,10 @@ class BlePlugin(private val context: Context) {
             "getFallRiskLog"             -> getFallRiskLog(call, result)
             "getFallEvents"              -> getFallEvents(call, result)
             "simulateFallEvent"          -> simulateFallEvent(result)
+            "getEmergencyContacts"       -> getEmergencyContacts(result)
+            "addEmergencyContact"        -> addEmergencyContact(call, result)
+            "deleteEmergencyContact"     -> deleteEmergencyContact(call, result)
+            "simulateFallRiskTrigger"    -> simulateFallRiskTrigger(result)
             else                         -> result.notImplemented()
         }
     }
@@ -1902,6 +1906,68 @@ class BlePlugin(private val context: Context) {
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
+            }
+        }
+    }
+
+    // Dev/testing only — posts a real NewReadingEvent through the exact same EventBus path a
+    // genuine ring reading takes, so FallRiskAnalyzer's compute-and-log pipeline can be
+    // verified end-to-end without needing a real ring connected. seedDemoData deliberately
+    // does NOT do this (it writes rows directly via DAOs), so this is the only way to exercise
+    // Phase 1 without live hardware.
+    private fun simulateFallRiskTrigger(result: MethodChannel.Result) {
+        repo().ioScope.launch {
+            try {
+                val cycleId = repo().startCycle()
+                val bpm = 135
+                val id = repo().insertHeartRate(bpm, cycleId, "demo_seed")
+                EventBus.getDefault().post(
+                    NewReadingEvent(Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(), bpm.toDouble())
+                )
+                mainHandler.post { result.success(true) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
+            }
+        }
+    }
+
+    private fun getEmergencyContacts(result: MethodChannel.Result) {
+        repo().ioScope.launch {
+            val json = try {
+                gson.toJson(repo().allEmergencyContacts())
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(json) }
+        }
+    }
+
+    private fun addEmergencyContact(call: MethodCall, result: MethodChannel.Result) {
+        val name = call.argument<String>("name") ?: run {
+            result.error("INVALID_ARG", "name required", null); return
+        }
+        val phone = call.argument<String>("phone") ?: ""
+        repo().ioScope.launch {
+            try {
+                repo().insertEmergencyContact(name, phone)
+                mainHandler.post { result.success(true) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("INSERT_FAILED", e.message, null) }
+            }
+        }
+    }
+
+    private fun deleteEmergencyContact(call: MethodCall, result: MethodChannel.Result) {
+        val id = (call.argument<Number>("id") ?: run {
+            result.error("INVALID_ARG", "id required", null); return
+        }).toLong()
+        repo().ioScope.launch {
+            try {
+                repo().deleteEmergencyContact(id)
+                mainHandler.post { result.success(true) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("DELETE_FAILED", e.message, null) }
             }
         }
     }

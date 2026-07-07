@@ -261,6 +261,23 @@ class BleProvider extends ChangeNotifier {
     return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
+  /// Dev/testing only — posts a real vital reading through the exact same event path a
+  /// genuine ring reading takes, so FallRiskAnalyzer can be verified end-to-end.
+  Future<void> simulateFallRiskTrigger() => _ble.simulateFallRiskTrigger();
+
+  /// Emergency contacts — persisted natively (Room), not Flutter widget state.
+  Future<List<Map<String, dynamic>>> getEmergencyContacts() async {
+    final json = await _ble.getEmergencyContacts();
+    final decoded = jsonDecode(json);
+    if (decoded is! List) return [];
+    return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<void> addEmergencyContact(String name, String phone) =>
+      _ble.addEmergencyContact(name, phone);
+
+  Future<void> deleteEmergencyContact(int id) => _ble.deleteEmergencyContact(id);
+
   Future<void> _loadTodayVitalsFromLocal() async {
     if (!await _refreshHrFromLocal()) await _loadTodayHrFromSupabase();
     if (!await _refreshSpo2FromLocal()) await _loadTodaySpo2FromSupabase();

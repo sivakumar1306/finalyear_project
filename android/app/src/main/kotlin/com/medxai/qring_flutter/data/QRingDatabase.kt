@@ -16,9 +16,10 @@ import androidx.room.RoomDatabase
         TemperatureReadingEntity::class,
         StepsSnapshotEntity::class,
         FallRiskLogEntity::class,
-        FallEventEntity::class
+        FallEventEntity::class,
+        EmergencyContactEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class QRingDatabase : RoomDatabase() {
@@ -32,6 +33,7 @@ abstract class QRingDatabase : RoomDatabase() {
     abstract fun stepsSnapshotDao(): StepsSnapshotDao
     abstract fun fallRiskLogDao(): FallRiskLogDao
     abstract fun fallEventDao(): FallEventDao
+    abstract fun emergencyContactDao(): EmergencyContactDao
 
     companion object {
         @Volatile private var INSTANCE: QRingDatabase? = null

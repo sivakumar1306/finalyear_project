@@ -204,6 +204,21 @@ interface FallEventDao {
 }
 
 @Dao
+interface EmergencyContactDao {
+    @Insert
+    suspend fun insert(entity: EmergencyContactEntity): Long
+
+    @Query("DELETE FROM emergency_contact WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("SELECT * FROM emergency_contact ORDER BY createdAt ASC")
+    suspend fun all(): List<EmergencyContactEntity>
+
+    @Query("SELECT COUNT(*) FROM emergency_contact")
+    suspend fun count(): Int
+}
+
+@Dao
 interface StepsSnapshotDao {
     @Insert
     suspend fun insert(entity: StepsSnapshotEntity): Long

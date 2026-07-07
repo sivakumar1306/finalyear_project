@@ -338,6 +338,22 @@ class BleService {
   Future<bool> simulateFallEvent() async =>
       await _methodChannel.invokeMethod<bool>('simulateFallEvent') ?? false;
 
+  /// Dev/testing only — posts a real NewReadingEvent so FallRiskAnalyzer's compute-and-log
+  /// pipeline can be verified without a real ring connected (seedDemoData bypasses this path).
+  Future<bool> simulateFallRiskTrigger() async =>
+      await _methodChannel.invokeMethod<bool>('simulateFallRiskTrigger') ?? false;
+
+  /// Emergency contacts — persisted natively (Room), not Flutter widget state, so a future
+  /// caregiver-push or notification action can read them without the Dart engine running.
+  Future<String> getEmergencyContacts() async =>
+      await _methodChannel.invokeMethod<String>('getEmergencyContacts') ?? '[]';
+
+  Future<bool> addEmergencyContact(String name, String phone) async =>
+      await _methodChannel.invokeMethod<bool>('addEmergencyContact', {'name': name, 'phone': phone}) ?? false;
+
+  Future<bool> deleteEmergencyContact(int id) async =>
+      await _methodChannel.invokeMethod<bool>('deleteEmergencyContact', {'id': id}) ?? false;
+
   /// Dev/testing only — fills the local Room DB with plausible readings spanning
   /// the last [hoursBack] hours, so a freshly reinstalled app has data to show
   /// without needing the ring connected.

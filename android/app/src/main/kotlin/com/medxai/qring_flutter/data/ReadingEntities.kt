@@ -128,3 +128,14 @@ data class FallEventEntity(
     @SerializedName("metadataJson") val metadataJson: String,
     @SerializedName("detectedAt") val detectedAt: Long
 )
+
+// Persisted natively (not just Flutter widget state) so a future caregiver-push or
+// "call emergency contact" notification action can read a contact without the Dart engine
+// being alive. Order shown in the UI follows createdAt ascending.
+@Entity(tableName = "emergency_contact", indices = [Index("createdAt")])
+data class EmergencyContactEntity(
+    @PrimaryKey(autoGenerate = true) @SerializedName("id") val id: Long = 0,
+    @SerializedName("name") val name: String,
+    @SerializedName("phone") val phone: String,
+    @SerializedName("createdAt") val createdAt: Long
+)

@@ -186,6 +186,20 @@ class ReadingRepository private constructor(context: Context) {
     suspend fun fallEventsBetween(fromMs: Long, toMs: Long, limit: Int = 200) =
         withContext(Dispatchers.IO) { db.fallEventDao().recent(fromMs, toMs, limit) }
 
+    // ── Emergency contacts (native-persisted, see EmergencyContactEntity) ──
+
+    suspend fun insertEmergencyContact(name: String, phone: String): Long = withContext(Dispatchers.IO) {
+        db.emergencyContactDao().insert(EmergencyContactEntity(name = name, phone = phone, createdAt = System.currentTimeMillis()))
+    }
+
+    suspend fun deleteEmergencyContact(id: Long) = withContext(Dispatchers.IO) {
+        db.emergencyContactDao().delete(id)
+    }
+
+    suspend fun allEmergencyContacts() = withContext(Dispatchers.IO) { db.emergencyContactDao().all() }
+
+    suspend fun emergencyContactCount() = withContext(Dispatchers.IO) { db.emergencyContactDao().count() }
+
     suspend fun pendingRowCount(): Int = withContext(Dispatchers.IO) {
         db.heartRateDao().unsyncedCount() + db.spo2Dao().unsyncedCount() + db.stressDao().unsyncedCount() +
             db.bloodPressureDao().unsyncedCount() + db.hrvDao().unsyncedCount() +

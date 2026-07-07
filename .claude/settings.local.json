@@ -122,7 +122,11 @@
       "Bash(\"/c/Users/fixadmin/AppData/Local/Programs/Python/Python311/python\" -)",
       "Bash(\"/c/Program Files/Microsoft/jdk-17.0.17.10-hotspot/bin/javap\" -p -c \"classes_out/com/oudmon/ble/base/communication/rsp/StartHeartRateRsp.class\")",
       "Bash(\"/c/Program Files/Microsoft/jdk-17.0.17.10-hotspot/bin/javap\" -p \"classes_out/com/oudmon/ble/base/bluetooth/BleOperateManager.class\")",
-      "Bash(\"/c/Program Files/Microsoft/jdk-17.0.17.10-hotspot/bin/javap\" -p \"classes_out/com/oudmon/ble/base/communication/rsp/DeviceSupportFunctionRsp.class\")"
+      "Bash(\"/c/Program Files/Microsoft/jdk-17.0.17.10-hotspot/bin/javap\" -p \"classes_out/com/oudmon/ble/base/communication/rsp/DeviceSupportFunctionRsp.class\")",
+      "Bash(ls *.md)",
+      "Bash(ls docs *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
