@@ -242,6 +242,25 @@ class BleProvider extends ChangeNotifier {
     await _loadTodayVitalsFromLocal();
   }
 
+  /// Dev/testing only — fires the real fall-alert notification pipeline on demand.
+  Future<void> simulateFallEvent() => _ble.simulateFallEvent();
+
+  /// Latest score computed by the native FallRiskAnalyzer, or null if it hasn't
+  /// logged anything yet (e.g. no vital reading has been saved since install).
+  Future<Map<String, dynamic>?> getFallRiskScore() async {
+    final json = await _ble.getFallRiskScore();
+    final decoded = jsonDecode(json);
+    return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+  }
+
+  /// Recent candidate fall events logged by the native FallMotionDetector.
+  Future<List<Map<String, dynamic>>> getFallEvents({int limit = 20}) async {
+    final json = await _ble.getFallEvents(limit: limit);
+    final decoded = jsonDecode(json);
+    if (decoded is! List) return [];
+    return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
   Future<void> _loadTodayVitalsFromLocal() async {
     if (!await _refreshHrFromLocal()) await _loadTodayHrFromSupabase();
     if (!await _refreshSpo2FromLocal()) await _loadTodaySpo2FromSupabase();

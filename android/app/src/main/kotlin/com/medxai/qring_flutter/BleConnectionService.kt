@@ -17,6 +17,7 @@ import com.oudmon.ble.base.bluetooth.BleOperateManager
 import com.oudmon.ble.base.communication.CommandHandle
 import com.oudmon.ble.base.communication.Constants
 import com.oudmon.ble.base.communication.req.SimpleKeyReq
+import com.medxai.qring_flutter.analysis.FallMotionDetector
 import com.medxai.qring_flutter.sync.SupabaseSyncManager
 
 class BleConnectionService : Service() {
@@ -98,6 +99,10 @@ class BleConnectionService : Service() {
         // Both are no-ops while their respective MeasurementConfig flag is off.
         MeasurementLoopManager.start(applicationContext)
         SupabaseSyncManager.start(applicationContext)
+
+        // Piggybacks on this already-running foreground service rather than starting a
+        // second one — see FallMotionDetector kdoc.
+        FallMotionDetector.start(applicationContext)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -110,6 +115,7 @@ class BleConnectionService : Service() {
         handler.removeCallbacksAndMessages(null)
         MeasurementLoopManager.stop()
         SupabaseSyncManager.stop()
+        FallMotionDetector.stop()
         super.onDestroy()
     }
 

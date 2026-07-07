@@ -311,6 +311,33 @@ class BleService {
       }) ??
       '[]';
 
+  /// Phase 1 fall-risk read surface — silent-logging only, no live alerts yet.
+  /// See FallRiskAnalyzer.kt for scoring logic.
+  Future<String> getFallRiskScore() async =>
+      await _methodChannel.invokeMethod<String>('getFallRiskScore') ?? 'null';
+
+  Future<String> getFallRiskLog({int? fromMs, int? toMs, int limit = 500}) async =>
+      await _methodChannel.invokeMethod<String>('getFallRiskLog', {
+        'fromMs': fromMs ?? 0,
+        'toMs': toMs ?? DateTime.now().millisecondsSinceEpoch,
+        'limit': limit,
+      }) ??
+      '[]';
+
+  /// Phase 2 fall-event read surface — silent-logging only, see FallMotionDetector.kt.
+  Future<String> getFallEvents({int? fromMs, int? toMs, int limit = 200}) async =>
+      await _methodChannel.invokeMethod<String>('getFallEvents', {
+        'fromMs': fromMs ?? 0,
+        'toMs': toMs ?? DateTime.now().millisecondsSinceEpoch,
+        'limit': limit,
+      }) ??
+      '[]';
+
+  /// Dev/testing only — fires the real fall-alert notification pipeline on demand, so it can
+  /// be tested/demoed without a genuine drop test + concurrent vitals spike.
+  Future<bool> simulateFallEvent() async =>
+      await _methodChannel.invokeMethod<bool>('simulateFallEvent') ?? false;
+
   /// Dev/testing only — fills the local Room DB with plausible readings spanning
   /// the last [hoursBack] hours, so a freshly reinstalled app has data to show
   /// without needing the ring connected.

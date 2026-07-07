@@ -101,3 +101,30 @@ data class StepsSnapshotEntity(
     @SerializedName("source") val source: String,
     @SerializedName("syncedAt") val syncedAt: Long? = null
 )
+
+// Phase 1 of the fall-risk feature — computed silently on every NewReadingEvent and logged
+// here for later correlation against real fall/near-fall reports. Not surfaced as a live
+// alert yet; see FallRiskAnalyzer. componentsJson is a Gson-serialized breakdown of which
+// signals contributed, kept as a string since Room can't store a Map directly.
+@Entity(tableName = "fall_risk_log", indices = [Index("computedAt")])
+data class FallRiskLogEntity(
+    @PrimaryKey(autoGenerate = true) @SerializedName("id") val id: Long = 0,
+    @SerializedName("score") val score: Int,
+    @SerializedName("tier") val tier: String,
+    @SerializedName("triggerVital") val triggerVital: String,
+    @SerializedName("componentsJson") val componentsJson: String,
+    @SerializedName("computedAt") val computedAt: Long
+)
+
+// Phase 2 — a candidate fall detected by FallMotionDetector's phone-accelerometer three-phase
+// signature (free-fall -> impact -> stillness), corroborated against a concurrent vitals
+// signal where possible. Logged silently, same as fall_risk_log — no user-facing alert yet.
+@Entity(tableName = "fall_event", indices = [Index("detectedAt")])
+data class FallEventEntity(
+    @PrimaryKey(autoGenerate = true) @SerializedName("id") val id: Long = 0,
+    @SerializedName("confidence") val confidence: Float,
+    @SerializedName("corroborated") val corroborated: Boolean,
+    @SerializedName("corroborationSource") val corroborationSource: String,
+    @SerializedName("metadataJson") val metadataJson: String,
+    @SerializedName("detectedAt") val detectedAt: Long
+)

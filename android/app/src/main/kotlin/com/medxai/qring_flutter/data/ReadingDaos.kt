@@ -180,6 +180,30 @@ interface TemperatureReadingDao {
 data class DailyAggregateDouble(val avg: Double?, val min: Double?, val max: Double?, val count: Int)
 
 @Dao
+interface FallRiskLogDao {
+    @Insert
+    suspend fun insert(entity: FallRiskLogEntity): Long
+
+    @Query("SELECT * FROM fall_risk_log ORDER BY computedAt DESC LIMIT 1")
+    suspend fun latest(): FallRiskLogEntity?
+
+    @Query("SELECT * FROM fall_risk_log WHERE computedAt BETWEEN :fromMs AND :toMs ORDER BY computedAt DESC LIMIT :limit")
+    suspend fun recent(fromMs: Long, toMs: Long, limit: Int): List<FallRiskLogEntity>
+}
+
+@Dao
+interface FallEventDao {
+    @Insert
+    suspend fun insert(entity: FallEventEntity): Long
+
+    @Query("SELECT * FROM fall_event ORDER BY detectedAt DESC LIMIT 1")
+    suspend fun latest(): FallEventEntity?
+
+    @Query("SELECT * FROM fall_event WHERE detectedAt BETWEEN :fromMs AND :toMs ORDER BY detectedAt DESC LIMIT :limit")
+    suspend fun recent(fromMs: Long, toMs: Long, limit: Int): List<FallEventEntity>
+}
+
+@Dao
 interface StepsSnapshotDao {
     @Insert
     suspend fun insert(entity: StepsSnapshotEntity): Long

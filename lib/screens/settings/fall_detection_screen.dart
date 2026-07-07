@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
 
-// Simple, rule-based risk tiering — no ML/sensor fusion, just thresholds over
-// data we already have (heart rate + stress). Good enough for a UI/demo pass.
+// Tier labels for display only — the actual score comes from the native
+// FallRiskAnalyzer (see BleProvider.getFallRiskScore), not computed here.
 enum _FallTier { low, medium, high }
 
 class _EmergencyContact {
@@ -35,29 +36,44 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   String _address = 'Flat 101, SingleBar avenue...';
   String _instructions = '';
 
-  int _riskScore(BleProvider ble) {
-    var score = 0;
-    final hr = ble.todayMaxHr;
-    if (hr >= 130) {
-      score += 45;
-    } else if (hr >= 110) {
-      score += 30;
-    } else if (hr >= 95) {
-      score += 15;
-    }
-    final stress = ble.todayAvgStress;
-    if (stress >= 70) {
-      score += 25;
-    } else if (stress >= 50) {
-      score += 10;
-    }
-    return score.clamp(0, 100);
+  // Real score from the native FallRiskAnalyzer — null until it has logged at
+  // least one computation (i.e. a vital reading has actually been saved).
+  Map<String, dynamic>? _realRisk;
+  bool _loadingRisk = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRealRisk();
+  }
+
+  Future<void> _loadRealRisk() async {
+    final risk = await context.read<BleProvider>().getFallRiskScore();
+    if (!mounted) return;
+    setState(() {
+      _realRisk = risk;
+      _loadingRisk = false;
+    });
   }
 
   _FallTier _tierFromScore(int score) {
     if (score >= 55) return _FallTier.high;
     if (score >= 25) return _FallTier.medium;
     return _FallTier.low;
+  }
+
+  Future<void> _openFallHistory() async {
+    final events = await context.read<BleProvider>().getFallEvents(limit: 30);
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.card2,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _FallHistorySheet(events: events),
+    );
   }
 
   void _alertContact() {
@@ -137,7 +153,8 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
-    final realScore = _riskScore(ble);
+    final realScore = (_realRisk?['score'] as num?)?.toInt() ?? 0;
+    final hasLiveData = _realRisk != null;
     final tier = _debugTier ?? _tierFromScore(realScore);
     final isDemo = _debugTier != null && _debugTier != _FallTier.low;
 
@@ -161,17 +178,34 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
         centerTitle: true,
         elevation: 0,
         actions: [
-          PopupMenuButton<_FallTier?>(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
             color: AppTheme.card2,
-            onSelected: (value) => setState(() {
-              _debugTier = value;
-              _ignoredForTier = null;
-            }),
+            onSelected: (value) {
+              switch (value) {
+                case 'high':
+                  setState(() { _debugTier = _FallTier.high; _ignoredForTier = null; });
+                  break;
+                case 'medium':
+                  setState(() { _debugTier = _FallTier.medium; _ignoredForTier = null; });
+                  break;
+                case 'clear':
+                  setState(() { _debugTier = null; _ignoredForTier = null; });
+                  break;
+                case 'notify':
+                  context.read<BleProvider>().simulateFallEvent();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Simulated fall event — check your notification shade')),
+                  );
+                  break;
+              }
+            },
             itemBuilder: (_) => [
-              const PopupMenuItem(value: _FallTier.high, child: Text('Simulate: High risk', style: TextStyle(color: Colors.white))),
-              const PopupMenuItem(value: _FallTier.medium, child: Text('Simulate: Medium risk', style: TextStyle(color: Colors.white))),
-              const PopupMenuItem(value: null, child: Text('Simulate: Clear (auto)', style: TextStyle(color: Colors.white))),
+              const PopupMenuItem(value: 'high', child: Text('Simulate: High risk', style: TextStyle(color: Colors.white))),
+              const PopupMenuItem(value: 'medium', child: Text('Simulate: Medium risk', style: TextStyle(color: Colors.white))),
+              const PopupMenuItem(value: 'clear', child: Text('Simulate: Clear (auto)', style: TextStyle(color: Colors.white))),
+              const PopupMenuDivider(),
+              const PopupMenuItem(value: 'notify', child: Text('Simulate: Fall notification', style: TextStyle(color: Colors.white))),
             ],
           ),
         ],
@@ -201,7 +235,11 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
           ],
           const _SectionLabel('FALL RISK SCORE'),
           const SizedBox(height: 8),
-          _RiskScoreCard(score: score),
+          _RiskScoreCard(
+            score: score,
+            hasLiveData: isDemo || hasLiveData,
+            loading: !isDemo && _loadingRisk,
+          ),
           const SizedBox(height: 16),
           if (tier == _FallTier.high)
             Row(
@@ -218,9 +256,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
           _ActionRow(
             icon: Icons.directions_run_rounded,
             label: 'View Fall history',
-            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Fall history — coming soon')),
-            ),
+            onTap: _openFallHistory,
           ),
           const SizedBox(height: 20),
           const _SectionLabel('EMERGENCY DETAILS'),
@@ -367,22 +403,26 @@ class _HeroCard extends StatelessWidget {
 
 class _RiskScoreCard extends StatelessWidget {
   final int score;
-  const _RiskScoreCard({required this.score});
+  final bool hasLiveData;
+  final bool loading;
+  const _RiskScoreCard({required this.score, required this.hasLiveData, required this.loading});
 
   @override
   Widget build(BuildContext context) {
-    final label = score >= 55
-        ? 'High chance of falling'
-        : score >= 25
-            ? 'Moderate chance of falling'
-            : 'Low chance of falling';
+    final label = !hasLiveData
+        ? (loading ? 'Loading…' : 'No live data yet — waiting for a vital reading')
+        : score >= 55
+            ? 'High chance of falling'
+            : score >= 25
+                ? 'Moderate chance of falling'
+                : 'Low chance of falling';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '$score',
+            hasLiveData ? '$score' : '—',
             style: GoogleFonts.inter(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w300),
           ),
           const SizedBox(height: 2),
@@ -655,4 +695,97 @@ class _SparklinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SparklinePainter oldDelegate) => oldDelegate.color != color;
+}
+
+class _FallHistorySheet extends StatelessWidget {
+  final List<Map<String, dynamic>> events;
+  const _FallHistorySheet({required this.events});
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = DateFormat('MMM d, HH:mm');
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Fall history',
+              style: GoogleFonts.inter(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Logged by the on-device motion detector — real events only.',
+              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            if (events.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Text(
+                  'No fall events logged yet.',
+                  style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: events.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (_, i) {
+                    final e = events[i];
+                    final detectedAt = (e['detectedAt'] as num?)?.toInt() ?? 0;
+                    final confidence = ((e['confidence'] as num?) ?? 0).toDouble();
+                    final corroborated = e['corroborated'] as bool? ?? false;
+                    final source = e['corroborationSource'] as String? ?? 'none';
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.card,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppTheme.div),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            corroborated ? Icons.warning_amber_rounded : Icons.help_outline_rounded,
+                            color: corroborated ? AppTheme.hrColor : AppTheme.textSec,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  detectedAt > 0
+                                      ? fmt.format(DateTime.fromMillisecondsSinceEpoch(detectedAt))
+                                      : 'Unknown time',
+                                  style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                                ),
+                                Text(
+                                  corroborated ? 'Corroborated by $source' : 'Not corroborated',
+                                  style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '${(confidence * 100).toInt()}%',
+                            style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }

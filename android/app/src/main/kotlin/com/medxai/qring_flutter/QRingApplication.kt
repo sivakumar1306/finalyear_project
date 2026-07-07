@@ -3,6 +3,7 @@ package com.medxai.qring_flutter
 import android.app.Application
 import android.content.pm.ApplicationInfo
 import androidx.core.content.ContextCompat
+import com.medxai.qring_flutter.analysis.FallRiskAnalyzer
 import com.oudmon.ble.base.bluetooth.BleAction
 import com.oudmon.ble.base.bluetooth.BleOperateManager
 
@@ -37,5 +38,7 @@ class QRingApplication : Application() {
         // BuildConfig.DEBUG gate without requiring the buildConfig Gradle feature.
         BleOperateManager.getInstance().isBleLogEnabled =
             (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+
+        FallRiskAnalyzer.init(this)
     }
 }

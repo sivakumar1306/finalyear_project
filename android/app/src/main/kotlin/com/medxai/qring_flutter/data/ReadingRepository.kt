@@ -164,6 +164,28 @@ class ReadingRepository private constructor(context: Context) {
         }
     }
 
+    // ── Fall risk log (Phase 1 — silent scoring, see FallRiskAnalyzer) ──
+
+    suspend fun insertFallRiskLog(entity: FallRiskLogEntity): Long = withContext(Dispatchers.IO) {
+        db.fallRiskLogDao().insert(entity)
+    }
+
+    suspend fun latestFallRiskLog() = withContext(Dispatchers.IO) { db.fallRiskLogDao().latest() }
+
+    suspend fun fallRiskLogBetween(fromMs: Long, toMs: Long, limit: Int = 500) =
+        withContext(Dispatchers.IO) { db.fallRiskLogDao().recent(fromMs, toMs, limit) }
+
+    // ── Fall events (Phase 2 — phone-motion detector, see FallMotionDetector) ──
+
+    suspend fun insertFallEvent(entity: FallEventEntity): Long = withContext(Dispatchers.IO) {
+        db.fallEventDao().insert(entity)
+    }
+
+    suspend fun latestFallEvent() = withContext(Dispatchers.IO) { db.fallEventDao().latest() }
+
+    suspend fun fallEventsBetween(fromMs: Long, toMs: Long, limit: Int = 200) =
+        withContext(Dispatchers.IO) { db.fallEventDao().recent(fromMs, toMs, limit) }
+
     suspend fun pendingRowCount(): Int = withContext(Dispatchers.IO) {
         db.heartRateDao().unsyncedCount() + db.spo2Dao().unsyncedCount() + db.stressDao().unsyncedCount() +
             db.bloodPressureDao().unsyncedCount() + db.hrvDao().unsyncedCount() +

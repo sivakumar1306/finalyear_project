@@ -66,6 +66,8 @@ import com.oudmon.ble.base.communication.sport.SportPlusHandle
 import com.oudmon.ble.base.scan.BleScannerHelper
 import com.oudmon.ble.base.scan.ScanRecord
 import com.oudmon.ble.base.scan.ScanWrapperCallback
+import com.medxai.qring_flutter.analysis.FallAlertNotifier
+import com.medxai.qring_flutter.data.FallEventEntity
 import com.medxai.qring_flutter.data.MeasurementConfig
 import com.medxai.qring_flutter.data.ReadingRepository
 import com.medxai.qring_flutter.data.Vital
@@ -292,6 +294,10 @@ class BlePlugin(private val context: Context) {
             "configureSync"              -> configureSync(call, result)
             "forceSyncNow"               -> result.success(SupabaseSyncManager.forceSyncNow())
             "seedDemoData"               -> seedDemoData(call, result)
+            "getFallRiskScore"           -> getFallRiskScore(result)
+            "getFallRiskLog"             -> getFallRiskLog(call, result)
+            "getFallEvents"              -> getFallEvents(call, result)
+            "simulateFallEvent"          -> simulateFallEvent(result)
             else                         -> result.notImplemented()
         }
     }
@@ -1828,6 +1834,74 @@ class BlePlugin(private val context: Context) {
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SEED_FAILED", e.message, null) }
+            }
+        }
+    }
+
+    // Phase 1 fall-risk read surface — silent-logging only, see FallRiskAnalyzer.
+    private fun getFallRiskScore(result: MethodChannel.Result) {
+        repo().ioScope.launch {
+            val json = try {
+                gson.toJson(repo().latestFallRiskLog())
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(json) }
+        }
+    }
+
+    private fun getFallRiskLog(call: MethodCall, result: MethodChannel.Result) {
+        val fromMs = (call.argument<Number>("fromMs") ?: 0L).toLong()
+        val toMs = (call.argument<Number>("toMs") ?: System.currentTimeMillis()).toLong()
+        val limit = call.argument<Int>("limit") ?: 500
+        repo().ioScope.launch {
+            val json = try {
+                gson.toJson(repo().fallRiskLogBetween(fromMs, toMs, limit))
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(json) }
+        }
+    }
+
+    // Phase 2 fall-event read surface — silent-logging only, see FallMotionDetector.
+    private fun getFallEvents(call: MethodCall, result: MethodChannel.Result) {
+        val fromMs = (call.argument<Number>("fromMs") ?: 0L).toLong()
+        val toMs = (call.argument<Number>("toMs") ?: System.currentTimeMillis()).toLong()
+        val limit = call.argument<Int>("limit") ?: 200
+        repo().ioScope.launch {
+            val json = try {
+                gson.toJson(repo().fallEventsBetween(fromMs, toMs, limit))
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(json) }
+        }
+    }
+
+    // Dev/testing only — fires the real notification pipeline on demand so the fall-alert
+    // flow can be demoed/tested without needing a genuine drop test + concurrent vitals spike.
+    private fun simulateFallEvent(result: MethodChannel.Result) {
+        val confidence = 0.82f
+        val source = "hr_spike"
+        repo().ioScope.launch {
+            try {
+                repo().insertFallEvent(
+                    FallEventEntity(
+                        confidence = confidence,
+                        corroborated = true,
+                        corroborationSource = source,
+                        metadataJson = gson.toJson(mapOf("simulated" to true)),
+                        detectedAt = System.currentTimeMillis(),
+                    )
+                )
+                FallAlertNotifier.notifyFall(context, confidence, source)
+                mainHandler.post { result.success(true) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
             }
         }
     }

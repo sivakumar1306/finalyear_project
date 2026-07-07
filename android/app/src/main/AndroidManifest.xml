@@ -85,6 +85,11 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".analysis.FallAlertDismissReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

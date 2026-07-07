@@ -14,9 +14,11 @@ import androidx.room.RoomDatabase
         BloodPressureReadingEntity::class,
         HrvReadingEntity::class,
         TemperatureReadingEntity::class,
-        StepsSnapshotEntity::class
+        StepsSnapshotEntity::class,
+        FallRiskLogEntity::class,
+        FallEventEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class QRingDatabase : RoomDatabase() {
@@ -28,6 +30,8 @@ abstract class QRingDatabase : RoomDatabase() {
     abstract fun hrvDao(): HrvReadingDao
     abstract fun temperatureDao(): TemperatureReadingDao
     abstract fun stepsSnapshotDao(): StepsSnapshotDao
+    abstract fun fallRiskLogDao(): FallRiskLogDao
+    abstract fun fallEventDao(): FallEventDao
 
     companion object {
         @Volatile private var INSTANCE: QRingDatabase? = null
@@ -38,7 +42,12 @@ abstract class QRingDatabase : RoomDatabase() {
                     context.applicationContext,
                     QRingDatabase::class.java,
                     "qring_local.db"
-                ).build().also { INSTANCE = it }
+                )
+                    // No migrations exist yet anywhere in this DB — app is still pre-release,
+                    // so a destructive rebuild on schema bump is an accepted tradeoff over
+                    // writing a migration for a single additive table.
+                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .build().also { INSTANCE = it }
             }
     }
 }
