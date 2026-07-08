@@ -71,6 +71,11 @@ class BleProvider extends ChangeNotifier {
   // Delay (seconds) before issuing SDK commands after a connection event.
   int _connectDelaySeconds = 1;
 
+  // Fall-prediction banner (client demo) — set when a prediction notification tap
+  // opens/resumes the app; Home screen shows the banner until "Take action"/"ignore".
+  bool _showFallPredictionBanner = false;
+  int _fallPredictionHr = 0;
+
   // ── Getters ───────────────────────────────────────────────────────────────
 
   bool get isReconnecting => _isReconnecting;
@@ -112,6 +117,9 @@ class BleProvider extends ChangeNotifier {
   bool   get isSyncing    => _isSyncing;
   String get syncStep     => _syncStep;
   double get syncProgress => _syncProgress;
+
+  bool get showFallPredictionBanner => _showFallPredictionBanner;
+  int  get fallPredictionHr         => _fallPredictionHr;
 
   // ── Manual update methods (called by individual screens) ──────────────────
 
@@ -265,6 +273,25 @@ class BleProvider extends ChangeNotifier {
   /// genuine ring reading takes, so FallRiskAnalyzer can be verified end-to-end.
   Future<void> simulateFallRiskTrigger() => _ble.simulateFallRiskTrigger();
 
+  /// Client-demo only — see FallPredictionNotifier.kt / BlePlugin.simulateFallPrediction.
+  Future<void> simulateFallPrediction() => _ble.simulateFallPrediction();
+
+  /// Call on cold start (Home initState) and on app resume — picks up the flag
+  /// MainActivity sets when a fall-prediction notification tap launched/resumed the app.
+  Future<void> checkPendingFallPrediction() async {
+    final json = await _ble.consumeFallPredictionFlag();
+    final decoded = jsonDecode(json);
+    if (decoded is! Map || decoded['pending'] != true) return;
+    _showFallPredictionBanner = true;
+    _fallPredictionHr = (decoded['hr'] as num?)?.toInt() ?? 122;
+    notifyListeners();
+  }
+
+  void dismissFallPredictionBanner() {
+    _showFallPredictionBanner = false;
+    notifyListeners();
+  }
+
   /// Emergency contacts — persisted natively (Room), not Flutter widget state.
   Future<List<Map<String, dynamic>>> getEmergencyContacts() async {
     final json = await _ble.getEmergencyContacts();
@@ -275,6 +302,9 @@ class BleProvider extends ChangeNotifier {
 
   Future<void> addEmergencyContact(String name, String phone) =>
       _ble.addEmergencyContact(name, phone);
+
+  Future<void> updateEmergencyContact(int id, String name, String phone) =>
+      _ble.updateEmergencyContact(id, name, phone);
 
   Future<void> deleteEmergencyContact(int id) => _ble.deleteEmergencyContact(id);
 

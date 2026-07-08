@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/ble_provider.dart';
 import 'providers/workout_provider.dart';
 import 'providers/alarm_mode_provider.dart';
@@ -24,6 +25,14 @@ Future<void> _requestPermissionsAndStartService() async {
   try {
     await _bleChannel.invokeMethod('startForegroundService');
   } catch (_) {}
+}
+
+// Read directly by BleConnectionService's 8s reconnect loop (same "FlutterSharedPreferences"
+// file, "flutter."-prefixed keys) so it doesn't attempt connectDirectly() — and thus doesn't
+// risk popping the system BLE pairing dialog — while the user is still on login/signup.
+Future<void> _syncLoggedInFlag() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('user_logged_in', SupabaseService.isLoggedIn);
 }
 
 // Caches Supabase config natively so the background MeasurementLoopManager/
@@ -49,8 +58,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _requestPermissionsAndStartService();
   await SupabaseService.initialize();
+  await _syncLoggedInFlag();
   await _configureNativeSync();
-  SupabaseService.client.auth.onAuthStateChange.listen((_) => _configureNativeSync());
+  SupabaseService.client.auth.onAuthStateChange.listen((_) {
+    _syncLoggedInFlag();
+    _configureNativeSync();
+  });
   runApp(
     MultiProvider(
       providers: [

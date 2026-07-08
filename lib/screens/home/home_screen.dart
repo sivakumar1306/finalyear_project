@@ -6,6 +6,7 @@ import '../../providers/ble_provider.dart';
 import '../../providers/alarm_mode_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../settings/fall_detection_screen.dart';
 import 'ring_scan_sheet.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -66,17 +67,36 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _firstName = '';
   String _gender    = '';
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<BleProvider>().checkConnection();
+      // Cold start via the fall-prediction notification tap — MainActivity sets a flag
+      // BlePlugin.consumeFallPredictionFlag reads/clears once.
+      context.read<BleProvider>().checkPendingFallPrediction();
     });
     _loadUserProfile();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // App was already running/backgrounded when the notification action was tapped —
+    // onCreate won't fire again, only onNewIntent, so re-check on resume too.
+    if (state == AppLifecycleState.resumed) {
+      context.read<BleProvider>().checkPendingFallPrediction();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _loadUserProfile() async {
@@ -199,6 +219,23 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
+
+                // ── Fall prediction banner (client demo) ───────────────────
+                if (ble.showFallPredictionBanner) ...[
+                  _FallPredictionBanner(
+                    hr: ble.fallPredictionHr,
+                    onTakeAction: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const FallDetectionScreen(initialHighAlert: true),
+                        ),
+                      );
+                    },
+                    onIgnore: () => ble.dismissFallPredictionBanner(),
+                  ),
+                  const SizedBox(height: 12),
+                ],
 
                 // ── Alarms + Activity Score ────────────────────────────────
                 Row(children: [
@@ -383,6 +420,97 @@ class _HomeScreenState extends State<HomeScreen> {
             weight: FontWeight.w700,
             color: Colors.white.withValues(alpha: 0.38),
             letterSpacing: 1.5),
+      ),
+    );
+  }
+}
+
+// ── Fall prediction banner ────────────────────────────────────────────────────
+// Mirrors the hero-card alert styling already established on the Fall Detection
+// screen (gradient + accent border, not the ambient-orb metric-card look) so the
+// same alert appears consistent whether it's seen here or after drilling in.
+
+class _FallPredictionBanner extends StatelessWidget {
+  final int hr;
+  final VoidCallback onTakeAction;
+  final VoidCallback onIgnore;
+
+  const _FallPredictionBanner({
+    required this.hr,
+    required this.onTakeAction,
+    required this.onIgnore,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = AppTheme.tempColor;
+    return _ShrinkButton(
+      onTap: onTakeAction,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: accent.withValues(alpha: 0.25), width: 0.5),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [accent.withValues(alpha: 0.30), AppTheme.card],
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'FALL PREDICTION',
+                  style: _inter(11, weight: FontWeight.w700, color: accent, letterSpacing: 1.0),
+                ),
+                const Spacer(),
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 18),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text('We are concerned ...', style: _inter(20, weight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            Text(
+              'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.',
+              style: _inter(13, color: Colors.white.withValues(alpha: 0.85), height: 1.45),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: ElevatedButton(
+                      onPressed: onTakeAction,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white.withValues(alpha: 0.14),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                      ),
+                      child: Text('Take action', style: _inter(14, weight: FontWeight.w600)),
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: onIgnore,
+                  child: Text('ignore', style: _inter(14, weight: FontWeight.w600, color: AppTheme.danger)),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

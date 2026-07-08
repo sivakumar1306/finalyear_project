@@ -48,6 +48,14 @@ class BleConnectionService : Service() {
     private val savedAddress: String?
         get() = prefs.getString("flutter.device_address", "")?.takeIf { it.isNotEmpty() }
 
+    // Gates auto-reconnect on being logged in — main.dart writes this on boot and on every
+    // Supabase auth state change. Without this, connectDirectly() below fires every 8s as
+    // soon as the service starts (which happens at raw app launch, before the user even
+    // reaches the login screen), and for a previously-paired ring that isn't in range/bonded
+    // this repeatedly pops Android's system BLE pairing dialog on top of the login/signup UI.
+    private val loggedIn: Boolean
+        get() = prefs.getBoolean("flutter.user_logged_in", false)
+
     private val checkRunnable = object : Runnable {
         override fun run() {
             val connected = try {
@@ -67,7 +75,7 @@ class BleConnectionService : Service() {
             }
             wasConnected = connected
 
-            if (!connected && !isConnecting) {
+            if (!connected && !isConnecting && loggedIn) {
                 val address = savedAddress
                 if (!address.isNullOrEmpty()) {
                     isConnecting = true

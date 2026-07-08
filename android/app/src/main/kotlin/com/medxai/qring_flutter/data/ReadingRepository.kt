@@ -192,6 +192,10 @@ class ReadingRepository private constructor(context: Context) {
         db.emergencyContactDao().insert(EmergencyContactEntity(name = name, phone = phone, createdAt = System.currentTimeMillis()))
     }
 
+    suspend fun updateEmergencyContact(id: Long, name: String, phone: String) = withContext(Dispatchers.IO) {
+        db.emergencyContactDao().update(id, name, phone)
+    }
+
     suspend fun deleteEmergencyContact(id: Long) = withContext(Dispatchers.IO) {
         db.emergencyContactDao().delete(id)
     }

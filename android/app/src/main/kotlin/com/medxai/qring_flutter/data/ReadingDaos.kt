@@ -208,6 +208,9 @@ interface EmergencyContactDao {
     @Insert
     suspend fun insert(entity: EmergencyContactEntity): Long
 
+    @Query("UPDATE emergency_contact SET name = :name, phone = :phone WHERE id = :id")
+    suspend fun update(id: Long, name: String, phone: String)
+
     @Query("DELETE FROM emergency_contact WHERE id = :id")
     suspend fun delete(id: Long)
 

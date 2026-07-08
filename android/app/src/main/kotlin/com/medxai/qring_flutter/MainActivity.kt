@@ -1,9 +1,11 @@
 package com.medxai.qring_flutter
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import com.medxai.qring_flutter.analysis.FallPredictionNotifier
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -15,6 +17,13 @@ class MainActivity : FlutterActivity() {
         const val BLE_METHOD_CHANNEL = "com.medxai.qring/ble"
         const val BLE_EVENT_CHANNEL = "com.medxai.qring/ble_events"
         const val PHONE_MODE_METHOD_CHANNEL = "com.medxai.qring/phone_mode"
+
+        // Set when a fall-prediction notification (tap or "Alert emergency contact" action)
+        // launches/resumes the app. Consumed once via BlePlugin.consumeFallPredictionFlag so
+        // the Home screen can show the "we're concerned" banner regardless of whether this was
+        // a cold start (read in onCreate) or the app was already running (read in onNewIntent).
+        var pendingFallPrediction = false
+        var pendingFallPredictionHr = 0
     }
 
     private lateinit var blePlugin: BlePlugin
@@ -27,6 +36,19 @@ class MainActivity : FlutterActivity() {
         // and calls startForegroundService via method channel after the user accepts.
         if (hasBlePermission()) {
             BleConnectionService.start(this)
+        }
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(FallPredictionNotifier.EXTRA_FALL_PREDICTION, false) == true) {
+            pendingFallPrediction = true
+            pendingFallPredictionHr = intent.getIntExtra(FallPredictionNotifier.EXTRA_FALL_PREDICTION_HR, 0)
         }
     }
 

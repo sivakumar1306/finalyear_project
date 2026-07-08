@@ -343,6 +343,17 @@ class BleService {
   Future<bool> simulateFallRiskTrigger() async =>
       await _methodChannel.invokeMethod<bool>('simulateFallRiskTrigger') ?? false;
 
+  /// Client-demo only — posts a real vitals spike then deterministically fires the
+  /// predictive "you might fall soon" notification, so the alert flow can be shown
+  /// without waiting on real elevated vitals. See FallPredictionNotifier.kt.
+  Future<bool> simulateFallPrediction() async =>
+      await _methodChannel.invokeMethod<bool>('simulateFallPrediction') ?? false;
+
+  /// Reads (and clears) the flag MainActivity sets when a fall-prediction notification
+  /// tap launches/resumes the app — `{"pending": bool, "hr": int}`.
+  Future<String> consumeFallPredictionFlag() async =>
+      await _methodChannel.invokeMethod<String>('consumeFallPredictionFlag') ?? '{"pending":false,"hr":0}';
+
   /// Emergency contacts — persisted natively (Room), not Flutter widget state, so a future
   /// caregiver-push or notification action can read them without the Dart engine running.
   Future<String> getEmergencyContacts() async =>
@@ -350,6 +361,9 @@ class BleService {
 
   Future<bool> addEmergencyContact(String name, String phone) async =>
       await _methodChannel.invokeMethod<bool>('addEmergencyContact', {'name': name, 'phone': phone}) ?? false;
+
+  Future<bool> updateEmergencyContact(int id, String name, String phone) async =>
+      await _methodChannel.invokeMethod<bool>('updateEmergencyContact', {'id': id, 'name': name, 'phone': phone}) ?? false;
 
   Future<bool> deleteEmergencyContact(int id) async =>
       await _methodChannel.invokeMethod<bool>('deleteEmergencyContact', {'id': id}) ?? false;

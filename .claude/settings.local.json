@@ -126,7 +126,8 @@
       "Bash(ls *.md)",
       "Bash(ls docs *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(adb -s 9d56e6ae shell am start -n com.medxai.qring_flutter/.MainActivity)"
     ]
   }
 }

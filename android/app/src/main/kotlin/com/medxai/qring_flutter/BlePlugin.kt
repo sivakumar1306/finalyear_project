@@ -67,6 +67,7 @@ import com.oudmon.ble.base.scan.BleScannerHelper
 import com.oudmon.ble.base.scan.ScanRecord
 import com.oudmon.ble.base.scan.ScanWrapperCallback
 import com.medxai.qring_flutter.analysis.FallAlertNotifier
+import com.medxai.qring_flutter.analysis.FallPredictionNotifier
 import com.medxai.qring_flutter.data.FallEventEntity
 import com.medxai.qring_flutter.data.MeasurementConfig
 import com.medxai.qring_flutter.data.ReadingRepository
@@ -300,8 +301,11 @@ class BlePlugin(private val context: Context) {
             "simulateFallEvent"          -> simulateFallEvent(result)
             "getEmergencyContacts"       -> getEmergencyContacts(result)
             "addEmergencyContact"        -> addEmergencyContact(call, result)
+            "updateEmergencyContact"     -> updateEmergencyContact(call, result)
             "deleteEmergencyContact"     -> deleteEmergencyContact(call, result)
             "simulateFallRiskTrigger"    -> simulateFallRiskTrigger(result)
+            "simulateFallPrediction"     -> simulateFallPrediction(result)
+            "consumeFallPredictionFlag"  -> consumeFallPredictionFlag(result)
             else                         -> result.notImplemented()
         }
     }
@@ -1931,6 +1935,37 @@ class BlePlugin(private val context: Context) {
         }
     }
 
+    // Client-demo only — simulates a vitals spike (a real 122bpm HR reading, posted through the
+    // same NewReadingEvent path a genuine ring reading takes) and, since this is a scripted demo
+    // rather than the live silent-logging analyzer, deterministically fires the predictive
+    // notification right after so the flow can be shown without waiting on real elevated vitals.
+    private fun simulateFallPrediction(result: MethodChannel.Result) {
+        repo().ioScope.launch {
+            try {
+                val cycleId = repo().startCycle()
+                val bpm = 122
+                val id = repo().insertHeartRate(bpm, cycleId, "demo_seed")
+                EventBus.getDefault().post(
+                    NewReadingEvent(Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(), bpm.toDouble())
+                )
+                FallPredictionNotifier.notifyPrediction(context, bpm)
+                mainHandler.post { result.success(true) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
+            }
+        }
+    }
+
+    // Reads (and clears) the flag MainActivity sets when a fall-prediction notification tap
+    // launches/resumes the app, so the Home screen can show the banner exactly once per tap.
+    private fun consumeFallPredictionFlag(result: MethodChannel.Result) {
+        val pending = MainActivity.pendingFallPrediction
+        val hr = MainActivity.pendingFallPredictionHr
+        MainActivity.pendingFallPrediction = false
+        MainActivity.pendingFallPredictionHr = 0
+        result.success(gson.toJson(mapOf("pending" to pending, "hr" to hr)))
+    }
+
     private fun getEmergencyContacts(result: MethodChannel.Result) {
         repo().ioScope.launch {
             val json = try {
@@ -1940,6 +1975,24 @@ class BlePlugin(private val context: Context) {
                 return@launch
             }
             mainHandler.post { result.success(json) }
+        }
+    }
+
+    private fun updateEmergencyContact(call: MethodCall, result: MethodChannel.Result) {
+        val id = (call.argument<Number>("id") ?: run {
+            result.error("INVALID_ARG", "id required", null); return
+        }).toLong()
+        val name = call.argument<String>("name") ?: run {
+            result.error("INVALID_ARG", "name required", null); return
+        }
+        val phone = call.argument<String>("phone") ?: ""
+        repo().ioScope.launch {
+            try {
+                repo().updateEmergencyContact(id, name, phone)
+                mainHandler.post { result.success(true) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("UPDATE_FAILED", e.message, null) }
+            }
         }
     }
 

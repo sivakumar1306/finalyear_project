@@ -2,8 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
+
+// Local-only (SharedPreferences), same pattern as device_name/device_address in
+// BleProvider — no backend table for these two fields yet, just a single local user.
+const _kAddressPrefKey = 'fall_emergency_address';
+const _kInstructionsPrefKey = 'fall_emergency_instructions';
+const _kDefaultAddress = 'Flat 101, SingleBar avenue...';
 
 // Tier labels for display only — the actual score comes from the native
 // FallRiskAnalyzer (see BleProvider.getFallRiskScore), not computed here.
@@ -17,7 +25,10 @@ class _EmergencyContact {
 }
 
 class FallDetectionScreen extends StatefulWidget {
-  const FallDetectionScreen({super.key});
+  // Set when navigating here from the Home fall-prediction banner ("Take action") so the
+  // high-tier hero card shows immediately, without needing the debug ⋮ menu.
+  final bool initialHighAlert;
+  const FallDetectionScreen({super.key, this.initialHighAlert = false});
 
   @override
   State<FallDetectionScreen> createState() => _FallDetectionScreenState();
@@ -34,7 +45,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   List<_EmergencyContact> _contacts = [];
   bool _loadingContacts = true;
 
-  String _address = 'Flat 101, SingleBar avenue...';
+  String _address = _kDefaultAddress;
   String _instructions = '';
 
   // Real score from the native FallRiskAnalyzer — null until it has logged at
@@ -45,8 +56,19 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialHighAlert) _debugTier = _FallTier.high;
     _loadRealRisk();
     _loadContacts();
+    _loadAddressAndInstructions();
+  }
+
+  Future<void> _loadAddressAndInstructions() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _address = prefs.getString(_kAddressPrefKey) ?? _kDefaultAddress;
+      _instructions = prefs.getString(_kInstructionsPrefKey) ?? '';
+    });
   }
 
   Future<void> _loadRealRisk() async {
@@ -63,7 +85,9 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     var rows = await ble.getEmergencyContacts();
     if (rows.isEmpty) {
       // First run — seed the same two defaults the old in-memory demo used, but for real.
-      await ble.addEmergencyContact('Default Emergency (Default)', '101');
+      // Uses a fake test number (not a real emergency line) since the debug menu's
+      // "Alert emergency contact" actually opens the dialer/SMS app with this number.
+      await ble.addEmergencyContact('Default Emergency (Default)', '9999999999');
       await ble.addEmergencyContact('Mom', '+91 000 000 0000');
       rows = await ble.getEmergencyContacts();
     }
@@ -113,10 +137,40 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     );
   }
 
-  void _alertContact() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Emergency contact alerted')),
+  // Lets the user pick Call or Message for the primary emergency contact — launching both
+  // tel: and sms: back-to-back buries the dialer behind the SMS app, which just looks like
+  // calling silently stopped working. Neither auto-dials nor auto-sends: tel: opens the
+  // dialer (ACTION_DIAL) pre-filled, sms: opens the messaging app with the body already typed.
+  Future<void> _alertContact() async {
+    if (_contacts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No emergency contact saved yet')),
+      );
+      return;
+    }
+    final contact = _contacts.first;
+    final phone = contact.phone.trim();
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppTheme.card2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _AlertContactSheet(contact: contact),
     );
+    if (action == null || !mounted) return;
+
+    final uri = action == 'call'
+        ? Uri(scheme: 'tel', path: phone)
+        : Uri(scheme: 'sms', path: phone, queryParameters: {
+            'body': 'I may have fallen and need help. Please check on me as soon as possible.',
+          });
+    final ok = await launchUrl(uri);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not reach $phone')),
+      );
+    }
   }
 
   Future<void> _addContact() async {
@@ -149,6 +203,42 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     await _loadContacts();
   }
 
+  Future<void> _editContact(_EmergencyContact contact) async {
+    final nameCtl = TextEditingController(text: contact.name);
+    final phoneCtl = TextEditingController(text: contact.phone);
+    final ble = context.read<BleProvider>();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _FormDialog(
+        title: 'Edit contact',
+        fields: [
+          TextField(
+            controller: nameCtl,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(hintText: 'Name'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: phoneCtl,
+            style: const TextStyle(color: Colors.white),
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(hintText: 'Phone number'),
+          ),
+        ],
+        onDelete: contact.id == null
+            ? null
+            : () async {
+                await ble.deleteEmergencyContact(contact.id!);
+                await _loadContacts();
+              },
+      ),
+    );
+    if (saved != true || contact.id == null) return;
+    if (!mounted) return;
+    await ble.updateEmergencyContact(contact.id!, nameCtl.text.trim(), phoneCtl.text.trim());
+    await _loadContacts();
+  }
+
   Future<void> _editAddress() async {
     final ctl = TextEditingController(text: _address);
     final saved = await showDialog<bool>(
@@ -165,7 +255,10 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
         ],
       ),
     );
-    if (saved == true) setState(() => _address = ctl.text.trim());
+    if (saved != true) return;
+    setState(() => _address = ctl.text.trim());
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kAddressPrefKey, _address);
   }
 
   Future<void> _editInstructions() async {
@@ -184,7 +277,10 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
         ],
       ),
     );
-    if (saved == true) setState(() => _instructions = ctl.text.trim());
+    if (saved != true) return;
+    setState(() => _instructions = ctl.text.trim());
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kInstructionsPrefKey, _instructions);
   }
 
   @override
@@ -238,6 +334,12 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                 case 'risk_trigger':
                   _simulateRiskTrigger();
                   break;
+                case 'prediction':
+                  context.read<BleProvider>().simulateFallPrediction();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Simulated fall prediction — check your notification shade')),
+                  );
+                  break;
               }
             },
             itemBuilder: (_) => [
@@ -247,6 +349,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
               const PopupMenuDivider(),
               const PopupMenuItem(value: 'notify', child: Text('Simulate: Fall notification', style: TextStyle(color: Colors.white))),
               const PopupMenuItem(value: 'risk_trigger', child: Text('Simulate: Trigger risk analysis', style: TextStyle(color: Colors.white))),
+              const PopupMenuItem(value: 'prediction', child: Text('Simulate Fall prediction', style: TextStyle(color: Colors.white))),
             ],
           ),
         ],
@@ -311,7 +414,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
             ..._contacts.asMap().entries.map(
                   (e) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: _ContactRow(contact: e.value),
+                    child: _ContactRow(contact: e.value, onTap: () => _editContact(e.value)),
                   ),
                 ),
           _ActionRow(
@@ -616,11 +719,15 @@ class _ActionRow extends StatelessWidget {
 
 class _ContactRow extends StatelessWidget {
   final _EmergencyContact contact;
-  const _ContactRow({required this.contact});
+  final VoidCallback? onTap;
+  const _ContactRow({required this.contact, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppTheme.card,
@@ -639,6 +746,7 @@ class _ContactRow extends StatelessWidget {
           Expanded(child: Text(contact.name, style: GoogleFonts.inter(color: Colors.white, fontSize: 14))),
           Text(contact.phone, style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13)),
         ],
+      ),
       ),
     );
   }
@@ -689,7 +797,8 @@ class _EditableRow extends StatelessWidget {
 class _FormDialog extends StatelessWidget {
   final String title;
   final List<Widget> fields;
-  const _FormDialog({required this.title, required this.fields});
+  final VoidCallback? onDelete;
+  const _FormDialog({required this.title, required this.fields, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -699,6 +808,14 @@ class _FormDialog extends StatelessWidget {
       title: Text(title, style: const TextStyle(color: Colors.white)),
       content: Column(mainAxisSize: MainAxisSize.min, children: fields),
       actions: [
+        if (onDelete != null)
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, false);
+              onDelete!();
+            },
+            child: Text('Delete', style: GoogleFonts.inter(color: AppTheme.danger)),
+          ),
         TextButton(
           onPressed: () => Navigator.pop(context, false),
           child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
@@ -742,6 +859,47 @@ class _SparklinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SparklinePainter oldDelegate) => oldDelegate.color != color;
+}
+
+class _AlertContactSheet extends StatelessWidget {
+  final _EmergencyContact contact;
+  const _AlertContactSheet({required this.contact});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Alert ${contact.name}',
+              style: GoogleFonts.inter(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              contact.phone,
+              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            _ActionRow(
+              icon: Icons.call_rounded,
+              label: 'Call',
+              onTap: () => Navigator.pop(context, 'call'),
+            ),
+            const SizedBox(height: 8),
+            _ActionRow(
+              icon: Icons.message_rounded,
+              label: 'Message',
+              onTap: () => Navigator.pop(context, 'message'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _FallHistorySheet extends StatelessWidget {
