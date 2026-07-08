@@ -298,6 +298,7 @@ class BlePlugin(private val context: Context) {
             "getFallRiskScore"           -> getFallRiskScore(result)
             "getFallRiskLog"             -> getFallRiskLog(call, result)
             "getFallEvents"              -> getFallEvents(call, result)
+            "getPhoneModeSessions"       -> getPhoneModeSessions(call, result)
             "simulateFallEvent"          -> simulateFallEvent(result)
             "getEmergencyContacts"       -> getEmergencyContacts(result)
             "addEmergencyContact"        -> addEmergencyContact(call, result)
@@ -1866,6 +1867,22 @@ class BlePlugin(private val context: Context) {
         repo().ioScope.launch {
             val json = try {
                 gson.toJson(repo().fallRiskLogBetween(fromMs, toMs, limit))
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(json) }
+        }
+    }
+
+    // Focus/Prayer usage read surface — see PhoneModeSessionEntity / PhoneModePlugin.
+    private fun getPhoneModeSessions(call: MethodCall, result: MethodChannel.Result) {
+        val fromMs = (call.argument<Number>("fromMs") ?: 0L).toLong()
+        val toMs = (call.argument<Number>("toMs") ?: System.currentTimeMillis()).toLong()
+        val limit = call.argument<Int>("limit") ?: 200
+        repo().ioScope.launch {
+            val json = try {
+                gson.toJson(repo().phoneModeSessionsBetween(fromMs, toMs, limit))
             } catch (e: Exception) {
                 mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
                 return@launch

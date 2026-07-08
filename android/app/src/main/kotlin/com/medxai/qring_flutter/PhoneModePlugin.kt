@@ -7,8 +7,10 @@ import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import com.medxai.qring_flutter.data.ReadingRepository
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import kotlinx.coroutines.launch
 
 /**
  * Bridges the Focus / Prayer mode toggles to real system state:
@@ -75,6 +77,13 @@ class PhoneModePlugin(private val context: Context) {
                     val runnable = Runnable {
                         try {
                             notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
+                            // Real DND state just turned off — the Prayer countdown notification
+                            // should disappear at the exact moment it reaches zero, not linger.
+                            PhoneModeNotifier.cancel(context)
+                            val repo = ReadingRepository.getInstance(context)
+                            repo.ioScope.launch {
+                                try { repo.closeOpenPhoneModeSessions(System.currentTimeMillis()) } catch (_: Exception) {}
+                            }
                         } catch (_: Exception) {}
                     }
                     pendingDndOff = runnable
@@ -92,6 +101,32 @@ class PhoneModePlugin(private val context: Context) {
                 audioManager.ringerMode =
                     if (enabled) AudioManager.RINGER_MODE_SILENT
                     else AudioManager.RINGER_MODE_NORMAL
+                result.success(true)
+            }
+
+            // Called once by AlarmModeProvider.setMode after the underlying silent/DND calls
+            // succeed, so the notification always matches exactly which mode the user picked
+            // rather than being inferred from the lower-level setSilentMode/setDoNotDisturb
+            // calls (which overlap across modes and would be ambiguous to key off directly).
+            "syncModeNotification" -> {
+                val mode = call.argument<String>("mode") ?: "base"
+                val now = System.currentTimeMillis()
+                val repo = ReadingRepository.getInstance(context)
+                repo.ioScope.launch {
+                    try {
+                        // Whatever mode was active before (if any) just ended, regardless of
+                        // what the new mode is.
+                        repo.closeOpenPhoneModeSessions(now)
+                        if (mode == "focus" || mode == "prayer") {
+                            repo.startPhoneModeSession(mode, now)
+                        }
+                    } catch (_: Exception) {}
+                }
+                when (mode) {
+                    "focus" -> PhoneModeNotifier.showFocus(context)
+                    "prayer" -> PhoneModeNotifier.showPrayer(context, now + PRAYER_DND_AUTO_OFF_MS)
+                    else -> PhoneModeNotifier.cancel(context)
+                }
                 result.success(true)
             }
 

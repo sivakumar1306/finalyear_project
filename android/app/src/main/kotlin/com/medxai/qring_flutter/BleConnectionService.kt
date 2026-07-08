@@ -11,6 +11,7 @@ import android.content.Intent
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import java.util.Calendar
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.oudmon.ble.base.bluetooth.BleOperateManager
@@ -87,8 +88,39 @@ class BleConnectionService : Service() {
                 }
             }
 
+            maybeFireSleepReminder()
+
             handler.postDelayed(this, 8_000L)
         }
+    }
+
+    // Alarms & Notifications screen writes the schedule as plain strings (setInt on Dart's
+    // shared_preferences round-trips as Long on Android — getInt() here would crash), and
+    // this tracks its own native-only "already fired today" date so it fires exactly once
+    // per day even though this check runs every 8s.
+    private fun maybeFireSleepReminder() {
+        try {
+            if (!prefs.getBoolean("flutter.sleep_reminder_enabled", false)) return
+            val hour = prefs.getString("flutter.sleep_reminder_hour", null)?.toIntOrNull() ?: return
+            val minute = prefs.getString("flutter.sleep_reminder_minute", null)?.toIntOrNull() ?: return
+
+            val now = Calendar.getInstance()
+            val today = "%04d-%02d-%02d".format(
+                now.get(Calendar.YEAR), now.get(Calendar.MONTH), now.get(Calendar.DAY_OF_MONTH)
+            )
+            if (prefs.getString("sleep_reminder_last_fired_date", "") == today) return
+
+            val scheduled = (now.clone() as Calendar).apply {
+                set(Calendar.HOUR_OF_DAY, hour)
+                set(Calendar.MINUTE, minute)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            if (now.before(scheduled)) return
+
+            SleepReminderNotifier.notify(applicationContext)
+            prefs.edit().putString("sleep_reminder_last_fired_date", today).apply()
+        } catch (_: Exception) {}
     }
 
     override fun onCreate() {

@@ -200,6 +200,20 @@ class ReadingRepository private constructor(context: Context) {
         db.emergencyContactDao().delete(id)
     }
 
+    // ── Phone mode sessions (Focus/Prayer usage tracking, see PhoneModeSessionEntity) ──
+
+    suspend fun startPhoneModeSession(mode: String, startedAt: Long): Long = withContext(Dispatchers.IO) {
+        db.phoneModeSessionDao().insert(PhoneModeSessionEntity(mode = mode, startedAt = startedAt))
+    }
+
+    suspend fun closeOpenPhoneModeSessions(endedAt: Long) = withContext(Dispatchers.IO) {
+        db.phoneModeSessionDao().closeOpen(endedAt)
+    }
+
+    suspend fun phoneModeSessionsBetween(fromMs: Long, toMs: Long, limit: Int = 200) = withContext(Dispatchers.IO) {
+        db.phoneModeSessionDao().between(fromMs, toMs, limit)
+    }
+
     suspend fun allEmergencyContacts() = withContext(Dispatchers.IO) { db.emergencyContactDao().all() }
 
     suspend fun emergencyContactCount() = withContext(Dispatchers.IO) { db.emergencyContactDao().count() }

@@ -14,8 +14,8 @@ class AppTheme {
   static const Color div = Color(0xFF242424);
   static const Color success = Color(0xFF34D399);
   static const Color danger = Color(0xFFEF4444);
-  static const Color focus = Color(0x40E08A4A);
-  static const Color base = Color(0x26C9A86E);
+  static const Color focus = Color(0xFFE08A4A);
+  static const Color base = Color(0xFFC9A86E);
 
   static const Color hrColor = Color(0xFFFF4757);
   static const Color bpColor = Color(0xFF818CF8);

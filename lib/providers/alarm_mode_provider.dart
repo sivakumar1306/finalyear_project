@@ -71,6 +71,9 @@ class AlarmModeProvider extends ChangeNotifier {
           await _channel.invokeMethod('setSilentMode', {'enabled': false});
           break;
       }
+      // Ongoing, colorized notification mirroring the mode: a live stopwatch for Focus,
+      // a countdown tied to the real DND auto-off timer for Prayer, none for Base.
+      await _channel.invokeMethod('syncModeNotification', {'mode': mode.name});
     } catch (_) {}
     _mode = mode;
     notifyListeners();

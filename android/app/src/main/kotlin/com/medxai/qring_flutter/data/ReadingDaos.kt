@@ -222,6 +222,21 @@ interface EmergencyContactDao {
 }
 
 @Dao
+interface PhoneModeSessionDao {
+    @Insert
+    suspend fun insert(entity: PhoneModeSessionEntity): Long
+
+    @Query("UPDATE phone_mode_session SET endedAt = :endedAt WHERE endedAt IS NULL")
+    suspend fun closeOpen(endedAt: Long)
+
+    @Query(
+        "SELECT * FROM phone_mode_session WHERE startedAt <= :toMs AND (endedAt IS NULL OR endedAt >= :fromMs) " +
+            "ORDER BY startedAt DESC LIMIT :limit"
+    )
+    suspend fun between(fromMs: Long, toMs: Long, limit: Int): List<PhoneModeSessionEntity>
+}
+
+@Dao
 interface StepsSnapshotDao {
     @Insert
     suspend fun insert(entity: StepsSnapshotEntity): Long

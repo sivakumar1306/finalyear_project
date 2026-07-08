@@ -333,6 +333,15 @@ class BleService {
       }) ??
       '[]';
 
+  /// Focus/Prayer usage read surface — see PhoneModeSessionEntity / PhoneModePlugin.kt.
+  Future<String> getPhoneModeSessions({int? fromMs, int? toMs, int limit = 200}) async =>
+      await _methodChannel.invokeMethod<String>('getPhoneModeSessions', {
+        'fromMs': fromMs ?? 0,
+        'toMs': toMs ?? DateTime.now().millisecondsSinceEpoch,
+        'limit': limit,
+      }) ??
+      '[]';
+
   /// Dev/testing only — fires the real fall-alert notification pipeline on demand, so it can
   /// be tested/demoed without a genuine drop test + concurrent vitals spike.
   Future<bool> simulateFallEvent() async =>

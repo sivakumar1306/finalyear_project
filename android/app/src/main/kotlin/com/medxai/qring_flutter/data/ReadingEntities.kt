@@ -139,3 +139,15 @@ data class EmergencyContactEntity(
     @SerializedName("phone") val phone: String,
     @SerializedName("createdAt") val createdAt: Long
 )
+
+// One row per Focus/Prayer activation — endedAt is null while the mode is still active.
+// Logged by PhoneModePlugin.syncModeNotification, which is called once per user-initiated
+// mode change, so this mirrors exactly what the Alarms card/notification show. Base mode
+// isn't logged (no "usage" to track), it just closes whatever was open.
+@Entity(tableName = "phone_mode_session", indices = [Index("startedAt")])
+data class PhoneModeSessionEntity(
+    @PrimaryKey(autoGenerate = true) @SerializedName("id") val id: Long = 0,
+    @SerializedName("mode") val mode: String,
+    @SerializedName("startedAt") val startedAt: Long,
+    @SerializedName("endedAt") val endedAt: Long? = null
+)

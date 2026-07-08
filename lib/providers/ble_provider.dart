@@ -261,6 +261,20 @@ class BleProvider extends ChangeNotifier {
     return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
   }
 
+  /// Focus/Prayer sessions overlapping today (local midnight to now) — each entry has
+  /// `mode`, `startedAt` (ms), and `endedAt` (ms, or null if the mode is still active).
+  Future<List<Map<String, dynamic>>> getPhoneModeSessionsToday() async {
+    final now = DateTime.now();
+    final dayStart = DateTime(now.year, now.month, now.day);
+    final json = await _ble.getPhoneModeSessions(
+      fromMs: dayStart.millisecondsSinceEpoch,
+      toMs: now.millisecondsSinceEpoch,
+    );
+    final decoded = jsonDecode(json);
+    if (decoded is! List) return [];
+    return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
   /// Recent candidate fall events logged by the native FallMotionDetector.
   Future<List<Map<String, dynamic>>> getFallEvents({int limit = 20}) async {
     final json = await _ble.getFallEvents(limit: limit);

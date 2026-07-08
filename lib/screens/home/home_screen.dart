@@ -560,8 +560,10 @@ class _GlassCard extends StatelessWidget {
   final double? height;
   final VoidCallback? onTap;
   final bool orbOnRight;
+  final bool orbAtTop;
   final double? orbOffset;
   final double orbAlpha;
+  final double orbSize;
 
   const _GlassCard({
     required this.orbColor,
@@ -569,15 +571,16 @@ class _GlassCard extends StatelessWidget {
     this.height,
     this.onTap,
     this.orbOnRight = true,
+    this.orbAtTop = false,
     this.orbOffset,
     this.orbAlpha = 0.34,
+    this.orbSize = 240,
   });
 
   @override
   Widget build(BuildContext context) {
     // Small fixed-height cards get a large orb so the ambient glow covers
     // ~90% of the card; full-width auto-height cards keep a corner glow.
-    const double resolvedOrbSize   = 240;
     final double resolvedOrbOffset = orbOffset ?? (height == null ? -78 : -56);
 
     return _ShrinkButton(
@@ -595,7 +598,8 @@ class _GlassCard extends StatelessWidget {
             children: [
               // Ambient orb — blurred circle clipped by card
               Positioned(
-                bottom: resolvedOrbOffset,
+                top: orbAtTop ? resolvedOrbOffset : null,
+                bottom: orbAtTop ? null : resolvedOrbOffset,
                 right: orbOnRight ? resolvedOrbOffset : null,
                 left:  orbOnRight ? null : resolvedOrbOffset,
                 child: ImageFiltered(
@@ -603,8 +607,8 @@ class _GlassCard extends StatelessWidget {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 320),
                     curve: Curves.easeInOut,
-                    width: resolvedOrbSize,
-                    height: resolvedOrbSize,
+                    width: orbSize,
+                    height: orbSize,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: orbColor.withValues(alpha: orbAlpha),
@@ -970,7 +974,7 @@ const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
   PhoneMode.base: _AlarmModeInfo(
       'Normal', 'All alerts on', 'Base', AppTheme.base, Icons.circle_outlined),
   PhoneMode.prayer: _AlarmModeInfo(
-      'Prayer mode', 'Dhuhr 13:14', 'Prayer', _kOrbStress, Icons.self_improvement_rounded),
+      'Prayer mode', 'Dhuhr 13:14', 'Prayer', AppTheme.success, Icons.self_improvement_rounded),
 };
 
 class _AlarmCard extends StatelessWidget {
@@ -984,6 +988,10 @@ class _AlarmCard extends StatelessWidget {
     return _GlassCard(
       orbColor: info.color,
       height: 165, // Updated height to exactly 165px
+      orbAtTop: true,
+      orbSize: 260,
+      orbOffset: -80,
+      orbAlpha: 0.4,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
