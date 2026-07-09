@@ -6,6 +6,7 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/offline_notice.dart';
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
@@ -70,6 +71,8 @@ class _PressureScreenState extends State<PressureScreen> {
   bool _loadingDay   = false;
   bool _loadingTrend = false;
   bool _measuring    = false;
+  bool _dayOffline   = false;
+  bool _trendOffline = false;
 
   DateTime _selectedDate = DateTime.now();
 
@@ -192,7 +195,7 @@ class _PressureScreenState extends State<PressureScreen> {
   Future<void> _loadDayFromSupabase(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingDay = true);
+    setState(() { _loadingDay = true; _dayOffline = false; });
     try {
       final from = DateTime(date.year, date.month, date.day);
       final to   = DateTime(date.year, date.month, date.day, 23, 59, 59);
@@ -210,7 +213,9 @@ class _PressureScreenState extends State<PressureScreen> {
           _dayMax = vals.reduce((a, b) => a > b ? a : b);
         });
       }
-    } catch (_) {} finally {
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
+    } finally {
       if (mounted) setState(() => _loadingDay = false);
     }
   }
@@ -218,7 +223,7 @@ class _PressureScreenState extends State<PressureScreen> {
   Future<void> _load7DayTrend() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingTrend = true);
+    setState(() { _loadingTrend = true; _trendOffline = false; });
     try {
       final now  = DateTime.now();
       final rows = await SupabaseService.getStressReadings(
@@ -246,7 +251,9 @@ class _PressureScreenState extends State<PressureScreen> {
         _trendMin    = valid.isEmpty ? 0 : valid.reduce((a, b) => a < b ? a : b);
         _trendMax    = valid.isEmpty ? 0 : valid.reduce((a, b) => a > b ? a : b);
       });
-    } catch (_) {} finally {
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _trendOffline = true);
+    } finally {
       if (mounted) setState(() => _loadingTrend = false);
     }
   }
@@ -421,6 +428,10 @@ class _PressureScreenState extends State<PressureScreen> {
               xLabels: const ['12am', '6am', '12pm', '6pm'],
               loading: _loading || _loadingDay,
             ),
+            if (_dayOffline && !_isToday) ...[
+              const SizedBox(height: 8),
+              const OfflineNotice(message: 'Connect to WiFi to load this day\'s stress'),
+            ],
             const SizedBox(height: 10),
 
             // ── 5. Stats row ───────────────────────────────────────────────
@@ -468,6 +479,10 @@ class _PressureScreenState extends State<PressureScreen> {
               xLabels: _trendXLabels(),
               loading: _loadingTrend,
             ),
+            if (_trendOffline) ...[
+              const SizedBox(height: 8),
+              const OfflineNotice(message: 'Connect to WiFi to load your 7-day trend'),
+            ],
             const SizedBox(height: 12),
 
             // ── 8. Legend ──────────────────────────────────────────────────

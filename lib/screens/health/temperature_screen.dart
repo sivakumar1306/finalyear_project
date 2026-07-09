@@ -6,6 +6,7 @@ import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/vital_widgets.dart';
+import '../../widgets/offline_notice.dart';
 
 class TemperatureScreen extends StatefulWidget {
   const TemperatureScreen({super.key});
@@ -21,6 +22,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
 
   bool _syncing = false;
   bool _loadingHistory = false;
+  bool _historyOffline = false;
 
   // Ring-derived readings for today (before Supabase save)
   List<_TempReading> _ringReadings = [];
@@ -257,7 +259,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   Future<void> _loadTodayFromSupabase() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingHistory = true);
+    setState(() { _loadingHistory = true; _historyOffline = false; });
     try {
       final now = DateTime.now();
       final rows = await SupabaseService.getTempReadings(
@@ -266,7 +268,8 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         to: DateTime(now.year, now.month, now.day, 23, 59, 59),
       );
       if (mounted) _applyDbReadings(rows);
-    } catch (_) {
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _historyOffline = true);
     } finally {
       if (mounted) setState(() => _loadingHistory = false);
     }
@@ -275,7 +278,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   Future<void> _loadDayFromSupabase(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingHistory = true);
+    setState(() { _loadingHistory = true; _historyOffline = false; });
     try {
       final rows = await SupabaseService.getTempReadings(
         userId: user.id,
@@ -283,7 +286,8 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         to: DateTime(date.year, date.month, date.day, 23, 59, 59),
       );
       if (mounted) _applyDbReadings(rows);
-    } catch (_) {
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _historyOffline = true);
     } finally {
       if (mounted) setState(() => _loadingHistory = false);
     }
@@ -292,7 +296,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   Future<void> _loadPeriodFromSupabase(int days) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingHistory = true);
+    setState(() { _loadingHistory = true; _historyOffline = false; });
     try {
       final now = DateTime.now();
       final rows = await SupabaseService.getTempReadings(
@@ -301,7 +305,8 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         to: now,
       );
       if (mounted) _applyDbReadings(rows);
-    } catch (_) {
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _historyOffline = true);
     } finally {
       if (mounted) setState(() => _loadingHistory = false);
     }
@@ -427,6 +432,11 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
 
               _metricCard(displayAvg),
               const SizedBox(height: 16),
+
+              if (_historyOffline && !_showRingData) ...[
+                const OfflineNotice(message: 'Connect to WiFi to load temperature history'),
+                const SizedBox(height: 16),
+              ],
 
               _chartCard(anyLoading),
               const SizedBox(height: 16),

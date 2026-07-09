@@ -66,7 +66,6 @@ data class BloodPressureReadingEntity(
     @SerializedName("syncedAt") val syncedAt: Long? = null
 )
 
-// Schema present now; table stays empty until Vital.HRV is enabled via MeasurementConfig.
 @Entity(tableName = "reading_hrv", indices = [Index("measuredAt"), Index("syncedAt")])
 data class HrvReadingEntity(
     @PrimaryKey(autoGenerate = true) @SerializedName("id") val id: Long = 0,

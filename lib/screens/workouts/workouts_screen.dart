@@ -6,6 +6,7 @@ import '../../providers/workout_provider.dart';
 import '../../models/workout_model.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/offline_notice.dart';
 import 'active_workout_screen.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
   List<Map<String, dynamic>> _history = [];
   bool _loadingHistory = false;
   bool _wasWorkoutActive = false;
+  bool _historyOffline = false;
 
   @override
   void initState() {
@@ -52,7 +54,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
   Future<void> _loadHistory() async {
     final userId = SupabaseService.currentUser?.id;
     if (userId == null) return;
-    setState(() => _loadingHistory = true);
+    setState(() { _loadingHistory = true; _historyOffline = false; });
     try {
       final now = DateTime.now();
       final data = await SupabaseService.getWorkoutHistory(
@@ -61,8 +63,10 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
         to: now,
       );
       if (mounted) setState(() { _history = data; _loadingHistory = false; });
-    } catch (_) {
-      if (mounted) setState(() => _loadingHistory = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() { _loadingHistory = false; _historyOffline = isNetworkError(e); });
+      }
     }
   }
 
@@ -259,7 +263,9 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: _EmptyWorkouts(),
+                        child: _historyOffline
+                            ? const OfflineNotice(message: 'Connect to WiFi to load workout history')
+                            : _EmptyWorkouts(),
                       ),
                     )
                   else ...[

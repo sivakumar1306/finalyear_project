@@ -6,6 +6,7 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/offline_notice.dart';
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
@@ -63,6 +64,8 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
   bool _loadingDay   = false;
   bool _loadingTrend = false;
   bool _measuring    = false;
+  bool _dayOffline   = false;
+  bool _trendOffline = false;
 
   DateTime _selectedDate = DateTime.now();
 
@@ -209,7 +212,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
   Future<void> _loadDayFromSupabase(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingDay = true);
+    setState(() { _loadingDay = true; _dayOffline = false; });
     try {
       final from = DateTime(date.year, date.month, date.day);
       final to = DateTime(date.year, date.month, date.day, 23, 59, 59);
@@ -229,7 +232,8 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
           _dayDbpMax = dbps.reduce((a, b) => a > b ? a : b);
         }
       });
-    } catch (_) {
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
     } finally {
       if (mounted) setState(() => _loadingDay = false);
     }
@@ -238,7 +242,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
   Future<void> _load7DayTrend() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingTrend = true);
+    setState(() { _loadingTrend = true; _trendOffline = false; });
     try {
       final now = DateTime.now();
       final rows = await SupabaseService.getBpReadings(
@@ -273,7 +277,8 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
         _trendSbp = sbpVals;
         _trendDbp = dbpVals;
       });
-    } catch (_) {
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _trendOffline = true);
     } finally {
       if (mounted) setState(() => _loadingTrend = false);
     }
@@ -471,6 +476,10 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               xLabels: const ['12am', '6am', '12pm', '6pm', ''],
               loading: _loading || _loadingDay,
             ),
+            if (_dayOffline && !_isToday) ...[
+              const SizedBox(height: 8),
+              const OfflineNotice(message: 'Connect to WiFi to load this day\'s blood pressure'),
+            ],
             const SizedBox(height: 10),
 
             // ── 5. Stats row ───────────────────────────────────────────────
@@ -523,6 +532,10 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               xLabels: _trendXLabels(),
               loading: _loadingTrend,
             ),
+            if (_trendOffline) ...[
+              const SizedBox(height: 8),
+              const OfflineNotice(message: 'Connect to WiFi to load your 7-day trend'),
+            ],
             const SizedBox(height: 10),
 
             // ── 8. Legend ──────────────────────────────────────────────────

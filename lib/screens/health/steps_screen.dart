@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
+import '../../widgets/offline_notice.dart';
 
 
 // ── Design tokens ───────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ class _StepsScreenState extends State<StepsScreen> {
   final _ble = BleService();
 
   bool _dayLoad = false;
+  bool _pastDayOffline = false;
 
   DateTime _selectedDate = DateTime.now();
 
@@ -115,11 +117,39 @@ class _StepsScreenState extends State<StepsScreen> {
   Future<void> _syncFromRing() async {
     if (_dayLoad || !mounted) return;
     setState(() => _dayLoad = true);
+
+    // Local-DB baseline first (same source as the home screen's Activity card) —
+    // works even without a live BLE connection, so totals stay real instead of
+    // "-- --" if the detailed ring fetch below fails. The ring fetch, when it
+    // succeeds, overwrites this with the richer 15-min interval breakdown.
+    await _syncFromLocalDb();
+
     try {
       final json = await _ble.getTodaySteps();
       if (mounted) _parseRingData(json);
     } catch (_) {}
     if (mounted) setState(() => _dayLoad = false);
+  }
+
+  Future<void> _syncFromLocalDb() async {
+    try {
+      final decoded = jsonDecode(await _ble.getStepsToday());
+      if (decoded is! Map<String, dynamic>) return;
+      final steps = (decoded['steps'] as num?)?.toInt() ?? 0;
+      final cal = (decoded['caloriesKcal'] as num?)?.toInt() ?? 0;
+      final dist = (decoded['distanceM'] as num?)?.toDouble() ?? 0.0;
+      if (!mounted || steps <= 0) return;
+      setState(() {
+        _totalSteps = steps;
+        _totalCal = cal;
+        _totalDistM = dist;
+        if (_isToday(_selectedDate)) {
+          _daySteps = steps;
+          _dayCal = cal;
+          _dayDistM = dist;
+        }
+      });
+    } catch (_) {}
   }
 
   void _parseRingData(String jsonStr) {
@@ -188,7 +218,7 @@ class _StepsScreenState extends State<StepsScreen> {
   Future<void> _loadPastDayData(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null || !mounted) return;
-    setState(() => _dayLoad = true);
+    setState(() { _dayLoad = true; _pastDayOffline = false; });
     try {
       final start = DateTime(date.year, date.month, date.day);
       final end   = start.add(const Duration(days: 1));
@@ -211,7 +241,9 @@ class _StepsScreenState extends State<StepsScreen> {
         _calSlots   = List.filled(96, 0);
         _distSlots  = List.filled(96, 0.0);
       });
-    } catch (_) {}
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _pastDayOffline = true);
+    }
     if (mounted) setState(() => _dayLoad = false);
   }
 
@@ -335,6 +367,13 @@ class _StepsScreenState extends State<StepsScreen> {
                 height: 0.5,
                 thickness: 0.5,
               ),
+
+              if (_pastDayOffline && !_isToday(_selectedDate))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                  child: const OfflineNotice(
+                      message: 'Connect to WiFi to load this day\'s activity'),
+                ),
 
               // ── Activity Score ───────────────────────────────────────────
               Padding(

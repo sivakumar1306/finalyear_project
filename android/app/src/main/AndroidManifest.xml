@@ -43,7 +43,7 @@
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
     <application
-        android:label="QRing"
+        android:label="SUMTHING"
         android:name=".QRingApplication"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true">

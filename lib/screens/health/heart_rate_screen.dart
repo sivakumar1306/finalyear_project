@@ -6,6 +6,7 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/offline_notice.dart';
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
@@ -45,6 +46,8 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   bool _loadingDay    = false;
   bool _loadingTrend  = false;
   bool _measuring     = false;
+  bool _dayOffline    = false;
+  bool _trendOffline  = false;
 
   DateTime _selectedDate = DateTime.now();
 
@@ -183,7 +186,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   Future<void> _loadDayFromSupabase(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingDay = true);
+    setState(() { _loadingDay = true; _dayOffline = false; });
     try {
       final row = await SupabaseService.getHrForDate(user.id, date);
       if (!mounted) return;
@@ -194,7 +197,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           _dayMax = (row['max_hr'] as num? ?? 0).toInt();
         });
       }
-    } catch (_) {} finally {
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
+    } finally {
       if (mounted) setState(() => _loadingDay = false);
     }
   }
@@ -202,7 +207,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   Future<void> _load7DayTrend() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingTrend = true);
+    setState(() { _loadingTrend = true; _trendOffline = false; });
     try {
       final now = DateTime.now();
       final rows = await SupabaseService.getHrHistory(
@@ -226,7 +231,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
             ? 0
             : valid.map((r) => (r['max_hr'] as num).toInt()).reduce((a, b) => a > b ? a : b);
       });
-    } catch (_) {} finally {
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _trendOffline = true);
+    } finally {
       if (mounted) setState(() => _loadingTrend = false);
     }
   }
@@ -381,6 +388,10 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
               xLabels: const ['12am', '6am', '12pm', '6pm', ''],
               loading: _loading || _loadingDay,
             ),
+            if (_dayOffline && !_isToday) ...[
+              const SizedBox(height: 8),
+              const OfflineNotice(message: 'Connect to WiFi to load this day\'s heart rate'),
+            ],
             const SizedBox(height: 10),
 
             // ── 5. Stats row ───────────────────────────────────────────────
@@ -428,6 +439,10 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
               xLabels: _trendXLabels(),
               loading: _loadingTrend,
             ),
+            if (_trendOffline) ...[
+              const SizedBox(height: 8),
+              const OfflineNotice(message: 'Connect to WiFi to load your 7-day trend'),
+            ],
             const SizedBox(height: 10),
 
             // ── 8. Sleep ───────────────────────────────────────────────────

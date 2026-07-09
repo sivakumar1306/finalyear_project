@@ -7,6 +7,7 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/offline_notice.dart';
 
 // Oudmon SDK sleep stage constants: 0=deep, 1=light, 2=awake, 3=REM
 const _kDeep  = 0;
@@ -61,6 +62,7 @@ class _SleepScreenState extends State<SleepScreen> {
 
   DateTime _selectedDate = DateTime.now();
   bool _loading = false;
+  bool _dbOffline = false;
 
   // Day sleep data
   int _totalDuration = 0;
@@ -198,6 +200,7 @@ class _SleepScreenState extends State<SleepScreen> {
   Future<void> _loadDayFromDb() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
+    setState(() => _dbOffline = false);
     try {
       final row = await SupabaseService.getSleepForDate(user.id, _selectedDate);
       if (!mounted || row == null) return;
@@ -212,7 +215,9 @@ class _SleepScreenState extends State<SleepScreen> {
         _sleepScore    = (row['sleep_score']    as num? ?? 0).toInt();
         _segments      = [];
       });
-    } catch (_) {}
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _dbOffline = true);
+    }
   }
 
   Future<void> _loadVitals() async {
@@ -249,7 +254,9 @@ class _SleepScreenState extends State<SleepScreen> {
       );
       if (!mounted) return;
       setState(() => _historyRows = rows);
-    } catch (_) {}
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _dbOffline = true);
+    }
   }
 
   Future<void> _saveToDb(int total, int deep, int light, int rem, int awake,
@@ -397,6 +404,11 @@ class _SleepScreenState extends State<SleepScreen> {
               style: _inter(13, color: _kSec),
             ),
             const SizedBox(height: 16),
+
+            if (_dbOffline && !hasData) ...[
+              const OfflineNotice(message: 'Connect to WiFi to load sleep data'),
+              const SizedBox(height: 16),
+            ],
 
             // ── 3. Sleep stages chart ────────────────────────────────────
             _ChartCard(

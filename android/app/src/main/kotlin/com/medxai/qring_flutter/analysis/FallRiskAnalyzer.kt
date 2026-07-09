@@ -12,26 +12,32 @@ import org.greenrobot.eventbus.ThreadMode
 
 /**
  * Phase 1 of the fall-risk feature (FS-FD-001 counter-proposal): computes a 0-100 risk score
- * from real vitals on every [NewReadingEvent] and logs it silently via [FallRiskLogEntity].
- * Nothing here alerts the user — the goal is to build up scored history so a real correlation
- * against fall/near-fall reports can validate the approach before any live alert ships.
+ * from real vitals on every [NewReadingEvent] and logs it via [FallRiskLogEntity]. HIGH/
+ * CRITICAL/OVERRIDE scores also fire the live predictive alert ([FallPredictionNotifier]),
+ * subject to [ALERT_COOLDOWN_MS] so a sustained elevated score doesn't re-notify on every
+ * single reading.
  *
  * Deliberately scoped as a syncope/cardiovascular pre-fall signal, not a general fall
  * predictor: mechanical trip-and-fall has no physiological prodrome, so no vitals-only engine
- * can catch it. Only signals confirmed to actually work on our SDK are used — HRV is included
- * opportunistically since Vital.HRV is disabled by default and the table is usually empty.
+ * can catch it. Only signals confirmed to actually work on our SDK are used.
  */
 object FallRiskAnalyzer {
     private const val BASELINE_WINDOW_MS = 5 * 60_000L
     private const val CRITICAL_SPO2 = 88
+    // Minimum gap between live predictive alerts — an elevated score can persist across many
+    // readings in a row, and re-notifying on every one of them would be noise, not signal.
+    private const val ALERT_COOLDOWN_MS = 15 * 60_000L
 
     private val gson = Gson()
     private var repository: ReadingRepository? = null
+    private var appContext: Context? = null
     private var initialized = false
+    private var lastAlertAt = 0L
 
     fun init(context: Context) {
         if (initialized) return
         initialized = true
+        appContext = context.applicationContext
         repository = ReadingRepository.getInstance(context)
         EventBus.getDefault().register(this)
     }
@@ -51,10 +57,20 @@ object FallRiskAnalyzer {
                         computedAt = event.measuredAt,
                     )
                 )
+                maybeAlert(result, event.measuredAt)
             } catch (_: Exception) {
-                // Silent-logging feature — must never affect the rest of the vitals pipeline.
+                // Must never affect the rest of the vitals pipeline.
             }
         }
+    }
+
+    private fun maybeAlert(result: ScoreResult, measuredAt: Long) {
+        if (result.tier != "HIGH" && result.tier != "CRITICAL" && result.tier != "OVERRIDE") return
+        if (measuredAt - lastAlertAt < ALERT_COOLDOWN_MS) return
+        val context = appContext ?: return
+        lastAlertAt = measuredAt
+        val hr = (result.components["hr"] as? Int) ?: 0
+        FallPredictionNotifier.notifyPrediction(context, hr)
     }
 
     private suspend fun computeScore(event: NewReadingEvent, repo: ReadingRepository): ScoreResult {
@@ -121,8 +137,7 @@ object FallRiskAnalyzer {
             signals += if (latest >= 75 || jump >= 25) 1f else normalise(jump.toFloat(), 0f, 25f)
         }
 
-        // HRV drop vs. rolling baseline — bonus signal only, since this table is usually
-        // empty (Vital.HRV disabled by default; never produced a valid reading in testing).
+        // HRV drop vs. rolling baseline.
         val recentHrv = repo.hrvBetween(since, now, 200)
         if (recentHrv.size >= 2) {
             val latest = recentHrv.last().valueMs

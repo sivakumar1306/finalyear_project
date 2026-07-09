@@ -37,7 +37,7 @@ class QRingApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'QRing',
+      title: 'SUMTHING',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme(),
       initialRoute: '/',

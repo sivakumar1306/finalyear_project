@@ -6,6 +6,7 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/offline_notice.dart';
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
@@ -45,6 +46,8 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
   bool _loadingDay    = false;
   bool _loadingTrend  = false;
   bool _measuring     = false;
+  bool _dayOffline    = false;
+  bool _trendOffline  = false;
 
   DateTime _selectedDate = DateTime.now();
 
@@ -86,9 +89,8 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     super.initState();
     _loadSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && context.read<BleProvider>().isConnected) {
-        _fetchToday();
-      }
+      if (!mounted) return;
+      _fetchToday();
       _load7DayTrend();
     });
   }
@@ -106,80 +108,67 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     if (!isToday) _loadDayFromSupabase(date);
   }
 
-  // ── Ring fetch ────────────────────────────────────────────────────────────
+  // ── Local DB fetch (today) ───────────────────────────────────────────────
+  // Reads from the local Room DB the background measurement loop writes to,
+  // instead of the ring's own onboard "today" SDK buffer (getTodayBloodOxygen)
+  // — which required a live BLE connection and left this screen permanently
+  // blank whenever the ring wasn't connected at the moment the screen opened.
+  // Mirrors blood_pressure_screen/hrv_screen's local-DB pattern: works even
+  // without a ring connection, and stays consistent with the home card.
 
   Future<void> _fetchToday() async {
     setState(() { _loading = true; _manualSpo2 = 0; });
     try {
-      final data = await _ble.getTodayBloodOxygen();
-      _parseSpo2Data(data);
-    } catch (_) {} finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
+      final now = DateTime.now();
+      final dayStart = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+      final dayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999)
+          .millisecondsSinceEpoch;
 
-  void _parseSpo2Data(String jsonStr) {
-    try {
-      final decoded = jsonDecode(jsonStr);
-      if (decoded == null || decoded is! Map<String, dynamic>) return;
+      final summary = jsonDecode(await _ble.getTodaySummary('spo2')) as Map<String, dynamic>;
+      final count = (summary['count'] as num? ?? 0).toInt();
 
-      final offset = (decoded['offset'] as num? ?? 0).toInt();
-      final maxRaw = (decoded['maxArray'] as List<dynamic>? ?? [])
-          .map((v) => (v as num).toInt())
-          .toList();
-      final minRaw = (decoded['minArray'] as List<dynamic>? ?? [])
-          .map((v) => (v as num).toInt())
-          .toList();
-
-      // Build full 24-slot array placed at correct clock positions.
       const totalSlots = 24;
-      final fullDay = List<int>.filled(totalSlots, 0);
-      for (int i = 0; i < maxRaw.length; i++) {
-        final slot = offset + i;
-        if (slot < totalSlots) fullDay[slot] = maxRaw[i];
-      }
+      final slots = List<int>.filled(totalSlots, 0);
 
-      // Ring firmware pre-fills entire day — zero out future slots.
-      final currentSlot = DateTime.now().hour;
-      for (int i = currentSlot + 1; i < totalSlots; i++) {
-        fullDay[i] = 0;
-      }
+      if (count > 0) {
+        final readingsJson = await _ble.getReadings('spo2',
+            fromMs: dayStart, toMs: dayEnd, limit: 1000);
+        final decoded = jsonDecode(readingsJson);
+        final list = decoded is List ? decoded : <dynamic>[];
 
-      final readings = fullDay.where((v) => v > 0).toList();
-      if (readings.isEmpty) return;
-
-      final avg = (readings.reduce((a, b) => a + b) / readings.length).round();
-      final maxVal = readings.reduce((a, b) => a > b ? a : b);
-
-      // Use minArray for min reading
-      final minFull = List<int>.filled(totalSlots, 0);
-      for (int i = 0; i < minRaw.length; i++) {
-        final slot = offset + i;
-        if (slot < totalSlots) minFull[slot] = minRaw[i];
+        final slotSums = List<int>.filled(totalSlots, 0);
+        final slotCounts = List<int>.filled(totalSlots, 0);
+        for (final item in list) {
+          final m = item as Map<String, dynamic>;
+          final value = (m['valuePct'] as num? ?? 0).toInt();
+          final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
+          if (value <= 0 || measuredAt <= 0) continue;
+          final hour = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
+          slotSums[hour] += value;
+          slotCounts[hour] += 1;
+        }
+        for (int i = 0; i < totalSlots; i++) {
+          if (slotCounts[i] > 0) slots[i] = (slotSums[i] / slotCounts[i]).round();
+        }
       }
-      for (int i = currentSlot + 1; i < totalSlots; i++) {
-        minFull[i] = 0;
-      }
-      final minReadings = minFull.where((v) => v > 0).toList();
-      final minVal = minReadings.isNotEmpty
-          ? minReadings.reduce((a, b) => a < b ? a : b)
-          : readings.reduce((a, b) => a < b ? a : b);
 
       if (!mounted) return;
+      final avg = (summary['avg'] as num?)?.round() ?? 0;
+      final minVal = (summary['min'] as num? ?? 0).toInt();
+      final maxVal = (summary['max'] as num? ?? 0).toInt();
       setState(() {
-        _chartValues  = fullDay;
+        _chartValues = slots;
         _avgSpo2 = avg;
         _minSpo2 = minVal;
         _maxSpo2 = maxVal;
-        _selectedDate = DateTime.now();
+        _selectedDate = now;
       });
-
-      context.read<BleProvider>().updateSpo2Data(avg, minVal, maxVal);
-      // Not saved to Supabase here — this chart reflects the ring's own periodic
-      // auto-tracking (a separate data source from the new continuous one-click
-      // measurement loop), and the daily aggregate is now pushed natively by
-      // SupabaseSyncManager from local Room to avoid a duplicate/conflicting write.
-    } catch (_) {}
+      if (avg > 0) context.read<BleProvider>().updateSpo2Data(avg, minVal, maxVal);
+    } catch (_) {
+      // Local DB read failing isn't worth surfacing loudly — chart just stays blank.
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   // ── Supabase fetches ──────────────────────────────────────────────────────
@@ -187,7 +176,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
   Future<void> _loadDayFromSupabase(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingDay = true);
+    setState(() { _loadingDay = true; _dayOffline = false; });
     try {
       final row = await SupabaseService.getSpo2ForDate(user.id, date);
       if (!mounted) return;
@@ -198,7 +187,9 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
           _dayMax = (row['max_spo2'] as num? ?? 0).toInt();
         });
       }
-    } catch (_) {} finally {
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
+    } finally {
       if (mounted) setState(() => _loadingDay = false);
     }
   }
@@ -206,7 +197,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
   Future<void> _load7DayTrend() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingTrend = true);
+    setState(() { _loadingTrend = true; _trendOffline = false; });
     try {
       final now = DateTime.now();
       final rows = await SupabaseService.getSpo2History(
@@ -230,7 +221,9 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
             ? 0
             : valid.map((r) => (r['max_spo2'] as num).toInt()).reduce((a, b) => a > b ? a : b);
       });
-    } catch (_) {} finally {
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _trendOffline = true);
+    } finally {
       if (mounted) setState(() => _loadingTrend = false);
     }
   }
@@ -432,6 +425,10 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
               xLabels: const ['12am', '6am', '12pm', '6pm', ''],
               loading: _loading || _loadingDay,
             ),
+            if (_dayOffline && !_isToday) ...[
+              const SizedBox(height: 8),
+              const OfflineNotice(message: 'Connect to WiFi to load this day\'s SpO2'),
+            ],
             const SizedBox(height: 10),
 
             // ── 5. Stats row ───────────────────────────────────────────────
@@ -479,6 +476,10 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
               xLabels: _trendXLabels(),
               loading: _loadingTrend,
             ),
+            if (_trendOffline) ...[
+              const SizedBox(height: 8),
+              const OfflineNotice(message: 'Connect to WiFi to load your 7-day trend'),
+            ],
             const SizedBox(height: 80),
           ],
         ),

@@ -6,6 +6,7 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/offline_notice.dart';
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
@@ -45,11 +46,13 @@ class _HrvScreenState extends State<HrvScreen> {
   bool _loadingDay   = false;
   bool _loadingTrend = false;
   bool _measuring    = false;
+  bool _dayOffline   = false;
+  bool _trendOffline = false;
   int  _manualHrv    = 0;
 
   DateTime _selectedDate = DateTime.now();
 
-  // Today's ring data
+  // Today's local-DB data
   List<int> _chartValues = [];
   int _avgHrv = 0, _minHrv = 0, _maxHrv = 0;
 
@@ -111,11 +114,7 @@ class _HrvScreenState extends State<HrvScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (context.read<BleProvider>().isConnected) {
-        _fetchTodayFromRing();
-      } else {
-        _loadDayFromSupabase(DateTime.now());
-      }
+      _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
   }
@@ -134,85 +133,69 @@ class _HrvScreenState extends State<HrvScreen> {
     if (!isToday) _loadDayFromSupabase(date);
   }
 
-  // ── Ring fetch ────────────────────────────────────────────────────────────
+  // ── Local DB fetch (today) ───────────────────────────────────────────────
+  // Reads from the local Room DB the background measurement loop (and the
+  // manual "Measure Now" auto-cycle writes) actually populate, instead of the
+  // ring's own onboard "today" SDK buffer — which never reflected our
+  // manualModeHrv-driven readings and was why the chart stayed blank even
+  // after real auto-loop cycles completed. Mirrors blood_pressure_screen's
+  // proven local-DB pattern: works even when the ring isn't connected, and
+  // stays consistent with whatever's actually in reading_hrv.
 
-  Future<void> _fetchTodayFromRing() async {
+  Future<void> _fetchTodayFromLocalDb() async {
     setState(() => _loading = true);
     try {
-      final data = await _ble.getTodayHrv();
-      _parseHrvData(data);
-    } catch (_) {
-      _loadDayFromSupabase(DateTime.now());
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
+      final now = DateTime.now();
+      final dayStart = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+      final dayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999)
+          .millisecondsSinceEpoch;
 
-  void _parseHrvData(String jsonStr) {
-    try {
-      final decoded = jsonDecode(jsonStr);
-      if (decoded == null || decoded is! Map<String, dynamic>) {
-        _loadDayFromSupabase(DateTime.now());
-        return;
-      }
-
-      final offset = (decoded['offset'] as num? ?? 0).toInt();
-      final raw = (decoded['d'] as List<dynamic>? ?? [])
-          .map((v) => (v as num).toInt())
-          .toList();
-
-      final readings = raw.where((v) => v > 0).toList();
-      if (readings.isEmpty) {
-        _loadDayFromSupabase(DateTime.now());
-        return;
-      }
-
-      final avg = (readings.reduce((a, b) => a + b) / readings.length).round();
-      final maxVal = readings.reduce((a, b) => a > b ? a : b);
-      final minVal = readings.reduce((a, b) => a < b ? a : b);
+      final summary = jsonDecode(await _ble.getTodaySummary('hrv')) as Map<String, dynamic>;
+      final count = (summary['count'] as num? ?? 0).toInt();
 
       const totalSlots = 48;
-      final fullDay = List<int>.filled(totalSlots, 0);
-      for (int i = 0; i < raw.length; i++) {
-        final slot = offset + i;
-        if (slot < totalSlots) fullDay[slot] = raw[i];
-      }
+      final slots = List<int>.filled(totalSlots, 0);
 
-      final nowMins = DateTime.now().hour * 60 + DateTime.now().minute;
-      final currentSlot = nowMins ~/ 30;
-      for (int i = currentSlot + 1; i < totalSlots; i++) {
-        fullDay[i] = 0;
+      if (count > 0) {
+        final readingsJson = await _ble.getReadings('hrv',
+            fromMs: dayStart, toMs: dayEnd, limit: 1000);
+        final decoded = jsonDecode(readingsJson);
+        final list = decoded is List ? decoded : <dynamic>[];
+
+        final slotSums = List<int>.filled(totalSlots, 0);
+        final slotCounts = List<int>.filled(totalSlots, 0);
+        for (final item in list) {
+          final m = item as Map<String, dynamic>;
+          final value = (m['valueMs'] as num? ?? 0).toInt();
+          final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
+          if (value <= 0 || measuredAt <= 0) continue;
+          final dt = DateTime.fromMillisecondsSinceEpoch(measuredAt);
+          final slot = (dt.hour * 60 + dt.minute) ~/ 30;
+          if (slot >= 0 && slot < totalSlots) {
+            slotSums[slot] += value;
+            slotCounts[slot] += 1;
+          }
+        }
+        for (int i = 0; i < totalSlots; i++) {
+          if (slotCounts[i] > 0) slots[i] = (slotSums[i] / slotCounts[i]).round();
+        }
       }
 
       if (!mounted) return;
+      final avg = (summary['avg'] as num?)?.round() ?? 0;
       setState(() {
-        _chartValues = fullDay;
+        _chartValues = slots;
         _avgHrv = avg;
-        _minHrv = minVal;
-        _maxHrv = maxVal;
-        _selectedDate = DateTime.now();
+        _minHrv = (summary['min'] as num? ?? 0).toInt();
+        _maxHrv = (summary['max'] as num? ?? 0).toInt();
+        _selectedDate = now;
       });
-
-      context.read<BleProvider>().updateHrvLatest(avg);
-      _saveToSupabase(avg, minVal, maxVal, readings.length);
+      if (avg > 0 && mounted) context.read<BleProvider>().updateHrvLatest(avg);
     } catch (_) {
-      _loadDayFromSupabase(DateTime.now());
+      // Local DB read failing isn't worth surfacing loudly — chart just stays blank.
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-  }
-
-  Future<void> _saveToSupabase(int avg, int min, int max, int count) async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
-    try {
-      await SupabaseService.upsertHrv(
-        userId: user.id,
-        date: DateTime.now(),
-        avgHrv: avg,
-        minHrv: min,
-        maxHrv: max,
-        sampleCount: count,
-      );
-    } catch (_) {}
   }
 
   // ── Manual "Measure Now" (for debugging the one-click HRV path) ───────────
@@ -288,7 +271,7 @@ class _HrvScreenState extends State<HrvScreen> {
   Future<void> _loadDayFromSupabase(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingDay = true);
+    setState(() { _loadingDay = true; _dayOffline = false; });
     try {
       final row = await SupabaseService.getHrvForDate(user.id, date);
       if (!mounted) return;
@@ -299,7 +282,9 @@ class _HrvScreenState extends State<HrvScreen> {
           _dayMax = (row['max_hrv'] as num? ?? 0).toInt();
         });
       }
-    } catch (_) {} finally {
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
+    } finally {
       if (mounted) setState(() => _loadingDay = false);
     }
   }
@@ -307,7 +292,7 @@ class _HrvScreenState extends State<HrvScreen> {
   Future<void> _load7DayTrend() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() => _loadingTrend = true);
+    setState(() { _loadingTrend = true; _trendOffline = false; });
     try {
       final now = DateTime.now();
       final rows = await SupabaseService.getHrvHistory(
@@ -331,7 +316,9 @@ class _HrvScreenState extends State<HrvScreen> {
             ? 0
             : valid.map((r) => (r['max_hrv'] as num).toInt()).reduce((a, b) => a > b ? a : b);
       });
-    } catch (_) {} finally {
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _trendOffline = true);
+    } finally {
       if (mounted) setState(() => _loadingTrend = false);
     }
   }
@@ -400,7 +387,7 @@ class _HrvScreenState extends State<HrvScreen> {
         color: AppTheme.hrvColor,
         backgroundColor: _kCard,
         onRefresh: () async {
-          if (connected) await _fetchTodayFromRing();
+          await _fetchTodayFromLocalDb();
           await _load7DayTrend();
         },
         child: SingleChildScrollView(
@@ -462,6 +449,10 @@ class _HrvScreenState extends State<HrvScreen> {
                 xLabels: const ['12am', '6am', '12pm', '6pm', ''],
                 loading: _loading || _loadingDay,
               ),
+              if (_dayOffline && !_isToday) ...[
+                const SizedBox(height: 8),
+                const OfflineNotice(message: 'Connect to WiFi to load this day\'s HRV'),
+              ],
               const SizedBox(height: 10),
 
               // ── 4. Stats row ───────────────────────────────────────────
@@ -509,6 +500,10 @@ class _HrvScreenState extends State<HrvScreen> {
                 xLabels: _trendXLabels(),
                 loading: _loadingTrend,
               ),
+              if (_trendOffline) ...[
+                const SizedBox(height: 8),
+                const OfflineNotice(message: 'Connect to WiFi to load your 7-day trend'),
+              ],
               const SizedBox(height: 10),
 
               // ── 6. Color legend ────────────────────────────────────────
@@ -1007,3 +1002,4 @@ class _LegendDot extends StatelessWidget {
         ],
       );
 }
+
