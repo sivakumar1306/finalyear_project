@@ -6,9 +6,9 @@ import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/workout_provider.dart';
 import 'home/home_screen.dart';
-import 'assist/assist_screen.dart';
 import 'settings/settings_screen.dart';
 import 'workouts/active_workout_screen.dart';
+import 'assist/chat_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -28,9 +28,9 @@ class _MainShellState extends State<MainShell> {
       if (!mounted) return;
       final workout = context.read<WorkoutProvider>();
       if (workout.isWorkoutActive) {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const ActiveWorkoutScreen()),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const ActiveWorkoutScreen()));
       }
     });
   }
@@ -65,7 +65,11 @@ class _MainShellState extends State<MainShell> {
               ),
             ),
             const SizedBox(height: 20),
-            const Icon(Icons.directions_run_rounded, color: AppTheme.gold, size: 40),
+            const Icon(
+              Icons.directions_run_rounded,
+              color: AppTheme.gold,
+              size: 40,
+            ),
             const SizedBox(height: 14),
             const Text(
               'Workout in Progress',
@@ -126,14 +130,11 @@ class _MainShellState extends State<MainShell> {
           index: _tab,
           children: const [
             HomeScreen(),
-            AssistScreen(),
+            ChatScreen(),
             SettingsScreen(),
           ],
         ),
-        bottomNavigationBar: _BottomNav(
-          selected: _tab,
-          onTap: _onTabTap,
-        ),
+        bottomNavigationBar: _BottomNav(selected: _tab, onTap: _onTabTap),
       ),
     );
   }
@@ -152,7 +153,7 @@ class _BottomNav extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
           decoration: const BoxDecoration(
-            color: Color(0x0AFFFFFF),   // rgba(255,255,255,0.04)
+            color: Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
             border: Border(
               top: BorderSide(color: Color(0x17FFFFFF), width: 0.5),
             ),
@@ -189,8 +190,8 @@ class _NavTab extends StatelessWidget {
     required this.onTap,
   });
 
-  static const _kGold     = Color(0xFFC9A86E);
-  static const _kInactive = Color(0x66FFFFFF);   // rgba(255,255,255,0.4)
+  static const _kGold = Color(0xFFC9A86E);
+  static const _kInactive = Color(0x66FFFFFF); // rgba(255,255,255,0.4)
 
   @override
   Widget build(BuildContext context) {
