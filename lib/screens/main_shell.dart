@@ -7,7 +7,6 @@ import '../theme/app_theme.dart';
 import '../providers/workout_provider.dart';
 import 'home/home_screen.dart';
 import 'assist/assist_screen.dart';
-import 'records/records_screen.dart';
 import 'settings/settings_screen.dart';
 import 'workouts/active_workout_screen.dart';
 
@@ -128,7 +127,6 @@ class _MainShellState extends State<MainShell> {
           children: const [
             HomeScreen(),
             AssistScreen(),
-            RecordsScreen(),
             SettingsScreen(),
           ],
         ),
@@ -167,8 +165,7 @@ class _BottomNav extends StatelessWidget {
                 children: [
                   _NavTab(icon: Icons.home_rounded,      label: 'Home',     active: selected == 0, onTap: () => onTap(0)),
                   _NavTab(icon: Icons.smart_toy_rounded,  label: 'Assist',   active: selected == 1, onTap: () => onTap(1)),
-                  _NavTab(icon: Icons.bar_chart_rounded,  label: 'Records',  active: selected == 2, onTap: () => onTap(2)),
-                  _NavTab(icon: Icons.settings_rounded,   label: 'Settings', active: selected == 3, onTap: () => onTap(3)),
+                  _NavTab(icon: Icons.settings_rounded,   label: 'Settings', active: selected == 2, onTap: () => onTap(2)),
                 ],
               ),
             ),

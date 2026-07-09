@@ -18,7 +18,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
-// Every 6h, batch-pushes unsynced local Room rows to new Supabase "raw reading" tables
+// Every 1h, batch-pushes unsynced local Room rows to new Supabase "raw reading" tables
 // (idempotent via a local_reading_id unique constraint), then recomputes and upserts the
 // existing daily-aggregate tables (user_hr/user_spo2/user_hrv/user_steps) from local Room so
 // existing chart/history screens keep working unchanged. Driven by BleConnectionService, same
@@ -28,8 +28,8 @@ object SupabaseSyncManager {
     private const val PREFS_NAME = "qring_supabase_sync_state"
     private const val KEY_LAST_ATTEMPT = "last_attempt_at"
     private const val KEY_LAST_SUCCESS = "last_success_at"
-    private const val TICK_MS = 15 * 60 * 1000L // check every 15 min whether a push is due
-    private const val SIX_HOURS_MS = 6 * 60 * 60 * 1000L
+    private const val TICK_MS = 10 * 60 * 1000L // check every 10 min whether a push is due
+    private const val PUSH_INTERVAL_MS = 60 * 60 * 1000L
     private const val BATCH_LIMIT = 200
 
     private val gson = Gson()
@@ -73,7 +73,7 @@ object SupabaseSyncManager {
         return mapOf("lastPushAttemptAt" to lastAttempt, "lastPushSuccessAt" to lastSuccess)
     }
 
-    // Debug/testing hook — triggers a push immediately, bypassing the 6h-elapsed and
+    // Debug/testing hook — triggers a push immediately, bypassing the 1h-elapsed and
     // isSyncEnabled gates in maybePush(). Still requires SupabaseConfig to be set (via
     // configureSync) since there's nothing to push to otherwise.
     fun forceSyncNow(): Boolean {
@@ -86,9 +86,9 @@ object SupabaseSyncManager {
         if (!MeasurementConfig.isSyncEnabled()) return
         if (!SupabaseConfig.isConfigured) return
         val lastSuccess = prefs.getLong(KEY_LAST_SUCCESS, 0L)
-        // Resilient to service/process restarts: pushes immediately if 6h have already
-        // elapsed since the last confirmed success, rather than waiting a fresh 6h.
-        if (System.currentTimeMillis() - lastSuccess < SIX_HOURS_MS) return
+        // Resilient to service/process restarts: pushes immediately if 1h has already
+        // elapsed since the last confirmed success, rather than waiting a fresh 1h.
+        if (System.currentTimeMillis() - lastSuccess < PUSH_INTERVAL_MS) return
         repository.ioScope.launch { runPushCycle() }
     }
 

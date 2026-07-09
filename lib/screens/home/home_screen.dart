@@ -25,6 +25,7 @@ const _kOrbSpo2     = Color(0xFF73D4F8);
 const _kOrbBp       = Color(0xFFD97A7A);
 const _kOrbWomen    = Color(0xFFD88CC8);
 const _kOrbActivity = Color(0xFFE08A4A);
+const _kOrbHrv      = Color(0xFFC9A86E);
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -143,6 +144,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (v < 60) return 'Below normal';
     if (v < 100) return 'Normal';
     return 'Above normal';
+  }
+
+  static String _hrvStatus(int v) {
+    if (v <= 0) return 'No data';
+    if (v < 20) return 'Very Low';
+    if (v < 40) return 'Low';
+    if (v < 60) return 'Moderate';
+    if (v < 80) return 'Good';
+    return 'Excellent';
   }
 
   // Same formula as steps_screen.dart's _activityScore — kept in sync so the
@@ -271,9 +281,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   const SizedBox(height: 12),
                 ],
 
-                // ── Sleep + Blood Oxygen ───────────────────────────────────
-                // HRV, Sport, and Temperature cards removed for now (HRV one-click
-                // measurement isn't reliable yet; Sport/Temperature deprioritized) —
+                // ── Sleep + HRV ─────────────────────────────────────────────
+                // Sport and Temperature cards remain removed (deprioritized) —
                 // re-add once ready.
                 Row(children: [
                   Expanded(
@@ -294,6 +303,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _HomeCard(
+                      label: 'HRV',
+                      value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
+                      unit: ble.todayAvgHrv > 0 ? 'ms' : '',
+                      status: _hrvStatus(ble.todayAvgHrv),
+                      statusColor: ble.todayAvgHrv > 0 ? _kOrbHrv : _kSec2,
+                      orbColor: _kOrbHrv,
+                      sparkData: const [0.5, 0.55, 0.6, 0.58, 0.62, 0.65, 0.6, 0.58, 0.55, 0.6, 0.63, 0.6],
+                      connected: ble.isConnected,
+                      onTap: () => Navigator.pushNamed(context, '/hrv'),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+
+                // ── Blood Oxygen + Heart Rate ─────────────────────────────
+                Row(children: [
+                  Expanded(
+                    child: _HomeCard(
                       label: 'Blood Oxygen',
                       value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
                       unit: ble.todayAvgSpo2 > 0 ? '%' : '',
@@ -309,11 +336,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       onTap: () => Navigator.pushNamed(context, '/blood-oxygen'),
                     ),
                   ),
-                ]),
-                const SizedBox(height: 12),
-
-                // ── Heart Rate + Blood Pressure ───────────────────────────
-                Row(children: [
+                  const SizedBox(width: 12),
                   Expanded(
                     child: _HomeCard(
                       label: 'Heart Rate',
@@ -331,23 +354,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       onTap: () => Navigator.pushNamed(context, '/heart-rate'),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _HomeCard(
-                      label: 'Blood Pressure',
-                      value: ble.latestBpSbp > 0
-                          ? '${ble.latestBpSbp}/${ble.latestBpDbp}'
-                          : '--/--',
-                      unit: ble.latestBpSbp > 0 ? 'mmHg' : '',
-                      status: ble.latestBpSbp > 0 ? 'Normal' : 'No data',
-                      statusColor: ble.latestBpSbp > 0 ? _kOrbBp : _kSec2,
-                      orbColor: _kOrbBp,
-                      sparkData: const [0.6, 0.65, 0.6, 0.68, 0.65, 0.6, 0.64, 0.67, 0.64, 0.6, 0.65, 0.62],
-                      connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
-                    ),
-                  ),
                 ]),
+                const SizedBox(height: 12),
+
+                // ── Blood Pressure ─────────────────────────────────────────
+                _HomeCard(
+                  label: 'Blood Pressure',
+                  value: ble.latestBpSbp > 0
+                      ? '${ble.latestBpSbp}/${ble.latestBpDbp}'
+                      : '--/--',
+                  unit: ble.latestBpSbp > 0 ? 'mmHg' : '',
+                  status: ble.latestBpSbp > 0 ? 'Normal' : 'No data',
+                  statusColor: ble.latestBpSbp > 0 ? _kOrbBp : _kSec2,
+                  orbColor: _kOrbBp,
+                  sparkData: const [0.6, 0.65, 0.6, 0.68, 0.65, 0.6, 0.64, 0.67, 0.64, 0.6, 0.65, 0.62],
+                  connected: ble.isConnected,
+                  onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
+                ),
                 const SizedBox(height: 20),
 
                 const _EditCardsButton(),

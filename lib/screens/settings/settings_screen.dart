@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -18,12 +19,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _lowBatteryPrompt = false;
   final _ble = BleService();
   bool _syncing = false;
+  String _firstName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      final profile = await SupabaseService.getProfile(user.id);
+      if (!mounted || profile == null) return;
+      final fullName = profile['full_name'] as String? ?? '';
+      if (fullName.trim().isNotEmpty) {
+        setState(() => _firstName = fullName.trim().split(' ').first);
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
     final connected = ble.isConnected;
-    final deviceName = ble.deviceName.isNotEmpty ? ble.deviceName : 'No Device Paired';
+    final hasDevice = ble.deviceName.isNotEmpty;
+    // "Andrea's Ring" instead of the raw device name up top — the raw name (e.g.
+    // R02_B406) still shows underneath, just demoted to secondary/muted text.
+    final ringTitle = !hasDevice
+        ? 'No Device Paired'
+        : (_firstName.isNotEmpty ? "$_firstName's Ring" : 'My Ring');
     final mac = ble.deviceAddress;
     final battery = ble.battery;
     final firmware = ble.firmwareVersion['firmware'] ?? '--';
@@ -65,13 +91,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          deviceName,
+                          ringTitle,
                           style: GoogleFonts.inter(
                             color: Colors.white,
                             fontSize: 17,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                        if (hasDevice) ...[
+                          const SizedBox(height: 4),
+                          Text(ble.deviceName,
+                              style: GoogleFonts.inter(
+                                  color: AppTheme.textSec, fontSize: 12)),
+                        ],
                         if (mac.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           Text(mac,
@@ -132,7 +164,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 12),
 
             // TODO(debug): temporary — remove once the streaming pipeline is verified.
-            // Forces the 6h Supabase push to run immediately instead of waiting.
+            // Forces the 1h Supabase push to run immediately instead of waiting.
             GestureDetector(
               onTap: _syncing ? null : _forceSyncNow,
               child: Container(
