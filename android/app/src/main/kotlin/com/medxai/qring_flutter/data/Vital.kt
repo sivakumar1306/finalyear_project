@@ -9,11 +9,12 @@ enum class Vital(val defaultEnabled: Boolean) {
     STRESS(true),
     BLOOD_PRESSURE(true),
     STEPS(true),
-    // Disabled again: even after fixing the getHrv()-vs-getValue() field bug, HRV still
-    // never produced a valid reading in testing (confirmed via the manual "Measure Now"
-    // button too, not just the loop) — points to a genuine SDK/ring-side limitation
-    // rather than a code bug. Schema/hooks stay ready for whenever that's resolved.
-    HRV(false),
+    // Re-enabled (2026-07-09): the earlier "never produced a valid reading" conclusion was
+    // wrong — it was a code bug (the manual "Measure Now" timeout was only 60s, and a real
+    // reading confirmed via logcat takes ~60.5s on-device). Now uses its own longer timeout
+    // in MeasurementLoopManager (HRV_MEASURE_TIMEOUT_MS) so the loop doesn't repeat the
+    // same mistake.
+    HRV(true),
     TEMPERATURE(false);
 
     companion object {

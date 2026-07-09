@@ -31,6 +31,10 @@ object MeasurementLoopManager {
     private const val DISCONNECTED_RECHECK_MS = 8_000L
     private const val WORKOUT_RECHECK_MS = 15_000L
     private const val MEASURE_TIMEOUT_MS = 60_000L
+    // HRV specifically needs much more headroom than the other vitals: a real reading was
+    // clocked at ~60.5s on-device via logcat (manualModeHrv callback trace), right past the
+    // shared 60s timeout above. Mirrors the manual "Measure Now" path's 90s timeout.
+    private const val HRV_MEASURE_TIMEOUT_MS = 90_000L
     // Gap enforced after sending a "stop" command (success or timeout) before the next
     // vital's "start" command goes out. Without this, back-to-back start-stop-start
     // commands with no settle time can leave the ring's firmware stuck mid-measurement
@@ -320,6 +324,7 @@ object MeasurementLoopManager {
     // applied here — same pattern, just checking getHrv() first (see comment below).
     private fun measureHrv(cycleId: Long, onDone: () -> Unit) {
         if (!MeasurementCoordinator.tryAcquire(OWNER)) { onDone(); return }
+        Log.d(TAG, "measureHrv: starting (timeout ${HRV_MEASURE_TIMEOUT_MS}ms)")
         val done = AtomicBoolean(false)
         fun finishWithStop() {
             try { BleOperateManager.getInstance().manualModeHrv(ICommandResponse<StartHeartRateRsp> {}, true) } catch (_: Exception) {}
@@ -343,6 +348,7 @@ object MeasurementLoopManager {
                     // meant this never saw a real reading.
                     val value = if (rsp.getHrv() > 0) rsp.getHrv() else rsp.getValue()
                     if (value > 0 && done.compareAndSet(false, true)) {
+                        Log.d(TAG, "measureHrv: got value=$value")
                         persist(Vital.HRV, cycleId, value.toDouble()) {
                             repository.insertHrv(value, cycleId, "auto_cycle")
                         }
@@ -357,8 +363,11 @@ object MeasurementLoopManager {
             return
         }
         handler.postDelayed({
-            if (done.compareAndSet(false, true)) finishWithStop()
-        }, MEASURE_TIMEOUT_MS)
+            if (done.compareAndSet(false, true)) {
+                Log.w(TAG, "measureHrv: timed out after ${HRV_MEASURE_TIMEOUT_MS}ms")
+                finishWithStop()
+            }
+        }, HRV_MEASURE_TIMEOUT_MS)
     }
 
     // Passive fetch (not a blocking manual-mode measurement) of the ring's own cumulative

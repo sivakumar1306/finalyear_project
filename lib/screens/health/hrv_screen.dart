@@ -233,8 +233,15 @@ class _HrvScreenState extends State<HrvScreen> {
         if (liveVal > 0) _manualHrv = liveVal;
       });
       if (liveVal > 0) await _saveSingleMeasurement(liveVal);
-    } catch (_) {
-      if (mounted) setState(() => _measuring = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _measuring = false);
+      // Real HRV readings take ~50s on-device (confirmed against the official QRing
+      // app) — surface the actual error instead of failing silently so a timeout is
+      // distinguishable from e.g. a disconnect.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('HRV measurement failed: $e'), backgroundColor: AppTheme.danger),
+      );
     }
   }
 

@@ -1242,15 +1242,23 @@ class BlePlugin(private val context: Context) {
         )
     }
 
+    // On-device (official QRing app) manual HRV readings take ~50s to resolve — this SDK
+    // call streams intermediate zero-value callbacks the whole time and only the final one
+    // carries a real hrv, so the timeout margin above that observed real-world duration is
+    // what determines whether we ever see it. Logged per-callback so a real timeout can be
+    // told apart from "never called back at all" during on-device debugging.
     private fun manualModeHrv(call: MethodCall, result: MethodChannel.Result) {
         val start = call.argument<Boolean>("start") ?: true
         val done = AtomicBoolean(false)
+        var callbackCount = 0
         BleOperateManager.getInstance().manualModeHrv(
             ICommandResponse<StartHeartRateRsp> { rsp ->
                 // HRV comes back through the dedicated getHrv() field, not the generic
                 // getValue() field used by HR/SpO2/BP/Stress — confirmed against the SDK
                 // sample (HrvActivity.kt) and the bundled SDK's StartHeartRateRsp class.
                 val value = if (rsp.getHrv() > 0) rsp.getHrv() else rsp.getValue()
+                callbackCount++
+                Log.d(TAG, "manualModeHrv callback #$callbackCount: value=$value status=${rsp.status}")
                 val shouldRespond = if (start) value > 0 else true
                 if (shouldRespond && done.compareAndSet(false, true)) {
                     mainHandler.post {
@@ -1263,9 +1271,10 @@ class BlePlugin(private val context: Context) {
         if (start) {
             mainHandler.postDelayed({
                 if (done.compareAndSet(false, true)) {
+                    Log.e(TAG, "manualModeHrv timed out after $callbackCount callback(s), none with a valid value")
                     result.error("TIMEOUT", "HRV measurement timed out", null)
                 }
-            }, 60000)
+            }, 90000)
         }
     }
 
