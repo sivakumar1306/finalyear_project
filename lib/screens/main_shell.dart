@@ -9,6 +9,7 @@ import 'home/home_screen.dart';
 import 'settings/settings_screen.dart';
 import 'workouts/active_workout_screen.dart';
 import 'assist/chat_screen.dart';
+import 'settings/profile_edit_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -23,7 +24,6 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
-    // Navigate to active workout screen if a workout was resumed after app restart.
     context.read<WorkoutProvider>().initialized.then((_) {
       if (!mounted) return;
       final workout = context.read<WorkoutProvider>();
@@ -131,6 +131,7 @@ class _MainShellState extends State<MainShell> {
           children: const [
             HomeScreen(),
             ChatScreen(),
+            ProfileEditScreen(showBackButton: false),
             SettingsScreen(),
           ],
         ),
@@ -150,24 +151,49 @@ class _BottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
           decoration: const BoxDecoration(
-            color: Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
+            color: Color(0x8C050505), // rgba(5,5,5,0.55)
             border: Border(
-              top: BorderSide(color: Color(0x17FFFFFF), width: 0.5),
+              top: BorderSide(color: Color(0x0DFFFFFF), width: 0.5), // rgba(255,255,255,0.05)
             ),
           ),
           child: SafeArea(
             top: false,
-            child: SizedBox(
-              height: 60,
-              child: Row(
-                children: [
-                  _NavTab(icon: Icons.home_rounded,      label: 'Home',     active: selected == 0, onTap: () => onTap(0)),
-                  _NavTab(icon: Icons.smart_toy_rounded,  label: 'Assist',   active: selected == 1, onTap: () => onTap(1)),
-                  _NavTab(icon: Icons.settings_rounded,   label: 'Settings', active: selected == 2, onTap: () => onTap(2)),
-                ],
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(36, 12, 36, 14),
+              child: SizedBox(
+                height: 44,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _NavTab(
+                      icon: Icons.home_outlined,
+                      label: 'Home',
+                      active: selected == 0,
+                      onTap: () => onTap(0),
+                    ),
+                    _NavTab(
+                      icon: Icons.insights_outlined,
+                      label: 'AI assist',
+                      active: selected == 1,
+                      onTap: () => onTap(1),
+                    ),
+                    _NavTab(
+                      icon: Icons.person_outline_rounded,
+                      label: 'Profile',
+                      active: selected == 2,
+                      onTap: () => onTap(2),
+                    ),
+                    _NavTab(
+                      icon: Icons.settings_outlined,
+                      label: 'Settings',
+                      active: selected == 3,
+                      onTap: () => onTap(3),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -191,30 +217,30 @@ class _NavTab extends StatelessWidget {
   });
 
   static const _kGold = Color(0xFFC9A86E);
-  static const _kInactive = Color(0x66FFFFFF); // rgba(255,255,255,0.4)
+  static const _kInactive = Color(0x52FFFFFF); // rgba(255,255,255,0.32)
 
   @override
   Widget build(BuildContext context) {
     final color = active ? _kGold : _kInactive;
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 10,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                color: color,
-              ),
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 21),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: GoogleFonts.instrumentSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w400,
+              color: color,
+              height: 1.1,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

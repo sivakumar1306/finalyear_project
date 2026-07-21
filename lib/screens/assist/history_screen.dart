@@ -104,7 +104,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 Expanded(
                   child: ListView.separated(
                     itemCount: _conversations.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final conv = _conversations[index];
                       final title = conv['title'] ?? 'Conversation';

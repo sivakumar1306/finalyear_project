@@ -5,7 +5,8 @@ import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 
 class ProfileEditScreen extends StatefulWidget {
-  const ProfileEditScreen({super.key});
+  final bool showBackButton;
+  const ProfileEditScreen({super.key, this.showBackButton = true});
 
   @override
   State<ProfileEditScreen> createState() => _ProfileEditScreenState();
@@ -172,10 +173,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       backgroundColor: AppTheme.bg,
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
+        leading: widget.showBackButton
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: Text(
           'Profile',
           style: GoogleFonts.inter(

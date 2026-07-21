@@ -17,6 +17,11 @@ class AppTheme {
   static const Color focus = Color(0xFFE08A4A);
   static const Color base = Color(0xFFC9A86E);
 
+  static const Color goldAccent = Color(0xFFC9A86E);
+  static const Color sleepAwake = Color(0xFFFFE99C);
+  static const Color sleepLight = Color(0xFF9B85FF);
+  static const Color sleepDeep = Color(0xFF6719FE);
+
   static const Color hrColor = Color(0xFFFF4757);
   static const Color bpColor = Color(0xFF818CF8);
   static const Color spo2Color = Color(0xFF38BDF8);

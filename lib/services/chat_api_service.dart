@@ -9,7 +9,7 @@ class ChatApiService {
   static final String baseUrl = kIsWeb
       ? 'http://localhost:8000/api/v1'
       : (Platform.isAndroid
-            ? 'http://10.0.2.2:8000/api/v1'
+            ? 'http://192.168.46.105:8000/api/v1' // Local IP for physical Android device connecting to dev PC
             : 'http://localhost:8000/api/v1');
 
   static String? get _userId => SupabaseService.currentUser?.id;

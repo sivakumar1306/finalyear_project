@@ -1,31 +1,37 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../providers/alarm_mode_provider.dart';
 import '../../services/supabase_service.dart';
+import '../../services/home_card_prefs.dart';
 import '../../theme/app_theme.dart';
 import '../settings/fall_detection_screen.dart';
+import '../settings/card_settings_screen.dart';
 import 'ring_scan_sheet.dart';
+import 'side_panel.dart';
+import '../settings/about_screen.dart';
+import 'package:share_plus/share_plus.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
-const _kSec2       = Color(0xFF888888);
-const _kCardBg     = Color(0x0FFFFFFF);   // rgba(255,255,255,0.06)
-const _kCardBorder = Color(0x17FFFFFF);   // rgba(255,255,255,0.09)
-const _kBtnBg      = Color(0x08FFFFFF);   // rgba(255,255,255,0.03)
-const _kBtnBorder  = Color(0x14FFFFFF);   // rgba(255,255,255,0.08)
+const _kSec2 = Color(0xFF888888);
+const _kCardBg = Color(0x0FFFFFFF); // rgba(255,255,255,0.06)
+const _kCardBorder = Color(0x17FFFFFF); // rgba(255,255,255,0.09)
+const _kBtnBg = Color(0x08FFFFFF); // rgba(255,255,255,0.03)
+const _kBtnBorder = Color(0x14FFFFFF); // rgba(255,255,255,0.08)
 
 // DESIGN.md per-metric orb colors (soft, desaturated)
-const _kOrbHr       = Color(0xFFC96B6B);
-const _kOrbSleep    = Color(0xFF6B82D9);
-const _kOrbStress   = Color(0xFF6BC99B);
-const _kOrbSpo2     = Color(0xFF73D4F8);
-const _kOrbBp       = Color(0xFFD97A7A);
-const _kOrbWomen    = Color(0xFFD88CC8);
+const _kOrbHr = Color(0xFFC96B6B);
+const _kOrbSleep = Color(0xFF6B82D9);
+const _kOrbStress = Color(0xFF6BC99B);
+const _kOrbSpo2 = Color(0xFF73D4F8);
+const _kOrbBp = Color(0xFFD97A7A);
+const _kOrbWomen = Color(0xFFD88CC8);
 const _kOrbActivity = Color(0xFFE08A4A);
-const _kOrbHrv      = Color(0xFFC9A86E);
+const _kOrbHrv = Color(0xFFC9A86E);
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -51,16 +57,24 @@ TextStyle _inter(
   Color color = Colors.white,
   double? letterSpacing,
   double? height,
-}) =>
-    GoogleFonts.inter(
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-      letterSpacing: letterSpacing,
-      height: height,
-    );
+}) => GoogleFonts.inter(
+  fontSize: size,
+  fontWeight: weight,
+  color: color,
+  letterSpacing: letterSpacing,
+  height: height,
+);
 
 // ── Screen ────────────────────────────────────────────────────────────────────
+
+enum HomeCardId {
+  alarmActivity,
+  stress,
+  womensHealth,
+  sleepHrv,
+  bloodOxygenHeartRate,
+  bloodPressure,
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -70,7 +84,17 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _firstName = '';
-  String _gender    = '';
+  String _gender = '';
+  bool _editMode = false;
+  Set<HomeCardId> _hiddenCards = {};
+  List<HomeCardId> _cardOrder = [
+    HomeCardId.alarmActivity,
+    HomeCardId.stress,
+    HomeCardId.womensHealth,
+    HomeCardId.sleepHrv,
+    HomeCardId.bloodOxygenHeartRate,
+    HomeCardId.bloodPressure,
+  ];
 
   @override
   void initState() {
@@ -83,6 +107,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context.read<BleProvider>().checkPendingFallPrediction();
     });
     _loadUserProfile();
+    _loadCardOrder();
+    _loadHiddenCards();
   }
 
   @override
@@ -100,6 +126,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  bool get _isFemale {
+    final g = _gender.trim().toLowerCase();
+    return g == 'female' || g == 'f';
+  }
+
   Future<void> _loadUserProfile() async {
     try {
       final user = SupabaseService.currentUser;
@@ -109,11 +140,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           final fullName = profile['full_name'] as String? ?? '';
           setState(() {
             _firstName = fullName.split(' ').first;
-            _gender    = profile['gender'] as String? ?? '';
+            _gender = profile['gender'] as String? ?? '';
+            _verifyWomensHealthCardVisibility();
           });
+          if (kDebugMode) {
+            debugPrint('DEBUG profile: $profile, parsed _gender: $_gender');
+          }
         }
       }
+    } catch (e, stackTrace) {
+      debugPrint('Error loading user profile: $e\n$stackTrace');
+    }
+  }
+
+  Future<void> _loadCardOrder() async {
+    try {
+      final order = await HomeCardPrefs.loadOrder();
+      setState(() => _cardOrder = order);
     } catch (_) {}
+    _verifyWomensHealthCardVisibility();
+  }
+
+  Future<void> _saveCardOrder() async {
+    await HomeCardPrefs.saveOrder(_cardOrder);
+  }
+
+  Future<void> _loadHiddenCards() async {
+    try {
+      final hidden = await HomeCardPrefs.loadHidden();
+      if (mounted) setState(() => _hiddenCards = hidden);
+    } catch (_) {}
+  }
+
+  void _verifyWomensHealthCardVisibility() {
+    if (_isFemale) {
+      if (!_cardOrder.contains(HomeCardId.womensHealth)) {
+        setState(() {
+          if (_cardOrder.length >= 2) {
+            _cardOrder.insert(2, HomeCardId.womensHealth);
+          } else {
+            _cardOrder.add(HomeCardId.womensHealth);
+          }
+        });
+      }
+    }
   }
 
   String get _greeting {
@@ -126,10 +196,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   String get _dateLabel {
     final now = DateTime.now();
-    const d = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
-    const m = ['JAN','FEB','MAR','APR','MAY','JUN',
-                'JUL','AUG','SEP','OCT','NOV','DEC'];
-    return '${d[now.weekday - 1]} · ${now.day.toString().padLeft(2,'0')} ${m[now.month - 1]}';
+    const d = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+    const m = [
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
+    ];
+    return '${d[now.weekday - 1]} · ${now.day.toString().padLeft(2, '0')} ${m[now.month - 1]}';
   }
 
   static String _spo2Status(int v) {
@@ -165,10 +247,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   static String _activityScoreLabel(int score) {
-    if (score == 0)  return 'Lack of exercise';
-    if (score < 25)  return 'Sedentary';
-    if (score < 50)  return 'Lightly active';
-    if (score < 75)  return 'Moderately active';
+    if (score == 0) return 'Lack of exercise';
+    if (score < 25) return 'Sedentary';
+    if (score < 50) return 'Lightly active';
+    if (score < 75) return 'Moderately active';
     return 'Highly active';
   }
 
@@ -197,19 +279,257 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return AppTheme.danger;
   }
 
+  Widget _buildCardBlock(HomeCardId id, BleProvider ble) {
+    switch (id) {
+      case HomeCardId.alarmActivity:
+        return Row(
+          children: [
+            const Expanded(child: _AlarmCard()),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _ActivityScoreCard(
+                score: _computeActivityScore(
+                  ble.todaySteps,
+                  ble.todayDistanceM,
+                  ble.todayCalories,
+                ),
+                hasData: ble.todaySteps > 0,
+                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/steps'),
+              ),
+            ),
+          ],
+        );
+      case HomeCardId.stress:
+        return _StressCard(
+          value: ble.latestStressValue,
+          avgStress: ble.todayAvgStress,
+          minStress: ble.todayMinStress,
+          maxStress: ble.todayMaxStress,
+          connected: ble.isConnected,
+          onTap: _editMode ? null : () => Navigator.pushNamed(context, '/pressure'),
+        );
+      case HomeCardId.womensHealth:
+        return Row(
+          children: [
+            Expanded(
+              child: _CompactWomensHealthCard(
+                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/womens-health'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _CompactBloodPressureCard(
+                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/blood-pressure'),
+              ),
+            ),
+          ],
+        );
+      case HomeCardId.sleepHrv:
+        return Row(
+          children: [
+            Expanded(
+              child: _HomeCard(
+                label: 'Sleep',
+                value: _sleepDurationLabel(ble.todaySleepDuration),
+                unit: '',
+                status: ble.todaySleepDuration > 0
+                    ? _sleepStatus(ble.todaySleepScore)
+                    : 'No data',
+                statusColor: _sleepStatusColor(ble.todaySleepScore),
+                orbColor: _kOrbSleep,
+                sparkData: const [
+                  0.5, 0.7, 0.9, 0.8, 0.6, 0.4, 0.3, 0.5, 0.7, 0.8, 0.6, 0.4,
+                ],
+                connected: ble.isConnected,
+                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/sleep'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _HomeCard(
+                label: 'HRV',
+                value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
+                unit: ble.todayAvgHrv > 0 ? 'ms' : '',
+                status: _hrvStatus(ble.todayAvgHrv),
+                statusColor: ble.todayAvgHrv > 0 ? _kOrbHrv : _kSec2,
+                orbColor: _kOrbHrv,
+                sparkData: const [
+                  0.5, 0.55, 0.6, 0.58, 0.62, 0.65, 0.6, 0.58, 0.55, 0.6, 0.63, 0.6,
+                ],
+                connected: ble.isConnected,
+                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/hrv'),
+              ),
+            ),
+          ],
+        );
+      case HomeCardId.bloodOxygenHeartRate:
+        return Row(
+          children: [
+            Expanded(
+              child: _HomeCard(
+                label: 'Blood Oxygen',
+                value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
+                unit: ble.todayAvgSpo2 > 0 ? '%' : '',
+                status: ble.todayAvgSpo2 > 0
+                    ? (ble.todayMinSpo2 > 0 && ble.todayMaxSpo2 > 0
+                          ? 'Range: ${ble.todayMinSpo2}-${ble.todayMaxSpo2}%'
+                          : _spo2Status(ble.todayAvgSpo2))
+                    : 'No data',
+                statusColor: ble.todayAvgSpo2 > 0 ? _kOrbSpo2 : _kSec2,
+                orbColor: _kOrbSpo2,
+                sparkData: const [
+                  0.96, 0.97, 0.96, 0.98, 0.97, 0.99, 0.98, 0.97, 0.96, 0.98, 0.97, 0.99,
+                ],
+                connected: ble.isConnected,
+                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/blood-oxygen'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _HomeCard(
+                label: 'Heart Rate',
+                value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
+                unit: ble.todayAvgHr > 0 ? 'bpm' : '',
+                status: ble.todayAvgHr > 0
+                    ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
+                          ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
+                          : _hrStatus(ble.todayAvgHr))
+                    : 'No data',
+                statusColor: ble.todayAvgHr > 0 ? _kOrbHr : _kSec2,
+                orbColor: _kOrbHr,
+                sparkData: const [
+                  0.45, 0.5, 0.55, 0.5, 0.6, 0.55, 0.5, 0.48, 0.52, 0.58, 0.54, 0.5,
+                ],
+                connected: ble.isConnected,
+                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/heart-rate'),
+              ),
+            ),
+          ],
+        );
+      case HomeCardId.bloodPressure:
+        return _HomeCard(
+          label: 'Blood Pressure',
+          value: ble.latestBpSbp > 0
+              ? '${ble.latestBpSbp}/${ble.latestBpDbp}'
+              : '--/--',
+          unit: ble.latestBpSbp > 0 ? 'mmHg' : '',
+          status: ble.latestBpSbp > 0 ? 'Normal' : 'No data',
+          statusColor: ble.latestBpSbp > 0 ? _kOrbBp : _kSec2,
+          orbColor: _kOrbBp,
+          sparkData: const [
+            0.6, 0.65, 0.6, 0.68, 0.65, 0.6, 0.64, 0.67, 0.64, 0.6, 0.65, 0.62,
+          ],
+          connected: ble.isConnected,
+          onTap: _editMode ? null : () => Navigator.pushNamed(context, '/blood-pressure'),
+        );
+    }
+  }
+
+  Widget _buildReorderableList(BuildContext context, BleProvider ble, List<HomeCardId> visibleCardIds) {
+    if (_editMode) {
+      return SliverReorderableList(
+        itemCount: visibleCardIds.length,
+        onReorderItem: (int oldIndex, int newIndex) {
+          setState(() {
+            final HomeCardId item = visibleCardIds.removeAt(oldIndex);
+            visibleCardIds.insert(newIndex, item);
+            
+            // Align the full preferences list _cardOrder with the new order of visible components
+            int visibleIdx = 0;
+            for (int i = 0; i < _cardOrder.length; i++) {
+              if (visibleCardIds.contains(_cardOrder[i])) {
+                _cardOrder[i] = visibleCardIds[visibleIdx++];
+              }
+            }
+          });
+        },
+        proxyDecorator: (Widget child, int index, Animation<double> animation) {
+          return AnimatedBuilder(
+            animation: animation,
+            builder: (context, child) {
+              final double animValue = Curves.easeInOut.transform(animation.value);
+              final double scale = lerpDouble(1.0, 1.03, animValue)!;
+              return Transform.scale(
+                scale: scale,
+                child: Material(
+                  color: Colors.transparent,
+                  elevation: lerpDouble(0, 6, animValue)!,
+                  child: child,
+                ),
+              );
+            },
+            child: child,
+          );
+        },
+        itemBuilder: (context, index) {
+          final id = visibleCardIds[index];
+          return Padding(
+            key: ValueKey(id),
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: IgnorePointer(
+                    child: _buildCardBlock(id, ble),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ReorderableDragStartListener(
+                  index: index,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    child: const Icon(
+                      Icons.drag_indicator_rounded,
+                      color: Colors.white38,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } else {
+      return SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final id = visibleCardIds[index];
+            return Padding(
+              key: ValueKey(id),
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildCardBlock(id, ble),
+            );
+          },
+          childCount: visibleCardIds.length,
+        ),
+      );
+    }
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
+    if (ble.deviceAddress.isEmpty) {
+      return _buildUnboundState(context, ble);
+    }
+    final visibleCardIds = _cardOrder.where((id) {
+      if (id == HomeCardId.womensHealth && !_isFemale) return false;
+      if (_hiddenCards.contains(id)) return false;
+      return true;
+    }).toList();
 
     return RefreshIndicator(
       color: AppTheme.gold,
       backgroundColor: const Color(0xFF111111),
-      onRefresh: () async {
-        await ble.checkConnection();
-        await _loadUserProfile();
-      },
+      onRefresh: _editMode
+          ? () async {}
+          : () async {
+              await ble.checkConnection();
+              await _loadUserProfile();
+            },
       child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
@@ -225,12 +545,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ),
           ),
+          
+          // 1. Banner Section (Always first, static)
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-
-                // ── Fall prediction banner (client demo) ───────────────────
                 if (ble.showFallPredictionBanner) ...[
                   _FallPredictionBanner(
                     hr: ble.fallPredictionHr,
@@ -238,7 +558,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const FallDetectionScreen(initialHighAlert: true),
+                          builder: (_) =>
+                              const FallDetectionScreen(initialHighAlert: true),
                         ),
                       );
                     },
@@ -246,134 +567,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 12),
                 ],
+              ]),
+            ),
+          ),
 
-                // ── Alarms + Activity Score ────────────────────────────────
-                Row(children: [
-                  const Expanded(child: _AlarmCard()),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _ActivityScoreCard(
-                      score: _computeActivityScore(
-                          ble.todaySteps, ble.todayDistanceM, ble.todayCalories),
-                      hasData: ble.todaySteps > 0,
-                      onTap: () => Navigator.pushNamed(context, '/steps'),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 12),
+          // 2. Reorderable / Sequenced list of metrics
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: _buildReorderableList(context, ble, visibleCardIds),
+          ),
 
-                // ── Stress (full-width) ───────────────────────────────────
-                _StressCard(
-                  value: ble.latestStressValue,
-                  avgStress: ble.todayAvgStress,
-                  minStress: ble.todayMinStress,
-                  maxStress: ble.todayMaxStress,
-                  connected: ble.isConnected,
-                  onTap: () => Navigator.pushNamed(context, '/pressure'),
+          // 3. Edit Button & spacing at bottom
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                const SizedBox(height: 8),
+                _EditCardsButton(
+                  editMode: _editMode,
+                  onTap: () {
+                    setState(() {
+                      _editMode = !_editMode;
+                    });
+                    if (!_editMode) {
+                      _saveCardOrder();
+                    }
+                  },
                 ),
-                const SizedBox(height: 12),
-
-                // ── Women's Health (full-width, female only) ──────────────
-                if (_gender.toLowerCase() == 'female') ...[
-                  _WomensHealthCard(
-                    onTap: () => Navigator.pushNamed(context, '/womens-health'),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-
-                // ── Sleep + HRV ─────────────────────────────────────────────
-                // Sport and Temperature cards remain removed (deprioritized) —
-                // re-add once ready.
-                Row(children: [
-                  Expanded(
-                    child: _HomeCard(
-                      label: 'Sleep',
-                      value: _sleepDurationLabel(ble.todaySleepDuration),
-                      unit: '',
-                      status: ble.todaySleepDuration > 0
-                          ? _sleepStatus(ble.todaySleepScore)
-                          : 'No data',
-                      statusColor: _sleepStatusColor(ble.todaySleepScore),
-                      orbColor: _kOrbSleep,
-                      sparkData: const [0.5, 0.7, 0.9, 0.8, 0.6, 0.4, 0.3, 0.5, 0.7, 0.8, 0.6, 0.4],
-                      connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/sleep'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _HomeCard(
-                      label: 'HRV',
-                      value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
-                      unit: ble.todayAvgHrv > 0 ? 'ms' : '',
-                      status: _hrvStatus(ble.todayAvgHrv),
-                      statusColor: ble.todayAvgHrv > 0 ? _kOrbHrv : _kSec2,
-                      orbColor: _kOrbHrv,
-                      sparkData: const [0.5, 0.55, 0.6, 0.58, 0.62, 0.65, 0.6, 0.58, 0.55, 0.6, 0.63, 0.6],
-                      connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/hrv'),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 12),
-
-                // ── Blood Oxygen + Heart Rate ─────────────────────────────
-                Row(children: [
-                  Expanded(
-                    child: _HomeCard(
-                      label: 'Blood Oxygen',
-                      value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
-                      unit: ble.todayAvgSpo2 > 0 ? '%' : '',
-                      status: ble.todayAvgSpo2 > 0
-                          ? (ble.todayMinSpo2 > 0 && ble.todayMaxSpo2 > 0
-                              ? 'Range: ${ble.todayMinSpo2}-${ble.todayMaxSpo2}%'
-                              : _spo2Status(ble.todayAvgSpo2))
-                          : 'No data',
-                      statusColor: ble.todayAvgSpo2 > 0 ? _kOrbSpo2 : _kSec2,
-                      orbColor: _kOrbSpo2,
-                      sparkData: const [0.96, 0.97, 0.96, 0.98, 0.97, 0.99, 0.98, 0.97, 0.96, 0.98, 0.97, 0.99],
-                      connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/blood-oxygen'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _HomeCard(
-                      label: 'Heart Rate',
-                      value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
-                      unit: ble.todayAvgHr > 0 ? 'bpm' : '',
-                      status: ble.todayAvgHr > 0
-                          ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
-                              ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
-                              : _hrStatus(ble.todayAvgHr))
-                          : 'No data',
-                      statusColor: ble.todayAvgHr > 0 ? _kOrbHr : _kSec2,
-                      orbColor: _kOrbHr,
-                      sparkData: const [0.45, 0.5, 0.55, 0.5, 0.6, 0.55, 0.5, 0.48, 0.52, 0.58, 0.54, 0.5],
-                      connected: ble.isConnected,
-                      onTap: () => Navigator.pushNamed(context, '/heart-rate'),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 12),
-
-                // ── Blood Pressure ─────────────────────────────────────────
-                _HomeCard(
-                  label: 'Blood Pressure',
-                  value: ble.latestBpSbp > 0
-                      ? '${ble.latestBpSbp}/${ble.latestBpDbp}'
-                      : '--/--',
-                  unit: ble.latestBpSbp > 0 ? 'mmHg' : '',
-                  status: ble.latestBpSbp > 0 ? 'Normal' : 'No data',
-                  statusColor: ble.latestBpSbp > 0 ? _kOrbBp : _kSec2,
-                  orbColor: _kOrbBp,
-                  sparkData: const [0.6, 0.65, 0.6, 0.68, 0.65, 0.6, 0.64, 0.67, 0.64, 0.6, 0.65, 0.62],
-                  connected: ble.isConnected,
-                  onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
-                ),
-                const SizedBox(height: 20),
-
-                const _EditCardsButton(),
                 const SizedBox(height: 100),
               ]),
             ),
@@ -392,7 +612,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         children: [
           IconButton(
             icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 22),
-            onPressed: () {},
+            onPressed: () => showSidePanel(
+              context: context,
+              fromRight: false,
+              child: SidePanelShell(
+                fromRight: false,
+                icon: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.menu_rounded, color: Colors.white70, size: 22),
+                ),
+                items: [
+                  SidePanelGroup(items: [
+                    SidePanelItem(
+                      label: 'Goal setting',
+                      onTap: () async {
+                        Navigator.pop(context);
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const CardSettingsScreen()),
+                        );
+                        _loadCardOrder();
+                        _loadHiddenCards();
+                      },
+                    ),
+                    SidePanelItem(
+                      label: 'About',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AboutScreen()),
+                        );
+                      },
+                    ),
+                  ]),
+                ],
+              ),
+            ),
           ),
           Expanded(
             child: Center(
@@ -400,8 +656,42 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.more_vert_rounded, color: Colors.white, size: 22),
-            onPressed: () {},
+            icon: const Icon(
+              Icons.more_vert_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
+            onPressed: () => showSidePanel(
+              context: context,
+              fromRight: true,
+              child: SidePanelShell(
+                fromRight: true,
+                icon: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.more_vert_rounded, color: Colors.white70, size: 22),
+                ),
+                items: [
+                  SidePanelGroup(items: [
+                    SidePanelItem(
+                      label: 'Share',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Share.share(
+                          'Check out AlphaHuman — the AI health ring app I use to track my sleep, heart rate, and more.',
+                        );
+                      },
+                    ),
+                    SidePanelItem(
+                      label: 'Pair ring',
+                      onTap: () {
+                        Navigator.pop(context);
+                        showRingScanSheet(context);
+                      },
+                    ),
+                  ]),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -428,9 +718,139 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(width: 12),
-          _DevicePill(ble: ble),
+          if (ble.deviceAddress.isEmpty)
+            _buildPairRingPill(context)
+          else
+            _DevicePill(ble: ble),
         ],
       ),
+    );
+  }
+
+  Widget _buildPairRingPill(BuildContext context) {
+    return GestureDetector(
+      onTap: () => showRingScanSheet(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppTheme.gold.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.gold.withValues(alpha: 0.4), width: 0.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.add, color: AppTheme.gold, size: 14),
+            const SizedBox(width: 4),
+            Text(
+              'Pair Ring',
+              style: _inter(12, weight: FontWeight.w600, color: AppTheme.gold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnboundState(BuildContext context, BleProvider ble) {
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTopBar(context),
+                _buildGreetingRow(ble),
+              ],
+            ),
+          ),
+        ),
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 140,
+                  height: 140,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.gold.withValues(alpha: 0.08),
+                        blurRadius: 40,
+                        spreadRadius: 10,
+                      ),
+                    ],
+                  ),
+                  child: Image.asset('ring.png', fit: BoxFit.contain),
+                ),
+                const SizedBox(height: 32),
+                Text(
+                  "You haven't bound a device yet",
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: RichText(
+                    textAlign: TextAlign.center,
+                    text: TextSpan(
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.white.withValues(alpha: 0.5),
+                        height: 1.5,
+                      ),
+                      children: [
+                        const TextSpan(text: 'Welcome to Alphahuman rings — bought a ring already? Connect your ring. Haven\'t bought one yet? '),
+                        TextSpan(
+                          text: 'Browse our collection.',
+                          style: const TextStyle(
+                            color: AppTheme.gold,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 36),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () => showRingScanSheet(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.gold,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      'Pair Ring',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -439,10 +859,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Text(
         'ALL METRICS  ·  TODAY',
-        style: _inter(11,
-            weight: FontWeight.w700,
-            color: Colors.white.withValues(alpha: 0.38),
-            letterSpacing: 1.5),
+        style: _inter(
+          11,
+          weight: FontWeight.w700,
+          color: Colors.white.withValues(alpha: 0.38),
+          letterSpacing: 1.5,
+        ),
       ),
     );
   }
@@ -487,7 +909,12 @@ class _FallPredictionBanner extends StatelessWidget {
               children: [
                 Text(
                   'FALL PREDICTION',
-                  style: _inter(11, weight: FontWeight.w700, color: accent, letterSpacing: 1.0),
+                  style: _inter(
+                    11,
+                    weight: FontWeight.w700,
+                    color: accent,
+                    letterSpacing: 1.0,
+                  ),
                 ),
                 const Spacer(),
                 Container(
@@ -497,16 +924,27 @@ class _FallPredictionBanner extends StatelessWidget {
                     color: Colors.white.withValues(alpha: 0.08),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 18),
+                  child: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 10),
-            Text('We are concerned ...', style: _inter(20, weight: FontWeight.w600)),
+            Text(
+              'We are concerned ...',
+              style: _inter(20, weight: FontWeight.w600),
+            ),
             const SizedBox(height: 10),
             Text(
               'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.',
-              style: _inter(13, color: Colors.white.withValues(alpha: 0.85), height: 1.45),
+              style: _inter(
+                13,
+                color: Colors.white.withValues(alpha: 0.85),
+                height: 1.45,
+              ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -520,15 +958,27 @@ class _FallPredictionBanner extends StatelessWidget {
                         backgroundColor: Colors.white.withValues(alpha: 0.14),
                         foregroundColor: Colors.white,
                         elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
                       ),
-                      child: Text('Take action', style: _inter(14, weight: FontWeight.w600)),
+                      child: Text(
+                        'Take action',
+                        style: _inter(14, weight: FontWeight.w600),
+                      ),
                     ),
                   ),
                 ),
                 TextButton(
                   onPressed: onIgnore,
-                  child: Text('ignore', style: _inter(14, weight: FontWeight.w600, color: AppTheme.danger)),
+                  child: Text(
+                    'ignore',
+                    style: _inter(
+                      14,
+                      weight: FontWeight.w600,
+                      color: AppTheme.danger,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -556,19 +1006,32 @@ class _ShrinkButtonState extends State<_ShrinkButton>
     vsync: this,
     duration: const Duration(milliseconds: 100),
   );
-  late final Animation<double> _scale =
-      Tween<double>(begin: 1.0, end: 0.96).animate(
-          CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+  late final Animation<double> _scale = Tween<double>(
+    begin: 1.0,
+    end: 0.96,
+  ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown:   (_) { if (widget.onTap != null) _ctrl.forward(); },
-      onTapUp:     (_) { if (widget.onTap != null) { _ctrl.reverse(); widget.onTap!(); } },
-      onTapCancel: ()  { if (widget.onTap != null) _ctrl.reverse(); },
+      onTapDown: (_) {
+        if (widget.onTap != null) _ctrl.forward();
+      },
+      onTapUp: (_) {
+        if (widget.onTap != null) {
+          _ctrl.reverse();
+          widget.onTap!();
+        }
+      },
+      onTapCancel: () {
+        if (widget.onTap != null) _ctrl.reverse();
+      },
       behavior: HitTestBehavior.opaque,
       child: ScaleTransition(scale: _scale, child: widget.child),
     );
@@ -587,6 +1050,7 @@ class _GlassCard extends StatelessWidget {
   final double? orbOffset;
   final double orbAlpha;
   final double orbSize;
+  final EdgeInsetsGeometry? padding;
 
   const _GlassCard({
     required this.orbColor,
@@ -598,6 +1062,7 @@ class _GlassCard extends StatelessWidget {
     this.orbOffset,
     this.orbAlpha = 0.34,
     this.orbSize = 240,
+    this.padding,
   });
 
   @override
@@ -624,7 +1089,7 @@ class _GlassCard extends StatelessWidget {
                 top: orbAtTop ? resolvedOrbOffset : null,
                 bottom: orbAtTop ? null : resolvedOrbOffset,
                 right: orbOnRight ? resolvedOrbOffset : null,
-                left:  orbOnRight ? null : resolvedOrbOffset,
+                left: orbOnRight ? null : resolvedOrbOffset,
                 child: ImageFiltered(
                   imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
                   child: AnimatedContainer(
@@ -644,13 +1109,13 @@ class _GlassCard extends StatelessWidget {
               if (height != null)
                 Positioned.fill(
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: padding ?? const EdgeInsets.all(16),
                     child: child,
                   ),
                 )
               else
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: padding ?? const EdgeInsets.all(16),
                   child: child,
                 ),
             ],
@@ -664,13 +1129,18 @@ class _GlassCard extends StatelessWidget {
 // ── Chevron button (glass) ────────────────────────────────────────────────────
 
 Widget _chevron() => Container(
-  width: 26, height: 26,
+  width: 26,
+  height: 26,
   decoration: BoxDecoration(
     shape: BoxShape.circle,
     color: Colors.white.withValues(alpha: 0.08),
     border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
   ),
-  child: const Icon(Icons.chevron_right_rounded, color: Colors.white54, size: 16),
+  child: const Icon(
+    Icons.chevron_right_rounded,
+    color: Colors.white54,
+    size: 16,
+  ),
 );
 
 // ── Generic half-width metric card ────────────────────────────────────────────
@@ -713,9 +1183,11 @@ class _HomeCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: _inter(13,
-                      weight: FontWeight.w500,
-                      color: Colors.white.withValues(alpha: 0.85)),
+                  style: _inter(
+                    13,
+                    weight: FontWeight.w500,
+                    color: Colors.white.withValues(alpha: 0.85),
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -751,9 +1223,11 @@ class _HomeCard extends StatelessWidget {
                       const SizedBox(width: 3),
                       Text(
                         unit,
-                        style: _inter(11,
-                            weight: FontWeight.w500,
-                            color: Colors.white.withValues(alpha: 0.5)),
+                        style: _inter(
+                          11,
+                          weight: FontWeight.w500,
+                          color: Colors.white.withValues(alpha: 0.5),
+                        ),
                       ),
                     ],
                   ],
@@ -765,9 +1239,7 @@ class _HomeCard extends StatelessWidget {
                 child: SizedBox(
                   height: 28,
                   child: connected
-                      ? CustomPaint(
-                          painter: _SparkPainter(orbColor, sparkData),
-                        )
+                      ? CustomPaint(painter: _SparkPainter(orbColor, sparkData))
                       : const _ConnectHint(compact: true),
                 ),
               ),
@@ -797,9 +1269,30 @@ class _StressCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   static const _barData = [
-    0.30, 0.45, 0.38, 0.52, 0.48, 0.42, 0.55, 0.38, 0.47, 0.35,
-    0.60, 0.55, 0.48, 0.40, 0.35, 0.42, 0.50, 0.45, 0.38, 0.30,
-    0.40, 0.35, 0.28, 0.32,
+    0.30,
+    0.45,
+    0.38,
+    0.52,
+    0.48,
+    0.42,
+    0.55,
+    0.38,
+    0.47,
+    0.35,
+    0.60,
+    0.55,
+    0.48,
+    0.40,
+    0.35,
+    0.42,
+    0.50,
+    0.45,
+    0.38,
+    0.30,
+    0.40,
+    0.35,
+    0.28,
+    0.32,
   ];
 
   const _StressCard({
@@ -814,7 +1307,7 @@ class _StressCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = _stressStatus(value);
-    final color  = _stressColor(value);
+    final color = _stressColor(value);
 
     return _GlassCard(
       orbColor: _kOrbStress,
@@ -828,9 +1321,14 @@ class _StressCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Stress',
-                  style: _inter(15, weight: FontWeight.w500,
-                      color: Colors.white.withValues(alpha: 0.9))),
+              Text(
+                'Stress',
+                style: _inter(
+                  15,
+                  weight: FontWeight.w500,
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+              ),
               _chevron(),
             ],
           ),
@@ -842,12 +1340,16 @@ class _StressCard extends StatelessWidget {
               Text(
                 value > 0 ? '$value' : '--',
                 style: GoogleFonts.inter(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w300,
-                    color: Colors.white.withValues(alpha: 0.95)),
+                  fontSize: 36,
+                  fontWeight: FontWeight.w300,
+                  color: Colors.white.withValues(alpha: 0.95),
+                ),
               ),
               const SizedBox(width: 8),
-              Text(status, style: _inter(13, color: color, weight: FontWeight.w500)),
+              Text(
+                status,
+                style: _inter(13, color: color, weight: FontWeight.w500),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -859,7 +1361,7 @@ class _StressCard extends StatelessWidget {
                 : const _ConnectHint(),
           ),
           const SizedBox(height: 16),
-          
+
           // Horizontal Divider added here
           Container(
             height: 1,
@@ -867,52 +1369,81 @@ class _StressCard extends StatelessWidget {
             color: Colors.white.withValues(alpha: 0.08),
           ),
           const SizedBox(height: 12),
-          
+
           Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center, // Centered
                   children: [
-                    Text('Daily Average',
-                        style: _inter(11,
-                            color: Colors.white.withValues(alpha: 0.4),
-                            weight: FontWeight.w500)),
+                    Text(
+                      'Daily Average',
+                      style: _inter(
+                        11,
+                        color: Colors.white.withValues(alpha: 0.4),
+                        weight: FontWeight.w500,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text(avgStress > 0 ? '$avgStress' : '--',
-                        style: GoogleFonts.inter(
-                            fontSize: 22, // Increased size to match design
-                            fontWeight: FontWeight.w300, // Thinner font weight
-                            color: Colors.white.withValues(alpha: 0.95))),
+                    Text(
+                      avgStress > 0 ? '$avgStress' : '--',
+                      style: GoogleFonts.inter(
+                        fontSize: 22, // Increased size to match design
+                        fontWeight: FontWeight.w300, // Thinner font weight
+                        color: Colors.white.withValues(alpha: 0.95),
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text(_stressStatus(avgStress),
-                        style: _inter(11,
-                            color: Colors.white.withValues(alpha: 0.5), // Muted grey instead of active color
-                            weight: FontWeight.w400)),
+                    Text(
+                      _stressStatus(avgStress),
+                      style: _inter(
+                        11,
+                        color: Colors.white.withValues(
+                          alpha: 0.5,
+                        ), // Muted grey instead of active color
+                        weight: FontWeight.w400,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Container(width: 1, height: 40,
-                  color: Colors.white.withValues(alpha: 0.08)),
+              Container(
+                width: 1,
+                height: 40,
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center, // Centered
                   children: [
-                    Text('Daily Range',
-                        style: _inter(11,
-                            color: Colors.white.withValues(alpha: 0.4),
-                            weight: FontWeight.w500)),
+                    Text(
+                      'Daily Range',
+                      style: _inter(
+                        11,
+                        color: Colors.white.withValues(alpha: 0.4),
+                        weight: FontWeight.w500,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text(maxStress > 0 ? '$minStress-$maxStress' : '--',
-                        style: GoogleFonts.inter(
-                            fontSize: 22, // Increased size to match design
-                            fontWeight: FontWeight.w300, // Thinner font weight
-                            color: Colors.white.withValues(alpha: 0.95))),
+                    Text(
+                      maxStress > 0 ? '$minStress-$maxStress' : '--',
+                      style: GoogleFonts.inter(
+                        fontSize: 22, // Increased size to match design
+                        fontWeight: FontWeight.w300, // Thinner font weight
+                        color: Colors.white.withValues(alpha: 0.95),
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text(_stressStatus(maxStress),
-                        style: _inter(11,
-                            color: Colors.white.withValues(alpha: 0.5), // Muted grey instead of active color
-                            weight: FontWeight.w400)),
+                    Text(
+                      _stressStatus(maxStress),
+                      style: _inter(
+                        11,
+                        color: Colors.white.withValues(
+                          alpha: 0.5,
+                        ), // Muted grey instead of active color
+                        weight: FontWeight.w400,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -951,15 +1482,23 @@ class _ActivityScoreCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Activity',
-                  style: _inter(15,
-                      weight: FontWeight.w500,
-                      color: Colors.white.withValues(alpha: 0.9))),
+              Text(
+                'Activity',
+                style: _inter(
+                  15,
+                  weight: FontWeight.w500,
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+              ),
               _chevron(),
             ],
           ),
           const SizedBox(height: 12),
-          Divider(color: Colors.white.withValues(alpha: 0.08), height: 1, thickness: 0.5),
+          Divider(
+            color: Colors.white.withValues(alpha: 0.08),
+            height: 1,
+            thickness: 0.5,
+          ),
           const Spacer(),
           Text(
             hasData ? '$score' : '--',
@@ -988,16 +1527,37 @@ class _AlarmModeInfo {
   final String segmentLabel;
   final Color color;
   final IconData icon;
-  const _AlarmModeInfo(this.title, this.subtitle, this.segmentLabel, this.color, this.icon);
+  const _AlarmModeInfo(
+    this.title,
+    this.subtitle,
+    this.segmentLabel,
+    this.color,
+    this.icon,
+  );
 }
 
 const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
   PhoneMode.focus: _AlarmModeInfo(
-      'Focus', 'Until 13:00', 'Focus', AppTheme.focus, Icons.adjust_rounded),
+    'Focus',
+    'Until 13:00',
+    'Focus',
+    AppTheme.focus,
+    Icons.adjust_rounded,
+  ),
   PhoneMode.base: _AlarmModeInfo(
-      'Normal', 'All alerts on', 'Base', AppTheme.base, Icons.circle_outlined),
+    'Normal',
+    'All alerts on',
+    'Base',
+    AppTheme.base,
+    Icons.circle_outlined,
+  ),
   PhoneMode.prayer: _AlarmModeInfo(
-      'Prayer mode', 'Dhuhr 13:14', 'Prayer', AppTheme.success, Icons.self_improvement_rounded),
+    'Prayer mode',
+    'Dhuhr 13:14',
+    'Prayer',
+    AppTheme.success,
+    Icons.self_improvement_rounded,
+  ),
 };
 
 class _AlarmCard extends StatelessWidget {
@@ -1015,6 +1575,7 @@ class _AlarmCard extends StatelessWidget {
       orbSize: 260,
       orbOffset: -80,
       orbAlpha: 0.4,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1032,11 +1593,16 @@ class _AlarmCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('ALARMS',
-                          style: _inter(11,
-                              weight: FontWeight.w700,
-                              color: info.color, // Matched to screenshot (colors dynamically change per mode)
-                              letterSpacing: 1.2)),
+                      Text(
+                        'ALARMS',
+                        style: _inter(
+                          11,
+                          weight: FontWeight.w700,
+                          color: info
+                              .color, // Matched to screenshot (colors dynamically change per mode)
+                          letterSpacing: 1.2,
+                        ),
+                      ),
                       _chevron(),
                     ],
                   ),
@@ -1054,16 +1620,21 @@ class _AlarmCard extends StatelessWidget {
                         Text(
                           info.title,
                           style: GoogleFonts.inter(
-                              fontSize: 24, 
-                              fontWeight: FontWeight.w500,
-                              color: info.color),
+                            fontSize: 24,
+                            fontWeight: FontWeight.w500,
+                            color: info.color,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
-                        Text(info.subtitle,
-                            style: _inter(13,
-                                color: Colors.white.withValues(alpha: 0.6))),
+                        Text(
+                          info.subtitle,
+                          style: _inter(
+                            13,
+                            color: Colors.white.withValues(alpha: 0.6),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1071,7 +1642,7 @@ class _AlarmCard extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           _AlarmModeSelector(
             mode: mode,
             onChanged: (m) => requestPhoneMode(context, provider, m),
@@ -1093,21 +1664,25 @@ class _AlarmModeSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 162, // Specified width
+      width: double.infinity, // Responsive width
       height: 46, // Specified height
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: _kBtnBg,
-        borderRadius: BorderRadius.circular(23), // Fully rounded ends matching the visual pill shape
+        borderRadius: BorderRadius.circular(
+          23,
+        ), // Fully rounded ends matching the visual pill shape
         border: Border.all(color: _kBtnBorder, width: 0.5),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: PhoneMode.values.map((m) {
-          return _AlarmSegment(
-            mode: m,
-            selected: m == mode,
-            onTap: () => onChanged(m),
+          return Expanded(
+            child: _AlarmSegment(
+              mode: m,
+              selected: m == mode,
+              onTap: () => onChanged(m),
+            ),
           );
         }).toList(),
       ),
@@ -1120,7 +1695,11 @@ class _AlarmSegment extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _AlarmSegment({required this.mode, required this.selected, required this.onTap});
+  const _AlarmSegment({
+    required this.mode,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1133,23 +1712,32 @@ class _AlarmSegment extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOut,
-        width: 46.66, // Specified width
-        height: 40, // Specified height
+        height: 40, // Removed fixed width to allow expansion within Expanded
         decoration: BoxDecoration(
           color: info.color.withValues(alpha: selected ? 0.16 : 0),
-          borderRadius: BorderRadius.circular(20), // Highly rounded individual selected states
-          border: Border.all(color: info.color.withValues(alpha: selected ? 0.5 : 0), width: 1),
+          borderRadius: BorderRadius.circular(
+            20,
+          ), // Highly rounded individual selected states
+          border: Border.all(
+            color: info.color.withValues(alpha: selected ? 0.5 : 0),
+            width: 1,
+          ),
         ),
         alignment: Alignment.center,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center, // Vertically center icon and text
+          mainAxisAlignment:
+              MainAxisAlignment.center, // Vertically center icon and text
           children: [
             Icon(info.icon, size: 14, color: color), // Specified icon size
             const SizedBox(height: 2), // Small gap between icon and text
             Text(
               info.segmentLabel,
-              style: _inter(10, weight: FontWeight.w500, color: color), // Specified text size
+              style: _inter(
+                10,
+                weight: FontWeight.w500,
+                color: color,
+              ), // Specified text size
             ),
           ],
         ),
@@ -1159,18 +1747,136 @@ class _AlarmSegment extends StatelessWidget {
 }
 // ── Women's Health card ───────────────────────────────────────────────────────
 
-class _WomensHealthCard extends StatefulWidget {
+// ── Compact health card widgets ──────────────────────────────────────────────
+
+class _CompactHealthCard extends StatelessWidget {
+  final String title;
+  final Color orbColor;
+  final bool orbOnRight;
   final VoidCallback? onTap;
-  const _WomensHealthCard({this.onTap});
+  final Widget child;
+
+  const _CompactHealthCard({
+    required this.title,
+    required this.orbColor,
+    required this.child,
+    this.orbOnRight = true,
+    this.onTap,
+  });
 
   @override
-  State<_WomensHealthCard> createState() => _WomensHealthCardState();
+  Widget build(BuildContext context) {
+    return _ShrinkButton(
+      onTap: onTap,
+      child: Container(
+        height: 160,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: const Color.fromRGBO(245, 240, 226, 0.06),
+          border: Border.all(
+            color: const Color.fromRGBO(245, 240, 226, 0.09),
+            width: 0.5,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(17.5),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Stack(
+              children: [
+                // Orb
+                Positioned(
+                  top: -40,
+                  left: orbOnRight ? null : -40,
+                  right: orbOnRight ? -40 : null,
+                  child: ImageFiltered(
+                    imageFilter: ImageFilter.blur(sigmaX: 35, sigmaY: 35),
+                    child: Container(
+                      width: 220,
+                      height: 220,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: orbColor.withValues(alpha: 0.35),
+                      ),
+                    ),
+                  ),
+                ),
+                // Content
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: _inter(
+                                14,
+                                weight: FontWeight.w500,
+                                color: Colors.white.withValues(alpha: 0.95),
+                                letterSpacing: -0.01,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withValues(alpha: 0.06),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.chevron_right_rounded,
+                              color: Colors.white70,
+                              size: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // Divider
+                      Container(
+                        height: 0.5,
+                        width: double.infinity,
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
+                      const SizedBox(height: 8),
+                      // Main content filling remaining space
+                      Expanded(child: child),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _WomensHealthCardState extends State<_WomensHealthCard> {
-  int _cycleDay    = 0;
+class _CompactWomensHealthCard extends StatefulWidget {
+  final VoidCallback? onTap;
+  const _CompactWomensHealthCard({this.onTap});
+
+  @override
+  State<_CompactWomensHealthCard> createState() => _CompactWomensHealthCardState();
+}
+
+class _CompactWomensHealthCardState extends State<_CompactWomensHealthCard> {
+  int _cycleDay = 0;
   int _cycleLength = 28;
-  int _periodLen   = 5;
+  int _periodLen = 5;
 
   @override
   void initState() {
@@ -1185,16 +1891,21 @@ class _WomensHealthCardState extends State<_WomensHealthCard> {
       final rows = await SupabaseService.getCycles(user.id);
       if (rows.isEmpty || !mounted) return;
       final row = rows.first;
-      final periodStart  = DateTime.parse(row['period_start'] as String);
-      final cycleLength  = (row['cycle_length'] as num? ?? 28).toInt();
+      final periodStart = DateTime.parse(row['period_start'] as String);
+      final cycleLength = (row['cycle_length'] as num? ?? 28).toInt();
       final periodLength = (row['period_length'] as num? ?? 5).toInt();
       final day = DateTime.now().difference(periodStart).inDays + 1;
       setState(() {
-        _cycleDay    = day.clamp(1, cycleLength);
+        _cycleDay = day.clamp(1, cycleLength);
         _cycleLength = cycleLength;
-        _periodLen   = periodLength;
+        _periodLen = periodLength;
       });
-    } catch (_) {}
+      if (kDebugMode) {
+        debugPrint('DEBUG: Loaded cycle day: $_cycleDay, cycleLength: $_cycleLength, periodLength: $_periodLen');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('Error loading cycle data in compact card: $e\n$stackTrace');
+    }
   }
 
   String get _phaseName {
@@ -1205,94 +1916,110 @@ class _WomensHealthCardState extends State<_WomensHealthCard> {
     return 'Luteal';
   }
 
-  String get _footerText {
-    if (_cycleDay <= 0) return 'No cycle data logged yet';
-    final daysLeft = _cycleLength - _cycleDay;
-    if (_cycleDay <= _periodLen) return 'Period · ${_periodLen - _cycleDay + 1} days left';
-    if (_cycleDay <= 16) return 'Fertile window · $daysLeft days to next';
-    return 'Next period in $daysLeft days';
-  }
-
   @override
   Widget build(BuildContext context) {
-    return _GlassCard(
-      orbColor: _kOrbWomen,
+    return _CompactHealthCard(
+      title: 'Women\'s Health',
+      orbColor: const Color.fromRGBO(216, 96, 200, 0.32),
       orbOnRight: true,
       onTap: widget.onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            _cycleDay > 0 ? 'Day $_cycleDay' : 'Day --',
+            style: GoogleFonts.inter(
+              fontSize: 34,
+              fontWeight: FontWeight.w200,
+              color: Colors.white.withValues(alpha: 0.98),
+              letterSpacing: -0.005,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _phaseName,
+            style: _inter(
+              12,
+              weight: FontWeight.w500,
+              color: const Color(0xFFE8867F),
+              letterSpacing: -0.005,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactBloodPressureCard extends StatelessWidget {
+  final VoidCallback? onTap;
+  const _CompactBloodPressureCard({this.onTap});
+
+  String _bpCompactStatus(int sbp, int dbp) {
+    if (sbp <= 0 || dbp <= 0) return 'No data';
+    if (sbp < 120 && dbp < 80) return 'Normal';
+    if (sbp < 130 && dbp < 80) return 'Elevated';
+    if (sbp < 140 || dbp < 90) return 'Stage 1';
+    return 'Stage 2';
+  }
+
+  Color _bpCompactStatusColor(int sbp, int dbp) {
+    if (sbp <= 0 || dbp <= 0) return _kSec2;
+    if (sbp < 120 && dbp < 80) return AppTheme.success;
+    if (sbp < 130 && dbp < 80) return const Color(0xFFFBBF24);
+    if (sbp < 140 || dbp < 90) return AppTheme.stressColor;
+    return AppTheme.danger;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ble = context.watch<BleProvider>();
+    final sbp = ble.latestBpSbp;
+    final dbp = ble.latestBpDbp;
+    final hasData = sbp > 0 && dbp > 0;
+
+    return _CompactHealthCard(
+      title: 'Blood Pressure',
+      orbColor: const Color.fromRGBO(216, 101, 96, 0.32),
+      orbOnRight: true,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.nightlight_round,
-                      color: _kOrbWomen, size: 13),
-                  const SizedBox(width: 5),
-                  Text('CYCLE',
-                      style: _inter(11,
-                          weight: FontWeight.w700,
-                          color: _kOrbWomen,
-                          letterSpacing: 1.2)),
-                ],
-              ),
-              _chevron(),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(
-                  _phaseName,
-                  style: _inter(18,
-                      weight: FontWeight.w600,
-                      color: Colors.white.withValues(alpha: 0.95)),
+              Text(
+                hasData ? '$sbp' : '--',
+                style: GoogleFonts.inter(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w200,
+                  color: Colors.white.withValues(alpha: 0.98),
+                  letterSpacing: -0.005,
                 ),
               ),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Day ',
-                      style: _inter(13,
-                          color: Colors.white.withValues(alpha: 0.45)),
-                    ),
-                    TextSpan(
-                      text: _cycleDay > 0 ? '$_cycleDay' : '--',
-                      style: GoogleFonts.inter(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w200,
-                        color: Colors.white.withValues(alpha: 0.95),
-                      ),
-                    ),
-                  ],
+              Text(
+                hasData ? '/$dbp' : '/--',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w300,
+                  color: Colors.white.withValues(alpha: 0.6),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 24,
-            width: double.infinity,
-            child: _cycleDay > 0
-                ? CustomPaint(
-                    painter: _CycleBarPainter(
-                      currentDay: _cycleDay,
-                      cycleLength: _cycleLength,
-                      periodLength: _periodLen,
-                    ),
-                  )
-                : const SizedBox(),
-          ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
           Text(
-            _footerText,
-            style: _inter(11, color: Colors.white.withValues(alpha: 0.4)),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            _bpCompactStatus(sbp, dbp),
+            style: _inter(
+              12,
+              weight: FontWeight.w500,
+              color: _bpCompactStatusColor(sbp, dbp),
+              letterSpacing: -0.005,
+            ),
           ),
         ],
       ),
@@ -1308,9 +2035,9 @@ class _DevicePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final connected    = ble.isConnected;
+    final connected = ble.isConnected;
     final reconnecting = ble.isReconnecting;
-    final battery      = ble.battery;
+    final battery = ble.battery;
 
     return GestureDetector(
       onTap: () => showRingScanSheet(context),
@@ -1330,13 +2057,17 @@ class _DevicePill extends StatelessWidget {
               children: [
                 if (reconnecting)
                   const SizedBox(
-                    width: 7, height: 7,
+                    width: 7,
+                    height: 7,
                     child: CircularProgressIndicator(
-                        strokeWidth: 1.5, color: AppTheme.gold),
+                      strokeWidth: 1.5,
+                      color: AppTheme.gold,
+                    ),
                   )
                 else
                   Container(
-                    width: 7, height: 7,
+                    width: 7,
+                    height: 7,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: connected
@@ -1357,16 +2088,20 @@ class _DevicePill extends StatelessWidget {
                     battery > 60
                         ? Icons.battery_full_rounded
                         : battery > 30
-                            ? Icons.battery_3_bar_rounded
-                            : Icons.battery_1_bar_rounded,
+                        ? Icons.battery_3_bar_rounded
+                        : Icons.battery_1_bar_rounded,
                     color: battery > 20
                         ? Colors.white.withValues(alpha: 0.5)
                         : AppTheme.danger,
                     size: 14,
                   ),
-                  Text('$battery%',
-                      style: _inter(11,
-                          color: Colors.white.withValues(alpha: 0.5))),
+                  Text(
+                    '$battery%',
+                    style: _inter(
+                      11,
+                      color: Colors.white.withValues(alpha: 0.5),
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -1388,20 +2123,27 @@ class _ConnectHint extends StatelessWidget {
     if (compact) {
       return Align(
         alignment: Alignment.centerRight,
-        child: Icon(Icons.bluetooth_disabled_rounded,
-            size: 16, color: Colors.white.withValues(alpha: 0.2)),
+        child: Icon(
+          Icons.bluetooth_disabled_rounded,
+          size: 16,
+          color: Colors.white.withValues(alpha: 0.2),
+        ),
       );
     }
     return SizedBox(
       height: 26,
       child: Row(
         children: [
-          Icon(Icons.bluetooth_disabled_rounded,
-              size: 11, color: Colors.white.withValues(alpha: 0.2)),
+          Icon(
+            Icons.bluetooth_disabled_rounded,
+            size: 11,
+            color: Colors.white.withValues(alpha: 0.2),
+          ),
           const SizedBox(width: 5),
-          Text('Connect Ring to Track',
-              style: _inter(10,
-                  color: Colors.white.withValues(alpha: 0.3))),
+          Text(
+            'Connect Ring to Track',
+            style: _inter(10, color: Colors.white.withValues(alpha: 0.3)),
+          ),
         ],
       ),
     );
@@ -1411,12 +2153,18 @@ class _ConnectHint extends StatelessWidget {
 // ── Edit Cards button ─────────────────────────────────────────────────────────
 
 class _EditCardsButton extends StatelessWidget {
-  const _EditCardsButton();
+  final bool editMode;
+  final VoidCallback onTap;
+
+  const _EditCardsButton({
+    required this.editMode,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return _ShrinkButton(
-      onTap: () {},
+      onTap: onTap,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: BackdropFilter(
@@ -1431,10 +2179,12 @@ class _EditCardsButton extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                'Edit Cards',
-                style: _inter(14,
-                    weight: FontWeight.w500,
-                    color: Colors.white.withValues(alpha: 0.5)),
+                editMode ? 'Done' : 'Edit Cards',
+                style: _inter(
+                  14,
+                  weight: FontWeight.w500,
+                  color: editMode ? AppTheme.gold : Colors.white.withValues(alpha: 0.5),
+                ),
               ),
             ),
           ),
@@ -1463,8 +2213,8 @@ class _SparkPainter extends CustomPainter {
       if (i == 0) {
         path.moveTo(x, y);
       } else {
-        final px  = (i - 1) * step;
-        final py  = size.height - data[i - 1] * size.height * 0.9;
+        final px = (i - 1) * step;
+        final py = size.height - data[i - 1] * size.height * 0.9;
         final cpx = (px + x) / 2;
         path.cubicTo(cpx, py, cpx, y, x, y);
       }
@@ -1496,9 +2246,9 @@ class _BarChartPainter extends CustomPainter {
     final barW = (size.width / data.length) - 2;
 
     for (int i = 0; i < data.length; i++) {
-      final x   = i * (barW + 2);
-      final h   = data[i] * size.height;
-      final y   = size.height - h;
+      final x = i * (barW + 2);
+      final h = data[i] * size.height;
+      final y = size.height - h;
 
       // Color ramp: low = green orb, mid = yellow, high = red
       final Color barColor;
@@ -1540,9 +2290,9 @@ class _CycleBarPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const barH   = 4.0;
+    const barH = 4.0;
     const radius = Radius.circular(2);
-    final barY   = size.height - barH - 6;
+    final barY = size.height - barH - 6;
 
     canvas.drawRRect(
       RRect.fromLTRBR(0, barY, size.width, barY + barH, radius),
@@ -1557,7 +2307,7 @@ class _CycleBarPainter extends CustomPainter {
     );
 
     final double ovStart = dayW * 12;
-    final double ovEnd   = dayW * 16;
+    final double ovEnd = dayW * 16;
     canvas.drawRect(
       Rect.fromLTRB(ovStart, barY, ovEnd, barY + barH),
       Paint()..color = _kOrbWomen.withValues(alpha: 0.8),

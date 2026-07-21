@@ -84,6 +84,11 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.time.LocalDate
 import java.time.ZoneId
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.core.content.ContextCompat
 
 class BlePlugin(private val context: Context) {
 
@@ -307,6 +312,7 @@ class BlePlugin(private val context: Context) {
             "simulateFallRiskTrigger"    -> simulateFallRiskTrigger(result)
             "simulateFallPrediction"     -> simulateFallPrediction(result)
             "consumeFallPredictionFlag"  -> consumeFallPredictionFlag(result)
+            "placeEmergencyCall"         -> placeEmergencyCall(call, result)
             else                         -> result.notImplemented()
         }
     }
@@ -1979,6 +1985,33 @@ class BlePlugin(private val context: Context) {
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
             }
+        }
+    }
+
+    private fun placeEmergencyCall(call: MethodCall, result: MethodChannel.Result) {
+        val phone = call.argument<String>("phone")
+        if (phone.isNullOrBlank()) {
+            result.error("NO_PHONE", "No phone number provided", null)
+            return
+        }
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.CALL_PHONE
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!hasPermission) {
+            result.error("NO_PERMISSION", "CALL_PHONE permission not granted", null)
+            return
+        }
+
+        try {
+            val intent = Intent(Intent.ACTION_CALL).apply {
+                data = Uri.parse("tel:$phone")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+            result.success(true)
+        } catch (e: Exception) {
+            result.error("CALL_FAILED", e.message, null)
         }
     }
 

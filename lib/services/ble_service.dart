@@ -363,6 +363,11 @@ class BleService {
   Future<String> consumeFallPredictionFlag() async =>
       await _methodChannel.invokeMethod<String>('consumeFallPredictionFlag') ?? '{"pending":false,"hr":0}';
 
+  Future<bool> placeEmergencyCall(String phone) async {
+    final result = await _methodChannel.invokeMethod<bool>('placeEmergencyCall', {'phone': phone});
+    return result ?? false;
+  }
+
   /// Emergency contacts — persisted natively (Room), not Flutter widget state, so a future
   /// caregiver-push or notification action can read them without the Dart engine running.
   Future<String> getEmergencyContacts() async =>

@@ -1,6 +1,12 @@
+import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../services/chat_api_service.dart';
 import '../../theme/app_theme.dart';
+import 'voice_listening_sheet.dart';
+import 'insights_header.dart';
+import 'sleep_highlights_card.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -12,10 +18,17 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<Map<String, String>> _messages = [];
+  final List<Map<String, dynamic>> _messages = [];
   bool _isLoading = false;
   String? _conversationId;
   String _errorMessage = '';
+
+  void _startVoiceInput() async {
+    final transcript = await VoiceListeningSheet.show(context);
+    if (transcript != null && transcript.isNotEmpty) {
+      _sendMessage(transcript);
+    }
+  }
 
   void _sendMessage([String? suggestion]) async {
     final text = suggestion ?? _controller.text.trim();
@@ -35,6 +48,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _messages.add({
           'role': 'assistant',
           'content': result['reply'] ?? 'No response received.',
+          'card': result['card'],
         });
         _conversationId = result['conversation_id'];
         _isLoading = false;
@@ -62,263 +76,306 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+
     return Scaffold(
       backgroundColor: AppTheme.bg,
-      appBar: AppBar(
-        backgroundColor: AppTheme.bg,
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
+      appBar: null, // Removed standard AppBar to match Figma design
+      resizeToAvoidBottomInset: true, // Allow standard resizing; we scroll the header out of the way dynamically
+      body: SafeArea(
+        bottom: false, // Let input bar handle its own bottom padding dynamically to avoid keyboard overflow
+        child: Column(
           children: [
-            Icon(Icons.smart_toy_rounded, color: AppTheme.gold, size: 22),
-            SizedBox(width: 8),
-            Text(
-              'AI Assist',
-              style: TextStyle(
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        centerTitle: false,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: AppTheme.div),
-        ),
-      ),
-      body: Column(
-        children: [
-          if (_errorMessage.isNotEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              color: AppTheme.danger.withValues(alpha: 0.15),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    color: AppTheme.danger,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _errorMessage,
-                      style: const TextStyle(
-                        color: AppTheme.danger,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => setState(() => _errorMessage = ''),
-                    child: const Icon(
-                      Icons.close,
+            // Error Message Banner (if any)
+            if (_errorMessage.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                color: AppTheme.danger.withValues(alpha: 0.15),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
                       color: AppTheme.danger,
                       size: 16,
                     ),
-                  ),
-                ],
-              ),
-            ),
-          Expanded(
-            child: _messages.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: AppTheme.gold.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.smart_toy_rounded,
-                            size: 48,
-                            color: AppTheme.gold,
-                          ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _errorMessage,
+                        style: const TextStyle(
+                          color: AppTheme.danger,
+                          fontSize: 13,
                         ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'AI Assist',
-                          style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Ask me anything about your health',
-                          style: TextStyle(
-                            color: AppTheme.textSec,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        _SuggestionChip(
-                          text: 'How does my sleep look this week?',
-                          onTap: _sendMessage,
-                        ),
-                        const SizedBox(height: 8),
-                        _SuggestionChip(
-                          text: 'I have a headache',
-                          onTap: _sendMessage,
-                        ),
-                        const SizedBox(height: 8),
-                        _SuggestionChip(
-                          text: 'What vitamins should I take?',
-                          onTap: _sendMessage,
-                        ),
-                      ],
+                      ),
                     ),
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _messages.length + (_isLoading ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == _messages.length) {
-                        return Align(
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(vertical: 6),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: AppTheme.card,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: AppTheme.div),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _dot(),
-                                const SizedBox(width: 4),
-                                _dot(),
-                                const SizedBox(width: 4),
-                                _dot(),
-                              ],
-                            ),
-                          ),
-                        );
-                      }
-                      final msg = _messages[index];
-                      final isUser = msg['role'] == 'user';
-                      return Align(
-                        alignment: isUser
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.78,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isUser ? AppTheme.gold : AppTheme.card,
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(16),
-                              topRight: const Radius.circular(16),
-                              bottomLeft: Radius.circular(isUser ? 16 : 4),
-                              bottomRight: Radius.circular(isUser ? 4 : 16),
-                            ),
-                            border: isUser
-                                ? null
-                                : Border.all(color: AppTheme.div),
-                          ),
-                          child: Column(
+                    GestureDetector(
+                      onTap: () => setState(() => _errorMessage = ''),
+                      child: const Icon(
+                        Icons.close,
+                        color: AppTheme.danger,
+                        size: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Messages Area / Suggestion Chips / Header
+            Expanded(
+              child: _messages.isEmpty
+                  ? _buildEmptyState()
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                      // Add 1 to count to include the InsightsHeader as item 0
+                      itemCount: _messages.length + (_isLoading ? 1 : 0) + 1,
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (!isUser)
-                                const Padding(
-                                  padding: EdgeInsets.only(bottom: 6),
-                                  child: Text(
-                                    'AI ASSIST',
-                                    style: TextStyle(
-                                      color: AppTheme.gold,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1,
-                                    ),
-                                  ),
-                                ),
-                              Text(
-                                msg['content']!,
-                                style: TextStyle(
-                                  color: isUser
-                                      ? Colors.black
-                                      : AppTheme.textPrimary,
-                                  fontSize: 15,
+                              const InsightsHeader(),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 18, bottom: 14),
+                                child: Container(
+                                  height: 0.5,
+                                  color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                          );
+                        }
+
+                        // Adjust index because of the header at index 0
+                        final int msgIndex = index - 1;
+
+                        if (msgIndex == _messages.length) {
+                          // Typing loading indicator (aligned left)
+                          return Align(
+                            alignment: Alignment.centerLeft,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 6, bottom: 4),
+                                  child: Text(
+                                    'AH ASSIST',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w500,
+                                      letterSpacing: 0.12 * 10,
+                                      color: const Color(0x66FFFFFF), // rgba(255,255,255,0.4)
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  margin: const EdgeInsets.symmetric(vertical: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
+                                    border: Border.all(
+                                      color: const Color(0x12FFFFFF), // rgba(255,255,255,0.07)
+                                      width: 1,
+                                    ),
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(6),
+                                      topRight: Radius.circular(28),
+                                      bottomLeft: Radius.circular(18),
+                                      bottomRight: Radius.circular(18),
+                                    ),
+                                  ),
+                                  child: const _ChatLoadingIndicator(),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        final msg = _messages[msgIndex];
+                        final isUser = msg['role'] == 'user';
+
+                        if (isUser) {
+                          return _buildUserBubble(context, msg['content'] ?? '');
+                        } else {
+                          final String content = msg['content'] ?? '';
+                          final card = msg['card'];
+                          return Align(
+                            alignment: Alignment.centerLeft,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (content.isNotEmpty)
+                                  _buildAssistantBubble(context, content),
+                                if (card != null && card['type'] == 'sleep_highlights') ...[
+                                  const SizedBox(height: 8),
+                                  SleepHighlightsCard(data: card['data']),
+                                ],
+                              ],
+                            ),
+                          );
+                        }
+                      },
+                    ),
+            ),
+
+            // Input Bar
+            _buildInputBar(isKeyboardOpen),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return ListView(
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      children: [
+        const InsightsHeader(),
+        Padding(
+          padding: const EdgeInsets.only(top: 18, bottom: 14),
+          child: Container(
+            height: 0.5,
+            color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
+          ),
+        ),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: Color(0x14C9A86E), // rgba(201,168,110,0.08)
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.smart_toy_rounded,
+                size: 48,
+                color: AppTheme.goldAccent,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'AI Assist',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Ask me anything about your health',
+              style: GoogleFonts.inter(
+                color: const Color(0x85FFFFFF), // rgba(255,255,255,0.52)
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 24),
+            _SuggestionChip(
+              text: 'How does my sleep look this week?',
+              onTap: _sendMessage,
+            ),
+            const SizedBox(height: 8),
+            _SuggestionChip(
+              text: 'I have a headache',
+              onTap: _sendMessage,
+            ),
+            const SizedBox(height: 8),
+            _SuggestionChip(
+              text: 'What vitamins should I take?',
+              onTap: _sendMessage,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUserBubble(BuildContext context, String content) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        constraints: BoxConstraints(
+          maxWidth: math.min(MediaQuery.of(context).size.width * 0.78, 274.7),
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0x1FC9A86E), // rgba(201,168,110,0.12)
+          border: Border.all(
+            color: const Color(0x40C9A86E), // rgba(201,168,110,0.25)
+            width: 1,
+          ),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(6),
+            bottomLeft: Radius.circular(18),
+            bottomRight: Radius.circular(18),
+          ),
+        ),
+        child: Text(
+          content,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+            height: 1.50,
+            letterSpacing: -0.005 * 13,
+            color: const Color(0xF5FFFFFF), // rgba(255,255,255,0.96)
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAssistantBubble(BuildContext context, String content) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 6, bottom: 4),
+            child: Text(
+              'AH ASSIST',
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.12 * 10,
+                color: const Color(0x66FFFFFF), // rgba(255,255,255,0.4)
+              ),
+            ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppTheme.card,
-              border: const Border(top: BorderSide(color: AppTheme.div)),
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            constraints: BoxConstraints(
+              maxWidth: math.min(MediaQuery.of(context).size.width * 0.78, 274.7),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    onSubmitted: (_) => _sendMessage(),
-                    enabled: !_isLoading,
-                    style: const TextStyle(color: AppTheme.textPrimary),
-                    decoration: InputDecoration(
-                      hintText: _isLoading
-                          ? 'Thinking...'
-                          : 'Ask about your health...',
-                      hintStyle: const TextStyle(
-                        color: AppTheme.textSec,
-                        fontSize: 14,
-                      ),
-                      filled: true,
-                      fillColor: AppTheme.card2,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: _isLoading ? null : _sendMessage,
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: _isLoading ? AppTheme.div : AppTheme.gold,
-                      shape: BoxShape.circle,
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.black,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Icon(Icons.send, color: Colors.black, size: 20),
-                  ),
-                ),
-              ],
+            decoration: BoxDecoration(
+              color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
+              border: Border.all(
+                color: const Color(0x12FFFFFF), // rgba(255,255,255,0.07)
+                width: 1,
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(6),
+                topRight: Radius.circular(28),
+                bottomLeft: Radius.circular(18),
+                bottomRight: Radius.circular(18),
+              ),
+            ),
+            child: Text(
+              content,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+                height: 1.50,
+                letterSpacing: -0.005 * 13,
+                color: const Color(0xF5FFFFFF), // rgba(255,255,255,0.96)
+              ),
             ),
           ),
         ],
@@ -326,14 +383,106 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _dot() => Container(
-    width: 8,
-    height: 8,
-    decoration: const BoxDecoration(
-      color: AppTheme.gold,
-      shape: BoxShape.circle,
-    ),
-  );
+  Widget _buildInputBar(bool isKeyboardOpen) {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: EdgeInsets.fromLTRB(12, 16, 12, isKeyboardOpen ? 12 : 24),
+          decoration: const BoxDecoration(
+            color: Color(0x8C050505), // rgba(5,5,5,0.55)
+            border: Border(
+              top: BorderSide(
+                color: Color(0x0DFFFFFF), // rgba(255,255,255,0.05)
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 52,
+                  padding: const EdgeInsets.fromLTRB(18, 8, 14, 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0x0DFFFFFF), // rgba(255,255,255,0.05)
+                    border: Border.all(
+                      color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
+                      width: 0.5,
+                    ),
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          onSubmitted: (_) => _sendMessage(),
+                          enabled: !_isLoading,
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 13,
+                          ),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: 'Ask about your health ...',
+                            hintStyle: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w400,
+                              letterSpacing: -0.005 * 13,
+                              color: const Color(0x6BFFFFFF), // rgba(255,255,255,0.42)
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _isLoading ? null : _startVoiceInput,
+                        child: const Icon(
+                          Icons.mic_none_rounded,
+                          color: AppTheme.goldAccent,
+                          size: 28,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _isLoading ? null : _sendMessage,
+                child: Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: _isLoading ? Colors.transparent : AppTheme.goldAccent,
+                    shape: BoxShape.circle,
+                    border: _isLoading
+                        ? Border.all(color: const Color(0x1AFFFFFF), width: 0.5)
+                        : null,
+                  ),
+                  child: Center(
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: AppTheme.goldAccent,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.send, color: Colors.black, size: 20),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _SuggestionChip extends StatelessWidget {
@@ -348,15 +497,90 @@ class _SuggestionChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: AppTheme.card,
+          color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.03)
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppTheme.div),
+          border: Border.all(
+            color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
+            width: 0.5,
+          ),
         ),
         child: Text(
           text,
-          style: const TextStyle(color: AppTheme.textSec, fontSize: 13),
+          style: GoogleFonts.inter(
+            color: const Color(0x85FFFFFF), // rgba(255,255,255,0.52)
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _ChatLoadingIndicator extends StatefulWidget {
+  const _ChatLoadingIndicator();
+
+  @override
+  State<_ChatLoadingIndicator> createState() => _ChatLoadingIndicatorState();
+}
+
+class _ChatLoadingIndicatorState extends State<_ChatLoadingIndicator>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildDot(0),
+        const SizedBox(width: 12),
+        _buildDot(1),
+        const SizedBox(width: 12),
+        _buildDot(2),
+      ],
+    );
+  }
+
+  Widget _buildDot(int index) {
+    final double size = index == 1 ? 12.0 : 8.0;
+    final Color color = index == 1
+        ? AppTheme.goldAccent
+        : const Color(0xB2C9A86E); // rgba(201,168,110,0.7)
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final double delay = index * 0.3;
+        final double t = (_controller.value - delay) % 1.0;
+        final double opacity = 0.3 + 0.7 * math.sin(t * math.pi);
+        return Opacity(
+          opacity: opacity.clamp(0.2, 1.0),
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+      },
     );
   }
 }

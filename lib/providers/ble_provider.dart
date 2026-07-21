@@ -75,6 +75,7 @@ class BleProvider extends ChangeNotifier {
   // opens/resumes the app; Home screen shows the banner until "Take action"/"ignore".
   bool _showFallPredictionBanner = false;
   int _fallPredictionHr = 0;
+  String _fallPredictionTier = 'low';
 
   // ── Getters ───────────────────────────────────────────────────────────────
 
@@ -120,6 +121,7 @@ class BleProvider extends ChangeNotifier {
 
   bool get showFallPredictionBanner => _showFallPredictionBanner;
   int  get fallPredictionHr         => _fallPredictionHr;
+  String get fallPredictionTier     => _fallPredictionTier;
 
   // ── Manual update methods (called by individual screens) ──────────────────
 
@@ -298,12 +300,39 @@ class BleProvider extends ChangeNotifier {
     if (decoded is! Map || decoded['pending'] != true) return;
     _showFallPredictionBanner = true;
     _fallPredictionHr = (decoded['hr'] as num?)?.toInt() ?? 122;
+
+    // Check latest risk log score to determine tier matching the existing _tierFromScore logic
+    final risk = await getFallRiskScore();
+    if (risk != null) {
+      final score = (risk['score'] as num?)?.toInt() ?? 0;
+      if (score >= 55) {
+        _fallPredictionTier = 'high';
+      } else if (score >= 25) {
+        _fallPredictionTier = 'medium';
+      } else {
+        _fallPredictionTier = 'low';
+      }
+    } else {
+      _fallPredictionTier = 'high'; // fallback
+    }
+
     notifyListeners();
   }
 
   void dismissFallPredictionBanner() {
     _showFallPredictionBanner = false;
+    _fallPredictionTier = 'low';
     notifyListeners();
+  }
+
+  Future<bool> placeEmergencyCall(String phone) async {
+    try {
+      final ok = await _ble.placeEmergencyCall(phone);
+      return ok;
+    } catch (e) {
+      debugPrint('[FallDetection] Auto-call failed: $e');
+      return false;
+    }
   }
 
   /// Emergency contacts — persisted natively (Room), not Flutter widget state.
