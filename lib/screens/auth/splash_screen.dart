@@ -110,8 +110,7 @@ class _GoldButton extends StatelessWidget {
   const _GoldButton({
     required this.label,
     required this.onTap,
-    this.outlined = false,
-  });
+  }) : outlined = false;
 
   @override
   Widget build(BuildContext context) {

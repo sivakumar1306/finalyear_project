@@ -265,8 +265,18 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       final hr = await _ble.readHeartRate();
       if (!mounted) return;
       if (hr != null && hr > 0) {
-        setState(() { _manualHr = hr; _measuring = false; });
-        await _saveHrToSupabase(hr, hr, hr, 1);
+        final newMin = (_minHr > 0 && _minHr < hr) ? _minHr : hr;
+        final newMax = (_maxHr > hr) ? _maxHr : hr;
+        final newAvg = _avgHr > 0 ? ((_avgHr + hr) ~/ 2) : hr;
+        setState(() {
+          _manualHr = hr;
+          _measuring = false;
+          _avgHr = newAvg;
+          _minHr = newMin;
+          _maxHr = newMax;
+        });
+        context.read<BleProvider>().updateHrData(newAvg, newMin, newMax);
+        await _saveHrToSupabase(newAvg, newMin, newMax, 1);
       } else {
         setState(() => _measuring = false);
       }

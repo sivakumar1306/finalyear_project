@@ -546,7 +546,7 @@ class _Spo2DetectionCard extends StatelessWidget {
                 Text('Interval', style: _inter(13, color: _kSec2)),
                 const Spacer(),
                 DropdownButton<int>(
-                  value: interval,
+                  value: [1, 5, 10, 15, 30].contains(interval) ? interval : 5,
                   dropdownColor: const Color(0xFF1A1A1A),
                   style: _inter(13),
                   underline: const SizedBox(),

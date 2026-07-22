@@ -74,6 +74,7 @@ enum HomeCardId {
   sleepHrv,
   bloodOxygenHeartRate,
   bloodPressure,
+  temperature,
 }
 
 class HomeScreen extends StatefulWidget {
@@ -94,6 +95,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     HomeCardId.sleepHrv,
     HomeCardId.bloodOxygenHeartRate,
     HomeCardId.bloodPressure,
+    HomeCardId.temperature,
   ];
 
   @override
@@ -294,7 +296,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ble.todayCalories,
                 ),
                 hasData: ble.todaySteps > 0,
-                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/steps'),
+                onTap: _editMode
+                    ? null
+                    : () => Navigator.pushNamed(context, '/steps'),
               ),
             ),
           ],
@@ -306,20 +310,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           minStress: ble.todayMinStress,
           maxStress: ble.todayMaxStress,
           connected: ble.isConnected,
-          onTap: _editMode ? null : () => Navigator.pushNamed(context, '/pressure'),
+          onTap: _editMode
+              ? null
+              : () => Navigator.pushNamed(context, '/pressure'),
         );
       case HomeCardId.womensHealth:
         return Row(
           children: [
             Expanded(
               child: _CompactWomensHealthCard(
-                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/womens-health'),
+                onTap: _editMode
+                    ? null
+                    : () => Navigator.pushNamed(context, '/womens-health'),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _CompactBloodPressureCard(
-                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/blood-pressure'),
+                onTap: _editMode
+                    ? null
+                    : () => Navigator.pushNamed(context, '/blood-pressure'),
               ),
             ),
           ],
@@ -338,10 +348,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 statusColor: _sleepStatusColor(ble.todaySleepScore),
                 orbColor: _kOrbSleep,
                 sparkData: const [
-                  0.5, 0.7, 0.9, 0.8, 0.6, 0.4, 0.3, 0.5, 0.7, 0.8, 0.6, 0.4,
+                  0.5,
+                  0.7,
+                  0.9,
+                  0.8,
+                  0.6,
+                  0.4,
+                  0.3,
+                  0.5,
+                  0.7,
+                  0.8,
+                  0.6,
+                  0.4,
                 ],
                 connected: ble.isConnected,
-                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/sleep'),
+                onTap: _editMode
+                    ? null
+                    : () => Navigator.pushNamed(context, '/sleep'),
               ),
             ),
             const SizedBox(width: 12),
@@ -354,10 +377,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 statusColor: ble.todayAvgHrv > 0 ? _kOrbHrv : _kSec2,
                 orbColor: _kOrbHrv,
                 sparkData: const [
-                  0.5, 0.55, 0.6, 0.58, 0.62, 0.65, 0.6, 0.58, 0.55, 0.6, 0.63, 0.6,
+                  0.5,
+                  0.55,
+                  0.6,
+                  0.58,
+                  0.62,
+                  0.65,
+                  0.6,
+                  0.58,
+                  0.55,
+                  0.6,
+                  0.63,
+                  0.6,
                 ],
                 connected: ble.isConnected,
-                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/hrv'),
+                onTap: _editMode
+                    ? null
+                    : () => Navigator.pushNamed(context, '/hrv'),
               ),
             ),
           ],
@@ -378,10 +414,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 statusColor: ble.todayAvgSpo2 > 0 ? _kOrbSpo2 : _kSec2,
                 orbColor: _kOrbSpo2,
                 sparkData: const [
-                  0.96, 0.97, 0.96, 0.98, 0.97, 0.99, 0.98, 0.97, 0.96, 0.98, 0.97, 0.99,
+                  0.96,
+                  0.97,
+                  0.96,
+                  0.98,
+                  0.97,
+                  0.99,
+                  0.98,
+                  0.97,
+                  0.96,
+                  0.98,
+                  0.97,
+                  0.99,
                 ],
                 connected: ble.isConnected,
-                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/blood-oxygen'),
+                onTap: _editMode
+                    ? null
+                    : () => Navigator.pushNamed(context, '/blood-oxygen'),
               ),
             ),
             const SizedBox(width: 12),
@@ -398,10 +447,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 statusColor: ble.todayAvgHr > 0 ? _kOrbHr : _kSec2,
                 orbColor: _kOrbHr,
                 sparkData: const [
-                  0.45, 0.5, 0.55, 0.5, 0.6, 0.55, 0.5, 0.48, 0.52, 0.58, 0.54, 0.5,
+                  0.45,
+                  0.5,
+                  0.55,
+                  0.5,
+                  0.6,
+                  0.55,
+                  0.5,
+                  0.48,
+                  0.52,
+                  0.58,
+                  0.54,
+                  0.5,
                 ],
                 connected: ble.isConnected,
-                onTap: _editMode ? null : () => Navigator.pushNamed(context, '/heart-rate'),
+                onTap: _editMode
+                    ? null
+                    : () => Navigator.pushNamed(context, '/heart-rate'),
               ),
             ),
           ],
@@ -417,15 +479,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           statusColor: ble.latestBpSbp > 0 ? _kOrbBp : _kSec2,
           orbColor: _kOrbBp,
           sparkData: const [
-            0.6, 0.65, 0.6, 0.68, 0.65, 0.6, 0.64, 0.67, 0.64, 0.6, 0.65, 0.62,
+            0.6,
+            0.65,
+            0.6,
+            0.68,
+            0.65,
+            0.6,
+            0.64,
+            0.67,
+            0.64,
+            0.6,
+            0.65,
+            0.62,
           ],
           connected: ble.isConnected,
-          onTap: _editMode ? null : () => Navigator.pushNamed(context, '/blood-pressure'),
+          onTap: _editMode
+              ? null
+              : () => Navigator.pushNamed(context, '/blood-pressure'),
+        );
+      case HomeCardId.temperature:
+        return Row(
+          children: [
+            Expanded(
+              child: _TemperatureCard(
+                tempC: ble.latestTempC,
+                connected: ble.isConnected,
+                onTap: _editMode
+                    ? null
+                    : () => Navigator.pushNamed(context, '/temperature'),
+              ),
+            ),
+          ],
         );
     }
   }
 
-  Widget _buildReorderableList(BuildContext context, BleProvider ble, List<HomeCardId> visibleCardIds) {
+  Widget _buildReorderableList(
+    BuildContext context,
+    BleProvider ble,
+    List<HomeCardId> visibleCardIds,
+  ) {
     if (_editMode) {
       return SliverReorderableList(
         itemCount: visibleCardIds.length,
@@ -433,7 +526,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           setState(() {
             final HomeCardId item = visibleCardIds.removeAt(oldIndex);
             visibleCardIds.insert(newIndex, item);
-            
+
             // Align the full preferences list _cardOrder with the new order of visible components
             int visibleIdx = 0;
             for (int i = 0; i < _cardOrder.length; i++) {
@@ -447,7 +540,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           return AnimatedBuilder(
             animation: animation,
             builder: (context, child) {
-              final double animValue = Curves.easeInOut.transform(animation.value);
+              final double animValue = Curves.easeInOut.transform(
+                animation.value,
+              );
               final double scale = lerpDouble(1.0, 1.03, animValue)!;
               return Transform.scale(
                 scale: scale,
@@ -468,11 +563,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.only(bottom: 12),
             child: Row(
               children: [
-                Expanded(
-                  child: IgnorePointer(
-                    child: _buildCardBlock(id, ble),
-                  ),
-                ),
+                Expanded(child: IgnorePointer(child: _buildCardBlock(id, ble))),
                 const SizedBox(width: 12),
                 ReorderableDragStartListener(
                   index: index,
@@ -492,17 +583,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     } else {
       return SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final id = visibleCardIds[index];
-            return Padding(
-              key: ValueKey(id),
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildCardBlock(id, ble),
-            );
-          },
-          childCount: visibleCardIds.length,
-        ),
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final id = visibleCardIds[index];
+          return Padding(
+            key: ValueKey(id),
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildCardBlock(id, ble),
+          );
+        }, childCount: visibleCardIds.length),
       );
     }
   }
@@ -545,7 +633,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ),
           ),
-          
+
           // 1. Banner Section (Always first, static)
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -619,33 +707,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 fromRight: false,
                 icon: GestureDetector(
                   onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.menu_rounded, color: Colors.white70, size: 22),
+                  child: const Icon(
+                    Icons.menu_rounded,
+                    color: Colors.white70,
+                    size: 22,
+                  ),
                 ),
                 items: [
-                  SidePanelGroup(items: [
-                    SidePanelItem(
-                      label: 'Goal setting',
-                      onTap: () async {
-                        Navigator.pop(context);
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const CardSettingsScreen()),
-                        );
-                        _loadCardOrder();
-                        _loadHiddenCards();
-                      },
-                    ),
-                    SidePanelItem(
-                      label: 'About',
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const AboutScreen()),
-                        );
-                      },
-                    ),
-                  ]),
+                  SidePanelGroup(
+                    items: [
+                      SidePanelItem(
+                        label: 'Goal setting',
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const CardSettingsScreen(),
+                            ),
+                          );
+                          _loadCardOrder();
+                          _loadHiddenCards();
+                        },
+                      ),
+                      SidePanelItem(
+                        label: 'About',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const AboutScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -668,27 +766,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 fromRight: true,
                 icon: GestureDetector(
                   onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.more_vert_rounded, color: Colors.white70, size: 22),
+                  child: const Icon(
+                    Icons.more_vert_rounded,
+                    color: Colors.white70,
+                    size: 22,
+                  ),
                 ),
                 items: [
-                  SidePanelGroup(items: [
-                    SidePanelItem(
-                      label: 'Share',
-                      onTap: () {
-                        Navigator.pop(context);
-                        Share.share(
-                          'Check out AlphaHuman — the AI health ring app I use to track my sleep, heart rate, and more.',
-                        );
-                      },
-                    ),
-                    SidePanelItem(
-                      label: 'Pair ring',
-                      onTap: () {
-                        Navigator.pop(context);
-                        showRingScanSheet(context);
-                      },
-                    ),
-                  ]),
+                  SidePanelGroup(
+                    items: [
+                      SidePanelItem(
+                        label: 'Share',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Share.share(
+                            'Check out AlphaHuman — the AI health ring app I use to track my sleep, heart rate, and more.',
+                          );
+                        },
+                      ),
+                      SidePanelItem(
+                        label: 'Pair ring',
+                        onTap: () {
+                          Navigator.pop(context);
+                          showRingScanSheet(context);
+                        },
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -735,7 +839,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         decoration: BoxDecoration(
           color: AppTheme.gold.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppTheme.gold.withValues(alpha: 0.4), width: 0.5),
+          border: Border.all(
+            color: AppTheme.gold.withValues(alpha: 0.4),
+            width: 0.5,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -760,10 +867,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             bottom: false,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildTopBar(context),
-                _buildGreetingRow(ble),
-              ],
+              children: [_buildTopBar(context), _buildGreetingRow(ble)],
             ),
           ),
         ),
@@ -812,7 +916,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         height: 1.5,
                       ),
                       children: [
-                        const TextSpan(text: 'Welcome to Alphahuman rings — bought a ring already? Connect your ring. Haven\'t bought one yet? '),
+                        const TextSpan(
+                          text:
+                              'Welcome to Alphahuman rings — bought a ring already? Connect your ring. Haven\'t bought one yet? ',
+                        ),
                         TextSpan(
                           text: 'Browse our collection.',
                           style: const TextStyle(
@@ -1870,7 +1977,8 @@ class _CompactWomensHealthCard extends StatefulWidget {
   const _CompactWomensHealthCard({this.onTap});
 
   @override
-  State<_CompactWomensHealthCard> createState() => _CompactWomensHealthCardState();
+  State<_CompactWomensHealthCard> createState() =>
+      _CompactWomensHealthCardState();
 }
 
 class _CompactWomensHealthCardState extends State<_CompactWomensHealthCard> {
@@ -1901,7 +2009,9 @@ class _CompactWomensHealthCardState extends State<_CompactWomensHealthCard> {
         _periodLen = periodLength;
       });
       if (kDebugMode) {
-        debugPrint('DEBUG: Loaded cycle day: $_cycleDay, cycleLength: $_cycleLength, periodLength: $_periodLen');
+        debugPrint(
+          'DEBUG: Loaded cycle day: $_cycleDay, cycleLength: $_cycleLength, periodLength: $_periodLen',
+        );
       }
     } catch (e, stackTrace) {
       debugPrint('Error loading cycle data in compact card: $e\n$stackTrace');
@@ -2156,10 +2266,7 @@ class _EditCardsButton extends StatelessWidget {
   final bool editMode;
   final VoidCallback onTap;
 
-  const _EditCardsButton({
-    required this.editMode,
-    required this.onTap,
-  });
+  const _EditCardsButton({required this.editMode, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -2183,7 +2290,9 @@ class _EditCardsButton extends StatelessWidget {
                 style: _inter(
                   14,
                   weight: FontWeight.w500,
-                  color: editMode ? AppTheme.gold : Colors.white.withValues(alpha: 0.5),
+                  color: editMode
+                      ? AppTheme.gold
+                      : Colors.white.withValues(alpha: 0.5),
                 ),
               ),
             ),
@@ -2329,4 +2438,139 @@ class _CycleBarPainter extends CustomPainter {
       old.currentDay != currentDay ||
       old.cycleLength != cycleLength ||
       old.periodLength != periodLength;
+}
+
+// ── Temperature Card (Task 1 Design Spec) ───────────────────────────────────
+
+class _TemperatureCard extends StatelessWidget {
+  final double tempC;
+  final bool connected;
+  final VoidCallback? onTap;
+
+  const _TemperatureCard({
+    required this.tempC,
+    required this.connected,
+    this.onTap,
+  });
+
+  static String _tempStatus(double v) {
+    if (v <= 0) return 'No Data';
+    if (v < 36.0) return 'Low';
+    if (v <= 37.2) return 'Normal';
+    if (v <= 38.0) return 'Elevated';
+    return 'Fever';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasData = tempC > 0;
+    final statusText = _tempStatus(tempC);
+
+    return _ShrinkButton(
+      onTap: onTap,
+      child: Container(
+        height: 160,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: const Color.fromRGBO(245, 240, 226, 0.06),
+          border: Border.all(
+            color: const Color.fromRGBO(245, 240, 226, 0.09),
+            width: 0.5,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(17.5),
+          child: Stack(
+            children: [
+              // Circular glow at top-right (180x180, right: -40, top: -40, rgba(201,168,110,0.15), blur: 35px)
+              Positioned(
+                right: -40,
+                top: -40,
+                child: ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 35, sigmaY: 35),
+                  child: Container(
+                    width: 180,
+                    height: 180,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color.fromRGBO(201, 168, 110, 0.15),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Temperature',
+                            style: _inter(
+                              14,
+                              weight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          ),
+                          _chevron(),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Divider(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        height: 1,
+                        thickness: 0.5,
+                      ),
+                      const Spacer(),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                hasData ? tempC.toStringAsFixed(1) : '--',
+                                style: GoogleFonts.inter(
+                                  fontSize: 44,
+                                  fontWeight: FontWeight.w200,
+                                  color: Colors.white.withValues(alpha: 0.95),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '°C',
+                            style: _inter(
+                              14,
+                              weight: FontWeight.w300,
+                              color: Colors.white.withValues(alpha: 0.6),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        statusText,
+                        style: _inter(
+                          12,
+                          weight: FontWeight.w500,
+                          color: const Color(0xFFC9A86E),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

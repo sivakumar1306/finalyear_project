@@ -1,14 +1,19 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../services/home_card_prefs.dart';
+import '../../services/goal_prefs.dart';
 import '../../theme/app_theme.dart';
-import '../home/home_screen.dart'; // HomeCardId enum
 
-/// Full-screen card visibility + reorder editor.
+/// Goal setting screen — Figma spec.
 ///
-/// Figma label: "Goal setting"
-/// Each row has:  drag-handle · label · gold on/off switch
-/// Persists changes via [HomeCardPrefs].
+/// Shows the user's daily targets (steps, calories, distance, sleep window)
+/// as tappable rows. Tapping a row opens an editor for that target.
+///
+/// Persistence: no Supabase table currently stores goal targets (checked
+/// user_profiles / user_steps / user_sleep / etc. — none have target
+/// columns), so this reads/writes through [GoalPrefs] (SharedPreferences).
+/// Swap [GoalPrefs] for Supabase calls later without touching this UI.
 class CardSettingsScreen extends StatefulWidget {
   const CardSettingsScreen({super.key});
   @override
@@ -16,78 +21,214 @@ class CardSettingsScreen extends StatefulWidget {
 }
 
 class _CardSettingsScreenState extends State<CardSettingsScreen> {
-  late List<HomeCardId> _order;
-  late Set<HomeCardId> _hidden;
-  bool _loaded = false;
+  GoalTargets? _targets;
 
   @override
   void initState() {
     super.initState();
-    _loadPrefs();
+    _load();
   }
 
-  Future<void> _loadPrefs() async {
-    final order = await HomeCardPrefs.loadOrder();
-    final hidden = await HomeCardPrefs.loadHidden();
-    if (mounted) setState(() { _order = order; _hidden = hidden; _loaded = true; });
+  Future<void> _load() async {
+    final t = await GoalPrefs.load();
+    if (mounted) setState(() => _targets = t);
   }
 
-  Future<void> _persist() async {
-    await HomeCardPrefs.saveOrder(_order);
-    await HomeCardPrefs.saveHidden(_hidden);
+  Future<void> _persist(GoalTargets t) async {
+    setState(() => _targets = t);
+    await GoalPrefs.save(t);
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Editors ──────────────────────────────────────────────────────────────
 
-  String _label(HomeCardId id) {
-    switch (id) {
-      case HomeCardId.alarmActivity:
-        return 'Alarm Activity';
-      case HomeCardId.stress:
-        return 'Stress';
-      case HomeCardId.womensHealth:
-        return "Women's Health";
-      case HomeCardId.sleepHrv:
-        return 'Sleep HRV';
-      case HomeCardId.bloodOxygenHeartRate:
-        return 'Blood Oxygen & Heart Rate';
-      case HomeCardId.bloodPressure:
-        return 'Blood Pressure';
-    }
+  Future<void> _editSteps() async {
+    final t = _targets!;
+    final result = await _showNumberEditor(
+      title: 'Steps',
+      initial: t.steps,
+      suffix: 'steps',
+      step: 500,
+      min: 1000,
+      max: 50000,
+    );
+    if (result != null) _persist(t.copyWith(steps: result));
   }
 
-  IconData _icon(HomeCardId id) {
-    switch (id) {
-      case HomeCardId.alarmActivity:
-        return Icons.directions_run_rounded;
-      case HomeCardId.stress:
-        return Icons.psychology_rounded;
-      case HomeCardId.womensHealth:
-        return Icons.favorite_rounded;
-      case HomeCardId.sleepHrv:
-        return Icons.bedtime_rounded;
-      case HomeCardId.bloodOxygenHeartRate:
-        return Icons.monitor_heart_rounded;
-      case HomeCardId.bloodPressure:
-        return Icons.speed_rounded;
-    }
+  Future<void> _editCalories() async {
+    final t = _targets!;
+    final result = await _showNumberEditor(
+      title: 'Calories',
+      initial: t.calories,
+      suffix: 'kcal',
+      step: 50,
+      min: 100,
+      max: 5000,
+    );
+    if (result != null) _persist(t.copyWith(calories: result));
   }
 
-  Color _iconColor(HomeCardId id) {
-    switch (id) {
-      case HomeCardId.alarmActivity:
-        return AppTheme.stepsColor;
-      case HomeCardId.stress:
-        return AppTheme.stressColor;
-      case HomeCardId.womensHealth:
-        return AppTheme.womenColor;
-      case HomeCardId.sleepHrv:
-        return AppTheme.sleepColor;
-      case HomeCardId.bloodOxygenHeartRate:
-        return AppTheme.spo2Color;
-      case HomeCardId.bloodPressure:
-        return AppTheme.bpColor;
-    }
+  Future<void> _editDistance() async {
+    final t = _targets!;
+    final result = await _showNumberEditor(
+      title: 'Distance',
+      initial: (t.distanceKm * 10).round(),
+      suffix: 'km',
+      step: 1,
+      min: 5,
+      max: 500,
+      isDecimalTenths: true,
+    );
+    if (result != null) _persist(t.copyWith(distanceKm: result / 10));
+  }
+
+  Future<void> _editSleep() async {
+    final t = _targets!;
+    final start = TimeOfDay(
+      hour: (t.sleepStartMin ~/ 60) % 24,
+      minute: t.sleepStartMin % 60,
+    );
+    final end = TimeOfDay(
+      hour: (t.sleepEndMin ~/ 60) % 24,
+      minute: t.sleepEndMin % 60,
+    );
+
+    final newStart = await _pickTime('Sleep start', start);
+    if (newStart == null) return;
+    final newEnd = await _pickTime('Wake up', end);
+    if (newEnd == null) return;
+
+    _persist(
+      t.copyWith(
+        sleepStartMin: newStart.hour * 60 + newStart.minute,
+        sleepEndMin: newEnd.hour * 60 + newEnd.minute,
+      ),
+    );
+  }
+
+  Future<TimeOfDay?> _pickTime(String title, TimeOfDay initial) {
+    return showTimePicker(
+      context: context,
+      initialTime: initial,
+      helpText: title.toUpperCase(),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppTheme.gold,
+              onPrimary: Colors.black,
+              surface: Color(0xFF141414),
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+  }
+
+  Future<int?> _showNumberEditor({
+    required String title,
+    required int initial,
+    required String suffix,
+    required int step,
+    required int min,
+    required int max,
+    bool isDecimalTenths = false,
+  }) async {
+    int value = initial;
+    return showDialog<int>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final displayValue = isDecimalTenths
+                ? (value / 10).toStringAsFixed(1)
+                : '$value';
+            return Dialog(
+              backgroundColor: const Color(0xFF141414),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _StepperButton(
+                          icon: Icons.remove_rounded,
+                          onTap: () => setDialogState(
+                            () => value = (value - step).clamp(min, max),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 120,
+                          child: Text(
+                            '$displayValue $suffix',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        _StepperButton(
+                          icon: Icons.add_rounded,
+                          onTap: () => setDialogState(
+                            () => value = (value + step).clamp(min, max),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text(
+                              'Cancel',
+                              style: GoogleFonts.inter(
+                                color: Colors.white.withValues(alpha: 0.5),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context, value),
+                            child: Text(
+                              'Save',
+                              style: GoogleFonts.inter(
+                                color: AppTheme.gold,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   // ── Build ────────────────────────────────────────────────────────────────
@@ -95,214 +236,307 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bg,
-      body: SafeArea(
-        child: _loaded ? _buildContent() : const Center(child: CircularProgressIndicator(color: AppTheme.gold)),
-      ),
-    );
-  }
-
-  Widget _buildContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildAppBar(),
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            'SELECT CARDS TO DISPLAY',
-            style: GoogleFonts.inter(
-              color: Colors.white.withValues(alpha: 0.4),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.2,
+      backgroundColor: const Color(0xFF050505),
+      body: Stack(
+        children: [
+          Positioned(
+            left: 83,
+            top: -100,
+            child: _GlowBlob(width: 280, height: 200),
+          ),
+          Positioned(
+            left: -227,
+            bottom: -161,
+            child: _GlowBlob(
+              width: 450,
+              height: 320,
+              color: const Color(0xFFC9A86E).withValues(alpha: 0.025),
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        Expanded(child: _buildList()),
-      ],
-    );
-  }
-
-  Widget _buildAppBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 8, 16, 0),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
-            onPressed: () => Navigator.pop(context),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            'Edit Cards',
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
+          SafeArea(
+            child: _targets == null
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppTheme.gold),
+                  )
+                : _buildContent(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildList() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppTheme.card,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+  Widget _buildContent() {
+    final t = _targets!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Header(onBack: () => Navigator.pop(context)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 18, 28, 12),
+          child: Text(
+            'PROFILE',
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 2.0,
+              color: Colors.white.withValues(alpha: 0.42),
+            ),
           ),
-          child: ReorderableListView.builder(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            proxyDecorator: _proxyDecorator,
-            buildDefaultDragHandles: false,
-            itemCount: _order.length,
-            onReorder: (oldIndex, newIndex) {
-              setState(() {
-                if (newIndex > oldIndex) newIndex -= 1;
-                final item = _order.removeAt(oldIndex);
-                _order.insert(newIndex, item);
-              });
-              _persist();
-            },
-            itemBuilder: (context, index) {
-              final id = _order[index];
-              final isVisible = !_hidden.contains(id);
-              final isLast = index == _order.length - 1;
-              return _CardRow(
-                key: ValueKey(id),
-                index: index,
-                label: _label(id),
-                icon: _icon(id),
-                iconColor: _iconColor(id),
-                isVisible: isVisible,
-                showDivider: !isLast,
-                onToggle: (val) {
-                  setState(() {
-                    if (val) {
-                      _hidden.remove(id);
-                    } else {
-                      _hidden.add(id);
-                    }
-                  });
-                  _persist();
-                },
-              );
-            },
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.08),
+                width: 0.5,
+              ),
+            ),
+            child: Column(
+              children: [
+                _GoalRow(
+                  icon: Icons.directions_walk_rounded,
+                  iconColor: AppTheme.stepsColor,
+                  label: 'Steps',
+                  value: '${t.steps} steps',
+                  showDivider: true,
+                  onTap: _editSteps,
+                ),
+                _GoalRow(
+                  icon: Icons.local_fire_department_rounded,
+                  iconColor: AppTheme.stepsColor,
+                  label: 'Calories',
+                  value: '${t.calories} kcal',
+                  showDivider: true,
+                  onTap: _editCalories,
+                ),
+                _GoalRow(
+                  icon: Icons.directions_run_rounded,
+                  iconColor: AppTheme.stepsColor,
+                  label: 'Distance',
+                  value: '${t.distanceKm.toStringAsFixed(1)} km',
+                  showDivider: true,
+                  onTap: _editDistance,
+                ),
+                _GoalRow(
+                  icon: Icons.bedtime_rounded,
+                  iconColor: AppTheme.sleepColor,
+                  label: 'Sleep',
+                  value: t.sleepLabel,
+                  showDivider: false,
+                  onTap: _editSleep,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Header ───────────────────────────────────────────────────────────────
+
+class _Header extends StatelessWidget {
+  final VoidCallback onBack;
+
+  const _Header({required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _CircleButton(icon: Icons.arrow_back_rounded, onTap: onBack),
+          Text(
+            'Goal setting',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              letterSpacing: -0.005,
+              color: Colors.white.withValues(alpha: 0.88),
+            ),
+          ),
+          _CircleButton(icon: Icons.check_rounded, onTap: onBack),
+        ],
+      ),
+    );
+  }
+}
+
+class _CircleButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _CircleButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(
+        side: BorderSide(color: Colors.white12, width: 0.5),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.04),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.08),
+              width: 0.5,
+            ),
+          ),
+          child: Icon(
+            icon,
+            size: 16,
+            color: Colors.white.withValues(alpha: 0.85),
           ),
         ),
       ),
     );
   }
-
-  Widget _proxyDecorator(Widget child, int index, Animation<double> animation) {
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, child) {
-        final double elevation = Tween<double>(begin: 0, end: 8).evaluate(animation);
-        return Material(
-          color: Colors.transparent,
-          elevation: elevation,
-          shadowColor: Colors.black54,
-          borderRadius: BorderRadius.circular(16),
-          child: child,
-        );
-      },
-      child: child,
-    );
-  }
 }
 
-/// A single row: drag-handle · icon · label · gold switch
-class _CardRow extends StatelessWidget {
-  final int index;
-  final String label;
-  final IconData icon;
-  final Color iconColor;
-  final bool isVisible;
-  final bool showDivider;
-  final ValueChanged<bool> onToggle;
+class _GlowBlob extends StatelessWidget {
+  final double width;
+  final double height;
+  final Color color;
 
-  const _CardRow({
-    required super.key,
-    required this.index,
-    required this.label,
-    required this.icon,
-    required this.iconColor,
-    required this.isVisible,
-    required this.showDivider,
-    required this.onToggle,
+  const _GlowBlob({
+    required this.width,
+    required this.height,
+    this.color = const Color(0x0DC9A86E),
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    return IgnorePointer(
+      child: ImageFiltered(
+        imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+        child: Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+      ),
+    );
+  }
+}
+
+/// A single row: icon chip · label · value (right-aligned, muted) · tap to edit.
+class _GoalRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String value;
+  final bool showDivider;
+  final VoidCallback onTap;
+
+  const _GoalRow({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+    required this.showDivider,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          border: showDivider
+              ? Border(
+                  bottom: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    width: 0.5,
+                  ),
+                )
+              : null,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Row(
             children: [
-              // drag handle
-              ReorderableDragStartListener(
-                index: index,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: Icon(Icons.drag_handle_rounded, color: Colors.white.withValues(alpha: 0.25), size: 22),
-                ),
-              ),
-              // icon
               Container(
-                width: 32,
-                height: 32,
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.15),
+                  color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    width: 0.5,
+                  ),
                 ),
-                child: Icon(icon, color: iconColor, size: 18),
+                child: Icon(icon, color: iconColor, size: 16),
               ),
-              const SizedBox(width: 12),
-              // label
+              const SizedBox(width: 14),
               Expanded(
                 child: Text(
                   label,
                   style: GoogleFonts.inter(
-                    color: isVisible ? Colors.white : Colors.white.withValues(alpha: 0.35),
-                    fontSize: 14,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w500,
+                    letterSpacing: -0.005,
+                    color: Colors.white.withValues(alpha: 0.92),
                   ),
                 ),
               ),
-              // gold switch
-              SizedBox(
-                height: 28,
-                child: Switch(
-                  value: isVisible,
-                  activeThumbColor: AppTheme.goldAccent,
-                  activeTrackColor: AppTheme.goldAccent,
-                  inactiveThumbColor: Colors.white.withValues(alpha: 0.5),
-                  inactiveTrackColor: Colors.white.withValues(alpha: 0.08),
-                  trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
-                  onChanged: onToggle,
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white.withValues(alpha: 0.42),
                 ),
               ),
             ],
           ),
         ),
-        if (showDivider)
-          Divider(
-            height: 1,
-            thickness: 0.5,
-            indent: 56,
-            endIndent: 12,
-            color: Colors.white.withValues(alpha: 0.06),
+      ),
+    );
+  }
+}
+
+class _StepperButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _StepperButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.06),
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          child: Icon(
+            icon,
+            size: 18,
+            color: Colors.white.withValues(alpha: 0.85),
           ),
-      ],
+        ),
+      ),
     );
   }
 }

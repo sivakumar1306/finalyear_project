@@ -5,12 +5,8 @@ import 'dart:convert';
 import 'supabase_service.dart';
 
 class ChatApiService {
-  // TODO: replace with your deployed URL once the backend is hosted (see deployment step).
-  static final String baseUrl = kIsWeb
-      ? 'http://localhost:8000/api/v1'
-      : (Platform.isAndroid
-            ? 'http://192.168.46.105:8000/api/v1' // Local IP for physical Android device connecting to dev PC
-            : 'http://localhost:8000/api/v1');
+  static final String baseUrl =
+      'https://vtialringbackendversion1-production.up.railway.app/api/v1';
 
   static String? get _userId => SupabaseService.currentUser?.id;
 

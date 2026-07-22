@@ -30,11 +30,7 @@ class SupabaseService {
   static Future<void> signOut() => client.auth.signOut();
 
   static Future<Map<String, dynamic>?> getProfile(String userId) async {
-    return client
-        .from('user_profiles')
-        .select()
-        .eq('id', userId)
-        .maybeSingle();
+    return client.from('user_profiles').select().eq('id', userId).maybeSingle();
   }
 
   static Future<void> upsertProfile({
@@ -127,7 +123,9 @@ class SupabaseService {
   }
 
   static Future<Map<String, dynamic>?> getHrForDate(
-      String userId, DateTime date) async {
+    String userId,
+    DateTime date,
+  ) async {
     final dateStr =
         '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     return client
@@ -191,7 +189,9 @@ class SupabaseService {
   }
 
   static Future<Map<String, dynamic>?> getSpo2ForDate(
-      String userId, DateTime date) async {
+    String userId,
+    DateTime date,
+  ) async {
     final dateStr =
         '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     return client
@@ -335,7 +335,9 @@ class SupabaseService {
   }
 
   static Future<Map<String, dynamic>?> getHrvForDate(
-      String userId, DateTime date) async {
+    String userId,
+    DateTime date,
+  ) async {
     final dateStr =
         '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     return client
@@ -367,17 +369,30 @@ class SupabaseService {
 
   static Future<void> insertTempBatch({
     required String userId,
-    required List<({DateTime measuredAt, double valueC, String source})> readings,
+    required List<({DateTime measuredAt, double valueC, String source})>
+    readings,
   }) async {
     if (readings.isEmpty) return;
-    await client.from('user_temp').insert(readings
-        .map((r) => {
-              'user_id': userId,
-              'measured_at': r.measuredAt.toUtc().toIso8601String(),
-              'value_c': r.valueC,
-              'source': r.source,
-            })
-        .toList());
+    // Upsert (not insert) — the ring re-sends its whole temperature series on
+    // every _syncAuto() call, so a plain insert would duplicate rows for
+    // timestamps we already have. user_id+measured_at already has a unique
+    // constraint (see SupabaseSyncManager.kt's native upsert to this same
+    // table), so this just needs to use it too.
+    await client
+        .from('user_temp')
+        .upsert(
+          readings
+              .map(
+                (r) => {
+                  'user_id': userId,
+                  'measured_at': r.measuredAt.toUtc().toIso8601String(),
+                  'value_c': r.valueC,
+                  'source': r.source,
+                },
+              )
+              .toList(),
+          onConflict: 'user_id,measured_at',
+        );
   }
 
   static Future<void> insertTemp({
@@ -386,12 +401,12 @@ class SupabaseService {
     required double valueC,
     String source = 'auto',
   }) async {
-    await client.from('user_temp').insert({
+    await client.from('user_temp').upsert({
       'user_id': userId,
       'measured_at': measuredAt.toUtc().toIso8601String(),
       'value_c': valueC,
       'source': source,
-    });
+    }, onConflict: 'user_id,measured_at');
   }
 
   static Future<List<Map<String, dynamic>>> getTempReadings({
@@ -435,20 +450,24 @@ class SupabaseService {
     required int avgBpSbp,
     required int avgBpDbp,
   }) async {
-    final data = await client.from('user_workouts').insert({
-      'user_id': userId,
-      'workout_type': type,
-      'started_at': startedAt.toUtc().toIso8601String(),
-      'ended_at': endedAt.toUtc().toIso8601String(),
-      'duration_s': durationS,
-      'steps': steps,
-      'calories': calories,
-      'distance_m': distanceM,
-      'avg_hr': avgHr,
-      'avg_spo2': avgSpo2,
-      'avg_bp_sbp': avgBpSbp,
-      'avg_bp_dbp': avgBpDbp,
-    }).select('id').single();
+    final data = await client
+        .from('user_workouts')
+        .insert({
+          'user_id': userId,
+          'workout_type': type,
+          'started_at': startedAt.toUtc().toIso8601String(),
+          'ended_at': endedAt.toUtc().toIso8601String(),
+          'duration_s': durationS,
+          'steps': steps,
+          'calories': calories,
+          'distance_m': distanceM,
+          'avg_hr': avgHr,
+          'avg_spo2': avgSpo2,
+          'avg_bp_sbp': avgBpSbp,
+          'avg_bp_dbp': avgBpDbp,
+        })
+        .select('id')
+        .single();
     return data['id'] as String?;
   }
 
@@ -499,7 +518,9 @@ class SupabaseService {
   }
 
   static Future<Map<String, dynamic>?> getSleepForDate(
-      String userId, DateTime date) async {
+    String userId,
+    DateTime date,
+  ) async {
     final dateStr =
         '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     return client
@@ -560,7 +581,9 @@ class SupabaseService {
   // ── Women's Health — Symptoms ──────────────────────────────────────────────
 
   static Future<Map<String, dynamic>?> getSymptomsForDate(
-      String userId, DateTime date) async {
+    String userId,
+    DateTime date,
+  ) async {
     return client
         .from('user_symptoms')
         .select()

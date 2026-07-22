@@ -180,7 +180,7 @@ class _DeviceBindScreenState extends State<DeviceBindScreen> {
                   )
                 : ListView.separated(
                     itemCount: ble.scannedDevices.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, i) {
                       final dev = ble.scannedDevices[i];
                       final isConnecting = _connectingAddress == dev.address;

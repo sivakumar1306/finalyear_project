@@ -209,6 +209,11 @@ class BleService {
   Future<String> syncManualTemperature() async =>
       await _methodChannel.invokeMethod<String>('syncManualTemperature') ?? '[]';
 
+  /// POC: calls BleOperateManager.manualTemperature() to verify the ring
+  /// actually supports command-based temperature measurement.
+  Future<String> testManualTemperature() async =>
+      await _methodChannel.invokeMethod<String>('testManualTemperature') ?? '{}';
+
   // ── Sport Records ──────────────────────────────────────────────────
   Future<String> getSportRecords() async =>
       await _methodChannel.invokeMethod<String>('getSportRecords') ?? '[]';

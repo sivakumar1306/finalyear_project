@@ -111,6 +111,8 @@ class BlePlugin(private val context: Context) {
     private var pendingConnectResult: MethodChannel.Result? = null
     private var deviceAddress: String? = null
     private var pendingBondFallback: Runnable? = null
+    private var pendingBindConfirmation: Runnable? = null
+    private val bindConfirmed = AtomicBoolean(false)
 
     // Populated by QRingBluetoothReceiver.onCharacteristicRead once the SDK broadcasts them.
     var cachedFirmwareVersion: String = ""
@@ -163,6 +165,20 @@ class BlePlugin(private val context: Context) {
             object : DeviceNotifyListener() {
                 override fun onDataResponse(resultEntity: DeviceNotifyRsp?) {
                     resultEntity ?: return
+
+                    // CMD_BIND_SUCCESS (0x10) echoes back through this generic notify path even
+                    // though the SDK has no registered response parser for it (it silently runs
+                    // the command as NO_ACK, so ICommandResponse<BaseRspCmd> never fires for it —
+                    // see sendBindSuccessWithRetry()). Treat this raw echo as the real ack.
+                    if (resultEntity.dataType == (Constants.CMD_BIND_SUCCESS.toInt() and 0xFF)) {
+                        if (bindConfirmed.compareAndSet(false, true)) {
+                            Log.d(TAG, "CMD_BIND_SUCCESS confirmed via raw notify echo")
+                            val confirm = pendingBindConfirmation
+                            pendingBindConfirmation = null
+                            confirm?.let { mainHandler.post(it) }
+                        }
+                    }
+
                     sendEvent(
                         "deviceNotification",
                         mapOf(
@@ -244,6 +260,7 @@ class BlePlugin(private val context: Context) {
             "setTemperatureSetting"      -> setTemperatureSetting(call, result)
             "syncAutoTemperature"        -> syncAutoTemperature(result)
             "syncManualTemperature"      -> syncManualTemperature(result)
+            "testManualTemperature"      -> testManualTemperature(result)
             "syncSportRecords"           -> syncSportRecords(result)
             "getNotificationSettings"    -> getNotificationSettings(result)
             "setNotificationSetting"     -> setNotificationSetting(call, result)
@@ -488,23 +505,42 @@ class BlePlugin(private val context: Context) {
     }
 
     private fun sendBindSuccessWithRetry(attempt: Int = 1) {
-        var responded = false
+        bindConfirmed.set(false)
+
         val timeoutRunnable = Runnable {
-            if (!responded) {
+            if (!bindConfirmed.get()) {
+                pendingBindConfirmation = null
                 if (attempt < INIT_MAX_ATTEMPTS) {
-                    Log.w(TAG, "CMD_BIND_SUCCESS attempt $attempt got no response, retrying")
+                    Log.w(TAG, "CMD_BIND_SUCCESS attempt $attempt: no raw-echo confirmation, retrying")
                     sendBindSuccessWithRetry(attempt + 1)
                 } else {
-                    Log.e(TAG, "CMD_BIND_SUCCESS: no response after $INIT_MAX_ATTEMPTS attempts")
+                    Log.e(TAG, "CMD_BIND_SUCCESS: no raw-echo confirmation after $INIT_MAX_ATTEMPTS attempts — proceeding anyway")
+                    // The SDK runs this command as NO_ACK (no registered response parser), so a
+                    // missing echo is inconclusive rather than a hard failure — the write itself
+                    // may still have landed. Don't force a disconnect/unbind loop over it; continue
+                    // with init instead of leaving the ring stuck retrying forever.
                 }
             }
         }
+
+        pendingBindConfirmation = Runnable {
+            mainHandler.removeCallbacks(timeoutRunnable)
+        }
         mainHandler.postDelayed(timeoutRunnable, INIT_RETRY_TIMEOUT_MS)
+
+        // Still submit through CommandHandle so the SDK's internal task-queue bookkeeping stays
+        // consistent — we just no longer block success/failure on its (broken) callback.
         CommandHandle.getInstance().executeReqCmd(
             SimpleKeyReq(Constants.CMD_BIND_SUCCESS),
             ICommandResponse<BaseRspCmd> {
-                responded = true
-                mainHandler.removeCallbacks(timeoutRunnable)
+                // Kept for completeness in case a future SDK version does register a parser and
+                // starts calling this — treat it as an alternate confirmation path too.
+                if (bindConfirmed.compareAndSet(false, true)) {
+                    Log.d(TAG, "CMD_BIND_SUCCESS confirmed via ICommandResponse (unexpected but fine)")
+                    val confirm = pendingBindConfirmation
+                    pendingBindConfirmation = null
+                    confirm?.let { mainHandler.post(it) }
+                }
             }
         )
     }
@@ -546,13 +582,18 @@ class BlePlugin(private val context: Context) {
     }
 
     private fun getDeviceSupport(result: MethodChannel.Result) {
-        CommandHandle.getInstance().executeReqCmd(
-            DeviceSupportReq.getReadInstance(),
-            ICommandResponse<DeviceSupportFunctionRsp> { rsp ->
-                mainHandler.post { result.success(gson.toJson(rsp)) }
+    CommandHandle.getInstance().executeReqCmd(
+        DeviceSupportReq.getReadInstance(),
+        ICommandResponse<DeviceSupportFunctionRsp> { rsp ->
+
+            Log.d("DeviceSupport", gson.toJson(rsp))   // <-- ADD THIS
+
+            mainHandler.post {
+                result.success(gson.toJson(rsp))
             }
-        )
-    }
+        }
+    )
+}
 
     // ─────────────────────────────────────────────────────────────────
     // Heart Rate
@@ -1464,14 +1505,35 @@ class BlePlugin(private val context: Context) {
     }
 
     // Syncs continuous body temperature via FileHandle; waits for onUpdateTemperature callback.
+    //
+    // Acquires the same MeasurementCoordinator lock that MeasurementLoopManager's
+    // HR/SpO2/Stress/BP/HRV cycle and WorkoutService use. Without this, calling
+    // startObtainTemperatureSeries() while the background loop is mid-measurement
+    // makes the ring firmware reject the request with a BUSY error, since the ring
+    // can only service one command channel at a time even though FileHandle and
+    // BleOperateManager are different SDK classes.
     private fun syncAutoTemperature(result: MethodChannel.Result) {
+        val owner = "temperature"
+        if (!MeasurementCoordinator.tryAcquire(owner)) {
+            Log.w("TempSync", "syncAutoTemperature: ring busy with another measurement, rejecting")
+            result.error(
+                "BUSY",
+                "A measurement is already in progress. Please wait a moment and try again.",
+                null
+            )
+            return
+        }
         val done = AtomicBoolean(false)
         Log.d("TempSync", "syncAutoTemperature: starting clearCallback+registerCallback+initRegister+startObtainTemperatureSeries(2)")
+        fun releaseAndRun(block: () -> Unit) {
+            MeasurementCoordinator.release(owner)
+            block()
+        }
         val timeoutRunnable = Runnable {
             if (done.compareAndSet(false, true)) {
                 Log.e("TempSync", "syncAutoTemperature: TIMED OUT after 30s — onUpdateTemperature never fired")
                 FileHandle.getInstance().clearCallback()
-                result.error("TIMEOUT", "Temperature auto sync timed out — ring did not send data", null)
+                releaseAndRun { result.error("TIMEOUT", "Temperature auto sync timed out — ring did not send data", null) }
             }
         }
         FileHandle.getInstance().clearCallback()
@@ -1481,7 +1543,7 @@ class BlePlugin(private val context: Context) {
                 if (done.compareAndSet(false, true)) {
                     mainHandler.removeCallbacks(timeoutRunnable)
                     FileHandle.getInstance().clearCallback()
-                    mainHandler.post { result.success(gson.toJson(data)) }
+                    mainHandler.post { releaseAndRun { result.success(gson.toJson(data)) } }
                 }
             }
             override fun onUpdateTemperatureList(array: MutableList<TemperatureOnceEntity>?) {
@@ -1489,7 +1551,7 @@ class BlePlugin(private val context: Context) {
                 if (done.compareAndSet(false, true)) {
                     mainHandler.removeCallbacks(timeoutRunnable)
                     FileHandle.getInstance().clearCallback()
-                    mainHandler.post { result.success(gson.toJson(array)) }
+                    mainHandler.post { releaseAndRun { result.success(gson.toJson(array)) } }
                 }
             }
             override fun onActionResult(type: Int, errCode: Int) {
@@ -1498,7 +1560,7 @@ class BlePlugin(private val context: Context) {
                     mainHandler.removeCallbacks(timeoutRunnable)
                     FileHandle.getInstance().clearCallback()
                     mainHandler.post {
-                        result.error("ACTION_FAILED", "Ring rejected: type=$type errCode=$errCode", null)
+                        releaseAndRun { result.error("ACTION_FAILED", "Ring rejected: type=$type errCode=$errCode", null) }
                     }
                 }
             }
@@ -1511,14 +1573,29 @@ class BlePlugin(private val context: Context) {
     }
 
     // Syncs manual/single temperature readings via FileHandle; waits for onUpdateTemperatureList.
+    // Same MeasurementCoordinator lock reasoning as syncAutoTemperature above.
     private fun syncManualTemperature(result: MethodChannel.Result) {
+        val owner = "temperature"
+        if (!MeasurementCoordinator.tryAcquire(owner)) {
+            Log.w("TempSync", "syncManualTemperature: ring busy with another measurement, rejecting")
+            result.error(
+                "BUSY",
+                "A measurement is already in progress. Please wait a moment and try again.",
+                null
+            )
+            return
+        }
         val done = AtomicBoolean(false)
         Log.d("TempSync", "syncManualTemperature: starting clearCallback+registerCallback+initRegister+startObtainTemperatureOnce(0)")
+        fun releaseAndRun(block: () -> Unit) {
+            MeasurementCoordinator.release(owner)
+            block()
+        }
         val timeoutRunnable = Runnable {
             if (done.compareAndSet(false, true)) {
                 Log.e("TempSync", "syncManualTemperature: TIMED OUT after 30s — onUpdateTemperatureList never fired")
                 FileHandle.getInstance().clearCallback()
-                result.error("TIMEOUT", "Temperature manual sync timed out — ring did not send data", null)
+                releaseAndRun { result.error("TIMEOUT", "Temperature manual sync timed out — ring did not send data", null) }
             }
         }
         FileHandle.getInstance().clearCallback()
@@ -1528,7 +1605,7 @@ class BlePlugin(private val context: Context) {
                 if (done.compareAndSet(false, true)) {
                     mainHandler.removeCallbacks(timeoutRunnable)
                     FileHandle.getInstance().clearCallback()
-                    mainHandler.post { result.success(gson.toJson(array)) }
+                    mainHandler.post { releaseAndRun { result.success(gson.toJson(array)) } }
                 }
             }
             override fun onUpdateTemperature(data: TemperatureEntity) {
@@ -1536,7 +1613,7 @@ class BlePlugin(private val context: Context) {
                 if (done.compareAndSet(false, true)) {
                     mainHandler.removeCallbacks(timeoutRunnable)
                     FileHandle.getInstance().clearCallback()
-                    mainHandler.post { result.success(gson.toJson(data)) }
+                    mainHandler.post { releaseAndRun { result.success(gson.toJson(data)) } }
                 }
             }
             override fun onActionResult(type: Int, errCode: Int) {
@@ -1545,7 +1622,7 @@ class BlePlugin(private val context: Context) {
                     mainHandler.removeCallbacks(timeoutRunnable)
                     FileHandle.getInstance().clearCallback()
                     mainHandler.post {
-                        result.error("ACTION_FAILED", "Ring rejected: type=$type errCode=$errCode", null)
+                        releaseAndRun { result.error("ACTION_FAILED", "Ring rejected: type=$type errCode=$errCode", null) }
                     }
                 }
             }
@@ -1553,6 +1630,82 @@ class BlePlugin(private val context: Context) {
         Log.d("TempSync", "syncManualTemperature: calling startObtainTemperatureOnce(0)")
         FileHandle.getInstance().startObtainTemperatureOnce(0)
         mainHandler.postDelayed(timeoutRunnable, 30_000L)
+    }
+
+    // ── POC: manualTemperature (BleOperateManager direct sensor command) ─────
+    // This mirrors readHeartRate(): start measurement, wait for non-zero value,
+    // auto-stop, return JSON. Does NOT touch FileHandle at all.
+    private fun testManualTemperature(result: MethodChannel.Result) {
+        val done = AtomicBoolean(false)
+        var callbackCount = 0
+
+        Log.d("TempPOC", "testManualTemperature: calling BleOperateManager.manualTemperature(cb, false)")
+
+        try {
+            BleOperateManager.getInstance().manualTemperature(
+                ICommandResponse<StartHeartRateRsp> { rsp ->
+                    if (done.get()) return@ICommandResponse
+                    callbackCount++
+
+                    val tempRaw = rsp.getTemperature()
+                    val valueRaw = rsp.getValue()
+                    val status = rsp.status
+
+                    Log.d("TempPOC", "testManualTemperature callback #$callbackCount: " +
+                            "status=$status, getTemperature()=$tempRaw, getValue()=$valueRaw")
+
+                    // Use getTemperature() first; fall back to getValue()
+                    val rawValue = if (tempRaw > 0) tempRaw else valueRaw
+
+                    if (rawValue > 0 && done.compareAndSet(false, true)) {
+                        // SDK returns temp * 10 (e.g. 364 = 36.4°C)
+                        val tempC = rawValue / 10.0
+                        Log.d("TempPOC", "testManualTemperature: SUCCESS rawValue=$rawValue tempC=$tempC — stopping sensor")
+
+                        // Stop the sensor
+                        try {
+                            BleOperateManager.getInstance().manualTemperature(null, true)
+                        } catch (_: Exception) {}
+
+                        // Return JSON matching what Flutter already expects
+                        val json = gson.toJson(mapOf(
+                            "temperature" to tempC,
+                            "rawValue" to rawValue,
+                            "getTemperature" to tempRaw,
+                            "getValue" to valueRaw,
+                            "status" to status,
+                            "source" to "manualTemperature_POC",
+                            "callbackCount" to callbackCount
+                        ))
+                        mainHandler.post { result.success(json) }
+                    }
+                    // rawValue == 0: sensor still warming up — wait for next callback
+                },
+                false  // false = start measurement
+            )
+        } catch (e: Exception) {
+            Log.e("TempPOC", "testManualTemperature: SDK call threw exception", e)
+            if (done.compareAndSet(false, true)) {
+                mainHandler.post {
+                    result.error("SDK_EXCEPTION", "manualTemperature() threw: ${e.message}", e.stackTraceToString())
+                }
+            }
+            return
+        }
+
+        // Timeout after 60s so the Dart await never hangs forever
+        mainHandler.postDelayed({
+            if (done.compareAndSet(false, true)) {
+                Log.e("TempPOC", "testManualTemperature: TIMED OUT after 60s ($callbackCount callbacks, none with value > 0)")
+                // Stop sensor on timeout
+                try {
+                    BleOperateManager.getInstance().manualTemperature(null, true)
+                } catch (_: Exception) {}
+                mainHandler.post {
+                    result.error("TIMEOUT", "manualTemperature timed out after 60s ($callbackCount callbacks received, none with value > 0)", null)
+                }
+            }
+        }, 60_000L)
     }
 
     // ─────────────────────────────────────────────────────────────────

@@ -57,7 +57,8 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
         _weightCtrl.text = (m['weight'] ?? 70).toString();
         _gender = m['gender'] ?? 1;
       });
-    } catch (_) {} finally {
+    } catch (_) {
+    } finally {
       setState(() => _loading = false);
     }
   }
@@ -75,9 +76,15 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
     };
     try {
       await _ble.setTargetAndProfile(jsonEncode(data));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile saved')));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Profile saved')));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -90,7 +97,13 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
         actions: [
           TextButton(
             onPressed: connected ? _save : null,
-            child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Save',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -111,14 +124,25 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
                   _inputTile('Height', _heightCtrl, 'cm'),
                   _inputTile('Weight', _weightCtrl, 'kg'),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       children: [
                         const Text('Gender:'),
                         const SizedBox(width: 16),
-                        ChoiceChip(label: const Text('Male'), selected: _gender == 1, onSelected: (_) => setState(() => _gender = 1)),
+                        ChoiceChip(
+                          label: const Text('Male'),
+                          selected: _gender == 1,
+                          onSelected: (_) => setState(() => _gender = 1),
+                        ),
                         const SizedBox(width: 8),
-                        ChoiceChip(label: const Text('Female'), selected: _gender == 0, onSelected: (_) => setState(() => _gender = 0)),
+                        ChoiceChip(
+                          label: const Text('Female'),
+                          selected: _gender == 0,
+                          onSelected: (_) => setState(() => _gender = 0),
+                        ),
                       ],
                     ),
                   ),
@@ -129,21 +153,25 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
   }
 
   Widget _sectionCard(String title, List<Widget> children) => Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
-            ...children,
-            const SizedBox(height: 8),
-          ],
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
         ),
-      );
+        ...children,
+        const SizedBox(height: 8),
+      ],
+    ),
+  );
 
-  Widget _inputTile(String label, TextEditingController ctrl, String unit) => Padding(
+  Widget _inputTile(String label, TextEditingController ctrl, String unit) =>
+      Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Row(
           children: [
@@ -158,7 +186,10 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
                   suffixText: unit,
                   isDense: true,
                   border: const OutlineInputBorder(),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
                 ),
               ),
             ),

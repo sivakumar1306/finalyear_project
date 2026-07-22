@@ -10,10 +10,11 @@ import '../../theme/app_theme.dart';
 // ── Alphahuman ring detection ─────────────────────────────────────────────────
 // Add new ring model name prefixes here to detect future Alphahuman rings.
 // Examples: 'R09_', 'AH_', 'ALPHA_'
-const _kAlphahumanPrefixes = ['R08_','R02_'];
+const _kAlphahumanPrefixes = ['R08_', 'R02_'];
 
-bool _isAlphahumanRing(String name) => _kAlphahumanPrefixes
-    .any((p) => name.toUpperCase().startsWith(p.toUpperCase()));
+bool _isAlphahumanRing(String name) => _kAlphahumanPrefixes.any(
+  (p) => name.toUpperCase().startsWith(p.toUpperCase()),
+);
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
@@ -24,10 +25,8 @@ void showRingScanSheet(BuildContext context) {
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black.withValues(alpha: 0.45),
-    builder: (_) => ChangeNotifierProvider.value(
-      value: ble,
-      child: const _RingScanSheet(),
-    ),
+    builder: (_) =>
+        ChangeNotifierProvider.value(value: ble, child: const _RingScanSheet()),
   );
 }
 
@@ -55,9 +54,10 @@ class _RingScanSheetState extends State<_RingScanSheet>
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 0.90, end: 1.10).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
-    );
+    _pulseAnim = Tween<double>(
+      begin: 0.90,
+      end: 1.10,
+    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ble = context.read<BleProvider>();
       _startScan();
@@ -85,8 +85,9 @@ class _RingScanSheetState extends State<_RingScanSheet>
       Permission.locationWhenInUse,
     ].request();
 
-    final denied = statuses.values
-        .any((s) => s.isDenied || s.isPermanentlyDenied);
+    final denied = statuses.values.any(
+      (s) => s.isDenied || s.isPermanentlyDenied,
+    );
 
     if (denied) {
       if (mounted) setState(() => _permissionDenied = true);
@@ -94,7 +95,8 @@ class _RingScanSheetState extends State<_RingScanSheet>
     }
     if (!mounted) return;
 
-    await _ble.startScan(); // scan all; Alphahuman filter applied at display level
+    await _ble
+        .startScan(); // scan all; Alphahuman filter applied at display level
     _scanTimer?.cancel();
     _scanTimer = Timer(const Duration(seconds: 20), () {
       if (mounted) _ble.stopScan();
@@ -108,15 +110,19 @@ class _RingScanSheetState extends State<_RingScanSheet>
     setState(() => _connectingAddress = null);
     if (ok) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Connected to ${device.name}'),
-        backgroundColor: AppTheme.success,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Connected to ${device.name}'),
+          backgroundColor: AppTheme.success,
+        ),
+      );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Connection failed — make sure the ring is nearby.'),
-        backgroundColor: AppTheme.danger,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Connection failed — make sure the ring is nearby.'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
     }
   }
 
@@ -129,23 +135,30 @@ class _RingScanSheetState extends State<_RingScanSheet>
     setState(() => _connectingLast = false);
     if (ok) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Connected to ${_ble.deviceName}'),
-        backgroundColor: AppTheme.success,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Connected to ${_ble.deviceName}'),
+          backgroundColor: AppTheme.success,
+        ),
+      );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Could not reach ring — try placing it on the charger to wake it.'),
-        backgroundColor: AppTheme.danger,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not reach ring — try placing it on the charger to wake it.',
+          ),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
-    final rings =
-        ble.scannedDevices.where((d) => _isAlphahumanRing(d.name)).toList();
+    final rings = ble.scannedDevices
+        .where((d) => _isAlphahumanRing(d.name))
+        .toList();
     final screenH = MediaQuery.of(context).size.height;
 
     return ClipRRect(
@@ -213,21 +226,28 @@ class _RingScanSheetState extends State<_RingScanSheet>
                   child: _permissionDenied
                       ? const _PermissionDeniedBody()
                       : rings.isNotEmpty
-                          ? _RingsFoundBody(
-                              rings: rings,
-                              connectingAddress: _connectingAddress,
-                              isScanning: ble.isScanning,
-                              onConnect: _connect,
-                              onRescan: _startScan,
-                            )
-                          : _SearchingBody(
-                              pulseAnim: _pulseAnim,
-                              isScanning: ble.isScanning,
-                              onRetry: _startScan,
-                              lastDeviceName: ble.deviceName,
-                              connectingLast: _connectingLast,
-                              onConnectLast: _connectLast,
-                            ),
+                      ? _RingsFoundBody(
+                          rings: rings,
+                          connectingAddress: _connectingAddress,
+                          // So the already-connected ring shows a "Connected" state
+                          // in this list instead of an active "Connect" button — the
+                          // scan list was previously blind to current connection
+                          // state entirely.
+                          connectedAddress: ble.isConnected
+                              ? ble.deviceAddress
+                              : null,
+                          isScanning: ble.isScanning,
+                          onConnect: _connect,
+                          onRescan: _startScan,
+                        )
+                      : _SearchingBody(
+                          pulseAnim: _pulseAnim,
+                          isScanning: ble.isScanning,
+                          onRetry: _startScan,
+                          lastDeviceName: ble.deviceName,
+                          connectingLast: _connectingLast,
+                          onConnectLast: _connectLast,
+                        ),
                 ),
               ],
             ),
@@ -364,6 +384,7 @@ class _SearchingBody extends StatelessWidget {
 class _RingsFoundBody extends StatelessWidget {
   final List<ScannedDevice> rings;
   final String? connectingAddress;
+  final String? connectedAddress;
   final bool isScanning;
   final void Function(ScannedDevice) onConnect;
   final VoidCallback onRescan;
@@ -371,6 +392,7 @@ class _RingsFoundBody extends StatelessWidget {
   const _RingsFoundBody({
     required this.rings,
     required this.connectingAddress,
+    required this.connectedAddress,
     required this.isScanning,
     required this.onConnect,
     required this.onRescan,
@@ -416,6 +438,9 @@ class _RingsFoundBody extends StatelessWidget {
                 return _RingTile(
                   device: dev,
                   isConnecting: connectingAddress == dev.address,
+                  isAlreadyConnected:
+                      connectedAddress != null &&
+                      connectedAddress == dev.address,
                   onConnect: () => onConnect(dev),
                 );
               },
@@ -448,11 +473,13 @@ class _RingsFoundBody extends StatelessWidget {
 class _RingTile extends StatelessWidget {
   final ScannedDevice device;
   final bool isConnecting;
+  final bool isAlreadyConnected;
   final VoidCallback onConnect;
 
   const _RingTile({
     required this.device,
     required this.isConnecting,
+    required this.isAlreadyConnected,
     required this.onConnect,
   });
 
@@ -469,9 +496,7 @@ class _RingTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.10),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
       child: Row(
         children: [
@@ -496,8 +521,11 @@ class _RingTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 Row(
                   children: [
-                    Icon(Icons.signal_cellular_alt,
-                        size: 11, color: _rssiColor(device.rssi)),
+                    Icon(
+                      Icons.signal_cellular_alt,
+                      size: 11,
+                      color: _rssiColor(device.rssi),
+                    ),
                     const SizedBox(width: 3),
                     Text(
                       '${device.rssi} dBm',
@@ -520,6 +548,26 @@ class _RingTile extends StatelessWidget {
                 color: AppTheme.gold,
               ),
             )
+          else if (isAlreadyConnected)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  size: 16,
+                  color: AppTheme.success,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  'Connected',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.success,
+                  ),
+                ),
+              ],
+            )
           else
             _GoldButton(label: 'Connect', onTap: onConnect),
         ],
@@ -540,8 +588,7 @@ class _PermissionDeniedBody extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.bluetooth_disabled,
-              color: Colors.white30, size: 56),
+          const Icon(Icons.bluetooth_disabled, color: Colors.white30, size: 56),
           const SizedBox(height: 18),
           Text(
             'Bluetooth permission is required to scan for rings.',

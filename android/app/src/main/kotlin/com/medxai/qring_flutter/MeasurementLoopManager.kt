@@ -181,15 +181,20 @@ object MeasurementLoopManager {
             BleOperateManager.getInstance().manualModeHeart(
                 ICommandResponse<StartHeartRateRsp> { rsp ->
                     if (done.get()) return@ICommandResponse
-                    if (rsp.status == BaseRspCmd.RESULT_OK) {
-                        val value = if (rsp.getHeartRate() > 0) rsp.getHeartRate() else rsp.getValue()
-                        if (value > 0 && done.compareAndSet(false, true)) {
-                            persist(Vital.HEART_RATE, cycleId, value.toDouble()) {
-                                repository.insertHeartRate(value, cycleId, "auto_cycle")
-                            }
-                            finishWithStop()
+                    // Don't gate on rsp.status == RESULT_OK here — a manual heart rate
+                    // measurement sends several intermediate callbacks while still measuring,
+                    // and not all of them report RESULT_OK. The previous code bailed out via
+                    // finishWithStop() on the first non-OK response, before a real reading
+                    // ever arrived — which is why HR consistently failed while every other
+                    // vital (none of which gate on status) succeeded on the same connection.
+                    // Just wait for a genuine value like SpO2/Stress/BP/HRV do; let
+                    // MEASURE_TIMEOUT_MS below handle the case where none ever comes.
+                    val value = if (rsp.getHeartRate() > 0) rsp.getHeartRate() else rsp.getValue()
+                    Log.d(TAG, "measureHeartRate: status=${rsp.status} heartRate=${rsp.getHeartRate()} value=${rsp.getValue()}")
+                    if (value > 0 && done.compareAndSet(false, true)) {
+                        persist(Vital.HEART_RATE, cycleId, value.toDouble()) {
+                            repository.insertHeartRate(value, cycleId, "auto_cycle")
                         }
-                    } else if (done.compareAndSet(false, true)) {
                         finishWithStop()
                     }
                 },

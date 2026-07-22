@@ -96,38 +96,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         if (hasDevice) ...[
                           const SizedBox(height: 4),
-                          Text(ble.deviceName,
-                              style: GoogleFonts.inter(
-                                  color: AppTheme.textSec, fontSize: 12)),
+                          Text(
+                            ble.deviceName,
+                            style: GoogleFonts.inter(
+                              color: AppTheme.textSec,
+                              fontSize: 12,
+                            ),
+                          ),
                         ],
                         if (mac.isNotEmpty) ...[
                           const SizedBox(height: 4),
-                          Text(mac,
-                              style: GoogleFonts.inter(
-                                  color: AppTheme.textSec, fontSize: 12)),
+                          Text(
+                            mac,
+                            style: GoogleFonts.inter(
+                              color: AppTheme.textSec,
+                              fontSize: 12,
+                            ),
+                          ),
                         ],
                         const SizedBox(height: 4),
-                        Text(firmware,
-                            style: GoogleFonts.inter(
-                                color: AppTheme.textSec, fontSize: 12)),
+                        Text(
+                          firmware,
+                          style: GoogleFonts.inter(
+                            color: AppTheme.textSec,
+                            fontSize: 12,
+                          ),
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           connected ? 'Connected' : 'Disconnected',
                           style: GoogleFonts.inter(
-                              color: AppTheme.textSec, fontSize: 12),
+                            color: AppTheme.textSec,
+                            fontSize: 12,
+                          ),
                         ),
                         if (battery >= 0) ...[
                           const SizedBox(height: 4),
                           Text(
                             'Battery $battery%',
                             style: GoogleFonts.inter(
-                                color: AppTheme.textSec, fontSize: 12),
+                              color: AppTheme.textSec,
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                       ],
                     ),
                   ),
-                  Image.asset('ring.png', width: 72, height: 72, fit: BoxFit.contain),
+                  Image.asset(
+                    'ring.png',
+                    width: 72,
+                    height: 72,
+                    fit: BoxFit.contain,
+                  ),
                 ],
               ),
             ),
@@ -146,7 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 child: Center(
                   child: Text(
-                    'Unbind',
+                    'Disconnect',
                     style: GoogleFonts.inter(
                       color: Colors.white,
                       fontSize: 15,
@@ -182,7 +203,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _SettingsRow.arrow(
                     icon: Icons.manage_accounts_rounded,
                     title: 'Account & System settings',
-                    onTap: () => Navigator.pushNamed(context, '/account-system-settings'),
+                    onTap: () => Navigator.pushNamed(
+                      context,
+                      '/account-system-settings',
+                    ),
                   ),
                   _divider(),
                   _SettingsRow.toggle(
@@ -202,24 +226,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _SettingsRow.arrow(
                     icon: Icons.alarm_rounded,
                     title: 'Alarms & Notifications',
-                    onTap: () => Navigator.pushNamed(context, '/alarms-notifications'),
+                    onTap: () =>
+                        Navigator.pushNamed(context, '/alarms-notifications'),
                   ),
                   _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.health_and_safety_rounded,
-                    title: 'Fall Detection',
-                    onTap: () => Navigator.pushNamed(context, '/fall-detection'),
+                    title: 'Fall Prediction',
+                    onTap: () =>
+                        Navigator.pushNamed(context, '/fall-detection'),
                   ),
                   _divider(),
-                  _SettingsRow.arrow(icon: Icons.gps_fixed_rounded, title: 'Find Device'),
+                  _SettingsRow.arrow(
+                    icon: Icons.gps_fixed_rounded,
+                    title: 'Find Device',
+                  ),
                   _divider(),
-                  _SettingsRow.arrow(icon: Icons.notifications_outlined, title: 'Notifications'),
+                  _SettingsRow.arrow(
+                    icon: Icons.notifications_outlined,
+                    title: 'Notifications',
+                  ),
                   _divider(),
-                  _SettingsRow.arrow(icon: Icons.auto_awesome_rounded, title: 'AI Analysis'),
+                  _SettingsRow.arrow(
+                    icon: Icons.auto_awesome_rounded,
+                    title: 'AI Analysis',
+                  ),
                   _divider(),
-                  _SettingsRow.arrow(icon: Icons.camera_alt_outlined, title: 'Take picture'),
-                  _divider(),
-                  _SettingsRow.arrow(icon: Icons.sports_esports_outlined, title: 'Ring Games'),
+                  _SettingsRow.arrow(
+                    icon: Icons.camera_alt_outlined,
+                    title: 'Take picture',
+                  ),
                   _divider(),
                   _SettingsRow.value(
                     icon: Icons.straighten_rounded,
@@ -240,16 +276,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onChanged: (v) => setState(() => _lowBatteryPrompt = v),
                   ),
                   _divider(),
-                  _SettingsRow.arrow(icon: Icons.monitor_heart_outlined, title: 'Health connect'),
+                  _SettingsRow.arrow(
+                    icon: Icons.monitor_heart_outlined,
+                    title: 'Health connect',
+                  ),
                   _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.security_rounded,
                     title: 'Background operation protection guide',
                   ),
                   _divider(),
-                  _SettingsRow.arrow(icon: Icons.system_update_outlined, title: 'Firmware upgrade'),
+                  _SettingsRow.arrow(
+                    icon: Icons.system_update_outlined,
+                    title: 'Firmware upgrade',
+                  ),
                   _divider(),
-                  _SettingsRow.arrow(icon: Icons.help_outline_rounded, title: "FAQ's"),
+                  _SettingsRow.arrow(
+                    icon: Icons.help_outline_rounded,
+                    title: "FAQ's",
+                    onTap: () => Navigator.pushNamed(context, '/faq'),
+                  ),
                 ],
               ),
             ),
@@ -261,7 +307,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _divider() => const Divider(height: 1, color: AppTheme.div, indent: 0, endIndent: 0);
+  Widget _divider() =>
+      const Divider(height: 1, color: AppTheme.div, indent: 0, endIndent: 0);
 
   Future<void> _confirmUnbind(BuildContext context) async {
     final ok = await showDialog<bool>(
@@ -269,20 +316,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (_) => AlertDialog(
         backgroundColor: AppTheme.card2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Unbind ring',
-            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
-        content: Text('This will disconnect and remove the pairing with your ring.',
-            style: GoogleFonts.inter(color: AppTheme.textSec)),
+        title: Text(
+          'Disconnect ring',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          'This will disconnect and remove the pairing with your ring.',
+          style: GoogleFonts.inter(color: AppTheme.textSec),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: AppTheme.textSec),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Unbind',
-                style: GoogleFonts.inter(
-                    color: AppTheme.danger, fontWeight: FontWeight.w600)),
+            child: Text(
+              'Disconnect',
+              style: GoogleFonts.inter(
+                color: AppTheme.danger,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -318,25 +379,23 @@ class _SettingsRow extends StatelessWidget {
     required IconData icon,
     required String title,
     VoidCallback? onTap,
-  }) =>
-      _SettingsRow._(
-        icon: icon,
-        title: title,
-        type: _RowType.arrow,
-        onTap: onTap,
-      );
+  }) => _SettingsRow._(
+    icon: icon,
+    title: title,
+    type: _RowType.arrow,
+    onTap: onTap,
+  );
 
   factory _SettingsRow.value({
     required IconData icon,
     required String title,
     required String value,
-  }) =>
-      _SettingsRow._(
-        icon: icon,
-        title: title,
-        type: _RowType.value,
-        value: value,
-      );
+  }) => _SettingsRow._(
+    icon: icon,
+    title: title,
+    type: _RowType.value,
+    value: value,
+  );
 
   factory _SettingsRow.toggle({
     required IconData icon,
@@ -344,22 +403,25 @@ class _SettingsRow extends StatelessWidget {
     String? subtitle,
     required bool value,
     required ValueChanged<bool> onChanged,
-  }) =>
-      _SettingsRow._(
-        icon: icon,
-        title: title,
-        type: _RowType.toggle,
-        subtitle: subtitle,
-        toggleValue: value,
-        onChanged: onChanged,
-      );
+  }) => _SettingsRow._(
+    icon: icon,
+    title: title,
+    type: _RowType.toggle,
+    subtitle: subtitle,
+    toggleValue: value,
+    onChanged: onChanged,
+  );
 
   @override
   Widget build(BuildContext context) {
     Widget trailing;
     switch (type) {
       case _RowType.arrow:
-        trailing = const Icon(Icons.chevron_right_rounded, color: AppTheme.textSec, size: 20);
+        trailing = const Icon(
+          Icons.chevron_right_rounded,
+          color: AppTheme.textSec,
+          size: 20,
+        );
       case _RowType.value:
         trailing = Text(
           value ?? '',
@@ -368,10 +430,7 @@ class _SettingsRow extends StatelessWidget {
       case _RowType.toggle:
         trailing = Transform.scale(
           scale: 0.85,
-          child: Switch(
-            value: toggleValue ?? false,
-            onChanged: onChanged,
-          ),
+          child: Switch(value: toggleValue ?? false, onChanged: onChanged),
         );
     }
 
@@ -408,7 +467,10 @@ class _SettingsRow extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle!,
-                      style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 11),
+                      style: GoogleFonts.inter(
+                        color: AppTheme.textSec,
+                        fontSize: 11,
+                      ),
                     ),
                   ],
                 ],

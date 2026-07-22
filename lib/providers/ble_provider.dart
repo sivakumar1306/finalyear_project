@@ -71,6 +71,23 @@ class BleProvider extends ChangeNotifier {
   // Delay (seconds) before issuing SDK commands after a connection event.
   int _connectDelaySeconds = 1;
 
+  // Completed when native's "bindReady" event arrives for the current connection —
+  // signals the bind handshake (see BlePlugin.kt sendBindSuccessWithRetry) has finished
+  // (confirmed or gave up retrying), so it's now safe to issue heavier traffic like the
+  // sleep large-data sync. Firing that sync while bind was still in flight collided with
+  // it and made the native SDK conclude the device was unreachable, self-unbind, and
+  // loop forever without ever completing pairing.
+  Completer<void>? _bindReadyCompleter;
+
+  // Set right before every connect() attempt and *not* cleared on timeout/failure —
+  // so that if native later succeeds after our own connect() Future has already timed
+  // out (e.g. a bind/rebond cycle that legitimately runs past CONNECT_TIMEOUT_MS), the
+  // later "connectionState:true" event in _listenEvents() still knows which device to
+  // persist. Without this, Home's "haven't bound a device yet" check (which gates on
+  // deviceAddress, not isConnected) stays stuck even though the ring is really connected.
+  String? _pendingDeviceName;
+  String? _pendingDeviceAddress;
+
   // Fall-prediction banner (client demo) — set when a prediction notification tap
   // opens/resumes the app; Home screen shows the banner until "Take action"/"ignore".
   bool _showFallPredictionBanner = false;
@@ -195,11 +212,30 @@ class BleProvider extends ChangeNotifier {
         case 'connectionState':
           _isConnected = data['connected'] as bool? ?? false;
           if (_isConnected) {
+            if (_deviceAddress.isEmpty && _pendingDeviceAddress != null) {
+              // Native connected successfully after our own connect() call had
+              // already timed out and given up (see connect()'s doc comment) — the
+              // connection is real, we just never recorded which device it was.
+              // Persist it now so Home's deviceAddress-gated UI reflects reality.
+              _deviceName    = _pendingDeviceName!;
+              _deviceAddress = _pendingDeviceAddress!;
+              SharedPreferences.getInstance().then((prefs) {
+                prefs.setString('device_name', _deviceName);
+                prefs.setString('device_address', _deviceAddress);
+              });
+            }
+            _bindReadyCompleter = Completer<void>();
             _onConnected(delay: _connectDelaySeconds);
           } else {
             _battery = -1;
           }
           notifyListeners();
+          break;
+        case 'bindReady':
+          final completer = _bindReadyCompleter;
+          if (completer != null && !completer.isCompleted) {
+            completer.complete();
+          }
           break;
         case 'scanResult':
           final dev = ScannedDevice(
@@ -477,7 +513,23 @@ class BleProvider extends ChangeNotifier {
     try { await _ble.setTime(); } catch (_) {}
     await refreshBattery();
     await refreshFirmwareVersion();
+    // Wait for native's bind handshake to finish before the sleep large-data sync
+    // below (syncAllFromRing) — see BlePlugin.kt's "bindReady" event. A 15s timeout
+    // is a safety net only (mirrors BlePlugin's own bind-retry budget of
+    // INIT_MAX_ATTEMPTS × INIT_RETRY_TIMEOUT_MS = 12s); if bindReady never arrives
+    // for some reason, proceed anyway rather than hang sync forever.
+    await _waitForBindReady();
     if (_isConnected) syncAllFromRing();
+  }
+
+  Future<void> _waitForBindReady() async {
+    final completer = _bindReadyCompleter;
+    if (completer == null) return;
+    try {
+      await completer.future.timeout(const Duration(seconds: 15));
+    } on TimeoutException {
+      debugPrint('[BleProvider] bindReady timed out — proceeding with sync anyway');
+    }
   }
 
   // ── Sync cancellation ─────────────────────────────────────────────────────
@@ -609,10 +661,15 @@ class BleProvider extends ChangeNotifier {
           }
         }
       } else if (decoded is Map<String, dynamic>) {
-        // TemperatureEntity: interval array
+        // TemperatureEntity: interval array — only trust this for today's data
+        // (mIndex 0). Native's startObtainTemperatureSeries(2) requests 3 days
+        // (today/yesterday/day-before), and callbacks can arrive for any of them —
+        // without this check, an older day's data was being saved and shown as
+        // "today's" reading.
+        final mIndex = (decoded['mIndex'] as num?)?.toInt();
         final rawVals = (decoded['mValues'] as List<dynamic>?)
             ?? (decoded['d'] as List<dynamic>?);
-        if (rawVals != null) {
+        if (mIndex == 0 && rawVals != null) {
           for (final raw in rawVals.reversed) {
             var v = (raw as num).toDouble();
             if (v <= 0) continue;
@@ -836,6 +893,8 @@ class BleProvider extends ChangeNotifier {
       _isConnected    = false;
       _isReconnecting = false;
       _connectDelaySeconds = 2;
+      _pendingDeviceName    = device.name;
+      _pendingDeviceAddress = device.address;
       notifyListeners();
 
       final ok = await _ble.connect(device.address);
@@ -851,8 +910,12 @@ class BleProvider extends ChangeNotifier {
         // (on raw GATT connect) is too early and causes sync to hang.
         notifyListeners();
       }
+      // On timeout/failure here, _pendingDeviceName/_pendingDeviceAddress are
+      // deliberately left set — see the field's doc comment and the
+      // 'connectionState' handler in _listenEvents().
       return ok;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[BleProvider] connect() failed: $e');
       return false;
     }
   }
@@ -882,6 +945,7 @@ class BleProvider extends ChangeNotifier {
   // system BLE pairing dialog unprompted, before the user even reaches the login screen.
   Future<void> disconnect() async {
     _cancelSync();
+    _bindReadyCompleter = null;
     await _ble.disconnect();
     _isConnected    = false;
     _battery        = -1;

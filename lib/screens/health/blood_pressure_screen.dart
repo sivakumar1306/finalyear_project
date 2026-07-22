@@ -829,14 +829,18 @@ class _BPStatCard extends StatelessWidget {
           Text(label,
               style: _inter(10, weight: FontWeight.w600, color: _kSec, letterSpacing: 0.7)),
           const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(value, style: _inter(17, weight: FontWeight.w600)),
-              const SizedBox(width: 4),
-              Text(value != '--' ? 'mmHg' : '', style: _inter(11, color: _kSec)),
-            ],
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(value, style: _inter(17, weight: FontWeight.w600)),
+                const SizedBox(width: 4),
+                Text(value != '--' ? 'mmHg' : '', style: _inter(11, color: _kSec)),
+              ],
+            ),
           ),
           const SizedBox(height: 6),
           Text('know more >', style: _inter(11, color: _kSec)),

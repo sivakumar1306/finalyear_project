@@ -122,7 +122,7 @@ class _RecordItem {
 
 class _RecordTile extends StatelessWidget {
   final _RecordItem item;
-  const _RecordTile({super.key, required this.item});
+  const _RecordTile({required this.item});
 
   @override
   Widget build(BuildContext context) {
