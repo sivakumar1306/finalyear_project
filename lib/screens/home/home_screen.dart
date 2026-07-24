@@ -104,8 +104,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<BleProvider>().checkConnection();
-      // Cold start via the fall-prediction notification tap — MainActivity sets a flag
-      // BlePlugin.consumeFallPredictionFlag reads/clears once.
+      // Any pending fall prediction (notification tap OR direct app open after a
+      // prediction fired) — native side persists until the user dismisses the banner.
       context.read<BleProvider>().checkPendingFallPrediction();
     });
     _loadUserProfile();
@@ -115,8 +115,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // App was already running/backgrounded when the notification action was tapped —
-    // onCreate won't fire again, only onNewIntent, so re-check on resume too.
+    // Re-check on resume: prediction may have fired while backgrounded, or the user
+    // may have opened via the notification while the engine was still warm.
     if (state == AppLifecycleState.resumed) {
       context.read<BleProvider>().checkPendingFallPrediction();
     }

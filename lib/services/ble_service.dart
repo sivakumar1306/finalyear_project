@@ -363,10 +363,16 @@ class BleService {
   Future<bool> simulateFallPrediction() async =>
       await _methodChannel.invokeMethod<bool>('simulateFallPrediction') ?? false;
 
-  /// Reads (and clears) the flag MainActivity sets when a fall-prediction notification
-  /// tap launches/resumes the app — `{"pending": bool, "hr": int}`.
+  /// Reads the fall-prediction pending flag — `{"pending": bool, "hr": int}`.
+  /// Pending is set when a prediction fires (not only when the notification is tapped),
+  /// so a normal app open still surfaces the alert. Does not clear; call
+  /// [clearFallPredictionFlag] when the user dismisses the banner.
   Future<String> consumeFallPredictionFlag() async =>
       await _methodChannel.invokeMethod<String>('consumeFallPredictionFlag') ?? '{"pending":false,"hr":0}';
+
+  /// Clears a dismissed fall-prediction alert so it does not reappear on next resume.
+  Future<bool> clearFallPredictionFlag() async =>
+      await _methodChannel.invokeMethod<bool>('clearFallPredictionFlag') ?? false;
 
   Future<bool> placeEmergencyCall(String phone) async {
     final result = await _methodChannel.invokeMethod<bool>('placeEmergencyCall', {'phone': phone});

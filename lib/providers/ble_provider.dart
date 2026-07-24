@@ -328,14 +328,27 @@ class BleProvider extends ChangeNotifier {
   /// Client-demo only — see FallPredictionNotifier.kt / BlePlugin.simulateFallPrediction.
   Future<void> simulateFallPrediction() => _ble.simulateFallPrediction();
 
-  /// Call on cold start (Home initState) and on app resume — picks up the flag
-  /// MainActivity sets when a fall-prediction notification tap launched/resumed the app.
+  /// Call on cold start (Home initState) and on app resume — picks up a pending
+  /// fall prediction whether the app was opened via the notification or directly
+  /// from the launcher. Pending is persisted natively until [dismissFallPredictionBanner].
   Future<void> checkPendingFallPrediction() async {
     final json = await _ble.consumeFallPredictionFlag();
     final decoded = jsonDecode(json);
-    if (decoded is! Map || decoded['pending'] != true) return;
+    if (decoded is! Map || decoded['pending'] != true) {
+      // Prediction was cleared (or never fired) — hide banner if still showing.
+      if (_showFallPredictionBanner) {
+        _showFallPredictionBanner = false;
+        _fallPredictionTier = 'low';
+        notifyListeners();
+      }
+      return;
+    }
+    // Already showing with same state — avoid redundant rebuilds on every resume.
+    final hr = (decoded['hr'] as num?)?.toInt() ?? 122;
+    if (_showFallPredictionBanner && _fallPredictionHr == hr) return;
+
     _showFallPredictionBanner = true;
-    _fallPredictionHr = (decoded['hr'] as num?)?.toInt() ?? 122;
+    _fallPredictionHr = hr;
 
     // Check latest risk log score to determine tier matching the existing _tierFromScore logic
     final risk = await getFallRiskScore();
@@ -355,10 +368,12 @@ class BleProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void dismissFallPredictionBanner() {
+  Future<void> dismissFallPredictionBanner() async {
     _showFallPredictionBanner = false;
     _fallPredictionTier = 'low';
     notifyListeners();
+    // Clear native SharedPreferences so reopening the app does not resurrect the alert.
+    await _ble.clearFallPredictionFlag();
   }
 
   Future<bool> placeEmergencyCall(String phone) async {

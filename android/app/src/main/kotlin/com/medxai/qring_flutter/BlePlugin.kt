@@ -329,6 +329,7 @@ class BlePlugin(private val context: Context) {
             "simulateFallRiskTrigger"    -> simulateFallRiskTrigger(result)
             "simulateFallPrediction"     -> simulateFallPrediction(result)
             "consumeFallPredictionFlag"  -> consumeFallPredictionFlag(result)
+            "clearFallPredictionFlag"    -> clearFallPredictionFlag(result)
             "placeEmergencyCall"         -> placeEmergencyCall(call, result)
             else                         -> result.notImplemented()
         }
@@ -2168,14 +2169,21 @@ class BlePlugin(private val context: Context) {
         }
     }
 
-    // Reads (and clears) the flag MainActivity sets when a fall-prediction notification tap
-    // launches/resumes the app, so the Home screen can show the banner exactly once per tap.
+    // Reads the fall-prediction pending flag. Restores from SharedPreferences first so a
+    // cold start from the launcher (no notification Intent) still surfaces the Home banner.
+    // Does NOT clear — clearing happens only when the user dismisses the banner
+    // (clearFallPredictionFlag), otherwise reopening the app would hide an active alert.
     private fun consumeFallPredictionFlag(result: MethodChannel.Result) {
+        FallPredictionNotifier.restorePending(context)
         val pending = MainActivity.pendingFallPrediction
         val hr = MainActivity.pendingFallPredictionHr
-        MainActivity.pendingFallPrediction = false
-        MainActivity.pendingFallPredictionHr = 0
         result.success(gson.toJson(mapOf("pending" to pending, "hr" to hr)))
+    }
+
+    // User tapped Ignore / dismissed the Home fall-prediction banner.
+    private fun clearFallPredictionFlag(result: MethodChannel.Result) {
+        FallPredictionNotifier.clearPending(context)
+        result.success(true)
     }
 
     private fun getEmergencyContacts(result: MethodChannel.Result) {

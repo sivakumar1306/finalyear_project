@@ -18,10 +18,11 @@ class MainActivity : FlutterActivity() {
         const val BLE_EVENT_CHANNEL = "com.medxai.qring/ble_events"
         const val PHONE_MODE_METHOD_CHANNEL = "com.medxai.qring/phone_mode"
 
-        // Set when a fall-prediction notification (tap or "Alert emergency contact" action)
-        // launches/resumes the app. Consumed once via BlePlugin.consumeFallPredictionFlag so
-        // the Home screen can show the "we're concerned" banner regardless of whether this was
-        // a cold start (read in onCreate) or the app was already running (read in onNewIntent).
+        // Fall-prediction pending state. Set when a prediction fires (FallPredictionNotifier
+        // also persists to SharedPreferences) and/or when the notification is tapped.
+        // Home reads via BlePlugin.consumeFallPredictionFlag; cleared only when the user
+        // dismisses the banner (clearFallPredictionFlag) — so opening from the launcher
+        // after a prediction still surfaces the alert.
         var pendingFallPrediction = false
         var pendingFallPredictionHr = 0
     }
@@ -37,6 +38,9 @@ class MainActivity : FlutterActivity() {
         if (hasBlePermission()) {
             BleConnectionService.start(this)
         }
+        // Restore any prediction that fired while the app was backgrounded/killed, then
+        // overlay intent extras if this launch came from the notification itself.
+        FallPredictionNotifier.restorePending(this)
         handleIntent(intent)
     }
 
@@ -47,8 +51,10 @@ class MainActivity : FlutterActivity() {
 
     private fun handleIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(FallPredictionNotifier.EXTRA_FALL_PREDICTION, false) == true) {
-            pendingFallPrediction = true
-            pendingFallPredictionHr = intent.getIntExtra(FallPredictionNotifier.EXTRA_FALL_PREDICTION_HR, 0)
+            val hr = intent.getIntExtra(FallPredictionNotifier.EXTRA_FALL_PREDICTION_HR, 0)
+            // Keep SharedPreferences in sync so a later cold start still sees the alert
+            // until the user dismisses it in-app.
+            FallPredictionNotifier.markPending(this, hr)
         }
     }
 
