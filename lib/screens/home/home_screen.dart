@@ -780,7 +780,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         onTap: () {
                           Navigator.pop(context);
                           Share.share(
-                            'Check out AlphaHuman — the AI health ring app I use to track my sleep, heart rate, and more.',
+                            'Check out SUNDR — the AI health ring app I use to track my sleep, heart rate, and more.',
                           );
                         },
                       ),
@@ -918,7 +918,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       children: [
                         const TextSpan(
                           text:
-                              'Welcome to Alphahuman rings — bought a ring already? Connect your ring. Haven\'t bought one yet? ',
+                              'Welcome to SUNDR rings — bought a ring already? Connect your ring. Haven\'t bought one yet? ',
                         ),
                         TextSpan(
                           text: 'Browse our collection.',

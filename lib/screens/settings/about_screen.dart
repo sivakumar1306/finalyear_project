@@ -36,7 +36,7 @@ class AboutScreen extends StatelessWidget {
             Image.asset('ring.png', width: 90, height: 90, fit: BoxFit.contain),
             const SizedBox(height: 16),
             Text(
-              'AlphaHuman',
+              'SUNDR',
               style: GoogleFonts.inter(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -59,7 +59,7 @@ class AboutScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
-                'AlphaHuman — your AI-powered health companion, paired with your smart ring for continuous wellness tracking.',
+                'SUNDR — your AI-powered health companion, paired with your smart ring for continuous wellness tracking.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 14,

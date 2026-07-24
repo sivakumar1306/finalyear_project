@@ -341,7 +341,7 @@ class _SearchingBody extends StatelessWidget {
           )
         else ...[
           Text(
-            'No Alphahuman rings found nearby',
+            'No SUNDR rings found nearby',
             style: GoogleFonts.inter(fontSize: 13, color: Colors.white38),
           ),
           const SizedBox(height: 20),

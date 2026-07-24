@@ -94,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Log in to your AlphaHuman account.',
+                      'Log in to your SUNDR account.',
                       style: TextStyle(color: Colors.white54, fontSize: 14),
                     ),
                     const SizedBox(height: 40),

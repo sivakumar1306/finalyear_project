@@ -107,7 +107,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Create an AlphaHuman account.',
+                      'Create a SUNDR account.',
                       style: TextStyle(color: Colors.white54, fontSize: 14),
                     ),
                     const SizedBox(height: 40),

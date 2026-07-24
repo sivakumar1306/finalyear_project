@@ -10,7 +10,7 @@
 | **Document date** | 2026-07-12 |
 | **Audience** | A new engineer taking over this codebase with no prior context |
 
-> **Naming note:** the app is user-facing branded **"SUMTHING"** (splash screen shows "ALPHAHUMAN"), but the Flutter package name (`qring_flutter`), Android namespace (`com.medxai.qring_flutter`), all MethodChannel names (`com.medxai.qring/*`), and most internal class names still say **"QRing"** — this is a rebrand-in-place; the two names refer to the same app. Expect to see both throughout the code.
+> **Naming note:** the app is user-facing branded **"SUNDR"** (splash screen shows "SUNDR"), but the Flutter package name (`qring_flutter`), Android namespace (`com.medxai.qring_flutter`), all MethodChannel names (`com.medxai.qring/*`), and most internal class names still say **"QRing"** — this is a rebrand-in-place; the two names refer to the same app. Expect to see both throughout the code.
 
 ---
 
@@ -373,7 +373,7 @@ sequenceDiagram
     else logged in, profile incomplete
         Splash->>App: navigate to onboarding (OnboardingNameScreen)
     else not logged in
-        Splash->>App: show "ALPHAHUMAN" get-started screen
+        Splash->>App: show "SUNDR" get-started screen
     end
 ```
 
@@ -396,7 +396,7 @@ Key points for a new developer:
 stateDiagram-v2
     [*] --> Idle
     Idle --> Scanning: startScan()
-    Scanning --> Scanning: scanResult events\n(filtered to Alphahuman prefixes\nR08_ / R02_)
+    Scanning --> Scanning: scanResult events\n(filtered to SUNDR prefixes\nR08_ / R02_)
     Scanning --> Connecting: user taps a discovered device / connect()
     Scanning --> Idle: 20s timeout, no selection
     Connecting --> AwaitingServiceDiscovery: BLE GATT connect
@@ -466,7 +466,7 @@ Shared chrome: `onboarding_shell.dart` provides back button, step-dot progress, 
 ### 5.3 `home/` — Main dashboard
 
 - **`home_screen.dart`** (1,583 lines — the most complex screen in the app). **Purpose**: primary dashboard. **Actions**: pull-to-refresh; tap device pill → ring scan sheet; tap any metric card → its detail screen; Alarm mode segmented selector (Focus/Base/Prayer); fall-prediction banner "Take action"/"ignore". **Data**: almost entirely `BleProvider` fields (steps, stress, sleep, HRV, SpO2, HR, BP, connection state) plus `SupabaseService.getProfile`/`getCycles` for the name/gender-gated Women's Health card. **Business logic**: activity-score formula (duplicated in `steps_screen.dart` — see [§12](#12-known-issues-and-technical-debt)); per-metric status classifiers (stress/SpO2/HR/HRV/sleep) matching the thresholds used on each metric's own detail screen; fall-prediction banner visibility handles both cold-start and warm-resume launch paths. Custom painters: `_SparkPainter`, `_BarChartPainter`, `_CycleBarPainter`.
-- **`ring_scan_sheet.dart`** — Modal bottom-sheet scan/pair UI (the primary pairing entry point from Home). Auto-starts scanning, filters to Alphahuman ring name prefixes, 20s auto-stop, offers "connect to last device directly" as a fallback for rings that stopped advertising.
+- **`ring_scan_sheet.dart`** — Modal bottom-sheet scan/pair UI (the primary pairing entry point from Home). Auto-starts scanning, filters to SUNDR ring name prefixes, 20s auto-stop, offers "connect to last device directly" as a fallback for rings that stopped advertising.
 
 ### 5.4 `health/` — Vitals detail screens
 

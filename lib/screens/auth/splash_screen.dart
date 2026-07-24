@@ -67,7 +67,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   Image.asset('ring.png', height: 200),
                   const SizedBox(height: 28),
                   const Text(
-                    'ALPHAHUMAN',
+                    'SUNDR',
                     style: TextStyle(
                       color: Color(0xFFF0A030),
                       fontSize: 26,

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>SUMTHING</string>
+	<string>SUNDR</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -46,8 +46,8 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>SUMTHING needs access to your microphone so you can use voice input to ask the AI health assistant questions hands-free.</string>
+	<string>SUNDR needs access to your microphone so you can use voice input to ask the AI health assistant questions hands-free.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>SUMTHING uses on-device speech recognition to convert your spoken words into text for the AI health assistant.</string>
+	<string>SUNDR uses on-device speech recognition to convert your spoken words into text for the AI health assistant.</string>
 </dict>
 </plist>
