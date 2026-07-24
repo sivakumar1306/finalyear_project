@@ -374,6 +374,24 @@ class BleService {
   Future<bool> clearFallPredictionFlag() async =>
       await _methodChannel.invokeMethod<bool>('clearFallPredictionFlag') ?? false;
 
+  /// Emergency SMS countdown / last-send status — see EmergencySmsSender.kt.
+  Future<String> getEmergencySmsStatus() async =>
+      await _methodChannel.invokeMethod<String>('getEmergencySmsStatus') ??
+      '{"active":false,"secondsRemaining":0}';
+
+  /// Cancel a pending auto-SMS countdown (I'm okay / Cancel SMS).
+  Future<bool> cancelEmergencySms() async =>
+      await _methodChannel.invokeMethod<bool>('cancelEmergencySms') ?? false;
+
+  /// Send SMS via SmsManager to **all** emergency contacts immediately.
+  /// Optional [message] overrides the default fall-help text.
+  Future<String> sendEmergencySms({String? message}) async {
+    final args = <String, dynamic>{};
+    if (message != null) args['message'] = message;
+    return await _methodChannel.invokeMethod<String>('sendEmergencySms', args) ??
+        '{"ok":false,"sentCount":0,"error":"no response"}';
+  }
+
   Future<bool> placeEmergencyCall(String phone) async {
     final result = await _methodChannel.invokeMethod<bool>('placeEmergencyCall', {'phone': phone});
     return result ?? false;

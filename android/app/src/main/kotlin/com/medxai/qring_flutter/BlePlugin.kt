@@ -66,6 +66,7 @@ import com.oudmon.ble.base.communication.sport.SportPlusHandle
 import com.oudmon.ble.base.scan.BleScannerHelper
 import com.oudmon.ble.base.scan.ScanRecord
 import com.oudmon.ble.base.scan.ScanWrapperCallback
+import com.medxai.qring_flutter.analysis.EmergencySmsSender
 import com.medxai.qring_flutter.analysis.FallAlertNotifier
 import com.medxai.qring_flutter.analysis.FallPredictionNotifier
 import com.medxai.qring_flutter.data.FallEventEntity
@@ -330,6 +331,9 @@ class BlePlugin(private val context: Context) {
             "simulateFallPrediction"     -> simulateFallPrediction(result)
             "consumeFallPredictionFlag"  -> consumeFallPredictionFlag(result)
             "clearFallPredictionFlag"    -> clearFallPredictionFlag(result)
+            "getEmergencySmsStatus"      -> getEmergencySmsStatus(result)
+            "cancelEmergencySms"         -> cancelEmergencySms(result)
+            "sendEmergencySms"           -> sendEmergencySms(call, result)
             "placeEmergencyCall"         -> placeEmergencyCall(call, result)
             else                         -> result.notImplemented()
         }
@@ -2093,6 +2097,7 @@ class BlePlugin(private val context: Context) {
                     )
                 )
                 FallAlertNotifier.notifyFall(context, confidence, source)
+                EmergencySmsSender.schedule(context, reason = "fall")
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
@@ -2135,10 +2140,37 @@ class BlePlugin(private val context: Context) {
                     NewReadingEvent(Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(), bpm.toDouble())
                 )
                 FallPredictionNotifier.notifyPrediction(context, bpm)
+                EmergencySmsSender.schedule(context, reason = "prediction")
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
             }
+        }
+    }
+
+    private fun getEmergencySmsStatus(result: MethodChannel.Result) {
+        result.success(gson.toJson(EmergencySmsSender.status(context)))
+    }
+
+    private fun cancelEmergencySms(result: MethodChannel.Result) {
+        EmergencySmsSender.cancel(context)
+        // User is okay — also clear the prediction banner so Home stops prompting.
+        FallPredictionNotifier.clearPending(context)
+        result.success(true)
+    }
+
+    private fun sendEmergencySms(call: MethodCall, result: MethodChannel.Result) {
+        val message = call.argument<String>("message")
+            ?: EmergencySmsSender.DEFAULT_MESSAGE
+        // Off main thread: Room + SmsManager.
+        repo().ioScope.launch {
+            val status = try {
+                EmergencySmsSender.sendNow(context, message)
+            } catch (e: Exception) {
+                mainHandler.post { result.error("SMS_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(gson.toJson(status)) }
         }
     }
 

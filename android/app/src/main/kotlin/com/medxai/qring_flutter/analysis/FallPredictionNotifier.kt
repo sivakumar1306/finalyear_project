@@ -51,8 +51,17 @@ object FallPredictionNotifier {
             )
         }
 
+        val countdown = EmergencySmsSender.COUNTDOWN_SECONDS
         val bodyText = "We have detected multiple signs that you might fall down in the " +
-            "next 2-3 minutes. Take a seat and contact your caretaker."
+            "next 2-3 minutes. SMS will be sent to all emergency contacts in $countdown " +
+            "seconds unless you cancel."
+
+        val cancelSmsIntent = PendingIntent.getBroadcast(
+            context,
+            2,
+            Intent(context, EmergencySmsCancelReceiver::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("You might fall soon...")
@@ -64,7 +73,8 @@ object FallPredictionNotifier {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(launchIntent(0))
-            .addAction(0, "Alert emergency contact", launchIntent(1))
+            .addAction(0, "Cancel SMS", cancelSmsIntent)
+            .addAction(0, "Open app", launchIntent(1))
             .build()
 
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)

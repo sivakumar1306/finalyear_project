@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import com.medxai.qring_flutter.analysis.EmergencySmsSender
 import com.medxai.qring_flutter.analysis.FallPredictionNotifier
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -41,6 +42,8 @@ class MainActivity : FlutterActivity() {
         // Restore any prediction that fired while the app was backgrounded/killed, then
         // overlay intent extras if this launch came from the notification itself.
         FallPredictionNotifier.restorePending(this)
+        // Re-arm emergency SMS countdown if process died mid-countdown.
+        EmergencySmsSender.restoreIfNeeded(this)
         handleIntent(intent)
     }
 

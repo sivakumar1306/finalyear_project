@@ -27,6 +27,8 @@
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
+    <!-- Background SMS to emergency contacts after fall detection (SmsManager) -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
 
     <!-- Other -->
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -91,6 +93,11 @@
 
         <receiver
             android:name=".analysis.FallAlertDismissReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".analysis.EmergencySmsCancelReceiver"
             android:enabled="true"
             android:exported="false" />
 

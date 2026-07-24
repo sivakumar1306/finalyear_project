@@ -47,15 +47,18 @@ object FallAlertNotifier {
             else -> "your vitals"
         }
         val pct = (confidence * 100).toInt()
+        val countdown = EmergencySmsSender.COUNTDOWN_SECONDS
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("Possible fall detected")
-            .setContentText("Confidence $pct% — corroborated by $sourceLabel. Tap to open the app.")
+            .setContentText(
+                "Confidence $pct% — SMS to all emergency contacts in ${countdown}s. Tap I'm okay to cancel."
+            )
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
                     "A sudden motion consistent with a fall was detected, corroborated by " +
-                        "$sourceLabel ($pct% confidence). If you're okay, dismiss this. " +
-                        "Otherwise open the app to alert your emergency contact."
+                        "$sourceLabel ($pct% confidence). SMS will be sent to all emergency " +
+                        "contacts in $countdown seconds. If you're okay, tap I'm okay to cancel."
                 )
             )
             .setSmallIcon(android.R.drawable.ic_dialog_alert)

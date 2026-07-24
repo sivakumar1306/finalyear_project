@@ -94,6 +94,15 @@ class BleProvider extends ChangeNotifier {
   int _fallPredictionHr = 0;
   String _fallPredictionTier = 'low';
 
+  // Emergency SMS auto-send countdown (native EmergencySmsSender) — polled while active.
+  bool _emergencySmsActive = false;
+  int _emergencySmsSecondsRemaining = 0;
+  String _emergencySmsReason = '';
+  bool _emergencySmsHasPermission = true;
+  int _emergencySmsLastSentCount = 0;
+  String? _emergencySmsLastError;
+  Timer? _emergencySmsPollTimer;
+
   // ── Getters ───────────────────────────────────────────────────────────────
 
   bool get isReconnecting => _isReconnecting;
@@ -139,6 +148,13 @@ class BleProvider extends ChangeNotifier {
   bool get showFallPredictionBanner => _showFallPredictionBanner;
   int  get fallPredictionHr         => _fallPredictionHr;
   String get fallPredictionTier     => _fallPredictionTier;
+
+  bool get emergencySmsActive => _emergencySmsActive;
+  int get emergencySmsSecondsRemaining => _emergencySmsSecondsRemaining;
+  String get emergencySmsReason => _emergencySmsReason;
+  bool get emergencySmsHasPermission => _emergencySmsHasPermission;
+  int get emergencySmsLastSentCount => _emergencySmsLastSentCount;
+  String? get emergencySmsLastError => _emergencySmsLastError;
 
   // ── Manual update methods (called by individual screens) ──────────────────
 
@@ -373,7 +389,80 @@ class BleProvider extends ChangeNotifier {
     _fallPredictionTier = 'low';
     notifyListeners();
     // Clear native SharedPreferences so reopening the app does not resurrect the alert.
-    await _ble.clearFallPredictionFlag();
+    // Also cancel any pending auto-SMS — user tapped ignore / I'm okay.
+    await Future.wait([
+      _ble.clearFallPredictionFlag(),
+      _ble.cancelEmergencySms(),
+    ]);
+    await refreshEmergencySmsStatus();
+  }
+
+  /// Poll native countdown state. Starts a 1s timer while a countdown is active.
+  Future<void> refreshEmergencySmsStatus() async {
+    try {
+      final json = await _ble.getEmergencySmsStatus();
+      final decoded = jsonDecode(json);
+      if (decoded is! Map) return;
+      final active = decoded['active'] == true;
+      final remaining = (decoded['secondsRemaining'] as num?)?.toInt() ?? 0;
+      final reason = decoded['reason'] as String? ?? '';
+      final hasPerm = decoded['hasPermission'] != false;
+      final lastCount = (decoded['lastSentCount'] as num?)?.toInt() ?? 0;
+      final lastError = decoded['lastError'] as String?;
+
+      final changed = active != _emergencySmsActive ||
+          remaining != _emergencySmsSecondsRemaining ||
+          reason != _emergencySmsReason ||
+          hasPerm != _emergencySmsHasPermission ||
+          lastCount != _emergencySmsLastSentCount ||
+          lastError != _emergencySmsLastError;
+
+      _emergencySmsActive = active;
+      _emergencySmsSecondsRemaining = remaining;
+      _emergencySmsReason = reason;
+      _emergencySmsHasPermission = hasPerm;
+      _emergencySmsLastSentCount = lastCount;
+      _emergencySmsLastError = lastError;
+
+      if (active) {
+        _ensureEmergencySmsPoll();
+      } else {
+        _stopEmergencySmsPoll();
+      }
+      if (changed) notifyListeners();
+    } catch (e) {
+      debugPrint('[FallDetection] SMS status failed: $e');
+    }
+  }
+
+  void _ensureEmergencySmsPoll() {
+    if (_emergencySmsPollTimer?.isActive == true) return;
+    _emergencySmsPollTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      refreshEmergencySmsStatus();
+    });
+  }
+
+  void _stopEmergencySmsPoll() {
+    _emergencySmsPollTimer?.cancel();
+    _emergencySmsPollTimer = null;
+  }
+
+  /// Cancel auto-SMS countdown and clear the fall-prediction banner.
+  Future<void> cancelEmergencySms() async {
+    await _ble.cancelEmergencySms();
+    _showFallPredictionBanner = false;
+    _fallPredictionTier = 'low';
+    await refreshEmergencySmsStatus();
+    notifyListeners();
+  }
+
+  /// Immediate SmsManager send to **all** emergency contacts (manual Message action).
+  Future<Map<String, dynamic>> sendEmergencySms({String? message}) async {
+    final json = await _ble.sendEmergencySms(message: message);
+    final decoded = jsonDecode(json);
+    await refreshEmergencySmsStatus();
+    if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    return {'ok': false, 'sentCount': 0, 'error': 'invalid response'};
   }
 
   Future<bool> placeEmergencyCall(String phone) async {
@@ -975,6 +1064,7 @@ class BleProvider extends ChangeNotifier {
   @override
   void dispose() {
     _eventSub?.cancel();
+    _stopEmergencySmsPoll();
     super.dispose();
   }
 }

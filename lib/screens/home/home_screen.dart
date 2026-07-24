@@ -103,10 +103,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<BleProvider>().checkConnection();
+      final ble = context.read<BleProvider>();
+      ble.checkConnection();
       // Any pending fall prediction (notification tap OR direct app open after a
       // prediction fired) — native side persists until the user dismisses the banner.
-      context.read<BleProvider>().checkPendingFallPrediction();
+      ble.checkPendingFallPrediction();
+      // Auto-SMS countdown may already be running (fall while app was backgrounded).
+      ble.refreshEmergencySmsStatus();
     });
     _loadUserProfile();
     _loadCardOrder();
@@ -118,7 +121,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Re-check on resume: prediction may have fired while backgrounded, or the user
     // may have opened via the notification while the engine was still warm.
     if (state == AppLifecycleState.resumed) {
-      context.read<BleProvider>().checkPendingFallPrediction();
+      final ble = context.read<BleProvider>();
+      ble.checkPendingFallPrediction();
+      ble.refreshEmergencySmsStatus();
     }
   }
 
@@ -639,9 +644,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                if (ble.showFallPredictionBanner) ...[
+                if (ble.showFallPredictionBanner || ble.emergencySmsActive) ...[
                   _FallPredictionBanner(
-                    hr: ble.fallPredictionHr,
+                    hr: ble.fallPredictionHr > 0 ? ble.fallPredictionHr : ble.todayMaxHr,
+                    smsSecondsRemaining: ble.emergencySmsActive
+                        ? ble.emergencySmsSecondsRemaining
+                        : null,
+                    smsHasPermission: ble.emergencySmsHasPermission,
                     onTakeAction: () {
                       Navigator.push(
                         context,
@@ -984,18 +993,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
 class _FallPredictionBanner extends StatelessWidget {
   final int hr;
+  final int? smsSecondsRemaining;
+  final bool smsHasPermission;
   final VoidCallback onTakeAction;
   final VoidCallback onIgnore;
 
   const _FallPredictionBanner({
     required this.hr,
+    this.smsSecondsRemaining,
+    this.smsHasPermission = true,
     required this.onTakeAction,
     required this.onIgnore,
   });
 
   @override
   Widget build(BuildContext context) {
-    const accent = AppTheme.tempColor;
+    final countdown = smsSecondsRemaining;
+    final accent = countdown != null ? AppTheme.hrColor : AppTheme.tempColor;
+    final title = countdown != null
+        ? 'Emergency SMS in ${countdown}s'
+        : 'We are concerned ...';
+    final body = countdown != null
+        ? (!smsHasPermission
+            ? 'SMS permission is missing — grant it so contacts can be alerted automatically. Open the app settings if needed.'
+            : 'SMS will be sent to all emergency contacts in $countdown seconds. Tap Cancel if you are okay.')
+        : (hr > 0
+            ? 'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.'
+            : 'A fall-related alert is active. Take action or ignore if you are okay.');
+
     return _ShrinkButton(
       onTap: onTakeAction,
       child: Container(
@@ -1015,7 +1040,7 @@ class _FallPredictionBanner extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  'FALL PREDICTION',
+                  countdown != null ? 'EMERGENCY SMS' : 'FALL PREDICTION',
                   style: _inter(
                     11,
                     weight: FontWeight.w700,
@@ -1041,12 +1066,12 @@ class _FallPredictionBanner extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'We are concerned ...',
+              title,
               style: _inter(20, weight: FontWeight.w600),
             ),
             const SizedBox(height: 10),
             Text(
-              'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.',
+              body,
               style: _inter(
                 13,
                 color: Colors.white.withValues(alpha: 0.85),
@@ -1079,7 +1104,7 @@ class _FallPredictionBanner extends StatelessWidget {
                 TextButton(
                   onPressed: onIgnore,
                   child: Text(
-                    'ignore',
+                    countdown != null ? 'Cancel SMS' : 'ignore',
                     style: _inter(
                       14,
                       weight: FontWeight.w600,
