@@ -112,8 +112,11 @@ class _FaqScreenState extends State<FaqScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: Colors.white, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_rounded,
+            color: Colors.white,
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -153,11 +156,14 @@ class _FaqScreenState extends State<FaqScreen> {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: AppTheme.gold.withOpacity(0.12),
+                      color: AppTheme.gold.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Icon(Icons.help_outline_rounded,
-                        color: AppTheme.gold, size: 28),
+                    child: const Icon(
+                      Icons.help_outline_rounded,
+                      color: AppTheme.gold,
+                      size: 28,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   Text(
@@ -197,7 +203,11 @@ class _FaqScreenState extends State<FaqScreen> {
                 children: List.generate(_faqs.length * 2 - 1, (i) {
                   if (i.isOdd) {
                     return const Divider(
-                        height: 1, color: AppTheme.div, indent: 0, endIndent: 0);
+                      height: 1,
+                      color: AppTheme.div,
+                      indent: 0,
+                      endIndent: 0,
+                    );
                   }
                   final index = i ~/ 2;
                   return _buildFaqTile(index);
@@ -224,8 +234,11 @@ class _FaqScreenState extends State<FaqScreen> {
                       color: AppTheme.card2,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.mail_outline_rounded,
-                        color: Color(0xFFAAAAAA), size: 20),
+                    child: const Icon(
+                      Icons.mail_outline_rounded,
+                      color: Color(0xFFAAAAAA),
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -305,7 +318,7 @@ class _FaqScreenState extends State<FaqScreen> {
                   height: 34,
                   decoration: BoxDecoration(
                     color: isExpanded
-                        ? AppTheme.gold.withOpacity(0.12)
+                        ? AppTheme.gold.withValues(alpha: 0.12)
                         : AppTheme.card2,
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -322,8 +335,9 @@ class _FaqScreenState extends State<FaqScreen> {
                     style: GoogleFonts.inter(
                       color: isExpanded ? Colors.white : Colors.white,
                       fontSize: 14,
-                      fontWeight:
-                          isExpanded ? FontWeight.w500 : FontWeight.w400,
+                      fontWeight: isExpanded
+                          ? FontWeight.w500
+                          : FontWeight.w400,
                     ),
                   ),
                 ),
@@ -331,8 +345,11 @@ class _FaqScreenState extends State<FaqScreen> {
                 AnimatedRotation(
                   turns: isExpanded ? 0.5 : 0,
                   duration: const Duration(milliseconds: 200),
-                  child: const Icon(Icons.keyboard_arrow_down_rounded,
-                      color: AppTheme.textSec, size: 22),
+                  child: const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: AppTheme.textSec,
+                    size: 22,
+                  ),
                 ),
               ],
             ),
@@ -361,14 +378,14 @@ class _FaqScreenState extends State<FaqScreen> {
   }
 
   Widget _sectionLabel(String text) => Text(
-        text,
-        style: GoogleFonts.inter(
-          color: AppTheme.textSec,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1.5,
-        ),
-      );
+    text,
+    style: GoogleFonts.inter(
+      color: AppTheme.textSec,
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 1.5,
+    ),
+  );
 }
 
 class _FaqItem {

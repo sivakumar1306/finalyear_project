@@ -76,15 +76,17 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
     };
     try {
       await _ble.setTargetAndProfile(jsonEncode(data));
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Profile saved')));
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     }
   }
 
