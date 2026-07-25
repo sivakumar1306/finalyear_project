@@ -1,12 +1,39 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/vital_widgets.dart';
+import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
+import '../../widgets/screenshot_share.dart';
+import 'vital_note_screen.dart';
+
+// ── Local design tokens — same system as heart_rate_screen.dart / blood_oxygen_screen.dart ──
+
+const _kCard = Color(0xFF141414);
+const _kBorder = Color(0xFF242424);
+const _kGrid = Color(0xFF222222);
+const _kSec = Color(0xFF666666);
+const _kSec2 = Color(0xFF888888);
+
+TextStyle _inter(
+  double size, {
+  FontWeight weight = FontWeight.w400,
+  Color color = Colors.white,
+  double? letterSpacing,
+  double? height,
+}) => GoogleFonts.inter(
+  fontSize: size,
+  fontWeight: weight,
+  color: color,
+  letterSpacing: letterSpacing,
+  height: height,
+);
+
+// ── Screen ────────────────────────────────────────────────────────────────────
 
 class TemperatureScreen extends StatefulWidget {
   const TemperatureScreen({super.key});
@@ -16,249 +43,293 @@ class TemperatureScreen extends StatefulWidget {
 
 class _TemperatureScreenState extends State<TemperatureScreen> {
   final _ble = BleService();
+  final _moreButtonKey = GlobalKey();
+  final _screenshotKey = GlobalKey();
 
-  int _period = 0;
+  bool _loading = false;
+  bool _loadingDay = false;
+  bool _loadingTrend = false;
+  bool _measuring = false;
+  bool _dayOffline = false;
+  bool _trendOffline = false;
+
   DateTime _selectedDate = DateTime.now();
 
-  bool _syncing = false;
-  bool _loadingHistory = false;
-  bool _historyOffline = false;
+  double _manualTemp = 0;
 
-  // Ring-derived readings for today (before Supabase save)
-  List<_TempReading> _ringReadings = [];
-  double _ringAvg = 0, _ringMin = 0, _ringMax = 0;
+  // Today's local-DB data
+  List<double> _chartValues = [];
+  double _avgTemp = 0, _minTemp = 0, _maxTemp = 0;
 
-  // Supabase readings
-  List<Map<String, dynamic>> _dbReadings = [];
-  double _histAvg = 0, _histMin = 0, _histMax = 0;
+  // Past-day Supabase data
+  double _dayAvg = 0, _dayMin = 0, _dayMax = 0;
 
-  // Settings
-  bool _settingEnabled = true;
-  int _settingIntervalSec = 5;
+  // 7-day trend
+  List<double> _trendValues = [];
+  double _trendMin = 0, _trendMax = 0;
 
-  // Raw JSON for debug viewer
-  String _rawJson = '';
-  bool _jsonExpanded = true;
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── Computed ──────────────────────────────────────────────────────────────
 
   bool get _isToday {
-    final now = DateTime.now();
-    return _selectedDate.year == now.year &&
-        _selectedDate.month == now.month &&
-        _selectedDate.day == now.day;
+    final n = DateTime.now();
+    return _selectedDate.year == n.year &&
+        _selectedDate.month == n.month &&
+        _selectedDate.day == n.day;
   }
 
-  bool get _showRingData =>
-      _period == 0 && _isToday && _ringReadings.isNotEmpty;
+  double get _displayAvg => _isToday ? _avgTemp : _dayAvg;
+  double get _displayMin => _isToday ? _minTemp : _dayMin;
+  double get _displayMax => _isToday ? _maxTemp : _dayMax;
 
-  double get _displayAvg => _showRingData ? _ringAvg : _histAvg;
-  double get _displayMin => _showRingData ? _ringMin : _histMin;
-  double get _displayMax => _showRingData ? _ringMax : _histMax;
+  String _fmt(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   static String _tempLabel(double v) {
-    if (v <= 0) return 'No data';
+    if (v <= 0) return '--';
     if (v < 36.0) return 'Low';
     if (v <= 37.2) return 'Normal';
     if (v <= 38.0) return 'Elevated';
     return 'Fever';
   }
 
-  static Color _tempColor(double v) {
-    if (v <= 0) return AppTheme.textSec;
+  static Color _tempStatusColor(double v) {
+    if (v <= 0) return _kSec2;
     if (v < 36.0) return AppTheme.spo2Color;
     if (v <= 37.2) return AppTheme.success;
     if (v <= 38.0) return const Color(0xFFFBBF24);
     return AppTheme.danger;
   }
 
-  static String _fmtTime(DateTime dt) {
-    final h = dt.hour;
-    final m = dt.minute.toString().padLeft(2, '0');
-    final ampm = h < 12 ? 'AM' : 'PM';
-    final h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    return '$h12:$m $ampm';
-  }
-
-  // ── Init ───────────────────────────────────────────────────────────────────
+  // ── Init ──────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _loadTodayFromSupabase();
-      if (context.read<BleProvider>().isConnected) {
-        _loadSettings();
-        _syncAuto(); // fetch live from ring and populate JSON viewer
-      }
+      // Local DB read — doesn't need a live ring connection, same pattern as
+      // heart_rate_screen.dart / blood_oxygen_screen.dart.
+      _fetchTodayFromLocalDb();
+      _load7DayTrend();
     });
   }
 
-  // ── Period / date handlers ─────────────────────────────────────────────────
-
-  void _onPeriodChanged(int p) {
-    setState(() {
-      _period = p;
-      _dbReadings = [];
-      _histAvg = _histMin = _histMax = 0;
-    });
-    if (p == 0) _loadTodayFromSupabase();
-    if (p == 1) _loadPeriodFromSupabase(7);
-    if (p == 2) _loadPeriodFromSupabase(30);
-  }
+  // ── Date selection ────────────────────────────────────────────────────────
 
   void _onDateSelected(DateTime date) {
-    final now = DateTime.now();
+    final n = DateTime.now();
     final isToday =
-        date.year == now.year && date.month == now.month && date.day == now.day;
+        date.year == n.year && date.month == n.month && date.day == n.day;
     setState(() {
       _selectedDate = date;
-      if (!isToday) {
-        _dbReadings = [];
-        _histAvg = _histMin = _histMax = 0;
+      _manualTemp = 0;
+      if (isToday) {
+        _dayAvg = _dayMin = _dayMax = 0;
       }
     });
     if (!isToday) _loadDayFromSupabase(date);
   }
 
-  // ── Ring fetch ─────────────────────────────────────────────────────────────
+  // ── Local DB fetch (today) ──────────────────────────────────────────────────
 
-  Future<void> _fetchTodayData() async {
-    setState(() => _syncing = true);
+  Future<void> _fetchTodayFromLocalDb() async {
+    setState(() {
+      _loading = true;
+      _manualTemp = 0;
+    });
     try {
-      final data = await _ble.getTodayTemperature();
-      _setRawJson('getTodayTemperature', data);
-      _parseTempPayload(data, source: 'auto');
-    } catch (e) {
-      _setRawJson('getTodayTemperature ERROR', e.toString());
-      _showError(e.toString());
-    } finally {
-      if (mounted) setState(() => _syncing = false);
-    }
-  }
+      final now = DateTime.now();
+      final dayStart = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).millisecondsSinceEpoch;
+      final dayEnd = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        23,
+        59,
+        59,
+        999,
+      ).millisecondsSinceEpoch;
 
-  // Background loop can hold the ring lock for up to 90s (HRV's timeout is the
-  // longest at 90s; other vitals up to 60s). A single quick retry isn't enough
-  // to cover that, so this retries several times with growing delays instead.
-  static const _busyRetryDelaysSec = [3, 5, 8, 12, 20, 30];
+      final summary =
+          jsonDecode(await _ble.getTodaySummary('temperature'))
+              as Map<String, dynamic>;
+      final count = (summary['count'] as num? ?? 0).toInt();
 
-  Future<void> _syncAuto({int attempt = 0}) async {
-    setState(() => _syncing = true);
-    try {
-      final data = await _ble.syncAutoTemperature();
-      _setRawJson('syncAutoTemperature (TemperatureEntity)', data);
-      _parseTempPayload(data, source: 'auto');
-    } catch (e) {
-      final msg = e.toString();
-      if (msg.contains('BUSY') && attempt < _busyRetryDelaysSec.length) {
-        final wait = _busyRetryDelaysSec[attempt];
-        _setRawJson(
-          'syncAutoTemperature BUSY — retry ${attempt + 1}/${_busyRetryDelaysSec.length} in ${wait}s',
-          msg,
+      final hourly = List<double>.filled(24, 0);
+      if (count > 0) {
+        final readingsJson = await _ble.getReadings(
+          'temperature',
+          fromMs: dayStart,
+          toMs: dayEnd,
+          limit: 1000,
         );
-        await Future.delayed(Duration(seconds: wait));
-        if (!mounted) return;
-        return _syncAuto(attempt: attempt + 1);
+        final decoded = jsonDecode(readingsJson);
+        final list = decoded is List ? decoded : <dynamic>[];
+        final sums = List<double>.filled(24, 0);
+        final counts = List<int>.filled(24, 0);
+        for (final item in list) {
+          final m = item as Map<String, dynamic>;
+          final v = (m['valueC'] as num? ?? 0).toDouble();
+          final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
+          if (v <= 0 || measuredAt <= 0) continue;
+          final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
+          sums[h] += v;
+          counts[h] += 1;
+        }
+        for (int h = 0; h < 24; h++) {
+          if (counts[h] > 0) hourly[h] = sums[h] / counts[h];
+        }
       }
-      _setRawJson('syncAutoTemperature ERROR', msg);
-      _showError(msg);
+
+      if (!mounted) return;
+      final avg = (summary['avg'] as num?)?.toDouble() ?? 0;
+      final minVal = (summary['min'] as num?)?.toDouble() ?? 0;
+      final maxVal = (summary['max'] as num?)?.toDouble() ?? 0;
+      setState(() {
+        _chartValues = hourly;
+        _avgTemp = avg;
+        _minTemp = minVal;
+        _maxTemp = maxVal;
+        _selectedDate = DateTime.now();
+      });
+    } catch (_) {
     } finally {
-      if (mounted) setState(() => _syncing = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _syncManual({int attempt = 0}) async {
-    setState(() => _syncing = true);
+  // ── Supabase fetches ──────────────────────────────────────────────────────
+
+  Future<void> _loadDayFromSupabase(DateTime date) async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    setState(() {
+      _loadingDay = true;
+      _dayOffline = false;
+    });
+    try {
+      final rows = await SupabaseService.getTempReadings(
+        userId: user.id,
+        from: DateTime(date.year, date.month, date.day),
+        to: DateTime(date.year, date.month, date.day, 23, 59, 59),
+      );
+      final vals = rows
+          .map((r) => (r['value_c'] as num? ?? 0).toDouble())
+          .where((v) => v > 0)
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _dayAvg = vals.isEmpty ? 0 : vals.reduce((a, b) => a + b) / vals.length;
+        _dayMin = vals.isEmpty ? 0 : vals.reduce((a, b) => a < b ? a : b);
+        _dayMax = vals.isEmpty ? 0 : vals.reduce((a, b) => a > b ? a : b);
+      });
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
+    } finally {
+      if (mounted) setState(() => _loadingDay = false);
+    }
+  }
+
+  Future<void> _load7DayTrend() async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    setState(() {
+      _loadingTrend = true;
+      _trendOffline = false;
+    });
+    try {
+      final now = DateTime.now();
+      final rows = await SupabaseService.getTempReadings(
+        userId: user.id,
+        from: now.subtract(const Duration(days: 6)),
+        to: now,
+      );
+      final sums = <String, double>{};
+      final counts = <String, int>{};
+      for (final r in rows) {
+        final v = (r['value_c'] as num? ?? 0).toDouble();
+        if (v <= 0) continue;
+        final dt = DateTime.parse(r['measured_at'] as String).toLocal();
+        final key = _fmt(dt);
+        sums[key] = (sums[key] ?? 0) + v;
+        counts[key] = (counts[key] ?? 0) + 1;
+      }
+      final vals = List.generate(7, (i) {
+        final key = _fmt(now.subtract(Duration(days: 6 - i)));
+        final c = counts[key];
+        if (c == null || c == 0) return 0.0;
+        return sums[key]! / c;
+      });
+      final nonZero = vals.where((v) => v > 0).toList();
+      if (!mounted) return;
+      setState(() {
+        _trendValues = vals;
+        _trendMin = nonZero.isEmpty
+            ? 0
+            : nonZero.reduce((a, b) => a < b ? a : b);
+        _trendMax = nonZero.isEmpty
+            ? 0
+            : nonZero.reduce((a, b) => a > b ? a : b);
+      });
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _trendOffline = true);
+    } finally {
+      if (mounted) setState(() => _loadingTrend = false);
+    }
+  }
+
+  // ── Manual measurement ────────────────────────────────────────────────────
+
+  Future<void> _startMeasurement() async {
+    if (_measuring) return;
+    setState(() {
+      _measuring = true;
+      _manualTemp = 0;
+    });
     try {
       final data = await _ble.syncManualTemperature();
-      _setRawJson('syncManualTemperature (TemperatureOnceEntity[])', data);
-      _parseTempPayload(data, source: 'manual');
-    } catch (e) {
-      final msg = e.toString();
-      if (msg.contains('BUSY') && attempt < _busyRetryDelaysSec.length) {
-        final wait = _busyRetryDelaysSec[attempt];
-        _setRawJson(
-          'syncManualTemperature BUSY — retry ${attempt + 1}/${_busyRetryDelaysSec.length} in ${wait}s',
-          msg,
-        );
-        await Future.delayed(Duration(seconds: wait));
-        if (!mounted) return;
-        return _syncManual(attempt: attempt + 1);
+      final readings = _parseTempReadings(data, _selectedDate);
+      if (readings.isNotEmpty) {
+        final latest = readings.last.valueC;
+        setState(() {
+          _manualTemp = latest;
+          _measuring = false;
+        });
+        await _saveToSupabase(readings);
+      } else {
+        setState(() => _measuring = false);
       }
-      _setRawJson('syncManualTemperature ERROR', msg);
-      _showError(msg);
-    } finally {
-      if (mounted) setState(() => _syncing = false);
+    } catch (_) {
+      if (mounted) setState(() => _measuring = false);
     }
   }
 
-  Future<void> _testManualPOC() async {
-    print('Starting manual temperature test...');
-    setState(() => _syncing = true);
-    try {
-      final rawJson = await _ble.testManualTemperature();
-      print('- Raw returned JSON: $rawJson');
-
-      final decoded = jsonDecode(rawJson);
-      print('- Decoded JSON: $decoded');
-
-      if (decoded is Map<String, dynamic>) {
-        print('- Temperature value: ${decoded['temperature']}');
-        print('- Raw value: ${decoded['rawValue']}');
-        print('- Status: ${decoded['status']}');
-        print('- Source: ${decoded['source']}');
-      }
-
-      _setRawJson('testManualTemperature POC', rawJson);
-    } catch (e, stack) {
-      print('- Exception type: ${e.runtimeType}');
-      print('- Exception message: $e');
-      print('- Full stack trace:\n$stack');
-
-      _setRawJson('testManualTemperature ERROR', '$e\n$stack');
-      _showError(e.toString());
-    } finally {
-      if (mounted) setState(() => _syncing = false);
-    }
-  }
-
-  void _setRawJson(String label, String raw) {
-    String pretty = raw;
-    try {
-      final decoded = jsonDecode(raw);
-      pretty = const JsonEncoder.withIndent('  ').convert(decoded);
-    } catch (_) {}
-    if (mounted) setState(() => _rawJson = '// $label\n$pretty');
-  }
-
-  // ── Payload parsing ────────────────────────────────────────────────────────
-
-  void _parseTempPayload(String jsonStr, {required String source}) {
+  static List<_TempReading> _parseTempReadings(
+    String jsonStr,
+    DateTime selectedDate,
+  ) {
+    final readings = <_TempReading>[];
     try {
       final decoded = jsonDecode(jsonStr);
-      final readings = <_TempReading>[];
-
       if (decoded is List && decoded.isNotEmpty) {
-        // TemperatureOnceEntity list: [{mTime, mValue}, ...]
         for (final item in decoded) {
           final m = item as Map<String, dynamic>;
           final ts = (m['mTime'] as num?)?.toInt() ?? (m['a'] as num?)?.toInt();
           var val =
               (m['mValue'] as num?)?.toDouble() ?? (m['b'] as num?)?.toDouble();
           if (ts == null || val == null || val <= 0) continue;
-          // SDK: value from StartHeartRateRsp needs /10; TemperatureOnceEntity is already °C
           if (val > 100) val /= 10;
           readings.add(
             _TempReading(
               time: DateTime.fromMillisecondsSinceEpoch(ts * 1000).toLocal(),
               valueC: val,
-              source: source,
             ),
           );
         }
       } else if (decoded is Map<String, dynamic>) {
-        // TemperatureEntity: {mValues, mTimeSpan, mIndex} or obfuscated {d, b, a}
         final rawVals =
             (decoded['mValues'] as List<dynamic>?) ??
             (decoded['d'] as List<dynamic>?);
@@ -268,9 +339,9 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
             5;
         if (rawVals != null) {
           final base = DateTime(
-            _selectedDate.year,
-            _selectedDate.month,
-            _selectedDate.day,
+            selectedDate.year,
+            selectedDate.month,
+            selectedDate.day,
           );
           for (int i = 0; i < rawVals.length; i++) {
             var v = (rawVals[i] as num).toDouble();
@@ -280,31 +351,13 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
               _TempReading(
                 time: base.add(Duration(seconds: i * spanSec)),
                 valueC: v,
-                source: source,
               ),
             );
           }
         }
       }
-
-      if (readings.isEmpty) return;
-
-      final vals = readings.map((r) => r.valueC).toList();
-      final avg = vals.reduce((a, b) => a + b) / vals.length;
-      final minVal = vals.reduce((a, b) => a < b ? a : b);
-      final maxVal = vals.reduce((a, b) => a > b ? a : b);
-
-      if (!mounted) return;
-      setState(() {
-        _ringReadings = readings;
-        _ringAvg = avg;
-        _ringMin = minVal;
-        _ringMax = maxVal;
-        _selectedDate = DateTime.now();
-      });
-
-      _saveToSupabase(readings);
     } catch (_) {}
+    return readings;
   }
 
   Future<void> _saveToSupabase(List<_TempReading> readings) async {
@@ -315,261 +368,303 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         userId: user.id,
         readings: readings
             .map(
-              (r) => (measuredAt: r.time, valueC: r.valueC, source: r.source),
+              (r) => (measuredAt: r.time, valueC: r.valueC, source: 'manual'),
             )
             .toList(),
       );
-      await _loadTodayFromSupabase();
     } catch (_) {}
   }
 
-  // ── Supabase fetches ───────────────────────────────────────────────────────
+  // ── Three-dot menu ────────────────────────────────────────────────────────
 
-  Future<void> _loadTodayFromSupabase() async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
-    setState(() {
-      _loadingHistory = true;
-      _historyOffline = false;
-    });
-    try {
-      final now = DateTime.now();
-      final rows = await SupabaseService.getTempReadings(
-        userId: user.id,
-        from: DateTime(now.year, now.month, now.day),
-        to: DateTime(now.year, now.month, now.day, 23, 59, 59),
-      );
-      if (mounted) _applyDbReadings(rows);
-    } catch (e) {
-      if (mounted && isNetworkError(e)) setState(() => _historyOffline = true);
-    } finally {
-      if (mounted) setState(() => _loadingHistory = false);
-    }
-  }
-
-  Future<void> _loadDayFromSupabase(DateTime date) async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
-    setState(() {
-      _loadingHistory = true;
-      _historyOffline = false;
-    });
-    try {
-      final rows = await SupabaseService.getTempReadings(
-        userId: user.id,
-        from: DateTime(date.year, date.month, date.day),
-        to: DateTime(date.year, date.month, date.day, 23, 59, 59),
-      );
-      if (mounted) _applyDbReadings(rows);
-    } catch (e) {
-      if (mounted && isNetworkError(e)) setState(() => _historyOffline = true);
-    } finally {
-      if (mounted) setState(() => _loadingHistory = false);
-    }
-  }
-
-  Future<void> _loadPeriodFromSupabase(int days) async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
-    setState(() {
-      _loadingHistory = true;
-      _historyOffline = false;
-    });
-    try {
-      final now = DateTime.now();
-      final rows = await SupabaseService.getTempReadings(
-        userId: user.id,
-        from: now.subtract(Duration(days: days - 1)),
-        to: now,
-      );
-      if (mounted) _applyDbReadings(rows);
-    } catch (e) {
-      if (mounted && isNetworkError(e)) setState(() => _historyOffline = true);
-    } finally {
-      if (mounted) setState(() => _loadingHistory = false);
-    }
-  }
-
-  void _applyDbReadings(List<Map<String, dynamic>> rows) {
-    final vals = rows
-        .map((r) => (r['value_c'] as num? ?? 0).toDouble())
-        .where((v) => v > 0)
-        .toList();
-    setState(() {
-      _dbReadings = rows;
-      _histAvg = vals.isEmpty ? 0 : vals.reduce((a, b) => a + b) / vals.length;
-      _histMin = vals.isEmpty ? 0 : vals.reduce((a, b) => a < b ? a : b);
-      _histMax = vals.isEmpty ? 0 : vals.reduce((a, b) => a > b ? a : b);
-    });
-  }
-
-  // ── Settings ───────────────────────────────────────────────────────────────
-
-  Future<void> _loadSettings() async {
-    try {
-      final json = await _ble.getTemperatureSetting();
-      final m = jsonDecode(json) as Map<String, dynamic>;
-      setState(() {
-        _settingEnabled = m['enable'] as bool? ?? true;
-        _settingIntervalSec = (m['interval'] as num?)?.toInt() ?? 5;
-      });
-    } catch (_) {}
-  }
-
-  Future<void> _saveSettings() async {
-    try {
-      await _ble.setTemperatureSetting(
-        enable: _settingEnabled,
-        interval: _settingIntervalSec,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Settings saved')));
-      }
-    } catch (e) {
-      _showError(e.toString());
-    }
-  }
-
-  void _showError(String msg) {
-    if (!mounted) return;
-    final String clean;
-    if (msg.contains('BUSY')) {
-      clean = 'Ring is busy with another reading — try again in a few seconds.';
-    } else if (msg.contains('TIMEOUT')) {
-      clean = 'Ring timed out — wear it snugly and try again.';
-    } else if (msg.contains('ACTION_FAILED')) {
-      clean = 'Ring rejected sync — see JSON viewer for error code.';
-    } else {
-      clean = msg.length > 100 ? msg.substring(0, 100) : msg;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(clean), backgroundColor: AppTheme.danger),
+  void _openMenu() {
+    showGlassMenu(
+      context: context,
+      anchorKey: _moreButtonKey,
+      items: [
+        GlassMenuItem(
+          label: 'Share',
+          onTap: () =>
+              shareScreenshot(_screenshotKey, text: 'My Temperature — SUNDR'),
+        ),
+        GlassMenuItem(
+          label: 'Note',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const VitalNoteScreen(
+                title: 'Temperature',
+                heading: 'About Temperature',
+                intro:
+                    'Skin temperature measured by the ring — most useful as '
+                    'a deviation from your own baseline, not as an absolute '
+                    'clinical reading.',
+                ranges: [
+                  VitalRange(
+                    label: 'Low',
+                    range: '< 36.0°C',
+                    color: AppTheme.spo2Color,
+                  ),
+                  VitalRange(
+                    label: 'Normal',
+                    range: '36.0–37.2°C',
+                    color: AppTheme.success,
+                  ),
+                  VitalRange(
+                    label: 'Elevated',
+                    range: '37.2–38.0°C',
+                    color: Color(0xFFFBBF24),
+                  ),
+                  VitalRange(
+                    label: 'Fever',
+                    range: '> 38.0°C',
+                    color: AppTheme.danger,
+                  ),
+                ],
+                tips: [
+                  VitalTip(
+                    icon: Icons.show_chart_rounded,
+                    color: AppTheme.tempColor,
+                    title: 'Track your baseline',
+                    tip:
+                        'Skin temperature varies person to person — a rise '
+                        'of 0.5°C+ from your usual baseline matters more '
+                        'than the absolute number.',
+                  ),
+                  VitalTip(
+                    icon: Icons.schedule_rounded,
+                    color: AppTheme.hrvColor,
+                    title: 'It has a daily rhythm',
+                    tip:
+                        'Temperature naturally dips overnight and rises '
+                        'through the day — that\'s expected, not a fever.',
+                  ),
+                ],
+                didYouKnow:
+                    'Skin temperature runs cooler than core body '
+                    'temperature — don\'t compare it directly to an oral '
+                    'thermometer reading.',
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  // ── Chart helpers ──────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
-  String _chartTitle() {
-    if (_period == 1) return 'LAST 7 DAYS';
-    if (_period == 2) return 'LAST 30 DAYS';
-    if (!_isToday) {
-      const months = [
-        'JAN',
-        'FEB',
-        'MAR',
-        'APR',
-        'MAY',
-        'JUN',
-        'JUL',
-        'AUG',
-        'SEP',
-        'OCT',
-        'NOV',
-        'DEC',
-      ];
-      return '${months[_selectedDate.month - 1]} ${_selectedDate.day}';
-    }
-    return 'TODAY';
-  }
-
-  List<String> _chartXLabels() {
+  List<String> _trendXLabels() {
     final now = DateTime.now();
-    if (_period == 0) return ['12am', '6am', '12pm', '6pm'];
-    if (_period == 1) {
-      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      return List.generate(7, (i) {
-        final d = now.subtract(Duration(days: 6 - i));
-        return days[d.weekday - 1];
-      });
-    }
-    return ['1', '5', '10', '15', '20', '25', '30'];
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return List.generate(7, (i) {
+      final d = now.subtract(Duration(days: 6 - i));
+      return days[d.weekday - 1];
+    });
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final connected = context.watch<BleProvider>().isConnected;
-    final anyLoading = _syncing || _loadingHistory;
-    final displayAvg = _displayAvg;
-    final displayMin = _displayMin;
-    final displayMax = _displayMax;
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: _darkBar('Temperature'),
-      body: RefreshIndicator(
-        color: AppTheme.gold,
-        backgroundColor: AppTheme.card,
-        onRefresh: () async {
-          if (connected) await _fetchTodayData();
-        },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+    final tempValue = _measuring
+        ? '···'
+        : _manualTemp > 0
+        ? _manualTemp.toStringAsFixed(1)
+        : _displayAvg > 0
+        ? _displayAvg.toStringAsFixed(1)
+        : '--';
+
+    final hasData = _isToday && _chartValues.any((v) => v > 0);
+
+    final dailyRangeLabel = hasData
+        ? '${_displayMin.toStringAsFixed(1)} - ${_displayMax.toStringAsFixed(1)}'
+        : '-- --';
+
+    final trendRangeLabel = _trendMin > 0 && _trendMax > 0
+        ? '${_trendMin.toStringAsFixed(1)} - ${_trendMax.toStringAsFixed(1)} °C'
+        : '-- -- °C';
+
+    return RepaintBoundary(
+      key: _screenshotKey,
+      child: Scaffold(
+        backgroundColor: AppTheme.bg,
+        appBar: AppBar(
+          backgroundColor: AppTheme.bg,
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'Temperature',
+            style: _inter(17, weight: FontWeight.w600),
+          ),
+          actions: [
+            IconButton(
+              key: _moreButtonKey,
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onPressed: _openMenu,
+            ),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(0.5),
+            child: Container(color: _kBorder, height: 0.5),
+          ),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
 
-              if (_period == 0) ...[
-                VitalDateSelector(
-                  selectedDate: _selectedDate,
-                  onDateSelected: _onDateSelected,
+              // ── 1. Date row ────────────────────────────────────────────────
+              _TempDateRow(
+                selectedDate: _selectedDate,
+                onDateSelected: _onDateSelected,
+              ),
+              const SizedBox(height: 22),
+
+              // ── 2. Current temperature value ─────────────────────────────
+              Text(
+                'CURRENT TEMPERATURE',
+                style: _inter(
+                  11,
+                  weight: FontWeight.w600,
+                  color: AppTheme.gold,
+                  letterSpacing: 1.2,
                 ),
-                const SizedBox(height: 12),
-              ] else
-                const SizedBox(height: 4),
-
-              VitalPeriodTabs(onChanged: _onPeriodChanged),
-              const SizedBox(height: 24),
-
-              _metricCard(displayAvg),
-              const SizedBox(height: 16),
-
-              if (_historyOffline && !_showRingData) ...[
-                const OfflineNotice(
-                  message: 'Connect to WiFi to load temperature history',
+              ),
+              const SizedBox(height: 2),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    tempValue,
+                    style: _inter(
+                      52,
+                      weight: FontWeight.w300,
+                      color: Colors.white,
+                      height: 1.1,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text('°C', style: _inter(20, color: _kSec)),
+                ],
+              ),
+              Text(
+                _measuring
+                    ? 'Measuring…'
+                    : _tempLabel(_manualTemp > 0 ? _manualTemp : _displayAvg),
+                style: _inter(
+                  13,
+                  weight: FontWeight.w600,
+                  color: _measuring
+                      ? _kSec
+                      : _tempStatusColor(
+                          _manualTemp > 0 ? _manualTemp : _displayAvg,
+                        ),
                 ),
-                const SizedBox(height: 16),
-              ],
-
-              _chartCard(anyLoading),
-              const SizedBox(height: 16),
-
-              VitalStatsRow(
-                avg: displayAvg > 0 ? displayAvg.toStringAsFixed(1) : '--',
-                min: displayMin > 0 ? displayMin.toStringAsFixed(1) : '--',
-                max: displayMax > 0 ? displayMax.toStringAsFixed(1) : '--',
-                unit: '°C',
               ),
               const SizedBox(height: 16),
 
-              if (_period == 0) ...[
-                _readingsList(),
-                const SizedBox(height: 16),
+              // ── 3. Daily chart ────────────────────────────────────────────
+              _TempChartCard(
+                headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
+                rangeLabel: dailyRangeLabel,
+                values: _isToday ? _chartValues : [],
+                xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                loading: _loading || _loadingDay,
+              ),
+              if (_dayOffline && !_isToday) ...[
+                const SizedBox(height: 8),
+                const OfflineNotice(
+                  message: 'Connect to WiFi to load this day\'s temperature',
+                ),
               ],
+              const SizedBox(height: 10),
 
-              _syncCard(connected),
-              const SizedBox(height: 12),
-
-              if (_period == 0) _monitorCard(connected),
-
-              if (anyLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      color: AppTheme.gold,
-                      strokeWidth: 2,
+              // ── 4. Stats row ──────────────────────────────────────────────
+              Row(
+                children: [
+                  Expanded(
+                    child: _TempStatCard(
+                      label: 'AVERAGE',
+                      value: _displayAvg > 0
+                          ? _displayAvg.toStringAsFixed(1)
+                          : '--',
+                      unit: _displayAvg > 0 ? '°C' : '--',
                     ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _TempStatCard(
+                      label: 'MINIMUM',
+                      value: _displayMin > 0
+                          ? _displayMin.toStringAsFixed(1)
+                          : '--',
+                      unit: _displayMin > 0 ? '°C' : '--',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _TempStatCard(
+                      label: 'MAXIMUM',
+                      value: _displayMax > 0
+                          ? _displayMax.toStringAsFixed(1)
+                          : '--',
+                      unit: _displayMax > 0 ? '°C' : '--',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
 
-              const SizedBox(height: 16),
-              _jsonViewerCard(),
+              // ── 5. Real-time measurement ──────────────────────────────────
+              _RealTimeTempCard(
+                latestTemp: _manualTemp,
+                measuring: _measuring,
+                enabled: connected && !_measuring,
+                onTap: _startMeasurement,
+              ),
+              const SizedBox(height: 20),
+
+              // ── 6. 7-day trend ────────────────────────────────────────────
+              _TempChartCard(
+                headerLabel: 'LAST 7 DAYS TREND',
+                rangeLabel: trendRangeLabel,
+                values: _trendValues,
+                xLabels: _trendXLabels(),
+                loading: _loadingTrend,
+              ),
+              if (_trendOffline) ...[
+                const SizedBox(height: 8),
+                const OfflineNotice(
+                  message: 'Connect to WiFi to load your 7-day trend',
+                ),
+              ],
+              const SizedBox(height: 12),
+
+              // ── 7. Legend ─────────────────────────────────────────────────
+              Row(
+                children: [
+                  _LegendDot(color: AppTheme.spo2Color, label: 'Low'),
+                  const SizedBox(width: 10),
+                  _LegendDot(color: AppTheme.success, label: 'Normal'),
+                  const SizedBox(width: 10),
+                  _LegendDot(color: const Color(0xFFFBBF24), label: 'Elevated'),
+                  const SizedBox(width: 10),
+                  _LegendDot(color: AppTheme.danger, label: 'Fever'),
+                ],
+              ),
+
               const SizedBox(height: 80),
             ],
           ),
@@ -577,549 +672,6 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
       ),
     );
   }
-
-  // ── Widgets ────────────────────────────────────────────────────────────────
-
-  Widget _metricCard(double displayAvg) {
-    final color = _tempColor(displayAvg);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.tempColor.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.thermostat_rounded, color: color, size: 30),
-          ),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'BODY TEMPERATURE',
-                style: TextStyle(
-                  color: AppTheme.tempColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    _syncing
-                        ? '···'
-                        : (displayAvg > 0
-                              ? displayAvg.toStringAsFixed(1)
-                              : '--'),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 52,
-                      fontWeight: FontWeight.w700,
-                      height: 1.0,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    '°C',
-                    style: TextStyle(color: AppTheme.textSec, fontSize: 16),
-                  ),
-                ],
-              ),
-              Text(
-                _syncing ? 'Syncing…' : _tempLabel(displayAvg),
-                style: TextStyle(
-                  color: _syncing ? AppTheme.textSec : color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _chartCard(bool loading) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _chartTitle(),
-            style: const TextStyle(
-              color: AppTheme.textSec,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 100,
-            width: double.infinity,
-            child: _buildChartContent(loading),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: _chartXLabels()
-                .map(
-                  (l) => Text(
-                    l,
-                    style: const TextStyle(
-                      color: Color(0xFF555555),
-                      fontSize: 10,
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-          const SizedBox(height: 10),
-          const Row(
-            children: [
-              _LegendDot(color: AppTheme.spo2Color, label: 'Low'),
-              SizedBox(width: 10),
-              _LegendDot(color: AppTheme.success, label: 'Normal'),
-              SizedBox(width: 10),
-              _LegendDot(color: Color(0xFFFBBF24), label: 'Elevated'),
-              SizedBox(width: 10),
-              _LegendDot(color: AppTheme.danger, label: 'Fever'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChartContent(bool loading) {
-    if (loading) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: AppTheme.tempColor,
-          strokeWidth: 2,
-        ),
-      );
-    }
-
-    // Collect display readings
-    final List<({DateTime time, double valueC})> points;
-    if (_showRingData) {
-      points = _ringReadings
-          .map((r) => (time: r.time, valueC: r.valueC))
-          .toList();
-    } else {
-      points = _dbReadings
-          .map((r) {
-            final raw = r['measured_at'] as String;
-            final v = (r['value_c'] as num? ?? 0).toDouble();
-            return (time: DateTime.parse(raw).toLocal(), valueC: v);
-          })
-          .where((p) => p.valueC > 0)
-          .toList();
-    }
-
-    if (points.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.thermostat_outlined,
-              color: AppTheme.textSec.withValues(alpha: 0.3),
-              size: 28,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _period == 0 && !_isToday
-                  ? 'No data saved for this day'
-                  : 'No data yet',
-              style: const TextStyle(color: AppTheme.textSec, fontSize: 12),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_period == 0) {
-      return CustomPaint(painter: _TempDayPainter(points));
-    }
-    return CustomPaint(
-      painter: _TempRangePainter(points, _period == 1 ? 7 : 30),
-    );
-  }
-
-  Widget _readingsList() {
-    final List<({DateTime time, double valueC, String source})> rows;
-    if (_showRingData) {
-      rows = _ringReadings
-          .map((r) => (time: r.time, valueC: r.valueC, source: r.source))
-          .toList();
-    } else {
-      rows = _dbReadings
-          .map((r) {
-            final dt = DateTime.parse(r['measured_at'] as String).toLocal();
-            final v = (r['value_c'] as num? ?? 0).toDouble();
-            final s = r['source'] as String? ?? 'auto';
-            return (time: dt, valueC: v, source: s);
-          })
-          .where((r) => r.valueC > 0)
-          .toList();
-    }
-
-    if (rows.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Center(
-          child: Text(
-            'No readings for this day',
-            style: TextStyle(color: AppTheme.textSec),
-          ),
-        ),
-      );
-    }
-
-    final sorted = [...rows]..sort((a, b) => b.time.compareTo(a.time));
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Text(
-              'READINGS',
-              style: TextStyle(
-                color: AppTheme.textSec,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1,
-              ),
-            ),
-          ),
-          ...sorted.asMap().entries.map((e) {
-            final r = e.value;
-            final color = _tempColor(r.valueC);
-            final isLast = e.key == sorted.length - 1;
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          Icons.thermostat_rounded,
-                          color: color,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _fmtTime(r.time),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                Text(
-                                  _tempLabel(r.valueC),
-                                  style: TextStyle(color: color, fontSize: 11),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  '· ${r.source}',
-                                  style: const TextStyle(
-                                    color: AppTheme.textSec,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            r.valueC.toStringAsFixed(1),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 22,
-                            ),
-                          ),
-                          const Text(
-                            '°C',
-                            style: TextStyle(
-                              color: AppTheme.textSec,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                if (!isLast)
-                  const Divider(color: AppTheme.div, height: 0.5, indent: 66),
-              ],
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _syncCard(bool connected) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: AppTheme.card,
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'SYNC DATA',
-          style: TextStyle(
-            color: AppTheme.textSec,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _Btn(
-                label: "Today's Data",
-                icon: Icons.today_rounded,
-                enabled: connected && !_syncing,
-                onTap: _fetchTodayData,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _Btn(
-                label: 'Sync Auto',
-                icon: Icons.sync_rounded,
-                enabled: connected && !_syncing,
-                onTap: _syncAuto,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        _Btn(
-          label: _syncing ? 'Measuring…' : 'Single Reading',
-          icon: Icons.thermostat_rounded,
-          enabled: connected && !_syncing,
-          onTap: _syncManual,
-        ),
-        const SizedBox(height: 10),
-        _Btn(
-          label: _syncing ? 'Testing POC…' : 'Test manualTemperature (POC)',
-          icon: Icons.science_rounded,
-          enabled: connected && !_syncing,
-          onTap: _testManualPOC,
-        ),
-      ],
-    ),
-  );
-
-  Widget _jsonViewerCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF0D1117),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF30363D)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            onTap: () => setState(() => _jsonExpanded = !_jsonExpanded),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.data_object_rounded,
-                    color: Color(0xFF58A6FF),
-                    size: 15,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'RAW JSON',
-                    style: TextStyle(
-                      color: Color(0xFF58A6FF),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (_rawJson.isEmpty)
-                    const Text(
-                      'no data yet',
-                      style: TextStyle(color: Color(0xFF8B949E), fontSize: 10),
-                    )
-                  else
-                    Icon(
-                      _jsonExpanded
-                          ? Icons.keyboard_arrow_up_rounded
-                          : Icons.keyboard_arrow_down_rounded,
-                      color: const Color(0xFF8B949E),
-                      size: 18,
-                    ),
-                ],
-              ),
-            ),
-          ),
-          if (_jsonExpanded && _rawJson.isNotEmpty) ...[
-            const Divider(color: Color(0xFF30363D), height: 0.5),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.all(14),
-              child: SelectableText(
-                _rawJson,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 11,
-                  color: Color(0xFFE6EDF3),
-                  height: 1.6,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _monitorCard(bool connected) => Container(
-    margin: const EdgeInsets.only(bottom: 8),
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    decoration: BoxDecoration(
-      color: AppTheme.card,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppTheme.div),
-    ),
-    child: Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Auto Monitoring',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Continuously monitors body temperature',
-                    style: TextStyle(color: AppTheme.textSec, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            Switch.adaptive(
-              value: _settingEnabled,
-              onChanged: connected
-                  ? (v) {
-                      setState(() => _settingEnabled = v);
-                      _saveSettings();
-                    }
-                  : null,
-            ),
-          ],
-        ),
-        if (_settingEnabled && connected) ...[
-          const Divider(color: AppTheme.div, height: 16),
-          Row(
-            children: [
-              const Text(
-                'Interval',
-                style: TextStyle(color: Colors.white, fontSize: 14),
-              ),
-              const Spacer(),
-              DropdownButton<int>(
-                value: _settingIntervalSec,
-                dropdownColor: AppTheme.card2,
-                style: const TextStyle(color: Colors.white),
-                underline: const SizedBox(),
-                items: [2, 5, 10, 30, 60, 120]
-                    .map(
-                      (e) => DropdownMenuItem(value: e, child: Text('${e}s')),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _settingIntervalSec = v ?? 5),
-              ),
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: _saveSettings,
-                child: const Text(
-                  'Save',
-                  style: TextStyle(color: AppTheme.gold),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ],
-    ),
-  );
 }
 
 // ── Data model ─────────────────────────────────────────────────────────────────
@@ -1127,15 +679,249 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
 class _TempReading {
   final DateTime time;
   final double valueC;
-  final String source;
-  const _TempReading({
-    required this.time,
-    required this.valueC,
-    required this.source,
-  });
+  const _TempReading({required this.time, required this.valueC});
 }
 
-// ── Chart painters ────────────────────────────────────────────────────────────
+// ── Date row ──────────────────────────────────────────────────────────────────
+
+class _TempDateRow extends StatelessWidget {
+  final DateTime selectedDate;
+  final ValueChanged<DateTime> onDateSelected;
+  const _TempDateRow({
+    required this.selectedDate,
+    required this.onDateSelected,
+  });
+
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (int i = 0; i < dates.length; i++) ...[
+            if (i > 0) const SizedBox(width: 16),
+            _buildItem(dates[i], today),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItem(DateTime d, DateTime today) {
+    final isToday = d == today;
+    final isFuture = d.isAfter(today);
+    final sel = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
+    final isSelected = d == sel && !isToday;
+
+    if (isToday || isSelected) {
+      return GestureDetector(
+        onTap: isToday ? null : () => onDateSelected(d),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFF202020),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF363636)),
+          ),
+          child: Text(
+            isToday
+                ? 'Today, ${d.day} ${_months[d.month - 1]}'
+                : '${d.day} ${_months[d.month - 1]}',
+            style: _inter(13, weight: FontWeight.w500),
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: isFuture ? null : () => onDateSelected(d),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Text(
+          '${d.day}',
+          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Temperature chart card ──────────────────────────────────────────────────
+
+class _TempChartCard extends StatelessWidget {
+  final String headerLabel;
+  final String rangeLabel;
+  final List<double> values;
+  final List<String> xLabels;
+  final bool loading;
+
+  const _TempChartCard({
+    required this.headerLabel,
+    required this.rangeLabel,
+    required this.values,
+    required this.xLabels,
+    required this.loading,
+  });
+
+  static const _yAxisW = 30.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                headerLabel,
+                style: _inter(
+                  11,
+                  weight: FontWeight.w600,
+                  color: _kSec,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              Text(
+                rangeLabel,
+                style: _inter(
+                  11,
+                  weight: FontWeight.w500,
+                  color: const Color(0xFF999999),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 128,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: _yAxisW,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: ['40', '38', '36', '34']
+                        .map(
+                          (l) => Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: Text(l, style: _inter(10, color: _kSec)),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+                Expanded(
+                  child: loading
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: AppTheme.tempColor,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : CustomPaint(
+                          painter: _TempBarPainter(values: values),
+                          child: const SizedBox.expand(),
+                        ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.only(left: _yAxisW),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: xLabels
+                  .map((l) => Text(l, style: _inter(10, color: _kSec)))
+                  .toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Temperature bar painter ─────────────────────────────────────────────────
+
+class _TempBarPainter extends CustomPainter {
+  final List<double> values;
+  const _TempBarPainter({required this.values});
+
+  static const _minY = 34.0;
+  static const _maxY = 40.0;
+  static const _range = _maxY - _minY;
+  static const _yLines = [40.0, 38.0, 36.0, 34.0];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = _kGrid
+      ..strokeWidth = 0.5;
+    for (final y in _yLines) {
+      final yPos = size.height - ((y - _minY) / _range) * size.height;
+      canvas.drawLine(Offset(0, yPos), Offset(size.width, yPos), gridPaint);
+    }
+
+    if (values.isEmpty) return;
+    final n = values.length;
+    final slotW = size.width / n;
+    final barW = (slotW * 0.55).clamp(2.0, 9.0);
+
+    for (int i = 0; i < n; i++) {
+      if (values[i] <= 0) continue;
+      final ratio = ((values[i] - _minY) / _range).clamp(0.0, 1.0);
+      final barH = (ratio * size.height).clamp(2.0, size.height);
+      final x = i * slotW + (slotW - barW) / 2;
+      canvas.drawRRect(
+        RRect.fromLTRBR(
+          x,
+          size.height - barH,
+          x + barW,
+          size.height,
+          const Radius.circular(3),
+        ),
+        Paint()..color = _tempBarColor(values[i]),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TempBarPainter old) => old.values != values;
+}
 
 Color _tempBarColor(double v) {
   if (v < 36.0) return AppTheme.spo2Color;
@@ -1144,103 +930,156 @@ Color _tempBarColor(double v) {
   return AppTheme.danger;
 }
 
-// Day view: one bar per reading positioned by hour
-class _TempDayPainter extends CustomPainter {
-  final List<({DateTime time, double valueC})> points;
-  const _TempDayPainter(this.points);
+// ── Stat cards ────────────────────────────────────────────────────────────────
+
+class _TempStatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final String unit;
+  const _TempStatCard({
+    required this.label,
+    required this.value,
+    required this.unit,
+  });
 
   @override
-  void paint(Canvas canvas, Size size) {
-    // 35–40 °C baseline keeps bars visually meaningful
-    const baseline = 35.0;
-    const range = 5.0;
-    const slots = 24;
-    final slotW = size.width / slots;
-    final barW = (slotW * 0.65).clamp(2.0, 10.0);
-
-    for (final p in points) {
-      final slot = p.time.hour.clamp(0, slots - 1);
-      final x = slot * slotW + (slotW - barW) / 2;
-      final normalized = ((p.valueC - baseline) / range).clamp(0.0, 1.0);
-      final barH = (normalized * size.height * 0.85 + 4).clamp(
-        4.0,
-        size.height,
-      );
-      canvas.drawRRect(
-        RRect.fromLTRBR(
-          x,
-          size.height - barH,
-          x + barW,
-          size.height,
-          const Radius.circular(3),
-        ),
-        Paint()..color = _tempBarColor(p.valueC),
-      );
-    }
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: _inter(
+              10,
+              weight: FontWeight.w600,
+              color: _kSec,
+              letterSpacing: 0.7,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(value, style: _inter(17, weight: FontWeight.w600)),
+              const SizedBox(width: 4),
+              Text(unit, style: _inter(11, color: _kSec)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text('know more >', style: _inter(11, color: _kSec)),
+        ],
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(_TempDayPainter old) => old.points != points;
 }
 
-// Week/Month view: one bar per day (daily average)
-class _TempRangePainter extends CustomPainter {
-  final List<({DateTime time, double valueC})> points;
-  final int days;
-  const _TempRangePainter(this.points, this.days);
+// ── Real-time measurement card ────────────────────────────────────────────────
 
-  Map<String, double> _dailyAvgs() {
-    final sums = <String, double>{};
-    final counts = <String, int>{};
-    for (final p in points) {
-      final key =
-          '${p.time.year}-${p.time.month.toString().padLeft(2, '0')}-${p.time.day.toString().padLeft(2, '0')}';
-      sums[key] = (sums[key] ?? 0) + p.valueC;
-      counts[key] = (counts[key] ?? 0) + 1;
-    }
-    return {for (final k in sums.keys) k: sums[k]! / counts[k]!};
-  }
+class _RealTimeTempCard extends StatelessWidget {
+  final double latestTemp;
+  final bool measuring;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  const _RealTimeTempCard({
+    required this.latestTemp,
+    required this.measuring,
+    required this.enabled,
+    this.onTap,
+  });
 
   @override
-  void paint(Canvas canvas, Size size) {
-    const baseline = 35.0;
-    const range = 5.0;
-    final avgs = _dailyAvgs();
-    final now = DateTime.now();
-    final slotW = size.width / days;
-    final barW = (slotW * 0.6).clamp(2.0, 10.0);
+  Widget build(BuildContext context) {
+    final tempText = measuring
+        ? '···'
+        : latestTemp > 0
+        ? latestTemp.toStringAsFixed(1)
+        : '--';
 
-    for (int i = 0; i < days; i++) {
-      final day = now.subtract(Duration(days: days - 1 - i));
-      final key =
-          '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-      final v = avgs[key];
-      if (v == null || v <= 0) continue;
-      final x = i * slotW + (slotW - barW) / 2;
-      final normalized = ((v - baseline) / range).clamp(0.0, 1.0);
-      final barH = (normalized * size.height * 0.85 + 4).clamp(
-        4.0,
-        size.height,
-      );
-      canvas.drawRRect(
-        RRect.fromLTRBR(
-          x,
-          size.height - barH,
-          x + barW,
-          size.height,
-          const Radius.circular(3),
-        ),
-        Paint()..color = _tempBarColor(v),
-      );
-    }
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Real Time Temperature',
+                style: _inter(14, weight: FontWeight.w500),
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    tempText,
+                    style: _inter(
+                      15,
+                      weight: FontWeight.w600,
+                      color: measuring || latestTemp > 0
+                          ? Colors.white
+                          : _kSec2,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text('°C', style: _inter(11, color: _kSec)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: enabled ? onTap : null,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF2E2E2E)),
+              ),
+              child: Center(
+                child: measuring
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: enabled ? AppTheme.tempColor : _kSec,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        'Click to start measurement',
+                        style: _inter(
+                          14,
+                          weight: FontWeight.w500,
+                          color: enabled ? Colors.white70 : _kSec,
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(_TempRangePainter old) =>
-      old.points != points || old.days != days;
 }
 
-// ── Supporting widgets ────────────────────────────────────────────────────────
+// ── Legend ───────────────────────────────────────────────────────────────────
 
 class _LegendDot extends StatelessWidget {
   final Color color;
@@ -1251,69 +1090,13 @@ class _LegendDot extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      CircleAvatar(radius: 3.5, backgroundColor: color),
-      const SizedBox(width: 3),
-      Text(label, style: const TextStyle(color: AppTheme.textSec, fontSize: 9)),
+      Container(
+        width: 7,
+        height: 7,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 5),
+      Text(label, style: _inter(11, color: _kSec2)),
     ],
-  );
-}
-
-AppBar _darkBar(String title) => AppBar(
-  backgroundColor: Colors.black,
-  foregroundColor: Colors.white,
-  title: Text(
-    title,
-    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-  ),
-  bottom: PreferredSize(
-    preferredSize: const Size.fromHeight(0.5),
-    child: Container(color: AppTheme.div, height: 0.5),
-  ),
-);
-
-class _Btn extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool enabled;
-  final VoidCallback? onTap;
-
-  const _Btn({
-    required this.label,
-    required this.icon,
-    required this.enabled,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: enabled ? onTap : null,
-    child: Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 13),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.div),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            color: enabled ? AppTheme.gold : AppTheme.textSec,
-            size: 18,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: enabled ? Colors.white : AppTheme.textSec,
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    ),
   );
 }

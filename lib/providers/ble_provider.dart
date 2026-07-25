@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ble_service.dart';
+import '../services/goal_prefs.dart';
+import '../services/notification_prefs.dart';
 import '../services/supabase_service.dart';
 
 class ScannedDevice {
@@ -93,6 +95,11 @@ class BleProvider extends ChangeNotifier {
   bool _showFallPredictionBanner = false;
   int _fallPredictionHr = 0;
   String _fallPredictionTier = 'low';
+
+  // Edge-tracking for user-configurable health alerts (Select Notifications screen):
+  // which alert keys are currently "active" (condition still true), so a notification
+  // fires once per episode rather than on every single reading while it stays elevated.
+  final Set<String> _activeAlerts = {};
 
   // ── Getters ───────────────────────────────────────────────────────────────
 
@@ -277,6 +284,35 @@ class BleProvider extends ChangeNotifier {
       case 'STRESS': _refreshStressFromLocal(); break;
       case 'BLOOD_PRESSURE': _refreshBpFromLocal(); break;
       case 'STEPS': _refreshStepsFromLocal(); break;
+      case 'TEMPERATURE': _refreshTempFromLocal(); break;
+    }
+  }
+
+  // ── Health-event alerts (Select Notifications screen) ────────────────────
+  //
+  // Edge-triggered: fires at most once per episode (condition transitioning
+  // from not-crossed to crossed), gated by whether the user enabled that
+  // specific alert key. See NotificationPrefs / postHealthAlert (BlePlugin.kt
+  // -> AlertNotifier.notifyAnomaly).
+
+  Future<void> _maybeAlert(
+    String key,
+    bool condition, {
+    required String title,
+    required String message,
+    required String vital,
+  }) async {
+    final wasActive = _activeAlerts.contains(key);
+    if (!condition) {
+      _activeAlerts.remove(key);
+      return;
+    }
+    if (wasActive) return; // already alerted for this episode
+    _activeAlerts.add(key);
+    if (await NotificationPrefs.isEnabled(key)) {
+      try {
+        await _ble.postHealthAlert(title: title, message: message, vital: vital);
+      } catch (_) {}
     }
   }
 
@@ -403,6 +439,17 @@ class BleProvider extends ChangeNotifier {
       _todayMinHr = (m['min'] as num?)?.toInt() ?? 0;
       _todayMaxHr = (m['max'] as num?)?.toInt() ?? 0;
       notifyListeners();
+      final last = (m['lastValue'] as num?)?.toInt() ?? 0;
+      if (last > 0) {
+        _maybeAlert('High Heart Rate', last >= 100,
+            title: 'High Heart Rate',
+            message: 'Your heart rate just read $last bpm.',
+            vital: 'heart_rate');
+        _maybeAlert('Low Heart Rate', last < 50,
+            title: 'Low Heart Rate',
+            message: 'Your heart rate just read $last bpm.',
+            vital: 'heart_rate');
+      }
       return true;
     } catch (_) { return false; }
   }
@@ -415,6 +462,17 @@ class BleProvider extends ChangeNotifier {
       _todayMinSpo2 = (m['min'] as num?)?.toInt() ?? 0;
       _todayMaxSpo2 = (m['max'] as num?)?.toInt() ?? 0;
       notifyListeners();
+      final last = (m['lastValue'] as num?)?.toInt() ?? 0;
+      if (last > 0) {
+        _maybeAlert('High SpO2', last >= 99,
+            title: 'High Blood Oxygen',
+            message: 'Your SpO2 just read $last%.',
+            vital: 'spo2');
+        _maybeAlert('Low SpO2', last < 90,
+            title: 'Low Blood Oxygen',
+            message: 'Your SpO2 just read $last%.',
+            vital: 'spo2');
+      }
       return true;
     } catch (_) { return false; }
   }
@@ -444,6 +502,22 @@ class BleProvider extends ChangeNotifier {
       _latestBpSbp = (m['systolic'] as num?)?.toInt() ?? 0;
       _latestBpDbp = (m['diastolic'] as num?)?.toInt() ?? 0;
       notifyListeners();
+      if (_latestBpSbp > 0 && _latestBpDbp > 0) {
+        _maybeAlert(
+          'High BP',
+          _latestBpSbp >= 140 || _latestBpDbp >= 90,
+          title: 'High Blood Pressure',
+          message: 'Your blood pressure just read $_latestBpSbp/$_latestBpDbp.',
+          vital: 'blood_pressure',
+        );
+        _maybeAlert(
+          'Low BP',
+          _latestBpSbp < 90 || _latestBpDbp < 60,
+          title: 'Low Blood Pressure',
+          message: 'Your blood pressure just read $_latestBpSbp/$_latestBpDbp.',
+          vital: 'blood_pressure',
+        );
+      }
       return true;
     } catch (_) { return false; }
   }
@@ -456,6 +530,34 @@ class BleProvider extends ChangeNotifier {
       _todayCalories  = (m['caloriesKcal'] as num?)?.toInt() ?? 0;
       _todayDistanceM = (m['distanceM'] as num?)?.toDouble() ?? 0.0;
       notifyListeners();
+      final goal = await GoalPrefs.load();
+      _maybeAlert(
+        'Step count achieved',
+        _todaySteps >= goal.steps,
+        title: 'Step Goal Reached',
+        message: 'You hit your goal of ${goal.steps} steps today!',
+        vital: 'steps',
+      );
+      return true;
+    } catch (_) { return false; }
+  }
+
+  Future<bool> _refreshTempFromLocal() async {
+    try {
+      final m = jsonDecode(await _ble.getLatestReading('temperature'));
+      if (m is! Map<String, dynamic>) return false;
+      final v = (m['valueC'] as num?)?.toDouble() ?? 0.0;
+      if (v > 0) {
+        _latestTempC = v;
+        notifyListeners();
+        _maybeAlert(
+          'High temperature notification',
+          v > 38.0,
+          title: 'High Temperature',
+          message: 'Your skin temperature just read ${v.toStringAsFixed(1)}°C.',
+          vital: 'temperature',
+        );
+      }
       return true;
     } catch (_) { return false; }
   }
@@ -858,6 +960,15 @@ class BleProvider extends ChangeNotifier {
     try {
       _battery = await _ble.getBattery();
       notifyListeners();
+      if (_battery > 0) {
+        _maybeAlert(
+          'Low Battery',
+          _battery <= 15,
+          title: 'Ring Battery Low',
+          message: 'Your ring is at $_battery% battery.',
+          vital: 'heart_rate',
+        );
+      }
     } catch (_) {}
   }
 

@@ -322,6 +322,7 @@ class BlePlugin(private val context: Context) {
             "getFallEvents"              -> getFallEvents(call, result)
             "getPhoneModeSessions"       -> getPhoneModeSessions(call, result)
             "simulateFallEvent"          -> simulateFallEvent(result)
+            "postHealthAlert"            -> postHealthAlert(call, result)
             "getEmergencyContacts"       -> getEmergencyContacts(result)
             "addEmergencyContact"        -> addEmergencyContact(call, result)
             "updateEmergencyContact"     -> updateEmergencyContact(call, result)
@@ -2097,6 +2098,18 @@ class BlePlugin(private val context: Context) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
             }
         }
+    }
+
+    // Fires a phone-side alert notification for a vital that crossed a user-enabled
+    // threshold (see BleProvider's threshold checks in Dart) via the previously-unused
+    // AlertNotifier scaffolding.
+    private fun postHealthAlert(call: MethodCall, result: MethodChannel.Result) {
+        val title = call.argument<String>("title")
+        if (title == null) { result.error("INVALID_ARG", "title required", null); return }
+        val message = call.argument<String>("message") ?: ""
+        val vital = call.argument<String>("vital")?.let { Vital.fromKey(it) } ?: Vital.HEART_RATE
+        AlertNotifier.notifyAnomaly(context, title, message, vital)
+        result.success(true)
     }
 
     // Dev/testing only — posts a real NewReadingEvent through the exact same EventBus path a

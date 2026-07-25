@@ -9,7 +9,6 @@ import '../../services/supabase_service.dart';
 import '../../services/home_card_prefs.dart';
 import '../../theme/app_theme.dart';
 import '../settings/fall_detection_screen.dart';
-import '../settings/card_settings_screen.dart';
 import 'ring_scan_sheet.dart';
 import 'side_panel.dart';
 import '../settings/about_screen.dart';
@@ -731,20 +730,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   SidePanelGroup(
                     items: [
                       SidePanelItem(
-                        label: 'Goal setting',
-                        onTap: () async {
-                          Navigator.pop(context);
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const CardSettingsScreen(),
-                            ),
-                          );
-                          _loadCardOrder();
-                          _loadHiddenCards();
-                        },
-                      ),
-                      SidePanelItem(
                         label: 'About',
                         onTap: () {
                           Navigator.pop(context);
@@ -753,6 +738,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             MaterialPageRoute(
                               builder: (_) => const AboutScreen(),
                             ),
+                          );
+                        },
+                      ),
+                      SidePanelItem(
+                        label: 'Share',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Share.share(
+                            'Check out SUNDR — the AI health ring app I use to track my sleep, heart rate, and more.',
                           );
                         },
                       ),
@@ -767,50 +761,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: Text('Home', style: _inter(16, weight: FontWeight.w600)),
             ),
           ),
-          IconButton(
-            icon: const Icon(
-              Icons.more_vert_rounded,
-              color: Colors.white,
-              size: 22,
-            ),
-            onPressed: () => showSidePanel(
-              context: context,
-              fromRight: true,
-              child: SidePanelShell(
-                fromRight: true,
-                icon: GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const Icon(
-                    Icons.more_vert_rounded,
-                    color: Colors.white70,
-                    size: 22,
-                  ),
-                ),
-                items: [
-                  SidePanelGroup(
-                    items: [
-                      SidePanelItem(
-                        label: 'Share',
-                        onTap: () {
-                          Navigator.pop(context);
-                          Share.share(
-                            'Check out SUNDR — the AI health ring app I use to track my sleep, heart rate, and more.',
-                          );
-                        },
-                      ),
-                      SidePanelItem(
-                        label: 'Pair ring',
-                        onTap: () {
-                          Navigator.pop(context);
-                          showRingScanSheet(context);
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+          // Balances the leading menu IconButton's tap target so 'Home' stays centered.
+          const SizedBox(width: 48),
         ],
       ),
     );
@@ -2546,4 +2498,3 @@ class _CycleBarPainter extends CustomPainter {
       old.cycleLength != cycleLength ||
       old.periodLength != periodLength;
 }
-

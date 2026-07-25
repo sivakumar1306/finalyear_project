@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/alarm_mode_provider.dart';
 import '../../providers/ble_provider.dart';
+import '../../services/prayer_schedule_prefs.dart';
 import '../../theme/app_theme.dart';
+import 'prayer_schedule_screen.dart';
 import 'select_notifications_screen.dart';
 
 // Same "FlutterSharedPreferences" file / "flutter."-prefixed keys BleConnectionService
@@ -29,17 +31,34 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
 
   List<Map<String, dynamic>> _modeSessions = [];
   TimeOfDay? _sleepReminderTime;
+  TimeOfDay _prayerStart = PrayerSchedulePrefs.defaultStart;
+  TimeOfDay _prayerEnd = PrayerSchedulePrefs.defaultEnd;
 
-  static const _socialApps = [
-    'QQ', 'Wechat', 'Facebook', 'Whatsapp', 'Twitter',
-    'Skype', 'Line', 'Linkedin', 'TIM', 'Instagram', 'Snapchat',
-  ];
+  static const _socialApps = ['Whatsapp'];
 
   @override
   void initState() {
     super.initState();
     _loadUsage();
     _loadSleepReminder();
+    _loadPrayerSchedule();
+  }
+
+  Future<void> _loadPrayerSchedule() async {
+    final (start, end) = await PrayerSchedulePrefs.load();
+    if (!mounted) return;
+    setState(() {
+      _prayerStart = start;
+      _prayerEnd = end;
+    });
+  }
+
+  Future<void> _editPrayerSchedule() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PrayerScheduleScreen()),
+    );
+    _loadPrayerSchedule();
   }
 
   Future<void> _loadUsage() async {
@@ -184,8 +203,11 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                   _divider(),
                   _AlarmRow(
                     showEditIcon: true,
+                    onEditTap: _editPrayerSchedule,
                     title: 'Prayer Mode',
-                    subtitle: prayerOn ? 'Active · Dhuhr 13:14' : 'Scheduled · 22:30-06:30',
+                    subtitle: prayerOn
+                        ? 'Active · Dhuhr 13:14'
+                        : 'Scheduled · ${_prayerStart.format(context)}-${_prayerEnd.format(context)}',
                     subtitleColor: prayerOn ? const Color(0xFF6BC99B) : null,
                     trailing: _switch(
                       prayerOn,
@@ -341,6 +363,7 @@ class _AlarmRow extends StatelessWidget {
   final Color? subtitleColor;
   final Widget trailing;
   final VoidCallback? onTap;
+  final VoidCallback? onEditTap;
 
   const _AlarmRow({
     this.showEditIcon = false,
@@ -349,6 +372,7 @@ class _AlarmRow extends StatelessWidget {
     this.subtitleColor,
     required this.trailing,
     this.onTap,
+    this.onEditTap,
   });
 
   @override
@@ -360,14 +384,18 @@ class _AlarmRow extends StatelessWidget {
       child: Row(
         children: [
           if (showEditIcon) ...[
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: AppTheme.card2,
-                borderRadius: BorderRadius.circular(8),
+            InkWell(
+              onTap: onEditTap,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppTheme.card2,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.edit_outlined, color: Color(0xFFAAAAAA), size: 16),
               ),
-              child: const Icon(Icons.edit_outlined, color: Color(0xFFAAAAAA), size: 16),
             ),
             const SizedBox(width: 14),
           ],
