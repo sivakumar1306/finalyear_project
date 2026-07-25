@@ -106,7 +106,15 @@ class _StepsScreenState extends State<StepsScreen> {
         _daySteps   = ble.todaySteps;
         _dayCal     = ble.todayCalories;
         _dayDistM   = ble.todayDistanceM;
-        _stepsSlots = List<int>.from(ble.todayStepsByInterval);
+        // Only trust the cached interval breakdown when it's the full 96-slot
+        // array a live ring fetch produces (see _parseRingData). The local-DB-only
+        // refresh path (BleProvider._refreshStepsFromLocal, used when the ring
+        // isn't connected) fills in the totals above but leaves this empty —
+        // copying it as-is left _stepsSlots at length 0, and _toHourlyInt's
+        // sublist() calls threw a RangeError during build, blanking the screen.
+        if (ble.todayStepsByInterval.length == 96) {
+          _stepsSlots = List<int>.from(ble.todayStepsByInterval);
+        }
       });
     }
     await _syncFromRing();

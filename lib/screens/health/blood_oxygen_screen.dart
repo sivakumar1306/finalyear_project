@@ -52,8 +52,6 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
   DateTime _selectedDate = DateTime.now();
 
   int _manualSpo2 = 0;
-  bool _settingEnabled  = true;
-  int  _settingInterval = 5;
 
   // Today's ring data
   List<int> _chartValues = [];
@@ -87,7 +85,6 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _fetchToday();
@@ -228,26 +225,6 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     }
   }
 
-  // ── Settings ──────────────────────────────────────────────────────────────
-
-  Future<void> _loadSettings() async {
-    if (!context.read<BleProvider>().isConnected) return;
-    try {
-      final json = await _ble.getBloodOxygenSetting();
-      final m = jsonDecode(json);
-      setState(() {
-        _settingEnabled  = m['enable']   ?? true;
-        _settingInterval = m['interval'] ?? 5;
-      });
-    } catch (_) {}
-  }
-
-  Future<void> _saveSettings() async {
-    try {
-      await _ble.setBloodOxygenSetting(enable: _settingEnabled, interval: _settingInterval);
-    } catch (_) {}
-  }
-
   Future<void> _startMeasurement() async {
     if (_measuring) return;
     setState(() { _measuring = true; _manualSpo2 = 0; });
@@ -373,21 +350,6 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
           children: [
             const SizedBox(height: 16),
 
-            // ── 1. SpO₂ Detection toggle ───────────────────────────────────
-            _Spo2DetectionCard(
-              enabled: _settingEnabled,
-              interval: _settingInterval,
-              onToggle: (v) {
-                setState(() => _settingEnabled = v);
-                _saveSettings();
-              },
-              onIntervalChanged: (v) {
-                setState(() => _settingInterval = v);
-                _saveSettings();
-              },
-            ),
-            const SizedBox(height: 20),
-
             // ── 2. Date row ────────────────────────────────────────────────
             _Spo2DateRow(
               selectedDate: _selectedDate,
@@ -483,82 +445,6 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
             const SizedBox(height: 80),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ── SpO₂ Detection card ───────────────────────────────────────────────────────
-
-class _Spo2DetectionCard extends StatelessWidget {
-  final bool enabled;
-  final int interval;
-  final ValueChanged<bool> onToggle;
-  final ValueChanged<int> onIntervalChanged;
-
-  const _Spo2DetectionCard({
-    required this.enabled,
-    required this.interval,
-    required this.onToggle,
-    required this.onIntervalChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Blood Oxygen Detection',
-                        style: _inter(15, weight: FontWeight.w600)),
-                    const SizedBox(height: 5),
-                    Text(
-                      'Automatically monitor SpO₂ throughout the day at set intervals.',
-                      style: _inter(12, color: _kSec2, height: 1.45),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              Switch(
-                value: enabled,
-                onChanged: onToggle,
-              ),
-            ],
-          ),
-          if (enabled) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Text('Interval', style: _inter(13, color: _kSec2)),
-                const Spacer(),
-                DropdownButton<int>(
-                  value: [1, 5, 10, 15, 30].contains(interval) ? interval : 5,
-                  dropdownColor: const Color(0xFF1A1A1A),
-                  style: _inter(13),
-                  underline: const SizedBox(),
-                  items: [1, 5, 10, 15, 30]
-                      .map((e) => DropdownMenuItem(value: e, child: Text('$e min')))
-                      .toList(),
-                  onChanged: (v) { if (v != null) onIntervalChanged(v); },
-                ),
-              ],
-            ),
-          ],
-        ],
       ),
     );
   }

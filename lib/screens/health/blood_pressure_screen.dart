@@ -70,8 +70,6 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
   DateTime _selectedDate = DateTime.now();
 
   int _manualSbp = 0, _manualDbp = 0;
-  bool _settingEnabled  = true;
-  int  _settingInterval = 30;
 
   // Today's local-DB data
   List<int> _chartSbp = [];
@@ -111,7 +109,6 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Local DB read — doesn't need a live ring connection.
       _fetchTodayFromLocalDb();
@@ -284,26 +281,6 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     }
   }
 
-  // ── Settings ──────────────────────────────────────────────────────────────────
-
-  Future<void> _loadSettings() async {
-    if (!context.read<BleProvider>().isConnected) return;
-    try {
-      final json = await _ble.getBloodPressureSetting();
-      final m = jsonDecode(json) as Map<String, dynamic>;
-      setState(() {
-        _settingEnabled  = m['enable']   ?? true;
-        _settingInterval = m['interval'] ?? 30;
-      });
-    } catch (_) {}
-  }
-
-  Future<void> _saveSettings() async {
-    try {
-      await _ble.setBloodPressureSetting(enable: _settingEnabled, interval: _settingInterval);
-    } catch (_) {}
-  }
-
   // ── Manual measurement ────────────────────────────────────────────────────────
 
   Future<void> _startMeasurement() async {
@@ -414,16 +391,6 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 16),
-
-            // ── 1. BP Detection toggle ─────────────────────────────────────
-            _BPDetectionCard(
-              enabled: _settingEnabled,
-              onToggle: (v) {
-                setState(() => _settingEnabled = v);
-                _saveSettings();
-              },
-            ),
-            const SizedBox(height: 20),
 
             // ── 2. Date row ────────────────────────────────────────────────
             _BPDateRow(
@@ -548,47 +515,6 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
             const SizedBox(height: 80),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ── BP Detection card ──────────────────────────────────────────────────────────
-
-class _BPDetectionCard extends StatelessWidget {
-  final bool enabled;
-  final ValueChanged<bool> onToggle;
-  const _BPDetectionCard({required this.enabled, required this.onToggle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Blood Pressure Detection', style: _inter(15, weight: FontWeight.w600)),
-                const SizedBox(height: 5),
-                Text(
-                  'Enable continuous blood pressure monitoring throughout the day.',
-                  style: _inter(12, color: _kSec2, height: 1.45),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          Switch(value: enabled, onChanged: onToggle),
-        ],
       ),
     );
   }

@@ -52,8 +52,6 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   DateTime _selectedDate = DateTime.now();
 
   int _manualHr = 0;
-  bool _settingEnabled  = true;
-  int  _settingInterval = 5;
 
   // Today's ring data
   List<int> _chartValues = [];
@@ -87,7 +85,6 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Local DB read — doesn't need a live ring connection, unlike the old
       // direct-ring-fetch this replaced.
@@ -238,26 +235,6 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     }
   }
 
-  // ── Settings ──────────────────────────────────────────────────────────────────
-
-  Future<void> _loadSettings() async {
-    if (!context.read<BleProvider>().isConnected) return;
-    try {
-      final json = await _ble.getHeartRateSetting();
-      final m = jsonDecode(json);
-      setState(() {
-        _settingEnabled  = m['enable']   ?? true;
-        _settingInterval = m['interval'] ?? 5;
-      });
-    } catch (_) {}
-  }
-
-  Future<void> _saveSettings() async {
-    try {
-      await _ble.setHeartRateSetting(enable: _settingEnabled, interval: _settingInterval);
-    } catch (_) {}
-  }
-
   Future<void> _startMeasurement() async {
     if (_measuring) return;
     setState(() { _measuring = true; _manualHr = 0; });
@@ -350,16 +327,6 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 16),
-
-            // ── 1. HR Detection toggle ─────────────────────────────────────
-            _HRDetectionCard(
-              enabled: _settingEnabled,
-              onToggle: (v) {
-                setState(() => _settingEnabled = v);
-                _saveSettings();
-              },
-            ),
-            const SizedBox(height: 20),
 
             // ── 2. Date row ────────────────────────────────────────────────
             _HRDateRow(
@@ -460,52 +427,6 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
             const SizedBox(height: 80),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ── Heart Rate Detection card ─────────────────────────────────────────────────
-
-class _HRDetectionCard extends StatelessWidget {
-  final bool enabled;
-  final ValueChanged<bool> onToggle;
-  const _HRDetectionCard({required this.enabled, required this.onToggle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Heart Rate Detection',
-                    style: _inter(15, weight: FontWeight.w600)),
-                const SizedBox(height: 5),
-                Text(
-                  'Start continuous heart rate measurement, '
-                  'monitor it every 30 minutes, automatically hear...',
-                  style: _inter(12, color: _kSec2, height: 1.45),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: enabled,
-            onChanged: onToggle,
-          ),
-        ],
       ),
     );
   }

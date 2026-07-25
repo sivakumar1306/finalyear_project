@@ -536,13 +536,37 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         },
         itemBuilder: (context, index) {
           final id = visibleCardIds[index];
+          final hidden = _hiddenCards.contains(id);
           return Padding(
             key: ValueKey(id),
             padding: const EdgeInsets.only(bottom: 12),
             child: Row(
               children: [
-                Expanded(child: IgnorePointer(child: _buildCardBlock(id, ble))),
-                const SizedBox(width: 12),
+                Expanded(
+                  child: IgnorePointer(
+                    child: AnimatedOpacity(
+                      opacity: hidden ? 0.35 : 1.0,
+                      duration: const Duration(milliseconds: 250),
+                      child: _buildCardBlock(id, ble),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Transform.scale(
+                  scale: 0.8,
+                  child: Switch(
+                    value: !hidden,
+                    onChanged: (v) {
+                      setState(() {
+                        if (v) {
+                          _hiddenCards.remove(id);
+                        } else {
+                          _hiddenCards.add(id);
+                        }
+                      });
+                    },
+                  ),
+                ),
                 ReorderableDragStartListener(
                   index: index,
                   child: Container(
@@ -581,14 +605,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (ble.deviceAddress.isEmpty) {
       return _buildUnboundState(context, ble);
     }
-    final visibleCardIds = _cardOrder.where((id) {
+    // Cards eligible to appear at all (independent of the user's show/hide
+    // choice) — this is what edit mode lists, so a hidden card can still be
+    // found and switched back on.
+    final editableCardIds = _cardOrder.where((id) {
       if (id == HomeCardId.womensHealth && !_isFemale) return false;
       // Temperature now renders paired with Blood Pressure in a single
       // square-card row (see _buildCardBlock) rather than as its own block.
       if (id == HomeCardId.temperature) return false;
-      if (_hiddenCards.contains(id)) return false;
       return true;
     }).toList();
+
+    // What's actually rendered day-to-day — editable cards minus anything
+    // the user hid.
+    final visibleCardIds = _editMode
+        ? editableCardIds
+        : editableCardIds.where((id) => !_hiddenCards.contains(id)).toList();
 
     return RefreshIndicator(
       color: AppTheme.gold,
@@ -660,6 +692,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     });
                     if (!_editMode) {
                       _saveCardOrder();
+                      HomeCardPrefs.saveHidden(_hiddenCards);
                     }
                   },
                 ),

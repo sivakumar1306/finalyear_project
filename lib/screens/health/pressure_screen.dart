@@ -77,7 +77,6 @@ class _PressureScreenState extends State<PressureScreen> {
   DateTime _selectedDate = DateTime.now();
 
   int  _manualStress   = 0;
-  bool _settingEnabled = true;
 
   // Today's ring data (in-memory)
   List<int> _chartValues = [];
@@ -111,7 +110,6 @@ class _PressureScreenState extends State<PressureScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Local DB read — doesn't need a live ring connection.
       _fetchTodayFromLocalDb();
@@ -258,25 +256,6 @@ class _PressureScreenState extends State<PressureScreen> {
     }
   }
 
-  // ── Settings ──────────────────────────────────────────────────────────────
-
-  Future<void> _loadSettings() async {
-    if (!context.read<BleProvider>().isConnected) return;
-    try {
-      final json = await _ble
-          .getPressureSetting()
-          .timeout(const Duration(seconds: 5));
-      final m = jsonDecode(json) as Map<String, dynamic>;
-      if (mounted) setState(() => _settingEnabled = (m['enable'] as bool?) ?? true);
-    } catch (_) {}
-  }
-
-  Future<void> _saveSettings() async {
-    try {
-      await _ble.setPressureSetting(enable: _settingEnabled);
-    } catch (_) {}
-  }
-
   // ── Manual measurement ────────────────────────────────────────────────────
 
   Future<void> _startMeasurement() async {
@@ -378,16 +357,6 @@ class _PressureScreenState extends State<PressureScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 16),
-
-            // ── 1. Stress Detection toggle ─────────────────────────────────
-            _StressDetectionCard(
-              enabled: _settingEnabled,
-              onToggle: (v) {
-                setState(() => _settingEnabled = v);
-                _saveSettings();
-              },
-            ),
-            const SizedBox(height: 20),
 
             // ── 2. Date row ────────────────────────────────────────────────
             _StressDateRow(
@@ -499,52 +468,6 @@ class _PressureScreenState extends State<PressureScreen> {
             const SizedBox(height: 80),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ── Stress Detection card ─────────────────────────────────────────────────────
-
-class _StressDetectionCard extends StatelessWidget {
-  final bool enabled;
-  final ValueChanged<bool> onToggle;
-  const _StressDetectionCard({required this.enabled, required this.onToggle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Stress Detection',
-                    style: _inter(15, weight: FontWeight.w600)),
-                const SizedBox(height: 5),
-                Text(
-                  'Enable continuous stress monitoring. '
-                  'The ring tracks your stress levels throughout the day automatically.',
-                  style: _inter(12, color: _kSec2, height: 1.45),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: enabled,
-            onChanged: onToggle,
-          ),
-        ],
       ),
     );
   }
