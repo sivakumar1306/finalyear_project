@@ -8,6 +8,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.medxai.qring_flutter.MainActivity
+import com.medxai.qring_flutter.R
 
 /**
  * Client-demo notifier for the *predictive* (pre-fall) alert, distinct from
@@ -48,7 +49,7 @@ object FallPredictionNotifier {
             .setContentText(bodyText)
             .setSubText("Fall Prediction")
             .setStyle(NotificationCompat.BigTextStyle().bigText(bodyText))
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setSmallIcon(R.drawable.ic_notification)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)

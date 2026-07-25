@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/supabase_service.dart';
+import '../../services/unit_prefs.dart';
 import '../../theme/app_theme.dart';
 
 class ProfileEditScreen extends StatefulWidget {
@@ -21,11 +22,15 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   int _age = 0;
   int _heightCm = 0;
   double _weightKg = 0;
+  UnitSystem _unitSystem = UnitSystem.metric;
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    UnitPrefs.loadSystem().then((s) {
+      if (mounted) setState(() => _unitSystem = s);
+    });
   }
 
   Future<void> _loadProfile() async {
@@ -69,7 +74,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        Navigator.pop(context);
+        // When embedded as the Profile tab (MainShell's IndexedStack, reached
+        // via pushNamedAndRemoveUntil so it's the app's sole route), there's
+        // no route to pop — Navigator.pop() would empty the stack entirely
+        // and leave a blank screen. Only pop when this was actually pushed
+        // (showBackButton screens: the '/profile-edit' route, or pushed from
+        // Account & System settings).
+        if (widget.showBackButton) Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
@@ -130,8 +141,14 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
   }
 
+  bool get _useUs => _unitSystem == UnitSystem.us;
+
   void _editHeight() async {
-    final ctrl = TextEditingController(text: _heightCm > 0 ? _heightCm.toString() : '');
+    // Canonical storage stays cm regardless of display unit — in US mode the
+    // dialog shows/accepts total inches and converts back to cm on save.
+    final displayVal = _useUs ? UnitPrefs.cmToInches(_heightCm.toDouble()) : _heightCm.toDouble();
+    final ctrl = TextEditingController(
+        text: _heightCm > 0 ? displayVal.round().toString() : '');
     final result = await showDialog<String>(
       context: context,
       builder: (_) => _InputDialog(
@@ -139,18 +156,21 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         controller: ctrl,
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        suffix: 'cm',
+        suffix: _useUs ? 'in' : 'cm',
       ),
     );
     if (result != null) {
       final v = int.tryParse(result);
-      if (v != null) setState(() => _heightCm = v);
+      if (v != null) {
+        setState(() => _heightCm = _useUs ? UnitPrefs.inchesToCm(v.toDouble()).round() : v);
+      }
     }
   }
 
   void _editWeight() async {
+    final displayVal = _useUs ? UnitPrefs.kgToLbs(_weightKg) : _weightKg;
     final ctrl = TextEditingController(
-        text: _weightKg > 0 ? _weightKg.toStringAsFixed(1) : '');
+        text: _weightKg > 0 ? displayVal.toStringAsFixed(1) : '');
     final result = await showDialog<String>(
       context: context,
       builder: (_) => _InputDialog(
@@ -158,12 +178,14 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         controller: ctrl,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,1}'))],
-        suffix: 'kg',
+        suffix: _useUs ? 'lbs' : 'kg',
       ),
     );
     if (result != null) {
       final v = double.tryParse(result);
-      if (v != null) setState(() => _weightKg = v);
+      if (v != null) {
+        setState(() => _weightKg = _useUs ? UnitPrefs.lbsToKg(v) : v);
+      }
     }
   }
 
@@ -259,14 +281,18 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                         _ProfileRow(
                           icon: Icons.height_rounded,
                           label: 'Height',
-                          value: _heightCm > 0 ? '$_heightCm cm' : '—',
+                          value: _heightCm > 0
+                              ? UnitPrefs.formatHeightCm(_heightCm, _unitSystem)
+                              : '—',
                           onTap: _editHeight,
                         ),
                         _divider(),
                         _ProfileRow(
                           icon: Icons.monitor_weight_outlined,
                           label: 'Weight',
-                          value: _weightKg > 0 ? '${_weightKg.toStringAsFixed(1)} kg' : '—',
+                          value: _weightKg > 0
+                              ? UnitPrefs.formatWeightKg(_weightKg, _unitSystem)
+                              : '—',
                           onTap: _editWeight,
                         ),
                       ],

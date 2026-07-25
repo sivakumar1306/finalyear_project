@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
+import '../providers/main_tab_provider.dart';
 import '../providers/workout_provider.dart';
 import 'home/home_screen.dart';
 import 'settings/settings_screen.dart';
@@ -19,8 +20,6 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  int _tab = 0;
-
   @override
   void initState() {
     super.initState();
@@ -41,7 +40,7 @@ class _MainShellState extends State<MainShell> {
       _showWorkoutLockSheet();
       return;
     }
-    setState(() => _tab = index);
+    context.read<MainTabProvider>().setTab(index);
   }
 
   void _showWorkoutLockSheet() {
@@ -119,6 +118,7 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final tab = context.watch<MainTabProvider>().tab;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
@@ -127,7 +127,7 @@ class _MainShellState extends State<MainShell> {
       child: Scaffold(
         backgroundColor: const Color.fromRGBO(8, 8, 8, 1),
         body: IndexedStack(
-          index: _tab,
+          index: tab,
           children: const [
             HomeScreen(),
             ChatScreen(),
@@ -135,7 +135,7 @@ class _MainShellState extends State<MainShell> {
             SettingsScreen(),
           ],
         ),
-        bottomNavigationBar: _BottomNav(selected: _tab, onTap: _onTabTap),
+        bottomNavigationBar: _BottomNav(selected: tab, onTap: _onTabTap),
       ),
     );
   }

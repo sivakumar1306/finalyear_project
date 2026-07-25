@@ -1,9 +1,74 @@
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_menu.dart';
+import '../../widgets/screenshot_share.dart';
+import 'vital_note_screen.dart';
+import 'package:provider/provider.dart';
+import '../../providers/ble_provider.dart';
 
+// ── Design tokens (glass card system per DESIGN.md) ────────────────────────
+
+const _kGlassBg = Color(0x0FFFFFFF); // rgba(255,255,255,0.06)
+const _kGlassBorder = Color(0x17FFFFFF); // rgba(255,255,255,0.09)
+const _kFertile = AppTheme.hrvColor; // teal
+const _kOvulation = Color(0xFFA855F7); // purple
+const _kToday = Color(0xFF60A5FA); // blue
+const _kPeriod = AppTheme.womenColor; // pink
+
+TextStyle _inter(
+  double size, {
+  FontWeight weight = FontWeight.w400,
+  Color color = Colors.white,
+  double? letterSpacing,
+  double? height,
+}) => GoogleFonts.inter(
+  fontSize: size,
+  fontWeight: weight,
+  color: color,
+  letterSpacing: letterSpacing,
+  height: height,
+);
+
+Widget _glassCard({
+  required Widget child,
+  EdgeInsetsGeometry padding = const EdgeInsets.all(16),
+  Gradient? tint,
+}) {
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(20),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+      child: Container(
+        width: double.infinity,
+        padding: padding,
+        decoration: BoxDecoration(
+          color: _kGlassBg,
+          gradient: tint,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _kGlassBorder, width: 0.5),
+        ),
+        child: child,
+      ),
+    ),
+  );
+}
+
+const _kMonthsShort = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+const _kWeekdaysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const _kWeekdaysFull = [
+  'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+];
+
+String _fmtMD(DateTime d) => '${_kMonthsShort[d.month - 1]} ${d.day}';
+String _fmtTillDate(DateTime d) =>
+    'Till ${_kWeekdaysFull[d.weekday - 1].substring(0, 3)}, ${_fmtMD(d)}';
 
 // ── Data model ─────────────────────────────────────────────────────────────────
 
@@ -54,51 +119,23 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   String _gender = '';
   List<CycleData> _cycles = [];
 
-  // Calendar
-  DateTime _calMonth = DateTime(DateTime.now().year, DateTime.now().month);
-
-  // Computed day sets
   final Set<DateTime> _periodDays = {};
   final Set<DateTime> _fertileDays = {};
   final Set<DateTime> _ovulationDays = {};
 
-  // Symptom state
-  String _mood = '';
-  int _energy = 0;
-  bool _cramps = false, _headache = false, _bloating = false;
-  String _notes = '';
-  bool _savingSymptoms = false;
-  bool _symptomsExpanded = true;
-
-  // Setup form (empty state)
   DateTime _setupPeriodStart = DateTime.now().subtract(const Duration(days: 7));
   int _setupCycleLen = 28;
   int _setupPeriodLen = 5;
   bool _savingSetup = false;
 
-  // Scroll-to keys for action buttons
-  final GlobalKey _calendarKey = GlobalKey();
-  final GlobalKey _symptomsKey = GlobalKey();
-
-  // ── Phase helpers ──────────────────────────────────────────────────────────
+  final _moreButtonKey = GlobalKey();
+  final _screenshotKey = GlobalKey();
 
   static const _phaseColors = {
     'Menstrual': Color(0xFFEF4444),
     'Follicular': Color(0xFF818CF8),
-    'Ovulation': Color(0xFF34D399),
+    'Ovulation': _kOvulation,
     'Luteal': AppTheme.womenColor,
-  };
-  static const _phaseIcons = {
-    'Menstrual': Icons.water_drop_rounded,
-    'Follicular': Icons.eco_rounded,
-    'Ovulation': Icons.brightness_high_rounded,
-    'Luteal': Icons.nightlight_round,
-  };
-  static const _phaseDescs = {
-    'Menstrual': 'Your period is here. Rest well, stay hydrated, and take it easy on intense workouts.',
-    'Follicular': 'Energy is rising. A great time for new projects, social activities, and high-intensity workouts.',
-    'Ovulation': 'Peak fertility window. You may feel your most energetic, confident, and social right now.',
-    'Luteal': 'Wind down and practice self-care. Your body is preparing — PMS symptoms may arise.',
   };
 
   CycleData? get _latest => _cycles.isEmpty ? null : _cycles.first;
@@ -121,8 +158,6 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     return 'Luteal';
   }
 
-  // ── Init ───────────────────────────────────────────────────────────────────
-
   @override
   void initState() {
     super.initState();
@@ -138,27 +173,16 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       final results = await Future.wait([
         SupabaseService.getProfile(user.id),
         SupabaseService.getCycles(user.id),
-        SupabaseService.getSymptomsForDate(user.id, DateTime.now()),
       ]);
 
       final profile = results[0] as Map<String, dynamic>?;
       final cycleRows = results[1] as List<Map<String, dynamic>>;
-      final symptomsRow = results[2] as Map<String, dynamic>?;
-
       final cycles = cycleRows.map(CycleData.fromMap).toList();
 
       if (!mounted) return;
       setState(() {
         _gender = profile?['gender'] as String? ?? '';
         _cycles = cycles;
-        if (symptomsRow != null) {
-          _mood = symptomsRow['mood'] as String? ?? '';
-          _energy = (symptomsRow['energy'] as num? ?? 0).toInt();
-          _cramps = symptomsRow['cramps'] as bool? ?? false;
-          _headache = symptomsRow['headache'] as bool? ?? false;
-          _bloating = symptomsRow['bloating'] as bool? ?? false;
-          _notes = symptomsRow['notes'] as String? ?? '';
-        }
       });
       _computeCalendarDays();
     } catch (_) {
@@ -198,8 +222,6 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
 
   static DateTime _d(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
 
-  // ── Setup save ─────────────────────────────────────────────────────────────
-
   Future<void> _saveSetup() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
@@ -222,39 +244,84 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     }
   }
 
-  // ── Symptom save ──────────────────────────────────────────────────────────
+  // ── Three-dot menu ──────────────────────────────────────────────────────────
 
-  Future<void> _saveSymptoms() async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
-    setState(() => _savingSymptoms = true);
-    try {
-      await SupabaseService.upsertSymptoms(
-        userId: user.id,
-        date: DateTime.now(),
-        mood: _mood.isNotEmpty ? _mood : null,
-        energy: _energy > 0 ? _energy : null,
-        cramps: _cramps,
-        headache: _headache,
-        bloating: _bloating,
-        notes: _notes,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Symptoms saved')));
-      }
-    } catch (_) {
-    } finally {
-      if (mounted) setState(() => _savingSymptoms = false);
-    }
+  void _openMenu() {
+    showGlassMenu(
+      context: context,
+      anchorKey: _moreButtonKey,
+      items: [
+        GlassMenuItem(
+          label: 'Share',
+          onTap: () =>
+              shareScreenshot(_screenshotKey, text: 'My Cycle — SUNDR'),
+        ),
+        GlassMenuItem(
+          label: 'Note',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => VitalNoteScreen(
+                title: 'Women\'s Health',
+                heading: 'About Your Cycle',
+                intro:
+                    'Your menstrual cycle moves through four phases — each with '
+                    'its own hormonal rhythm that can shift your temperature, '
+                    'sleep, and stress levels.',
+                ranges: [
+                  VitalRange(
+                    label: 'Menstrual',
+                    range: 'Days 1–5',
+                    color: _phaseColors['Menstrual']!,
+                  ),
+                  VitalRange(
+                    label: 'Follicular',
+                    range: 'Days 6–13',
+                    color: _phaseColors['Follicular']!,
+                  ),
+                  VitalRange(
+                    label: 'Ovulation',
+                    range: 'Days 14–15',
+                    color: _phaseColors['Ovulation']!,
+                  ),
+                  VitalRange(
+                    label: 'Luteal',
+                    range: 'Days 16–28',
+                    color: _phaseColors['Luteal']!,
+                  ),
+                ],
+                tips: const [
+                  VitalTip(
+                    icon: Icons.thermostat_rounded,
+                    color: AppTheme.tempColor,
+                    title: 'Temperature rises after ovulation',
+                    tip:
+                        'A small, sustained rise in basal temperature is a '
+                        'common sign that ovulation has occurred.',
+                  ),
+                  VitalTip(
+                    icon: Icons.bedtime_rounded,
+                    color: AppTheme.sleepColor,
+                    title: 'Sleep can get lighter pre-period',
+                    tip:
+                        'Rising progesterone in the late luteal phase can make '
+                        'sleep feel lighter or more restless.',
+                  ),
+                ],
+                didYouKnow:
+                    'Cycle length naturally varies month to month — anywhere '
+                    'from 21 to 35 days is considered typical.',
+              ),
+            ),
+          ),
+        ),
+        GlassMenuItem(
+          label: 'Log Period',
+          onTap: _showNewCycleSheet,
+        ),
+      ],
+    );
   }
-
-  // ── Calendar navigation ────────────────────────────────────────────────────
-
-  void _prevMonth() => setState(
-      () => _calMonth = DateTime(_calMonth.year, _calMonth.month - 1));
-  void _nextMonth() => setState(
-      () => _calMonth = DateTime(_calMonth.year, _calMonth.month + 1));
 
   // ── Build ──────────────────────────────────────────────────────────────────
 
@@ -262,7 +329,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: AppTheme.bg,
         appBar: _appBar(),
         body: const Center(
             child: CircularProgressIndicator(color: AppTheme.womenColor)),
@@ -271,7 +338,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
 
     if (_gender != 'Female') {
       return Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: AppTheme.bg,
         appBar: _appBar(),
         body: _buildGenderGate(),
       );
@@ -279,7 +346,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
 
     if (_cycles.isEmpty) {
       return Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: AppTheme.bg,
         appBar: _appBar(),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -288,77 +355,38 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: _appBar(),
-      body: RefreshIndicator(
-        color: AppTheme.womenColor,
-        backgroundColor: AppTheme.card,
-        onRefresh: _load,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-
-              // ── Header ─────────────────────────────────────────────────
-              Text(
-                'WOMEN\'S HEALTH',
-                style: GoogleFonts.inter(
-                  color: AppTheme.womenColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Understand your changing rhythms with more clarity',
-                style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
-              ),
-
-              const SizedBox(height: 24),
-
-              // ── Cycle ring ─────────────────────────────────────────────
-              _buildRingSection(),
-
-              const SizedBox(height: 20),
-
-              // ── Three info boxes ───────────────────────────────────────
-              _buildPredictionRow(),
-
-              const SizedBox(height: 12),
-
-              // ── Action buttons ─────────────────────────────────────────
-              _buildActionButtons(),
-
-              const SizedBox(height: 16),
-
-              // ── Today's insight ────────────────────────────────────────
-              _buildInsightCard(),
-
-              const SizedBox(height: 20),
-
-              // ── Calendar ───────────────────────────────────────────────
-              SizedBox(key: _calendarKey, child: _buildCalendar()),
-
-              const SizedBox(height: 16),
-
-              _buildStats(),
-
-              const SizedBox(height: 16),
-
-              // ── Symptoms ───────────────────────────────────────────────
-              SizedBox(key: _symptomsKey, child: _buildSymptomCard()),
-
-              const SizedBox(height: 16),
-
-              _buildHistory(),
-
-              const SizedBox(height: 80),
-            ],
+    return RepaintBoundary(
+      key: _screenshotKey,
+      child: Scaffold(
+        backgroundColor: AppTheme.bg,
+        appBar: _appBar(),
+        body: RefreshIndicator(
+          color: AppTheme.womenColor,
+          backgroundColor: AppTheme.card,
+          onRefresh: _load,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+                _buildRingSection(),
+                const SizedBox(height: 20),
+                _buildPredictionCard(),
+                const SizedBox(height: 14),
+                _buildCalendarCard(),
+                const SizedBox(height: 14),
+                _buildCyclePatternsCard(),
+                const SizedBox(height: 14),
+                _buildTemperatureCard(context),
+                const SizedBox(height: 14),
+                _buildSleepCard(context),
+                const SizedBox(height: 14),
+                _buildStressCard(context),
+                const SizedBox(height: 80),
+              ],
+            ),
           ),
         ),
       ),
@@ -366,23 +394,26 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   }
 
   AppBar _appBar() => AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: AppTheme.bg,
         foregroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: Colors.white, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text('Women\'s Health',
-            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+            style: _inter(16, weight: FontWeight.w600)),
         actions: [
           if (_cycles.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.add_circle_outline_rounded,
-                  color: AppTheme.womenColor),
-              tooltip: 'Log new period',
-              onPressed: _showNewCycleSheet,
+              key: _moreButtonKey,
+              icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+              onPressed: _openMenu,
             ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(0.5),
-          child: Container(color: AppTheme.div, height: 0.5),
-        ),
       );
 
   // ── Gender gate ────────────────────────────────────────────────────────────
@@ -404,14 +435,11 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
               ),
               const SizedBox(height: 20),
               Text('Women\'s Health',
-                  style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700)),
+                  style: _inter(22, weight: FontWeight.w700)),
               const SizedBox(height: 10),
               Text(
                 'This feature is available for users who selected Female during onboarding.',
-                style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 14),
+                style: _inter(14, color: AppTheme.textSec),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -422,15 +450,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   // ── Onboarding / empty state ───────────────────────────────────────────────
 
   Widget _buildOnboarding() => Column(children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: AppTheme.card,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: AppTheme.womenColor.withValues(alpha: 0.3)),
-          ),
+        _glassCard(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(
               width: 52,
@@ -443,14 +463,11 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
             ),
             const SizedBox(height: 16),
             Text('Track your menstrual cycle',
-                style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700)),
+                style: _inter(20, weight: FontWeight.w700)),
             const SizedBox(height: 6),
             Text(
               'Enter your last period date and cycle details to get predictions for your next period, ovulation, and fertile window.',
-              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+              style: _inter(13, color: AppTheme.textSec),
             ),
           ]),
         ),
@@ -488,8 +505,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 const SizedBox(width: 10),
                 Text(
                   _fmt(_setupPeriodStart),
-                  style: GoogleFonts.inter(
-                      color: Colors.white, fontWeight: FontWeight.w500),
+                  style: _inter(14, weight: FontWeight.w500),
                 ),
                 const Spacer(),
                 const Icon(Icons.chevron_right_rounded,
@@ -545,10 +561,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                       child: CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 2.5))
                   : Text('Start Tracking',
-                      style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16)),
+                      style: _inter(16, weight: FontWeight.w700)),
             ),
           ),
         ),
@@ -561,207 +574,113 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     final c = _latest!;
 
     return Center(
-      child: SizedBox(
-        width: 210,
-        height: 210,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            CustomPaint(
-              size: const Size(210, 210),
-              painter: _CycleRingPainter(
-                currentDay: day,
-                cycleLength: c.cycleLength,
-              ),
-            ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'CYCLE DAY',
-                  style: GoogleFonts.inter(
-                    color: AppTheme.textSec,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Day $day',
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 34,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.womenColor.withValues(alpha: 0.16),
+              blurRadius: 70,
+              spreadRadius: 6,
             ),
           ],
+        ),
+        child: SizedBox(
+          width: 210,
+          height: 210,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CustomPaint(
+                size: const Size(210, 210),
+                painter: _CycleRingPainter(
+                  currentDay: day,
+                  cycleLength: c.cycleLength,
+                ),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Day $day',
+                    style: _inter(30, weight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'CYCLE DAY',
+                    style: _inter(
+                      11,
+                      color: AppTheme.womenColor,
+                      weight: FontWeight.w700,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ── Prediction row (three info boxes) ─────────────────────────────────────
+  // ── Prediction card ─────────────────────────────────────────────────────────
 
-  Widget _buildPredictionRow() {
+  Widget _buildPredictionCard() {
     final c = _latest!;
     final now = DateTime.now();
     final today = _d(now);
 
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-
-    String fmtShort(DateTime d) {
-      if (d.year == now.year) return '${months[d.month - 1]} ${d.day}';
-      return '${months[d.month - 1]} ${d.day}, ${d.year}';
-    }
-
-    final daysToNext =
-        c.nextPeriod.difference(today).inDays.clamp(0, 999);
-
+    final daysToNext = c.nextPeriod.difference(today).inDays.clamp(0, 999);
     final isFertile = _fertileDays.contains(today);
-
     final phase = _currentPhase;
-    final phaseColor = _phaseColors[phase] ?? AppTheme.womenColor;
-    final phaseIcon = _phaseIcons[phase] ?? Icons.nightlight_round;
 
     DateTime phaseEnd;
     switch (phase) {
       case 'Menstrual':
         phaseEnd = c.periodEnd;
-        break;
       case 'Follicular':
         phaseEnd = c.fertileStart;
-        break;
       case 'Ovulation':
         phaseEnd = c.fertileEnd;
-        break;
       default:
         phaseEnd = c.nextPeriod;
     }
 
-    return Row(children: [
-      Expanded(
-        child: _InfoBox(
-          label: 'NEXT PERIOD',
-          value: '$daysToNext DAYS',
-          valueColor: AppTheme.danger,
-          subtitle: 'Till ${fmtShort(c.nextPeriod)}',
-          icon: Icons.water_drop_rounded,
-        ),
+    return _glassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      tint: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          AppTheme.womenColor.withValues(alpha: 0.16),
+          Colors.transparent,
+        ],
       ),
-      const SizedBox(width: 8),
-      Expanded(
-        child: _InfoBox(
-          label: 'FERTILITY',
-          value: isFertile ? 'ACTIVE' : 'INACTIVE',
-          valueColor: isFertile ? AppTheme.success : AppTheme.textSec,
-          subtitle: '${fmtShort(c.fertileStart)} – ${fmtShort(c.fertileEnd)}',
-          icon: Icons.favorite_rounded,
-        ),
-      ),
-      const SizedBox(width: 8),
-      Expanded(
-        child: _InfoBox(
-          label: 'PHASE',
-          value: phase.toUpperCase(),
-          valueColor: phaseColor,
-          subtitle: 'Till ${fmtShort(phaseEnd)}',
-          icon: phaseIcon,
-        ),
-      ),
-    ]);
-  }
-
-  // ── Action buttons ─────────────────────────────────────────────────────────
-
-  Widget _buildActionButtons() {
-    void scrollTo(GlobalKey key) {
-      final ctx = key.currentContext;
-      if (ctx != null) {
-        Scrollable.ensureVisible(ctx,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeInOut);
-      }
-    }
-
-    return Row(children: [
-      Expanded(
-        child: _ActionBtn(
-          label: 'VIEW FULL\nCYCLE',
-          onTap: () => scrollTo(_calendarKey),
-        ),
-      ),
-      const SizedBox(width: 8),
-      Expanded(
-        child: _ActionBtn(
-          label: 'ADD\nSYMPTOMS',
-          onTap: () => scrollTo(_symptomsKey),
-        ),
-      ),
-      const SizedBox(width: 8),
-      Expanded(
-        child: _ActionBtn(
-          label: 'ADD TODAY\'S\nMOOD',
-          onTap: () {
-            setState(() => _symptomsExpanded = true);
-            Future.delayed(const Duration(milliseconds: 80),
-                () => scrollTo(_symptomsKey));
-          },
-        ),
-      ),
-    ]);
-  }
-
-  // ── Today's insight ────────────────────────────────────────────────────────
-
-  Widget _buildInsightCard() {
-    final phase = _currentPhase;
-    final desc = _phaseDescs[phase] ?? '';
-    final color = _phaseColors[phase] ?? AppTheme.womenColor;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Icon(Icons.lightbulb_outline_rounded,
-                  color: color, size: 17),
+          Expanded(
+            child: _PredictionCol(
+              label: 'Next Period',
+              value: '$daysToNext',
+              valueSuffix: ' Days',
+              subtitle: 'Till ${_fmtMD(c.nextPeriod)}',
             ),
-            const SizedBox(width: 10),
-            Text(
-              'TODAY\'S INSIGHT',
-              style: GoogleFonts.inter(
-                color: color,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.2,
-              ),
+          ),
+          Expanded(
+            child: _PredictionCol(
+              label: 'Fertility',
+              value: isFertile ? 'Active' : 'Inactive',
+              subtitle: _fmtTillDate(c.fertileEnd),
             ),
-          ]),
-          const SizedBox(height: 12),
-          Text(
-            desc,
-            style: GoogleFonts.inter(
-                color: Colors.white, fontSize: 13, height: 1.55),
+          ),
+          Expanded(
+            child: _PredictionCol(
+              label: 'Phase',
+              value: phase.isEmpty ? '--' : phase,
+              subtitle: _fmtTillDate(phaseEnd),
+            ),
           ),
         ],
       ),
@@ -770,523 +689,405 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
 
   // ── Calendar ───────────────────────────────────────────────────────────────
 
-  Widget _buildCalendar() {
-    final firstDay = DateTime(_calMonth.year, _calMonth.month, 1);
-    final daysInMonth =
-        DateTime(_calMonth.year, _calMonth.month + 1, 0).day;
-    // Monday-first: weekday Mon=1 → offset 0, Sun=7 → offset 6
-    final offset = firstDay.weekday - 1;
-    final today = _d(DateTime.now());
-
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    const headers = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-    final totalCells = offset + daysInMonth;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-          color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
-      child: Column(children: [
-        // Month nav
-        Row(children: [
-          GestureDetector(
-            onTap: _prevMonth,
-            child: const Padding(
-              padding: EdgeInsets.all(8),
-              child: Icon(Icons.chevron_left_rounded,
-                  color: Colors.white, size: 22),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              '${months[_calMonth.month - 1]} ${_calMonth.year}',
-              style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          GestureDetector(
-            onTap: _nextMonth,
-            child: const Padding(
-              padding: EdgeInsets.all(8),
-              child: Icon(Icons.chevron_right_rounded,
-                  color: Colors.white, size: 22),
-            ),
-          ),
-        ]),
-        const SizedBox(height: 8),
-
-        // Day-of-week headers
-        Row(
-          children: headers
-              .map((h) => Expanded(
-                    child: Center(
-                      child: Text(h,
-                          style: GoogleFonts.inter(
-                              color: AppTheme.textSec,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.4)),
-                    ),
-                  ))
-              .toList(),
-        ),
-        const SizedBox(height: 6),
-
-        // Day grid
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7, childAspectRatio: 1.05),
-          itemCount: totalCells,
-          itemBuilder: (_, i) {
-            if (i < offset) return const SizedBox();
-            final dayNum = i - offset + 1;
-            final date =
-                DateTime(_calMonth.year, _calMonth.month, dayNum);
-            final d = _d(date);
-            final isPeriod = _periodDays.contains(d);
-            final isOvulation = _ovulationDays.contains(d);
-            final isFertile = _fertileDays.contains(d);
-            final isToday = d == today;
-
-            Color? bgColor;
-            Color textColor = Colors.white;
-            Border? border;
-
-            if (isPeriod) {
-              bgColor = AppTheme.danger.withValues(alpha: 0.25);
-              textColor = AppTheme.danger;
-            } else if (isOvulation) {
-              bgColor = AppTheme.success.withValues(alpha: 0.2);
-              textColor = AppTheme.success;
-            } else if (isFertile) {
-              bgColor = AppTheme.womenColor.withValues(alpha: 0.15);
-              textColor = AppTheme.womenColor;
-            }
-
-            if (isToday) {
-              border = Border.all(color: AppTheme.gold, width: 1.5);
-            }
-
-            return Container(
-              margin: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(8),
-                border: border,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '$dayNum',
-                    style: GoogleFonts.inter(
-                      color: isToday ? AppTheme.gold : textColor,
-                      fontSize: 12,
-                      fontWeight:
-                          isToday ? FontWeight.w700 : FontWeight.w400,
-                    ),
-                  ),
-                  if (isOvulation)
-                    Container(
-                      width: 4,
-                      height: 4,
-                      margin: const EdgeInsets.only(top: 1),
-                      decoration: const BoxDecoration(
-                          color: AppTheme.success, shape: BoxShape.circle),
-                    ),
-                ],
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 12),
-
-        // Legend
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _LegDot(AppTheme.danger, 'Period'),
-            const SizedBox(width: 14),
-            _LegDot(AppTheme.womenColor, 'Fertile'),
-            const SizedBox(width: 14),
-            _LegDot(AppTheme.success, 'Ovulation'),
-            const SizedBox(width: 14),
-            _LegDot(AppTheme.gold, 'Today'),
-          ],
-        ),
-      ]),
-    );
-  }
-
-  // ── Stats ──────────────────────────────────────────────────────────────────
-
-  Widget _buildStats() {
-    int avgCycle = 0, avgPeriod = 0;
-    if (_cycles.isNotEmpty) {
-      avgCycle =
-          (_cycles.map((c) => c.cycleLength).reduce((a, b) => a + b) /
-                  _cycles.length)
-              .round();
-      avgPeriod =
-          (_cycles.map((c) => c.periodLength).reduce((a, b) => a + b) /
-                  _cycles.length)
-              .round();
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-          color: AppTheme.card,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.div)),
-      child: Row(children: [
-        _StatCell('Avg Cycle', '$avgCycle', 'days'),
-        Container(width: 1, height: 40, color: AppTheme.div),
-        _StatCell('Avg Period', '$avgPeriod', 'days'),
-        Container(width: 1, height: 40, color: AppTheme.div),
-        _StatCell('Cycle Day', '$_currentCycleDay', 'today'),
-      ]),
-    );
-  }
-
-  // ── Symptoms ───────────────────────────────────────────────────────────────
-
-  Widget _buildSymptomCard() {
+  Widget _buildCalendarCard() {
     final now = DateTime.now();
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    final today = _d(now);
+    final firstOfMonth = DateTime(now.year, now.month, 1);
+    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    final startOffset = firstOfMonth.weekday % 7; // Sunday-first
+    final gridStart = firstOfMonth.subtract(Duration(days: startOffset));
+    final weeksNeeded = ((startOffset + daysInMonth) / 7).ceil();
+    final totalCells = weeksNeeded * 7;
+
+    final cells = List.generate(totalCells, (i) {
+      final date = gridStart.add(Duration(days: i));
+      final d = _d(date);
+      return _CalCell(
+        date: date,
+        inMonth: date.month == now.month && date.year == now.year,
+        isPeriod: _periodDays.contains(d),
+        isFertile: _fertileDays.contains(d),
+        isOvulation: _ovulationDays.contains(d),
+        isToday: d == today,
+      );
+    });
+
+    final weeks = <List<_CalCell>>[
+      for (int i = 0; i < cells.length; i += 7) cells.sublist(i, i + 7),
     ];
-    final dateLabel = '${months[now.month - 1]} ${now.day}';
 
-    return Container(
-      decoration: BoxDecoration(
-          color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
-      child: Column(children: [
-        GestureDetector(
-          onTap: () => setState(() => _symptomsExpanded = !_symptomsExpanded),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            child: Row(children: [
-              const Icon(Icons.notes_rounded,
-                  color: AppTheme.womenColor, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('TODAY\'S SYMPTOMS',
-                          style: GoogleFonts.inter(
-                              color: AppTheme.womenColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.2)),
-                      Text(dateLabel,
-                          style: GoogleFonts.inter(
-                              color: AppTheme.textSec, fontSize: 12)),
-                    ]),
-              ),
-              Icon(
-                _symptomsExpanded
-                    ? Icons.keyboard_arrow_up_rounded
-                    : Icons.keyboard_arrow_down_rounded,
-                color: AppTheme.textSec,
-              ),
-            ]),
+    return _glassCard(
+      child: Column(
+        children: [
+          Text(
+            '${_fmtMD(now)}, ${_kWeekdaysFull[now.weekday - 1]}',
+            style: _inter(14, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9)),
           ),
-        ),
-
-        if (_symptomsExpanded) ...[
-          const Divider(color: AppTheme.div, height: 0.5),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SectionLabel('HOW ARE YOU FEELING?'),
-                  const SizedBox(height: 10),
-                  _buildMoodRow(),
-                  const SizedBox(height: 16),
-
-                  _SectionLabel('ENERGY LEVEL'),
-                  const SizedBox(height: 10),
-                  _buildEnergyRow(),
-                  const SizedBox(height: 16),
-
-                  _SectionLabel('SYMPTOMS'),
-                  const SizedBox(height: 10),
-                  _buildSymptomToggles(),
-                  const SizedBox(height: 16),
-
-                  _SectionLabel('NOTES (OPTIONAL)'),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: TextEditingController(text: _notes)
-                      ..selection = TextSelection.collapsed(
-                          offset: _notes.length),
-                    onChanged: (v) => _notes = v,
-                    maxLines: 2,
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: 'Add notes…',
-                      hintStyle: GoogleFonts.inter(color: AppTheme.textSec),
-                      filled: true,
-                      fillColor: AppTheme.card2,
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: AppTheme.div)),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: AppTheme.div)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
-                              color: AppTheme.womenColor)),
-                      contentPadding: const EdgeInsets.all(12),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  GestureDetector(
-                    onTap: _savingSymptoms ? null : _saveSymptoms,
-                    child: Container(
-                      width: double.infinity,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppTheme.womenColor,
-                            AppTheme.womenColor.withValues(alpha: 0.7)
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+          const SizedBox(height: 16),
+          Row(
+            children: _kWeekdaysShort
+                .map((h) => Expanded(
                       child: Center(
-                        child: _savingSymptoms
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                    color: Colors.white, strokeWidth: 2))
-                            : Text('Save',
-                                style: GoogleFonts.inter(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 15)),
+                        child: Text(h,
+                            style: _inter(11,
+                                weight: FontWeight.w600, color: AppTheme.textSec)),
                       ),
-                    ),
-                  ),
-                ]),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 8),
+          for (final week in weeks) _buildWeekRow(week),
+          const SizedBox(height: 10),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 16,
+            runSpacing: 6,
+            children: const [
+              _LegDot(_kPeriod, 'Period'),
+              _LegDot(_kFertile, 'Fertile Window'),
+              _LegDot(_kOvulation, 'Ovulation'),
+              _LegDot(_kToday, 'Today'),
+            ],
           ),
         ],
-      ]),
+      ),
     );
   }
 
-  Widget _buildMoodRow() {
-    const moods = ['Great', 'Good', 'Neutral', 'Sad', 'Awful'];
-    const moodEmojis = ['😊', '🙂', '😐', '😕', '😢'];
-    return Row(
-      children: List.generate(moods.length, (i) {
-        final active = _mood == moods[i];
-        return Expanded(
-          child: GestureDetector(
-            onTap: () => setState(() => _mood = moods[i]),
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: active
-                    ? AppTheme.womenColor.withValues(alpha: 0.2)
-                    : AppTheme.card2,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: active ? AppTheme.womenColor : AppTheme.div),
-              ),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Text(moodEmojis[i], style: GoogleFonts.inter(fontSize: 20)),
-                const SizedBox(height: 2),
-                Text(moods[i],
-                    style: GoogleFonts.inter(
-                        color: active ? AppTheme.womenColor : AppTheme.textSec,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600)),
-              ]),
-            ),
+  Widget _buildWeekRow(List<_CalCell> week) {
+    final isFert = week.map((c) => c.isFertile).toList();
+    return SizedBox(
+      height: 38,
+      child: Stack(
+        children: [
+          Row(
+            children: [
+              for (int i = 0; i < 7; i++)
+                Expanded(child: _fertileSegment(isFert, i)),
+            ],
           ),
-        );
-      }),
-    );
-  }
-
-  Widget _buildEnergyRow() {
-    return Row(
-      children: List.generate(5, (i) {
-        final level = i + 1;
-        final active = level <= _energy;
-        return Expanded(
-          child: GestureDetector(
-            onTap: () => setState(() => _energy = level),
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              height: 36,
-              decoration: BoxDecoration(
-                color: active
-                    ? AppTheme.womenColor.withValues(alpha: 0.2)
-                    : AppTheme.card2,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: active ? AppTheme.womenColor : AppTheme.div),
-              ),
-              child: Center(
-                child: Icon(
-                  active ? Icons.bolt_rounded : Icons.bolt_outlined,
-                  color: active ? AppTheme.womenColor : AppTheme.textSec,
-                  size: 18,
-                ),
-              ),
-            ),
+          Row(
+            children: [for (final c in week) Expanded(child: _dayCell(c))],
           ),
-        );
-      }),
+        ],
+      ),
     );
   }
 
-  Widget _buildSymptomToggles() {
-    final items = [
-      (label: 'Cramps', icon: Icons.sick_rounded,
-        active: _cramps, onTap: () => setState(() => _cramps = !_cramps)),
-      (label: 'Headache', icon: Icons.psychology_alt_rounded,
-        active: _headache, onTap: () => setState(() => _headache = !_headache)),
-      (label: 'Bloating', icon: Icons.bubble_chart_rounded,
-        active: _bloating, onTap: () => setState(() => _bloating = !_bloating)),
-    ];
-    return Row(
-      children: items.map((item) {
-        return Expanded(
-          child: GestureDetector(
-            onTap: item.onTap,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: item.active
-                    ? AppTheme.womenColor.withValues(alpha: 0.15)
-                    : AppTheme.card2,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: item.active ? AppTheme.womenColor : AppTheme.div),
-              ),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(item.icon,
-                    color: item.active ? AppTheme.womenColor : AppTheme.textSec,
-                    size: 20),
-                const SizedBox(height: 4),
-                Text(item.label,
-                    style: GoogleFonts.inter(
-                        color: item.active
-                            ? AppTheme.womenColor
-                            : AppTheme.textSec,
-                        fontSize: 11,
-                        fontWeight: item.active
-                            ? FontWeight.w600
-                            : FontWeight.w400)),
-              ]),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  // ── History ────────────────────────────────────────────────────────────────
-
-  Widget _buildHistory() {
-    if (_cycles.isEmpty) return const SizedBox();
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-
+  Widget _fertileSegment(List<bool> isFert, int i) {
+    if (!isFert[i]) return const SizedBox.shrink();
+    final isFirst = i == 0 || !isFert[i - 1];
+    final isLast = i == 6 || !isFert[i + 1];
     return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-          color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-          child: Text('CYCLE HISTORY',
-              style: GoogleFonts.inter(
-                  color: AppTheme.textSec,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2)),
+        border: Border(
+          top: BorderSide(color: _kFertile.withValues(alpha: 0.7), width: 1.2),
+          bottom:
+              BorderSide(color: _kFertile.withValues(alpha: 0.7), width: 1.2),
+          left: isFirst
+              ? BorderSide(color: _kFertile.withValues(alpha: 0.7), width: 1.2)
+              : BorderSide.none,
+          right: isLast
+              ? BorderSide(color: _kFertile.withValues(alpha: 0.7), width: 1.2)
+              : BorderSide.none,
         ),
-        ..._cycles.asMap().entries.map((e) {
-          final c = e.value;
-          final isLast = e.key == _cycles.length - 1;
-          final label =
-              '${months[c.periodStart.month - 1]} ${c.periodStart.year}';
-          return Column(children: [
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                      color: AppTheme.womenColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.calendar_month_rounded,
-                      color: AppTheme.womenColor, size: 18),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text(label,
-                          style: GoogleFonts.inter(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14)),
-                      Text(
-                          'Period: ${c.periodLength} days  ·  Started ${_fmt(c.periodStart)}',
-                          style: GoogleFonts.inter(
-                              color: AppTheme.textSec, fontSize: 12)),
-                    ])),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: AppTheme.womenColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: AppTheme.womenColor.withValues(alpha: 0.3))),
-                  child: Text('${c.cycleLength} days',
-                      style: GoogleFonts.inter(
-                          color: AppTheme.womenColor,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12)),
-                ),
-              ]),
+        borderRadius: BorderRadius.horizontal(
+          left: isFirst ? const Radius.circular(18) : Radius.zero,
+          right: isLast ? const Radius.circular(18) : Radius.zero,
+        ),
+      ),
+    );
+  }
+
+  Widget _dayCell(_CalCell c) {
+    Color? bg;
+    Color textColor = c.inMonth
+        ? Colors.white.withValues(alpha: 0.9)
+        : Colors.white.withValues(alpha: 0.25);
+    FontWeight weight = FontWeight.w400;
+
+    if (c.isOvulation) {
+      bg = _kOvulation.withValues(alpha: c.inMonth ? 0.85 : 0.35);
+      textColor = Colors.white;
+      weight = FontWeight.w700;
+    } else if (c.isPeriod) {
+      bg = c.inMonth
+          ? _kPeriod.withValues(alpha: 0.28)
+          : Colors.white.withValues(alpha: 0.08);
+      textColor = c.inMonth ? _kPeriod : Colors.white.withValues(alpha: 0.4);
+    }
+
+    Border? border;
+    if (c.isToday) {
+      border = Border.all(color: _kToday, width: 1.5);
+      textColor = _kToday;
+      weight = FontWeight.w700;
+    }
+
+    return Center(
+      child: Container(
+        width: 28,
+        height: 28,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: bg,
+          shape: BoxShape.circle,
+          border: border,
+        ),
+        child: Text(
+          '${c.date.day}',
+          style: _inter(12, color: textColor, weight: weight),
+        ),
+      ),
+    );
+  }
+
+  // ── Cycle patterns over time ────────────────────────────────────────────────
+
+  Widget _buildCyclePatternsCard() {
+    final shown = _cycles.take(3).toList();
+    return _glassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'CYCLE PATTERNS OVER TIME',
+            style: _inter(10,
+                weight: FontWeight.w700,
+                color: AppTheme.textSec,
+                letterSpacing: 1.2),
+          ),
+          const SizedBox(height: 16),
+          for (int i = 0; i < shown.length; i++) ...[
+            if (i > 0) const SizedBox(height: 18),
+            _CyclePatternRow(
+              index: i + 1,
+              cycle: shown[i],
             ),
-            if (!isLast)
-              const Divider(
-                  color: AppTheme.div, height: 0.5, indent: 66),
-          ]);
-        }),
-      ]),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── Temperature card ─────────────────────────────────────────────────────────
+
+  Widget _buildTemperatureCard(BuildContext context) {
+    final ble = context.watch<BleProvider>();
+    final tempC = ble.latestTempC;
+    final hasData = tempC > 0;
+    const baseline = 36.5;
+    final delta = hasData ? tempC - baseline : 0.0;
+
+    String status;
+    String caption;
+    if (!hasData) {
+      status = 'No data';
+      caption = 'Connect ring to track temperature.';
+    } else if (delta.abs() < 0.15) {
+      status = 'Near Baseline';
+      caption = 'Right at your baseline today.';
+    } else if (delta > 0) {
+      status = 'Slightly Raised';
+      caption = 'Slightly above normal today.';
+    } else {
+      status = 'Slightly Lowered';
+      caption = 'Slightly below normal today.';
+    }
+
+    return _glassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.water_drop_rounded,
+                  color: AppTheme.tempColor, size: 14),
+              const SizedBox(width: 6),
+              Text('TEMPERATURE',
+                  style: _inter(11,
+                      weight: FontWeight.w700,
+                      color: AppTheme.textSec,
+                      letterSpacing: 1.0)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(status, style: _inter(16, weight: FontWeight.w600)),
+              Text(
+                hasData
+                    ? '${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(1)} Deg v/s Baseline'
+                    : '--',
+                style: _inter(12, color: AppTheme.textSec),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 40,
+            width: double.infinity,
+            child: CustomPaint(painter: _WavePainter(AppTheme.tempColor)),
+          ),
+          const SizedBox(height: 10),
+          Container(height: 0.5, color: Colors.white.withValues(alpha: 0.08)),
+          const SizedBox(height: 10),
+          Text(caption, style: _inter(12, color: AppTheme.textSec)),
+        ],
+      ),
+    );
+  }
+
+  // ── Sleep card ───────────────────────────────────────────────────────────────
+
+  Widget _buildSleepCard(BuildContext context) {
+    final ble = context.watch<BleProvider>();
+    final durationSec = ble.todaySleepDuration;
+    final score = ble.todaySleepScore;
+    final hasData = durationSec > 0;
+
+    String status;
+    if (!hasData) {
+      status = 'No data';
+    } else if (score >= 80) {
+      status = 'Great night';
+    } else if (score >= 60) {
+      status = 'Good night';
+    } else if (score >= 40) {
+      status = 'Fair night';
+    } else {
+      status = 'Restless night';
+    }
+
+    final h = durationSec ~/ 3600;
+    final m = (durationSec % 3600) ~/ 60;
+    final durationLabel = hasData ? '${h}h ${m}m' : '--';
+    final caption =
+        hasData ? 'Lighter in late luteal phase.' : 'Connect ring to track sleep.';
+
+    return _glassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.bedtime_rounded,
+                  color: AppTheme.sleepColor, size: 14),
+              const SizedBox(width: 6),
+              Text('SLEEP',
+                  style: _inter(11,
+                      weight: FontWeight.w700,
+                      color: AppTheme.textSec,
+                      letterSpacing: 1.0)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(status, style: _inter(16, weight: FontWeight.w600)),
+              Text(durationLabel, style: _inter(15, weight: FontWeight.w500)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: SizedBox(
+              height: 8,
+              width: double.infinity,
+              child: Row(
+                children: [
+                  Expanded(
+                      flex: 3,
+                      child: Container(
+                          color: hasData
+                              ? AppTheme.sleepAwake.withValues(alpha: 0.55)
+                              : Colors.white.withValues(alpha: 0.06))),
+                  Expanded(
+                      flex: 7,
+                      child: Container(
+                          color: hasData
+                              ? AppTheme.sleepLight
+                              : Colors.white.withValues(alpha: 0.06))),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(height: 0.5, color: Colors.white.withValues(alpha: 0.08)),
+          const SizedBox(height: 10),
+          Text(caption, style: _inter(12, color: AppTheme.textSec)),
+        ],
+      ),
+    );
+  }
+
+  // ── Stress card ──────────────────────────────────────────────────────────────
+
+  Widget _buildStressCard(BuildContext context) {
+    final ble = context.watch<BleProvider>();
+    final stress = ble.latestStressValue;
+    final hrv = ble.todayAvgHrv;
+    final hasData = stress > 0;
+
+    String status;
+    if (!hasData) {
+      status = 'No data';
+    } else if (stress < 40) {
+      status = 'Low Load';
+    } else if (stress < 60) {
+      status = 'Normal Load';
+    } else if (stress < 80) {
+      status = 'Elevated Load';
+    } else {
+      status = 'High Load';
+    }
+
+    final hrvLabel = hrv > 0 ? 'HRV $hrv' : '--';
+    final caption =
+        hasData ? 'Higher in follicular phase.' : 'Connect ring to track stress.';
+
+    return _glassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.monitor_heart_rounded,
+                  color: AppTheme.stressColor, size: 14),
+              const SizedBox(width: 6),
+              Text('STRESS',
+                  style: _inter(11,
+                      weight: FontWeight.w700,
+                      color: AppTheme.textSec,
+                      letterSpacing: 1.0)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(status, style: _inter(16, weight: FontWeight.w600)),
+              Text(hrvLabel, style: _inter(15, weight: FontWeight.w500)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 36,
+            width: double.infinity,
+            child: CustomPaint(painter: _StressBarPainter(hasData)),
+          ),
+          const SizedBox(height: 10),
+          Container(height: 0.5, color: Colors.white.withValues(alpha: 0.08)),
+          const SizedBox(height: 10),
+          Text(caption, style: _inter(12, color: AppTheme.textSec)),
+        ],
+      ),
     );
   }
 
@@ -1326,11 +1127,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text('Log New Period',
-                    style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700)),
+                Text('Log New Period', style: _inter(18, weight: FontWeight.w700)),
                 const SizedBox(height: 20),
 
                 _SetupField(
@@ -1364,10 +1161,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                         const Icon(Icons.calendar_today_rounded,
                             color: AppTheme.womenColor, size: 18),
                         const SizedBox(width: 10),
-                        Text(_fmt(newStart),
-                            style: GoogleFonts.inter(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500)),
+                        Text(_fmt(newStart), style: _inter(14, weight: FontWeight.w500)),
                         const Spacer(),
                         const Icon(Icons.chevron_right_rounded,
                             color: AppTheme.textSec),
@@ -1434,10 +1228,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                               child: CircularProgressIndicator(
                                   color: Colors.white, strokeWidth: 2))
                           : Text('Save Period',
-                              style: GoogleFonts.inter(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15)),
+                              style: _inter(15, weight: FontWeight.w700)),
                     ),
                   ),
                 ),
@@ -1451,13 +1242,27 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
 
   // ── Utilities ──────────────────────────────────────────────────────────────
 
-  static String _fmt(DateTime d) {
-    const m = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${m[d.month - 1]} ${d.day}, ${d.year}';
-  }
+  static String _fmt(DateTime d) => '${_kMonthsShort[d.month - 1]} ${d.day}, ${d.year}';
+}
+
+// ── Calendar cell model ────────────────────────────────────────────────────────
+
+class _CalCell {
+  final DateTime date;
+  final bool inMonth;
+  final bool isPeriod;
+  final bool isFertile;
+  final bool isOvulation;
+  final bool isToday;
+
+  const _CalCell({
+    required this.date,
+    required this.inMonth,
+    required this.isPeriod,
+    required this.isFertile,
+    required this.isOvulation,
+    required this.isToday,
+  });
 }
 
 // ── Cycle ring painter ────────────────────────────────────────────────────────
@@ -1474,17 +1279,15 @@ class _CycleRingPainter extends CustomPainter {
     final radius = size.width / 2 - 18;
     const strokeW = 14.0;
 
-    // Background track
     canvas.drawCircle(
       center,
       radius,
       Paint()
-        ..color = const Color(0xFF2A2A2A)
+        ..color = Colors.white.withValues(alpha: 0.06)
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeW,
     );
 
-    // Progress arc
     final progress = (currentDay / cycleLength).clamp(0.0, 1.0);
     if (progress <= 0) return;
 
@@ -1511,109 +1314,252 @@ class _CycleRingPainter extends CustomPainter {
       old.currentDay != currentDay || old.cycleLength != cycleLength;
 }
 
-// ── Info box ──────────────────────────────────────────────────────────────────
+// ── Prediction column ──────────────────────────────────────────────────────────
 
-class _InfoBox extends StatelessWidget {
+class _PredictionCol extends StatelessWidget {
   final String label;
   final String value;
-  final Color valueColor;
+  final String valueSuffix;
   final String subtitle;
-  final IconData icon;
 
-  const _InfoBox({
+  const _PredictionCol({
     required this.label,
     required this.value,
-    required this.valueColor,
+    this.valueSuffix = '',
     required this.subtitle,
-    required this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.div),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: valueColor, size: 16),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              color: AppTheme.textSec.withValues(alpha: 0.8),
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              color: valueColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 3),
-          Text(
-            subtitle,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              height: 1.4,
-            ),
-            maxLines: 2,
-          ),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: _inter(10.5,
+              weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.45)),
+        ),
+        const SizedBox(height: 6),
+        RichText(
+          text: TextSpan(children: [
+            TextSpan(
+                text: value,
+                style: _inter(20, weight: FontWeight.w600, color: Colors.white)),
+            if (valueSuffix.isNotEmpty)
+              TextSpan(
+                  text: valueSuffix,
+                  style: _inter(12, color: Colors.white.withValues(alpha: 0.6))),
+          ]),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: _inter(11, color: Colors.white.withValues(alpha: 0.4)),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
     );
   }
 }
 
-// ── Action button ─────────────────────────────────────────────────────────────
+// ── Cycle pattern row ──────────────────────────────────────────────────────────
 
-class _ActionBtn extends StatelessWidget {
-  final String label;
-  final VoidCallback? onTap;
-
-  const _ActionBtn({required this.label, this.onTap});
+class _CyclePatternRow extends StatelessWidget {
+  final int index;
+  final CycleData cycle;
+  const _CyclePatternRow({required this.index, required this.cycle});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: AppTheme.womenColor.withValues(alpha: 0.35)),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              height: 1.4,
-            ),
+    final rangeEnd = cycle.periodStart.add(Duration(days: cycle.cycleLength - 1));
+    final rangeLabel = '${_fmtMD(cycle.periodStart)} – ${_fmtMD(rangeEnd)}';
+    final markerRatio = ((cycle.cycleLength - 14) / cycle.cycleLength).clamp(0.05, 0.95);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 74,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Cycle $index',
+                  style: _inter(13, weight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text('${cycle.cycleLength} days',
+                  style: _inter(11, color: AppTheme.textSec)),
+            ],
           ),
         ),
-      ),
+        Expanded(
+          child: SizedBox(
+            height: 22,
+            child: _CyclePatternTrack(markerRatio: markerRatio),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(rangeLabel, style: _inter(11, color: AppTheme.textSec)),
+      ],
     );
   }
+}
+
+class _CyclePatternTrack extends StatelessWidget {
+  final double markerRatio;
+  const _CyclePatternTrack({required this.markerRatio});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        const markerSize = 20.0;
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            CustomPaint(
+              size: Size(w, 22),
+              painter: _CyclePatternDotsPainter(markerRatio: markerRatio),
+            ),
+            Positioned(
+              left: (markerRatio * w - markerSize / 2).clamp(0.0, w - markerSize),
+              child: Container(
+                width: markerSize,
+                height: markerSize,
+                decoration: const BoxDecoration(
+                  color: _kToday,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.circle, color: Colors.white, size: 8),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CyclePatternDotsPainter extends CustomPainter {
+  final double markerRatio;
+  const _CyclePatternDotsPainter({required this.markerRatio});
+
+  static const _dotCount = 26;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gap = size.width / (_dotCount - 1);
+    for (int i = 0; i < _dotCount; i++) {
+      final ratio = i / (_dotCount - 1);
+      if ((ratio - markerRatio).abs() < 0.06) continue;
+      final color = ratio < markerRatio
+          ? AppTheme.hrvColor.withValues(alpha: 0.7)
+          : AppTheme.womenColor.withValues(alpha: 0.45);
+      canvas.drawCircle(
+        Offset(i * gap, size.height / 2),
+        2.2,
+        Paint()..color = color,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CyclePatternDotsPainter old) =>
+      old.markerRatio != markerRatio;
+}
+
+// ── Wave painter (temperature) ────────────────────────────────────────────────
+
+class _WavePainter extends CustomPainter {
+  final Color color;
+  const _WavePainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path();
+    const cycles = 2.2;
+    final midY = size.height * 0.55;
+    final amp = size.height * 0.35;
+
+    for (double x = 0; x <= size.width; x++) {
+      final y = midY - math.sin((x / size.width) * cycles * 2 * math.pi) * amp;
+      if (x == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    final fillPath = Path.from(path)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    canvas.drawPath(
+      fillPath,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [color.withValues(alpha: 0.18), color.withValues(alpha: 0.0)],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    );
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color.withValues(alpha: 0.85)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_WavePainter old) => old.color != color;
+}
+
+// ── Stress bar painter ────────────────────────────────────────────────────────
+
+class _StressBarPainter extends CustomPainter {
+  final bool hasData;
+  const _StressBarPainter(this.hasData);
+
+  static const _n = 30;
+  static const _highlightStart = 10;
+  static const _highlightEnd = 16;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rnd = math.Random(7);
+    final slotW = size.width / _n;
+    final barW = slotW * 0.55;
+
+    for (int i = 0; i < _n; i++) {
+      final h = (0.25 + rnd.nextDouble() * 0.65) * size.height;
+      final x = i * slotW + (slotW - barW) / 2;
+      final highlighted = i >= _highlightStart && i <= _highlightEnd;
+      final color = !hasData
+          ? Colors.white.withValues(alpha: 0.08)
+          : highlighted
+              ? AppTheme.womenColor.withValues(alpha: 0.75)
+              : AppTheme.success.withValues(alpha: 0.55);
+      canvas.drawRRect(
+        RRect.fromLTRBR(
+          x,
+          size.height - h,
+          x + barW,
+          size.height,
+          const Radius.circular(2),
+        ),
+        Paint()..color = color,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StressBarPainter old) => old.hasData != hasData;
 }
 
 // ── Small supporting widgets ───────────────────────────────────────────────────
@@ -1628,52 +1574,14 @@ class _LegDot extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 8,
-            height: 8,
+            width: 7,
+            height: 7,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 4),
-          Text(label,
-              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 10)),
+          Text(label, style: _inter(10, color: AppTheme.textSec)),
         ],
       );
-}
-
-class _StatCell extends StatelessWidget {
-  final String label;
-  final String value;
-  final String unit;
-  const _StatCell(this.label, this.value, this.unit);
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: Column(children: [
-          Text(label,
-              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 10)),
-          const SizedBox(height: 4),
-          Text(value,
-              style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700)),
-          Text(unit,
-              style:
-                  GoogleFonts.inter(color: AppTheme.textSec, fontSize: 10)),
-        ]),
-      );
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String text;
-  const _SectionLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) => Text(text,
-      style: GoogleFonts.inter(
-          color: AppTheme.textSec,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.2));
 }
 
 class _SetupField extends StatelessWidget {
@@ -1686,10 +1594,9 @@ class _SetupField extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: GoogleFonts.inter(
+              style: _inter(10,
+                  weight: FontWeight.w700,
                   color: AppTheme.textSec,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
                   letterSpacing: 1)),
           const SizedBox(height: 6),
           child,
@@ -1739,14 +1646,8 @@ class _StepperTile extends StatelessWidget {
                 text: TextSpan(children: [
                   TextSpan(
                       text: '$value ',
-                      style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700)),
-                  TextSpan(
-                      text: unit,
-                      style: GoogleFonts.inter(
-                          color: AppTheme.textSec, fontSize: 13)),
+                      style: _inter(20, weight: FontWeight.w700)),
+                  TextSpan(text: unit, style: _inter(13, color: AppTheme.textSec)),
                 ]),
               ),
             ),

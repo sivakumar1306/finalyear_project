@@ -165,7 +165,7 @@ class BleConnectionService : Service() {
             "Ring Connection",
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Keeps your QRing connected in the background"
+            description = "Keeps your SUNDR ring connected in the background"
             setShowBadge(false)
         }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
@@ -178,9 +178,9 @@ class BleConnectionService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("QRing")
+            .setContentTitle("SUNDR")
             .setContentText(if (connected) "Ring connected" else "Looking for your ring…")
-            .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pi)
             .setOngoing(true)
             .setSilent(true)

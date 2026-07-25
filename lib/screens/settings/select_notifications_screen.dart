@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../services/notification_prefs.dart';
 import '../../theme/app_theme.dart';
 
 class SelectNotificationsScreen extends StatefulWidget {
@@ -10,17 +11,18 @@ class SelectNotificationsScreen extends StatefulWidget {
 }
 
 class _SelectNotificationsScreenState extends State<SelectNotificationsScreen> {
-  final Map<String, bool> _alerts = {
-    'High Heart Rate': true,
-    'Low Heart Rate': false,
-    'High BP': false,
-    'Low BP': false,
-    'High SpO2': false,
-    'Low SpO2': false,
-    'Step count achieved': false,
-    'High temperature notification': false,
-    'Low Battery': true,
-  };
+  Map<String, bool> _alerts = Map.of(NotificationPrefs.defaults);
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final loaded = await NotificationPrefs.load();
+    if (mounted) setState(() => _alerts = loaded);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +91,10 @@ class _SelectNotificationsScreenState extends State<SelectNotificationsScreen> {
                     _AlertRow(
                       title: entry.key,
                       value: entry.value,
-                      onChanged: (v) => setState(() => _alerts[entry.key] = v),
+                      onChanged: (v) {
+                        setState(() => _alerts[entry.key] = v);
+                        NotificationPrefs.setEnabled(entry.key, v);
+                      },
                     ),
                   ],
                 ],

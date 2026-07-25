@@ -59,7 +59,24 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: _checking
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFF0A030)))
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset('sundr_logo.png', width: 56, height: 56),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'SUNDR',
+                    style: TextStyle(
+                      color: Color(0xFFF0A030),
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 6,
+                    ),
+                  ),
+                ],
+              ),
+            )
           : SafeArea(
               child: Column(
                 children: [

@@ -7,32 +7,36 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
+import '../../widgets/screenshot_share.dart';
+import '../settings/card_settings_screen.dart';
+import 'vital_note_screen.dart';
 
 // Oudmon SDK sleep stage constants: 0=deep, 1=light, 2=awake, 3=REM
-const _kDeep  = 0;
+const _kDeep = 0;
 const _kLight = 1;
 const _kAwake = 2;
-const _kRem   = 3;
+const _kRem = 3;
 
 const _kAwakeColor = Color(0xFFFBBF24);
 const _kLightColor = Color(0xFF60A5FA);
-const _kDeepColor  = Color(0xFF6366F1);
-const _kRemColor   = Color(0xFF818CF8);
+const _kDeepColor = Color(0xFF6366F1);
+const _kRemColor = Color(0xFF818CF8);
 
 const _stageColors = {
-  _kDeep:  _kDeepColor,
+  _kDeep: _kDeepColor,
   _kLight: _kLightColor,
   _kAwake: _kAwakeColor,
-  _kRem:   _kRemColor,
+  _kRem: _kRemColor,
 };
 
 // ── Local design tokens — same system as heart_rate_screen.dart / blood_oxygen_screen.dart ──
 
-const _kCard   = Color(0xFF141414);
+const _kCard = Color(0xFF141414);
 const _kBorder = Color(0xFF242424);
-const _kSec    = Color(0xFF666666);
-const _kSec2   = Color(0xFF888888);
+const _kSec = Color(0xFF666666);
+const _kSec2 = Color(0xFF888888);
 
 TextStyle _inter(
   double size, {
@@ -40,14 +44,13 @@ TextStyle _inter(
   Color color = Colors.white,
   double? letterSpacing,
   double? height,
-}) =>
-    GoogleFonts.inter(
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-      letterSpacing: letterSpacing,
-      height: height,
-    );
+}) => GoogleFonts.inter(
+  fontSize: size,
+  fontWeight: weight,
+  color: color,
+  letterSpacing: letterSpacing,
+  height: height,
+);
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -59,6 +62,8 @@ class SleepScreen extends StatefulWidget {
 
 class _SleepScreenState extends State<SleepScreen> {
   final _ble = BleService();
+  final _moreButtonKey = GlobalKey();
+  final _screenshotKey = GlobalKey();
 
   DateTime _selectedDate = DateTime.now();
   bool _loading = false;
@@ -66,19 +71,19 @@ class _SleepScreenState extends State<SleepScreen> {
 
   // Day sleep data
   int _totalDuration = 0;
-  int _deepDuration  = 0;
+  int _deepDuration = 0;
   int _lightDuration = 0;
-  int _remDuration   = 0;
+  int _remDuration = 0;
   int _awakeDuration = 0;
-  int _sleepTime     = 0;
-  int _wakeTime      = 0;
-  int _sleepScore    = 0;
+  int _sleepTime = 0;
+  int _wakeTime = 0;
+  int _sleepScore = 0;
   List<Map<String, int>> _segments = [];
 
   // Vitals for selected day
-  int _avgHr   = 0;
+  int _avgHr = 0;
   int _avgSpo2 = 0;
-  int _avgHrv  = 0;
+  int _avgHrv = 0;
 
   // Last 7 days (always loaded on open, same as HR/SpO2's 7-day trend)
   List<Map<String, dynamic>> _historyRows = [];
@@ -99,7 +104,8 @@ class _SleepScreenState extends State<SleepScreen> {
     setState(() => _loading = true);
     try {
       final today = DateTime.now();
-      final isToday = _selectedDate.year == today.year &&
+      final isToday =
+          _selectedDate.year == today.year &&
           _selectedDate.month == today.month &&
           _selectedDate.day == today.day;
       if (isToday && context.read<BleProvider>().isConnected) {
@@ -119,15 +125,17 @@ class _SleepScreenState extends State<SleepScreen> {
     setState(() {
       _selectedDate = date;
       _totalDuration = 0;
-      _deepDuration  = 0;
+      _deepDuration = 0;
       _lightDuration = 0;
-      _remDuration   = 0;
+      _remDuration = 0;
       _awakeDuration = 0;
-      _sleepTime     = 0;
-      _wakeTime      = 0;
-      _sleepScore    = 0;
-      _segments      = [];
-      _avgHr = 0; _avgSpo2 = 0; _avgHrv = 0;
+      _sleepTime = 0;
+      _wakeTime = 0;
+      _sleepScore = 0;
+      _segments = [];
+      _avgHr = 0;
+      _avgSpo2 = 0;
+      _avgHrv = 0;
     });
     _init();
   }
@@ -145,28 +153,31 @@ class _SleepScreenState extends State<SleepScreen> {
 
   void _parseSleepData(String jsonStr) {
     try {
-      final d     = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final d = jsonDecode(jsonStr) as Map<String, dynamic>;
       final total = (d['totalSleepDuration'] as num? ?? 0).toInt();
-      final deep  = (d['deepDuration']        as num? ?? 0).toInt();
-      final light = (d['lightDuration']       as num? ?? 0).toInt();
-      final rem   = (d['remDuration']         as num? ?? 0).toInt();
-      final awake = (d['awakeDuration']       as num? ?? 0).toInt();
-      final st    = (d['sleepTime']           as num? ?? 0).toInt();
-      final et    = (d['wakeTime']            as num? ?? 0).toInt();
-      if (total <= 0) { _loadDayFromDb(); return; }
-      final segs  = _parseSegments(d['list']);
+      final deep = (d['deepDuration'] as num? ?? 0).toInt();
+      final light = (d['lightDuration'] as num? ?? 0).toInt();
+      final rem = (d['remDuration'] as num? ?? 0).toInt();
+      final awake = (d['awakeDuration'] as num? ?? 0).toInt();
+      final st = (d['sleepTime'] as num? ?? 0).toInt();
+      final et = (d['wakeTime'] as num? ?? 0).toInt();
+      if (total <= 0) {
+        _loadDayFromDb();
+        return;
+      }
+      final segs = _parseSegments(d['list']);
       final score = _calcScore(total, deep, rem, st, et);
       if (!mounted) return;
       setState(() {
         _totalDuration = total;
-        _deepDuration  = deep;
+        _deepDuration = deep;
         _lightDuration = light;
-        _remDuration   = rem;
+        _remDuration = rem;
         _awakeDuration = awake;
-        _sleepTime     = st;
-        _wakeTime      = et;
-        _sleepScore    = score;
-        _segments      = segs;
+        _sleepTime = st;
+        _wakeTime = et;
+        _sleepScore = score;
+        _segments = segs;
       });
       _saveToDb(total, deep, light, rem, awake, score, st, et);
     } catch (_) {
@@ -180,19 +191,22 @@ class _SleepScreenState extends State<SleepScreen> {
     for (final item in rawList as List<dynamic>) {
       final m = item as Map<String, dynamic>;
       final s = (m['sleepStart'] as num? ?? 0).toInt();
-      final e = (m['sleepEnd']   as num? ?? 0).toInt();
-      final t = (m['type']       as num? ?? _kLight).toInt();
+      final e = (m['sleepEnd'] as num? ?? 0).toInt();
+      final t = (m['type'] as num? ?? _kLight).toInt();
       if (s > 0 && e > s) segs.add({'start': s, 'end': e, 'type': t});
     }
     return segs;
   }
 
   int _calcScore(int total, int deep, int rem, int st, int et) {
-    final window     = (st > 0 && et > 0) ? (et - st) : total;
+    final window = (st > 0 && et > 0) ? (et - st) : total;
     final efficiency = window > 0 ? (total / window * 100).clamp(0, 100) : 0;
-    final deepPct    = total > 0 ? (deep / total * 100).clamp(0, 40) : 0;
-    final remPct     = total > 0 ? (rem  / total * 100).clamp(0, 30) : 0;
-    return (efficiency * 0.4 + deepPct * 1.0 + remPct * 0.5).round().clamp(0, 100);
+    final deepPct = total > 0 ? (deep / total * 100).clamp(0, 40) : 0;
+    final remPct = total > 0 ? (rem / total * 100).clamp(0, 30) : 0;
+    return (efficiency * 0.4 + deepPct * 1.0 + remPct * 0.5).round().clamp(
+      0,
+      100,
+    );
   }
 
   // ── DB ───────────────────────────────────────────────────────────────────────
@@ -206,14 +220,14 @@ class _SleepScreenState extends State<SleepScreen> {
       if (!mounted || row == null) return;
       setState(() {
         _totalDuration = (row['total_duration'] as num? ?? 0).toInt();
-        _deepDuration  = (row['deep_duration']  as num? ?? 0).toInt();
+        _deepDuration = (row['deep_duration'] as num? ?? 0).toInt();
         _lightDuration = (row['light_duration'] as num? ?? 0).toInt();
-        _remDuration   = (row['rem_duration']   as num? ?? 0).toInt();
+        _remDuration = (row['rem_duration'] as num? ?? 0).toInt();
         _awakeDuration = (row['awake_duration'] as num? ?? 0).toInt();
-        _sleepTime     = (row['sleep_time']     as num? ?? 0).toInt();
-        _wakeTime      = (row['wake_time']      as num? ?? 0).toInt();
-        _sleepScore    = (row['sleep_score']    as num? ?? 0).toInt();
-        _segments      = [];
+        _sleepTime = (row['sleep_time'] as num? ?? 0).toInt();
+        _wakeTime = (row['wake_time'] as num? ?? 0).toInt();
+        _sleepScore = (row['sleep_score'] as num? ?? 0).toInt();
+        _segments = [];
       });
     } catch (e) {
       if (mounted && isNetworkError(e)) setState(() => _dbOffline = true);
@@ -230,13 +244,13 @@ class _SleepScreenState extends State<SleepScreen> {
         SupabaseService.getHrvForDate(user.id, _selectedDate),
       ]);
       if (!mounted) return;
-      final hrRow   = results[0];
+      final hrRow = results[0];
       final spo2Row = results[1];
-      final hrvRow  = results[2];
+      final hrvRow = results[2];
       setState(() {
-        _avgHr   = (hrRow?['avg_hr']    as num? ?? 0).toInt();
+        _avgHr = (hrRow?['avg_hr'] as num? ?? 0).toInt();
         _avgSpo2 = (spo2Row?['avg_spo2'] as num? ?? 0).toInt();
-        _avgHrv  = (hrvRow?['avg_hrv']   as num? ?? 0).toInt();
+        _avgHrv = (hrvRow?['avg_hrv'] as num? ?? 0).toInt();
       });
     } catch (_) {}
   }
@@ -244,7 +258,7 @@ class _SleepScreenState extends State<SleepScreen> {
   Future<void> _loadHistory() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    final now  = DateTime.now();
+    final now = DateTime.now();
     final from = now.subtract(const Duration(days: 6));
     try {
       final rows = await SupabaseService.getSleepHistory(
@@ -259,8 +273,16 @@ class _SleepScreenState extends State<SleepScreen> {
     }
   }
 
-  Future<void> _saveToDb(int total, int deep, int light, int rem, int awake,
-      int score, int st, int et) async {
+  Future<void> _saveToDb(
+    int total,
+    int deep,
+    int light,
+    int rem,
+    int awake,
+    int score,
+    int st,
+    int et,
+  ) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
     try {
@@ -292,11 +314,11 @@ class _SleepScreenState extends State<SleepScreen> {
 
   String _timeLabel(int ts) {
     if (ts <= 0) return '--';
-    final dt     = DateTime.fromMillisecondsSinceEpoch(ts * 1000);
-    final h      = dt.hour;
-    final m      = dt.minute.toString().padLeft(2, '0');
+    final dt = DateTime.fromMillisecondsSinceEpoch(ts * 1000);
+    final h = dt.hour;
+    final m = dt.minute.toString().padLeft(2, '0');
     final suffix = h < 12 ? 'am' : 'pm';
-    final h12    = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+    final h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
     return '$h12:$m$suffix';
   }
 
@@ -311,7 +333,7 @@ class _SleepScreenState extends State<SleepScreen> {
     if (_sleepScore >= 85) return 'Excellent';
     if (_sleepScore >= 70) return 'Good';
     if (_sleepScore >= 55) return 'Fair';
-    if (_sleepScore > 0)   return 'Poor';
+    if (_sleepScore > 0) return 'Poor';
     return '--';
   }
 
@@ -337,231 +359,373 @@ class _SleepScreenState extends State<SleepScreen> {
     final now = DateTime.now();
     final bars = <int>[];
     for (int i = 6; i >= 0; i--) {
-      final d   = now.subtract(Duration(days: i));
-      final key = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-      final row = _historyRows.firstWhere((r) => r['date'] == key, orElse: () => <String, dynamic>{});
+      final d = now.subtract(Duration(days: i));
+      final key =
+          '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      final row = _historyRows.firstWhere(
+        (r) => r['date'] == key,
+        orElse: () => <String, dynamic>{},
+      );
       bars.add((row['total_duration'] as num? ?? 0).toInt());
     }
     return bars;
+  }
+
+  // ── Three-dot menu ────────────────────────────────────────────────────────
+
+  void _openMenu() {
+    showGlassMenu(
+      context: context,
+      anchorKey: _moreButtonKey,
+      items: [
+        GlassMenuItem(
+          label: 'Share',
+          onTap: () =>
+              shareScreenshot(_screenshotKey, text: 'My Sleep — SUNDR'),
+        ),
+        GlassMenuItem(
+          label: 'Goal setting',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CardSettingsScreen()),
+          ),
+        ),
+        GlassMenuItem(
+          label: 'Note',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const VitalNoteScreen(
+                title: 'Sleep',
+                heading: 'About Sleep',
+                intro:
+                    'Your ring tracks time asleep and cycles through light, '
+                    'deep, and REM stages — the sleep score blends duration '
+                    'and how unbroken that time was.',
+                ranges: [
+                  VitalRange(
+                    label: 'Poor',
+                    range: '0–39',
+                    color: AppTheme.danger,
+                  ),
+                  VitalRange(
+                    label: 'Fair',
+                    range: '40–59',
+                    color: Color(0xFFFBBF24),
+                  ),
+                  VitalRange(
+                    label: 'Good',
+                    range: '60–79',
+                    color: AppTheme.sleepColor,
+                  ),
+                  VitalRange(
+                    label: 'Excellent',
+                    range: '80–100',
+                    color: AppTheme.success,
+                  ),
+                ],
+                tips: [
+                  VitalTip(
+                    icon: Icons.bedtime_rounded,
+                    color: AppTheme.sleepColor,
+                    title: 'Aim for 7–9 hours',
+                    tip:
+                        'Most adults need 7–9 hours a night — consistently '
+                        'under 6 shows up as a lower score even with deep sleep.',
+                  ),
+                  VitalTip(
+                    icon: Icons.schedule_rounded,
+                    color: AppTheme.gold,
+                    title: 'Consistency matters',
+                    tip:
+                        'Going to bed and waking at the same time daily '
+                        'improves quality more than chasing extra hours.',
+                  ),
+                ],
+                didYouKnow:
+                    'Deep sleep handles physical recovery, REM handles '
+                    'memory and mood — you need a healthy mix of both.',
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   // ── Build ────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final hasData  = _totalDuration > 0;
+    final hasData = _totalDuration > 0;
     final trendVals = _last7Bars();
-    final avgDur   = _avgHistoryDuration();
+    final avgDur = _avgHistoryDuration();
     final avgScore = _avgHistoryScore();
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg,
-      appBar: AppBar(
+    return RepaintBoundary(
+      key: _screenshotKey,
+      child: Scaffold(
         backgroundColor: AppTheme.bg,
-        foregroundColor: Colors.white,
-        centerTitle: true,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+        appBar: AppBar(
+          backgroundColor: AppTheme.bg,
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text('Sleep', style: _inter(17, weight: FontWeight.w600)),
+          actions: [
+            IconButton(
+              key: _moreButtonKey,
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onPressed: _openMenu,
+            ),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(0.5),
+            child: Container(color: _kBorder, height: 0.5),
+          ),
         ),
-        title: Text('Sleep', style: _inter(17, weight: FontWeight.w600)),
-        actions: [
-          IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () {}),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(0.5),
-          child: Container(color: _kBorder, height: 0.5),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 16),
-
-            // ── 1. Date row ────────────────────────────────────────────────
-            _SleepDateRow(
-              selectedDate: _selectedDate,
-              onDateSelected: _onDateSelected,
-            ),
-            const SizedBox(height: 22),
-
-            // ── 2. Current reading ───────────────────────────────────────
-            Text(
-              'TOTAL SLEEP',
-              style: _inter(11, weight: FontWeight.w600, color: AppTheme.gold, letterSpacing: 1.2),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              hasData ? _fmt(_totalDuration) : '--',
-              style: _inter(52, weight: FontWeight.w300, color: Colors.white, height: 1.1),
-            ),
-            Text(
-              hasData ? 'Score $_sleepScore · ${_quality()}' : (_loading ? 'Loading…' : 'No data yet'),
-              style: _inter(13, color: _kSec),
-            ),
-            const SizedBox(height: 16),
-
-            if (_dbOffline && !hasData) ...[
-              const OfflineNotice(message: 'Connect to WiFi to load sleep data'),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               const SizedBox(height: 16),
-            ],
 
-            // ── 3. Sleep stages chart ────────────────────────────────────
-            _ChartCard(
-              headerLabel: hasData ? 'SLEEP STAGES' : 'NO DATA YET',
-              rangeLabel: hasData && _sleepTime > 0
-                  ? '${_timeLabel(_sleepTime)} – ${_timeLabel(_wakeTime)}'
-                  : '-- --',
-              height: 100,
-              child: !hasData
-                  ? Center(
-                      child: Text('NO DATA YET',
-                          style: _inter(12, color: _kSec, letterSpacing: 1.2)),
-                    )
-                  : CustomPaint(
-                      painter: _HypnogramPainter(
-                        segments: _segments,
-                        sleepTime: _sleepTime,
-                        wakeTime: _wakeTime,
-                        totalDuration: _totalDuration,
-                        awakeDuration: _awakeDuration,
-                        lightDuration: _lightDuration,
-                        deepDuration: _deepDuration,
-                        remDuration: _remDuration,
-                      ),
-                      child: const SizedBox.expand(),
-                    ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: const [
-                _LegendDot(color: _kAwakeColor, label: 'Awake'),
-                _LegendDot(color: _kRemColor,   label: 'REM'),
-                _LegendDot(color: _kLightColor, label: 'Light'),
-                _LegendDot(color: _kDeepColor,  label: 'Deep'),
+              // ── 1. Date row ────────────────────────────────────────────────
+              _SleepDateRow(
+                selectedDate: _selectedDate,
+                onDateSelected: _onDateSelected,
+              ),
+              const SizedBox(height: 22),
+
+              // ── 2. Current reading ───────────────────────────────────────
+              Text(
+                'TOTAL SLEEP',
+                style: _inter(
+                  11,
+                  weight: FontWeight.w600,
+                  color: AppTheme.gold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                hasData ? _fmt(_totalDuration) : '--',
+                style: _inter(
+                  52,
+                  weight: FontWeight.w300,
+                  color: Colors.white,
+                  height: 1.1,
+                ),
+              ),
+              Text(
+                hasData
+                    ? 'Score $_sleepScore · ${_quality()}'
+                    : (_loading ? 'Loading…' : 'No data yet'),
+                style: _inter(13, color: _kSec),
+              ),
+              const SizedBox(height: 16),
+
+              if (_dbOffline && !hasData) ...[
+                const OfflineNotice(
+                  message: 'Connect to WiFi to load sleep data',
+                ),
+                const SizedBox(height: 16),
               ],
-            ),
-            const SizedBox(height: 10),
 
-            // ── 4. Stats row ─────────────────────────────────────────────
-            Row(children: [
-              Expanded(
-                child: _StatCard(
-                  label: 'EFFICIENCY',
-                  value: hasData ? _efficiency() : '--',
-                  unit: '',
-                ),
+              // ── 3. Sleep stages chart ────────────────────────────────────
+              _ChartCard(
+                headerLabel: hasData ? 'SLEEP STAGES' : 'NO DATA YET',
+                rangeLabel: hasData && _sleepTime > 0
+                    ? '${_timeLabel(_sleepTime)} – ${_timeLabel(_wakeTime)}'
+                    : '-- --',
+                height: 100,
+                child: !hasData
+                    ? Center(
+                        child: Text(
+                          'NO DATA YET',
+                          style: _inter(12, color: _kSec, letterSpacing: 1.2),
+                        ),
+                      )
+                    : CustomPaint(
+                        painter: _HypnogramPainter(
+                          segments: _segments,
+                          sleepTime: _sleepTime,
+                          wakeTime: _wakeTime,
+                          totalDuration: _totalDuration,
+                          awakeDuration: _awakeDuration,
+                          lightDuration: _lightDuration,
+                          deepDuration: _deepDuration,
+                          remDuration: _remDuration,
+                        ),
+                        child: const SizedBox.expand(),
+                      ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _StatCard(
-                  label: 'DEEP SLEEP',
-                  value: hasData ? _fmt(_deepDuration) : '--',
-                  unit: '',
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _StatCard(
-                  label: 'REM SLEEP',
-                  value: hasData ? _fmt(_remDuration) : '--',
-                  unit: '',
-                ),
-              ),
-            ]),
-            const SizedBox(height: 10),
-
-            // ── 5. Sleep stages breakdown ────────────────────────────────
-            _StagesBreakdownCard(
-              hasData: hasData,
-              awakeDuration: _awakeDuration,
-              lightDuration: _lightDuration,
-              deepDuration: _deepDuration,
-              remDuration: _remDuration,
-              totalDuration: _totalDuration,
-              fmt: _fmt,
-            ),
-            const SizedBox(height: 10),
-
-            // ── 6. Sleep summary ──────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: _kCard,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _kBorder),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('SLEEP SUMMARY',
-                      style: _inter(11, weight: FontWeight.w600, color: _kSec, letterSpacing: 0.6)),
-                  const SizedBox(height: 12),
-                  _SummaryRow(label: 'Sleep Duration', value: hasData ? _fmt(_totalDuration) : '--'),
-                  const Divider(color: _kBorder, height: 20),
-                  _SummaryRow(label: 'Sleep Time', value: hasData && _sleepTime > 0 ? _timeLabel(_sleepTime) : '--'),
-                  const Divider(color: _kBorder, height: 20),
-                  _SummaryRow(label: 'Wake Time', value: hasData && _wakeTime > 0 ? _timeLabel(_wakeTime) : '--'),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: const [
+                  _LegendDot(color: _kAwakeColor, label: 'Awake'),
+                  _LegendDot(color: _kRemColor, label: 'REM'),
+                  _LegendDot(color: _kLightColor, label: 'Light'),
+                  _LegendDot(color: _kDeepColor, label: 'Deep'),
                 ],
               ),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 10),
 
-            // ── 7. Vitals during sleep ────────────────────────────────────
-            Text(
-              'VITALS DURING SLEEP',
-              style: _inter(11, weight: FontWeight.w600, color: _kSec, letterSpacing: 0.6),
-            ),
-            const SizedBox(height: 10),
-            Row(children: [
-              Expanded(
-                child: _StatCard(
-                  label: 'AVG HEART RATE',
-                  value: _avgHr > 0 ? '$_avgHr' : '--',
-                  unit: _avgHr > 0 ? 'bpm' : '',
+              // ── 4. Stats row ─────────────────────────────────────────────
+              Row(
+                children: [
+                  Expanded(
+                    child: _StatCard(
+                      label: 'EFFICIENCY',
+                      value: hasData ? _efficiency() : '--',
+                      unit: '',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _StatCard(
+                      label: 'DEEP SLEEP',
+                      value: hasData ? _fmt(_deepDuration) : '--',
+                      unit: '',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _StatCard(
+                      label: 'REM SLEEP',
+                      value: hasData ? _fmt(_remDuration) : '--',
+                      unit: '',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // ── 5. Sleep stages breakdown ────────────────────────────────
+              _StagesBreakdownCard(
+                hasData: hasData,
+                awakeDuration: _awakeDuration,
+                lightDuration: _lightDuration,
+                deepDuration: _deepDuration,
+                remDuration: _remDuration,
+                totalDuration: _totalDuration,
+                fmt: _fmt,
+              ),
+              const SizedBox(height: 10),
+
+              // ── 6. Sleep summary ──────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _kCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _kBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'SLEEP SUMMARY',
+                      style: _inter(
+                        11,
+                        weight: FontWeight.w600,
+                        color: _kSec,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _SummaryRow(
+                      label: 'Sleep Duration',
+                      value: hasData ? _fmt(_totalDuration) : '--',
+                    ),
+                    const Divider(color: _kBorder, height: 20),
+                    _SummaryRow(
+                      label: 'Sleep Time',
+                      value: hasData && _sleepTime > 0
+                          ? _timeLabel(_sleepTime)
+                          : '--',
+                    ),
+                    const Divider(color: _kBorder, height: 20),
+                    _SummaryRow(
+                      label: 'Wake Time',
+                      value: hasData && _wakeTime > 0
+                          ? _timeLabel(_wakeTime)
+                          : '--',
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _StatCard(
-                  label: 'AVG BLOOD OXYGEN',
-                  value: _avgSpo2 > 0 ? '$_avgSpo2' : '--',
-                  unit: _avgSpo2 > 0 ? '%' : '',
+              const SizedBox(height: 20),
+
+              // ── 7. Vitals during sleep ────────────────────────────────────
+              Text(
+                'VITALS DURING SLEEP',
+                style: _inter(
+                  11,
+                  weight: FontWeight.w600,
+                  color: _kSec,
+                  letterSpacing: 0.6,
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _StatCard(
-                  label: 'AVG HRV',
-                  value: _avgHrv > 0 ? '$_avgHrv' : '--',
-                  unit: _avgHrv > 0 ? 'ms' : '',
-                ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _StatCard(
+                      label: 'AVG HEART RATE',
+                      value: _avgHr > 0 ? '$_avgHr' : '--',
+                      unit: _avgHr > 0 ? 'bpm' : '',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _StatCard(
+                      label: 'AVG BLOOD OXYGEN',
+                      value: _avgSpo2 > 0 ? '$_avgSpo2' : '--',
+                      unit: _avgSpo2 > 0 ? '%' : '',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _StatCard(
+                      label: 'AVG HRV',
+                      value: _avgHrv > 0 ? '$_avgHrv' : '--',
+                      unit: _avgHrv > 0 ? 'ms' : '',
+                    ),
+                  ),
+                ],
               ),
-            ]),
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            // ── 8. 7-day trend ─────────────────────────────────────────────
-            _ChartCard(
-              headerLabel: 'LAST 7 DAYS TREND',
-              rangeLabel: avgDur > 0 ? 'avg ${_fmt(avgDur)}${avgScore > 0 ? " · score $avgScore" : ""}' : '-- --',
-              height: 128,
-              child: trendVals.every((v) => v == 0)
-                  ? Center(
-                      child: Text('NO DATA YET',
-                          style: _inter(12, color: _kSec, letterSpacing: 1.2)),
-                    )
-                  : CustomPaint(painter: _SleepBarPainter(values: trendVals)),
-            ),
-            const SizedBox(height: 8),
-            const _TrendXAxisRow(),
+              // ── 8. 7-day trend ─────────────────────────────────────────────
+              _ChartCard(
+                headerLabel: 'LAST 7 DAYS TREND',
+                rangeLabel: avgDur > 0
+                    ? 'avg ${_fmt(avgDur)}${avgScore > 0 ? " · score $avgScore" : ""}'
+                    : '-- --',
+                height: 128,
+                child: trendVals.every((v) => v == 0)
+                    ? Center(
+                        child: Text(
+                          'NO DATA YET',
+                          style: _inter(12, color: _kSec, letterSpacing: 1.2),
+                        ),
+                      )
+                    : CustomPaint(painter: _SleepBarPainter(values: trendVals)),
+              ),
+              const SizedBox(height: 8),
+              const _TrendXAxisRow(),
 
-            const SizedBox(height: 80),
-          ],
+              const SizedBox(height: 80),
+            ],
+          ),
         ),
       ),
     );
@@ -573,16 +737,29 @@ class _SleepScreenState extends State<SleepScreen> {
 class _SleepDateRow extends StatelessWidget {
   final DateTime selectedDate;
   final ValueChanged<DateTime> onDateSelected;
-  const _SleepDateRow({required this.selectedDate, required this.onDateSelected});
+  const _SleepDateRow({
+    required this.selectedDate,
+    required this.onDateSelected,
+  });
 
   static const _months = [
-    'Jan','Feb','Mar','Apr','May','Jun',
-    'Jul','Aug','Sep','Oct','Nov','Dec'
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   @override
   Widget build(BuildContext context) {
-    final now  = DateTime.now();
+    final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
 
@@ -600,9 +777,13 @@ class _SleepDateRow extends StatelessWidget {
   }
 
   Widget _buildItem(DateTime d, DateTime today) {
-    final isToday  = d == today;
+    final isToday = d == today;
     final isFuture = d.isAfter(today);
-    final sel = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final sel = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
     final isSelected = d == sel && !isToday;
 
     if (isToday || isSelected) {
@@ -668,10 +849,23 @@ class _ChartCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(headerLabel,
-                  style: _inter(11, weight: FontWeight.w600, color: _kSec, letterSpacing: 0.6)),
-              Text(rangeLabel,
-                  style: _inter(11, weight: FontWeight.w500, color: const Color(0xFF999999))),
+              Text(
+                headerLabel,
+                style: _inter(
+                  11,
+                  weight: FontWeight.w600,
+                  color: _kSec,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              Text(
+                rangeLabel,
+                style: _inter(
+                  11,
+                  weight: FontWeight.w500,
+                  color: const Color(0xFF999999),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -688,7 +882,11 @@ class _StatCard extends StatelessWidget {
   final String label;
   final String value;
   final String unit;
-  const _StatCard({required this.label, required this.value, required this.unit});
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.unit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -703,7 +901,15 @@ class _StatCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, style: _inter(10, weight: FontWeight.w600, color: _kSec, letterSpacing: 0.7)),
+          Text(
+            label,
+            style: _inter(
+              10,
+              weight: FontWeight.w600,
+              color: _kSec,
+              letterSpacing: 0.7,
+            ),
+          ),
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -726,7 +932,11 @@ class _StatCard extends StatelessWidget {
 
 class _StagesBreakdownCard extends StatelessWidget {
   final bool hasData;
-  final int awakeDuration, lightDuration, deepDuration, remDuration, totalDuration;
+  final int awakeDuration,
+      lightDuration,
+      deepDuration,
+      remDuration,
+      totalDuration;
   final String Function(int) fmt;
 
   const _StagesBreakdownCard({
@@ -752,32 +962,43 @@ class _StagesBreakdownCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('SLEEP STAGE BREAKDOWN',
-              style: _inter(11, weight: FontWeight.w600, color: _kSec, letterSpacing: 0.6)),
+          Text(
+            'SLEEP STAGE BREAKDOWN',
+            style: _inter(
+              11,
+              weight: FontWeight.w600,
+              color: _kSec,
+              letterSpacing: 0.6,
+            ),
+          ),
           const SizedBox(height: 14),
           _StageRow(
-              label: 'Time Awake',
-              value: hasData ? fmt(awakeDuration) : '--',
-              progress: hasData ? (awakeDuration / total).clamp(0.0, 1.0) : 0.0,
-              color: _kAwakeColor),
+            label: 'Time Awake',
+            value: hasData ? fmt(awakeDuration) : '--',
+            progress: hasData ? (awakeDuration / total).clamp(0.0, 1.0) : 0.0,
+            color: _kAwakeColor,
+          ),
           const SizedBox(height: 12),
           _StageRow(
-              label: 'Light Sleep',
-              value: hasData ? fmt(lightDuration) : '--',
-              progress: hasData ? (lightDuration / total).clamp(0.0, 1.0) : 0.0,
-              color: _kLightColor),
+            label: 'Light Sleep',
+            value: hasData ? fmt(lightDuration) : '--',
+            progress: hasData ? (lightDuration / total).clamp(0.0, 1.0) : 0.0,
+            color: _kLightColor,
+          ),
           const SizedBox(height: 12),
           _StageRow(
-              label: 'Deep Sleep',
-              value: hasData ? fmt(deepDuration) : '--',
-              progress: hasData ? (deepDuration / total).clamp(0.0, 1.0) : 0.0,
-              color: _kDeepColor),
+            label: 'Deep Sleep',
+            value: hasData ? fmt(deepDuration) : '--',
+            progress: hasData ? (deepDuration / total).clamp(0.0, 1.0) : 0.0,
+            color: _kDeepColor,
+          ),
           const SizedBox(height: 12),
           _StageRow(
-              label: 'REM Sleep',
-              value: hasData ? fmt(remDuration) : '--',
-              progress: hasData ? (remDuration / total).clamp(0.0, 1.0) : 0.0,
-              color: _kRemColor),
+            label: 'REM Sleep',
+            value: hasData ? fmt(remDuration) : '--',
+            progress: hasData ? (remDuration / total).clamp(0.0, 1.0) : 0.0,
+            color: _kRemColor,
+          ),
         ],
       ),
     );
@@ -790,29 +1011,51 @@ class _StageRow extends StatelessWidget {
   final String label, value;
   final double progress;
   final Color color;
-  const _StageRow({required this.label, required this.value, required this.progress, required this.color});
+  const _StageRow({
+    required this.label,
+    required this.value,
+    required this.progress,
+    required this.color,
+  });
 
   @override
-  Widget build(BuildContext context) => Row(children: [
-    Container(width: 8, height: 8, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
-    const SizedBox(width: 10),
-    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(label, style: _inter(13, weight: FontWeight.w500)),
-        Text(value, style: _inter(12, color: _kSec2)),
-      ]),
-      const SizedBox(height: 5),
-      ClipRRect(
-        borderRadius: BorderRadius.circular(3),
-        child: LinearProgressIndicator(
-          value: progress,
-          backgroundColor: _kBorder,
-          valueColor: AlwaysStoppedAnimation<Color>(color),
-          minHeight: 4,
+  Widget build(BuildContext context) => Row(
+    children: [
+      Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(2),
         ),
       ),
-    ])),
-  ]);
+      const SizedBox(width: 10),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(label, style: _inter(13, weight: FontWeight.w500)),
+                Text(value, style: _inter(12, color: _kSec2)),
+              ],
+            ),
+            const SizedBox(height: 5),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: _kBorder,
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+                minHeight: 4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 }
 
 // ── Summary Row ────────────────────────────────────────────────────────────────
@@ -839,11 +1082,21 @@ class _LegendDot extends StatelessWidget {
   const _LegendDot({required this.color, required this.label});
 
   @override
-  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
-    Container(width: 8, height: 8, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
-    const SizedBox(width: 4),
-    Text(label, style: _inter(10, color: _kSec2)),
-  ]);
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+      const SizedBox(width: 4),
+      Text(label, style: _inter(10, color: _kSec2)),
+    ],
+  );
 }
 
 // ── 7-day X-axis row ───────────────────────────────────────────────────────────
@@ -854,11 +1107,15 @@ class _TrendXAxisRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    const names = ['M','T','W','T','F','S','S'];
+    const names = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     final days = List.generate(7, (i) => now.subtract(Duration(days: 6 - i)));
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: days.map((d) => Text(names[d.weekday - 1], style: _inter(10, color: _kSec2))).toList(),
+      children: days
+          .map(
+            (d) => Text(names[d.weekday - 1], style: _inter(10, color: _kSec2)),
+          )
+          .toList(),
     );
   }
 }
@@ -868,7 +1125,11 @@ class _TrendXAxisRow extends StatelessWidget {
 class _HypnogramPainter extends CustomPainter {
   final List<Map<String, int>> segments;
   final int sleepTime, wakeTime;
-  final int totalDuration, awakeDuration, lightDuration, deepDuration, remDuration;
+  final int totalDuration,
+      awakeDuration,
+      lightDuration,
+      deepDuration,
+      remDuration;
 
   const _HypnogramPainter({
     required this.segments,
@@ -884,9 +1145,9 @@ class _HypnogramPainter extends CustomPainter {
   // Normalized Y position for each stage (0=top, 1=bottom)
   static const _yPos = {
     _kAwake: 0.05,
-    _kRem:   0.35,
+    _kRem: 0.35,
     _kLight: 0.62,
-    _kDeep:  0.88,
+    _kDeep: 0.88,
   };
 
   @override
@@ -900,18 +1161,22 @@ class _HypnogramPainter extends CustomPainter {
     if (segs.isEmpty) return;
 
     final fillPaint = Paint()..style = PaintingStyle.fill;
-    final linePath  = Path();
+    final linePath = Path();
     bool first = true;
 
     for (int i = 0; i < segs.length; i++) {
-      final seg      = segs[i];
-      final startOff = (seg['start']! - (sleepTime > 0 ? sleepTime : 0)).clamp(0, window.toInt()).toDouble();
-      final endOff   = (seg['end']!   - (sleepTime > 0 ? sleepTime : 0)).clamp(0, window.toInt()).toDouble();
-      final type     = seg['type']!;
-      final x1       = startOff / window * size.width;
-      final x2       = endOff   / window * size.width;
-      final y        = (_yPos[type] ?? 0.62) * size.height;
-      final color    = _stageColors[type] ?? _kLightColor;
+      final seg = segs[i];
+      final startOff = (seg['start']! - (sleepTime > 0 ? sleepTime : 0))
+          .clamp(0, window.toInt())
+          .toDouble();
+      final endOff = (seg['end']! - (sleepTime > 0 ? sleepTime : 0))
+          .clamp(0, window.toInt())
+          .toDouble();
+      final type = seg['type']!;
+      final x1 = startOff / window * size.width;
+      final x2 = endOff / window * size.width;
+      final y = (_yPos[type] ?? 0.62) * size.height;
+      final color = _stageColors[type] ?? _kLightColor;
 
       // Shaded area under segment
       fillPaint.color = color.withValues(alpha: 0.18);
@@ -946,15 +1211,18 @@ class _HypnogramPainter extends CustomPainter {
 
   List<Map<String, int>> _syntheticSegs() {
     if (totalDuration <= 0) return [];
-    final base   = sleepTime > 0 ? sleepTime : 0;
-    int cursor   = base;
-    final parts  = [
-      (awakeDuration > 0 ? (awakeDuration ~/ 2).clamp(600, 1800)  : 900,  _kAwake),
-      (lightDuration > 0 ? (lightDuration * 0.35).round()         : 2700, _kLight),
-      (deepDuration  > 0 ? deepDuration                           : 3600, _kDeep),
-      (remDuration   > 0 ? remDuration                            : 2400, _kRem),
-      (lightDuration > 0 ? (lightDuration * 0.35).round()         : 2400, _kLight),
-      (awakeDuration > 0 ? (awakeDuration ~/ 2).clamp(300, 900)   : 600,  _kAwake),
+    final base = sleepTime > 0 ? sleepTime : 0;
+    int cursor = base;
+    final parts = [
+      (
+        awakeDuration > 0 ? (awakeDuration ~/ 2).clamp(600, 1800) : 900,
+        _kAwake,
+      ),
+      (lightDuration > 0 ? (lightDuration * 0.35).round() : 2700, _kLight),
+      (deepDuration > 0 ? deepDuration : 3600, _kDeep),
+      (remDuration > 0 ? remDuration : 2400, _kRem),
+      (lightDuration > 0 ? (lightDuration * 0.35).round() : 2400, _kLight),
+      (awakeDuration > 0 ? (awakeDuration ~/ 2).clamp(300, 900) : 600, _kAwake),
     ];
     final segs = <Map<String, int>>[];
     for (final p in parts) {
@@ -967,7 +1235,9 @@ class _HypnogramPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_HypnogramPainter old) =>
-      old.segments != segments || old.sleepTime != sleepTime || old.totalDuration != totalDuration;
+      old.segments != segments ||
+      old.sleepTime != sleepTime ||
+      old.totalDuration != totalDuration;
 }
 
 // ── Sleep Bar Painter (7-day trend) ────────────────────────────────────────────
@@ -982,8 +1252,8 @@ class _SleepBarPainter extends CustomPainter {
     final maxVal = values.fold(0, math.max).toDouble();
     if (maxVal <= 0) return;
 
-    final n    = values.length;
-    final gap  = size.width * 0.015;
+    final n = values.length;
+    final gap = size.width * 0.015;
     final barW = (size.width - gap * (n - 1)) / n;
 
     // 8h reference line (28800s)
@@ -991,17 +1261,24 @@ class _SleepBarPainter extends CustomPainter {
     canvas.drawLine(
       Offset(0, refY),
       Offset(size.width, refY),
-      Paint()..color = Colors.white.withValues(alpha: 0.07)..strokeWidth = 1,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.07)
+        ..strokeWidth = 1,
     );
 
     final paint = Paint()..style = PaintingStyle.fill;
     for (int i = 0; i < n; i++) {
-      final v    = values[i];
+      final v = values[i];
       final barH = v > 0 ? math.max(3.0, v / maxVal * size.height) : 3.0;
-      final x    = i * (barW + gap);
-      paint.color = v > 0 ? AppTheme.sleepColor.withValues(alpha: 0.85) : _kBorder;
+      final x = i * (barW + gap);
+      paint.color = v > 0
+          ? AppTheme.sleepColor.withValues(alpha: 0.85)
+          : _kBorder;
       canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromLTWH(x, size.height - barH, barW, barH), const Radius.circular(3)),
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, size.height - barH, barW, barH),
+          const Radius.circular(3),
+        ),
         paint,
       );
     }

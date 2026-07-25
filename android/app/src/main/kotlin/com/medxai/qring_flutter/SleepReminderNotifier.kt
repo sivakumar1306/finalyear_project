@@ -38,7 +38,7 @@ object SleepReminderNotifier {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("Time to sleep")
             .setContentText("It's time to wind down and get some rest.")
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_notification)
             .setColor(COLOR)
             .setColorized(true)
             .setAutoCancel(true)

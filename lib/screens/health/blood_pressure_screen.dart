@@ -6,15 +6,18 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
+import '../../widgets/screenshot_share.dart';
+import 'vital_note_screen.dart';
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
-const _kCard    = Color(0xFF141414);
-const _kBorder  = Color(0xFF242424);
-const _kGrid    = Color(0xFF222222);
-const _kSec     = Color(0xFF666666);
-const _kSec2    = Color(0xFF888888);
+const _kCard = Color(0xFF141414);
+const _kBorder = Color(0xFF242424);
+const _kGrid = Color(0xFF222222);
+const _kSec = Color(0xFF666666);
+const _kSec2 = Color(0xFF888888);
 // DBP uses a contrasting violet so both series are visually distinct.
 const _dbpColor = Color(0xFFC084FC);
 
@@ -24,14 +27,13 @@ TextStyle _inter(
   Color color = Colors.white,
   double? letterSpacing,
   double? height,
-}) =>
-    GoogleFonts.inter(
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-      letterSpacing: letterSpacing,
-      height: height,
-    );
+}) => GoogleFonts.inter(
+  fontSize: size,
+  fontWeight: weight,
+  color: color,
+  letterSpacing: letterSpacing,
+  height: height,
+);
 
 String _bpStatus(int sbp, int dbp) {
   if (sbp <= 0 || dbp <= 0) return '';
@@ -59,19 +61,19 @@ class BloodPressureScreen extends StatefulWidget {
 
 class _BloodPressureScreenState extends State<BloodPressureScreen> {
   final _ble = BleService();
+  final _moreButtonKey = GlobalKey();
+  final _screenshotKey = GlobalKey();
 
-  bool _loading      = false;
-  bool _loadingDay   = false;
+  bool _loading = false;
+  bool _loadingDay = false;
   bool _loadingTrend = false;
-  bool _measuring    = false;
-  bool _dayOffline   = false;
+  bool _measuring = false;
+  bool _dayOffline = false;
   bool _trendOffline = false;
 
   DateTime _selectedDate = DateTime.now();
 
   int _manualSbp = 0, _manualDbp = 0;
-  bool _settingEnabled  = true;
-  int  _settingInterval = 30;
 
   // Today's local-DB data
   List<int> _chartSbp = [];
@@ -111,7 +113,6 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Local DB read — doesn't need a live ring connection.
       _fetchTodayFromLocalDb();
@@ -123,7 +124,8 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
 
   void _onDateSelected(DateTime date) {
     final n = DateTime.now();
-    final isToday = date.year == n.year && date.month == n.month && date.day == n.day;
+    final isToday =
+        date.year == n.year && date.month == n.month && date.day == n.day;
     setState(() {
       _selectedDate = date;
       _manualSbp = 0;
@@ -142,22 +144,42 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
   // currently connected, and stays consistent with the home screen's card.
 
   Future<void> _fetchTodayFromLocalDb() async {
-    setState(() { _loading = true; _manualSbp = 0; _manualDbp = 0; });
+    setState(() {
+      _loading = true;
+      _manualSbp = 0;
+      _manualDbp = 0;
+    });
     try {
       final now = DateTime.now();
-      final dayStart = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
-      final dayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999)
-          .millisecondsSinceEpoch;
+      final dayStart = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).millisecondsSinceEpoch;
+      final dayEnd = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        23,
+        59,
+        59,
+        999,
+      ).millisecondsSinceEpoch;
 
       final summary =
-          jsonDecode(await _ble.getTodaySummary('blood_pressure')) as Map<String, dynamic>;
+          jsonDecode(await _ble.getTodaySummary('blood_pressure'))
+              as Map<String, dynamic>;
       final count = (summary['count'] as num? ?? 0).toInt();
 
       final sbpHourly = List<int>.filled(24, 0);
       final dbpHourly = List<int>.filled(24, 0);
       if (count > 0) {
-        final readingsJson = await _ble.getReadings('blood_pressure',
-            fromMs: dayStart, toMs: dayEnd, limit: 1000);
+        final readingsJson = await _ble.getReadings(
+          'blood_pressure',
+          fromMs: dayStart,
+          toMs: dayEnd,
+          limit: 1000,
+        );
         final decoded = jsonDecode(readingsJson);
         final list = decoded is List ? decoded : <dynamic>[];
         final sbpSums = List<int>.filled(24, 0);
@@ -192,8 +214,12 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
       setState(() {
         _chartSbp = sbpHourly;
         _chartDbp = dbpHourly;
-        _avgSbp = avgSbp; _minSbp = minSbp; _maxSbp = maxSbp;
-        _avgDbp = avgDbp; _minDbp = minDbp; _maxDbp = maxDbp;
+        _avgSbp = avgSbp;
+        _minSbp = minSbp;
+        _maxSbp = maxSbp;
+        _avgDbp = avgDbp;
+        _minDbp = minDbp;
+        _maxDbp = maxDbp;
         _selectedDate = DateTime.now();
       });
       final lastSbp = (summary['lastSbp'] as num?)?.toInt() ?? avgSbp;
@@ -212,14 +238,27 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
   Future<void> _loadDayFromSupabase(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() { _loadingDay = true; _dayOffline = false; });
+    setState(() {
+      _loadingDay = true;
+      _dayOffline = false;
+    });
     try {
       final from = DateTime(date.year, date.month, date.day);
       final to = DateTime(date.year, date.month, date.day, 23, 59, 59);
-      final rows = await SupabaseService.getBpReadings(userId: user.id, from: from, to: to);
+      final rows = await SupabaseService.getBpReadings(
+        userId: user.id,
+        from: from,
+        to: to,
+      );
       if (!mounted) return;
-      final sbps = rows.map((r) => (r['systolic'] as num? ?? 0).toInt()).where((v) => v > 0).toList();
-      final dbps = rows.map((r) => (r['diastolic'] as num? ?? 0).toInt()).where((v) => v > 0).toList();
+      final sbps = rows
+          .map((r) => (r['systolic'] as num? ?? 0).toInt())
+          .where((v) => v > 0)
+          .toList();
+      final dbps = rows
+          .map((r) => (r['diastolic'] as num? ?? 0).toInt())
+          .where((v) => v > 0)
+          .toList();
       setState(() {
         if (sbps.isNotEmpty) {
           _daySbpAvg = (sbps.reduce((a, b) => a + b) / sbps.length).round();
@@ -242,7 +281,10 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
   Future<void> _load7DayTrend() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() { _loadingTrend = true; _trendOffline = false; });
+    setState(() {
+      _loadingTrend = true;
+      _trendOffline = false;
+    });
     try {
       final now = DateTime.now();
       final rows = await SupabaseService.getBpReadings(
@@ -284,31 +326,15 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     }
   }
 
-  // ── Settings ──────────────────────────────────────────────────────────────────
-
-  Future<void> _loadSettings() async {
-    if (!context.read<BleProvider>().isConnected) return;
-    try {
-      final json = await _ble.getBloodPressureSetting();
-      final m = jsonDecode(json) as Map<String, dynamic>;
-      setState(() {
-        _settingEnabled  = m['enable']   ?? true;
-        _settingInterval = m['interval'] ?? 30;
-      });
-    } catch (_) {}
-  }
-
-  Future<void> _saveSettings() async {
-    try {
-      await _ble.setBloodPressureSetting(enable: _settingEnabled, interval: _settingInterval);
-    } catch (_) {}
-  }
-
   // ── Manual measurement ────────────────────────────────────────────────────────
 
   Future<void> _startMeasurement() async {
     if (_measuring) return;
-    setState(() { _measuring = true; _manualSbp = 0; _manualDbp = 0; });
+    setState(() {
+      _measuring = true;
+      _manualSbp = 0;
+      _manualDbp = 0;
+    });
     try {
       final result = await _ble.manualModeBP(start: true);
       final m = jsonDecode(result) as Map<String, dynamic>;
@@ -317,7 +343,10 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
       if (!mounted) return;
       setState(() => _measuring = false);
       if (sbp > 0 && dbp > 0) {
-        setState(() { _manualSbp = sbp; _manualDbp = dbp; });
+        setState(() {
+          _manualSbp = sbp;
+          _manualDbp = dbp;
+        });
         await _saveMeasurement(sbp, dbp);
       }
     } catch (_) {
@@ -330,10 +359,91 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     if (user == null) return;
     try {
       await SupabaseService.insertBp(
-        userId: user.id, systolic: sbp, diastolic: dbp, measuredAt: DateTime.now(),
+        userId: user.id,
+        systolic: sbp,
+        diastolic: dbp,
+        measuredAt: DateTime.now(),
       );
       if (mounted) context.read<BleProvider>().updateBpLatest(sbp, dbp);
     } catch (_) {}
+  }
+
+  // ── Three-dot menu ────────────────────────────────────────────────────────
+
+  void _openMenu() {
+    showGlassMenu(
+      context: context,
+      anchorKey: _moreButtonKey,
+      items: [
+        GlassMenuItem(
+          label: 'Share',
+          onTap: () => shareScreenshot(
+            _screenshotKey,
+            text: 'My Blood Pressure — SUNDR',
+          ),
+        ),
+        GlassMenuItem(
+          label: 'Note',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const VitalNoteScreen(
+                title: 'Blood Pressure',
+                heading: 'About Blood Pressure',
+                intro:
+                    'Systolic (top) over diastolic (bottom) — the pressure '
+                    'in your arteries as your heart beats and rests. '
+                    'Cuffless ring readings are an estimate, best read as a '
+                    'trend rather than a single exact number.',
+                ranges: [
+                  VitalRange(
+                    label: 'Normal',
+                    range: '<120/80',
+                    color: AppTheme.success,
+                  ),
+                  VitalRange(
+                    label: 'Elevated',
+                    range: '120–129/<80',
+                    color: Color(0xFFFBBF24),
+                  ),
+                  VitalRange(
+                    label: 'Stage 1',
+                    range: '130–139/80–89',
+                    color: AppTheme.stressColor,
+                  ),
+                  VitalRange(
+                    label: 'Stage 2',
+                    range: '140+/90+',
+                    color: AppTheme.danger,
+                  ),
+                ],
+                tips: [
+                  VitalTip(
+                    icon: Icons.self_improvement_rounded,
+                    color: AppTheme.success,
+                    title: 'Sodium adds up fast',
+                    tip:
+                        'Cutting back on salty, processed food is one of '
+                        'the quickest ways to bring elevated readings down.',
+                  ),
+                  VitalTip(
+                    icon: Icons.schedule_rounded,
+                    color: AppTheme.bpColor,
+                    title: 'Measure the same way',
+                    tip:
+                        'Readings taken while resting, seated, and at the '
+                        'same time of day are the most comparable over time.',
+                  ),
+                ],
+                didYouKnow:
+                    'Blood pressure naturally dips at night and rises in '
+                    'the morning — a single high reading isn\'t cause for alarm.',
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -356,24 +466,28 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     final sbpText = _measuring
         ? '···'
         : _manualSbp > 0
-            ? '$_manualSbp'
-            : _displaySbpAvg > 0
-                ? '$_displaySbpAvg'
-                : '--';
+        ? '$_manualSbp'
+        : _displaySbpAvg > 0
+        ? '$_displaySbpAvg'
+        : '--';
     final dbpText = _measuring
         ? '···'
         : _manualDbp > 0
-            ? '$_manualDbp'
-            : _displayDbpAvg > 0
-                ? '$_displayDbpAvg'
-                : '--';
+        ? '$_manualDbp'
+        : _displayDbpAvg > 0
+        ? '$_displayDbpAvg'
+        : '--';
 
     final currentSbp = _manualSbp > 0 ? _manualSbp : _displaySbpAvg;
     final currentDbp = _manualDbp > 0 ? _manualDbp : _displayDbpAvg;
-    final currentLabel = _measuring ? 'Measuring…' : _bpStatus(currentSbp, currentDbp);
+    final currentLabel = _measuring
+        ? 'Measuring…'
+        : _bpStatus(currentSbp, currentDbp);
     final currentLabelColor = _bpStatusColor(currentSbp, currentDbp);
 
-    final hasData = _isToday && (_chartSbp.any((v) => v > 0) || _chartDbp.any((v) => v > 0));
+    final hasData =
+        _isToday &&
+        (_chartSbp.any((v) => v > 0) || _chartDbp.any((v) => v > 0));
 
     final dailyRangeLabel = hasData
         ? '$_displaySbpMin-$_displaySbpMax / $_displayDbpMin-$_displayDbpMax'
@@ -384,211 +498,208 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
         ? '${trendNonZeroSbp.reduce((a, b) => a < b ? a : b)} - ${trendNonZeroSbp.reduce((a, b) => a > b ? a : b)} mmHg'
         : '-- -- mmHg';
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg,
-      appBar: AppBar(
+    return RepaintBoundary(
+      key: _screenshotKey,
+      child: Scaffold(
         backgroundColor: AppTheme.bg,
-        foregroundColor: Colors.white,
-        centerTitle: true,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text('Blood Pressure', style: _inter(17, weight: FontWeight.w600)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onPressed: () {},
+        appBar: AppBar(
+          backgroundColor: AppTheme.bg,
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
           ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(0.5),
-          child: Container(color: _kBorder, height: 0.5),
+          title: Text(
+            'Blood Pressure',
+            style: _inter(17, weight: FontWeight.w600),
+          ),
+          actions: [
+            IconButton(
+              key: _moreButtonKey,
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onPressed: _openMenu,
+            ),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(0.5),
+            child: Container(color: _kBorder, height: 0.5),
+          ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 16),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
 
-            // ── 1. BP Detection toggle ─────────────────────────────────────
-            _BPDetectionCard(
-              enabled: _settingEnabled,
-              onToggle: (v) {
-                setState(() => _settingEnabled = v);
-                _saveSettings();
-              },
-            ),
-            const SizedBox(height: 20),
+              // ── 2. Date row ────────────────────────────────────────────────
+              _BPDateRow(
+                selectedDate: _selectedDate,
+                onDateSelected: _onDateSelected,
+              ),
+              const SizedBox(height: 22),
 
-            // ── 2. Date row ────────────────────────────────────────────────
-            _BPDateRow(
-              selectedDate: _selectedDate,
-              onDateSelected: _onDateSelected,
-            ),
-            const SizedBox(height: 22),
-
-            // ── 3. Current BP value ────────────────────────────────────────
-            Text(
-              'CURRENT BLOOD PRESSURE',
-              style: _inter(11, weight: FontWeight.w600, color: AppTheme.gold, letterSpacing: 1.2),
-            ),
-            const SizedBox(height: 2),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(sbpText, style: _inter(52, weight: FontWeight.w300, color: Colors.white, height: 1.1)),
-                Text('/', style: _inter(36, weight: FontWeight.w300, color: _kSec)),
-                Text(dbpText, style: _inter(52, weight: FontWeight.w300, color: Colors.white, height: 1.1)),
-              ],
-            ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text('mmHg', style: _inter(13, color: _kSec)),
-                if (currentLabel.isNotEmpty) ...[
-                  const SizedBox(width: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: currentLabelColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
+              // ── 3. Current BP value ────────────────────────────────────────
+              Text(
+                'CURRENT BLOOD PRESSURE',
+                style: _inter(
+                  11,
+                  weight: FontWeight.w600,
+                  color: AppTheme.gold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    sbpText,
+                    style: _inter(
+                      52,
+                      weight: FontWeight.w300,
+                      color: Colors.white,
+                      height: 1.1,
                     ),
-                    child: Text(currentLabel,
-                        style: _inter(11, weight: FontWeight.w600, color: currentLabelColor)),
+                  ),
+                  Text(
+                    '/',
+                    style: _inter(36, weight: FontWeight.w300, color: _kSec),
+                  ),
+                  Text(
+                    dbpText,
+                    style: _inter(
+                      52,
+                      weight: FontWeight.w300,
+                      color: Colors.white,
+                      height: 1.1,
+                    ),
                   ),
                 ],
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // ── 4. Daily chart ─────────────────────────────────────────────
-            _BPChartCard(
-              headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
-              rangeLabel: dailyRangeLabel,
-              sbpValues: _isToday ? _chartSbp : [],
-              dbpValues: _isToday ? _chartDbp : [],
-              xLabels: const ['12am', '6am', '12pm', '6pm', ''],
-              loading: _loading || _loadingDay,
-            ),
-            if (_dayOffline && !_isToday) ...[
-              const SizedBox(height: 8),
-              const OfflineNotice(message: 'Connect to WiFi to load this day\'s blood pressure'),
-            ],
-            const SizedBox(height: 10),
-
-            // ── 5. Stats row ───────────────────────────────────────────────
-            Row(children: [
-              Expanded(
-                child: _BPStatCard(
-                  label: 'AVERAGE',
-                  value: (_displaySbpAvg > 0 && _displayDbpAvg > 0)
-                      ? '$_displaySbpAvg/$_displayDbpAvg'
-                      : '--',
-                ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _BPStatCard(
-                  label: 'MINIMUM',
-                  value: (_displaySbpMin > 0 && _displayDbpMin > 0)
-                      ? '$_displaySbpMin/$_displayDbpMin'
-                      : '--',
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text('mmHg', style: _inter(13, color: _kSec)),
+                  if (currentLabel.isNotEmpty) ...[
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: currentLabelColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        currentLabel,
+                        style: _inter(
+                          11,
+                          weight: FontWeight.w600,
+                          color: currentLabelColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _BPStatCard(
-                  label: 'MAXIMUM',
-                  value: (_displaySbpMax > 0 && _displayDbpMax > 0)
-                      ? '$_displaySbpMax/$_displayDbpMax'
-                      : '--',
-                ),
+              const SizedBox(height: 16),
+
+              // ── 4. Daily chart ─────────────────────────────────────────────
+              _BPChartCard(
+                headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
+                rangeLabel: dailyRangeLabel,
+                sbpValues: _isToday ? _chartSbp : [],
+                dbpValues: _isToday ? _chartDbp : [],
+                xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                loading: _loading || _loadingDay,
               ),
-            ]),
-            const SizedBox(height: 10),
-
-            // ── 6. Real-time measurement ───────────────────────────────────
-            _RealTimeBPCard(
-              sbp: _manualSbp,
-              dbp: _manualDbp,
-              measuring: _measuring,
-              enabled: connected && !_measuring,
-              onTap: _startMeasurement,
-            ),
-            const SizedBox(height: 20),
-
-            // ── 7. 7-day trend ─────────────────────────────────────────────
-            _BPChartCard(
-              headerLabel: 'LAST 7 DAYS TREND',
-              rangeLabel: trendRangeLabel,
-              sbpValues: _trendSbp,
-              dbpValues: _trendDbp,
-              xLabels: _trendXLabels(),
-              loading: _loadingTrend,
-            ),
-            if (_trendOffline) ...[
-              const SizedBox(height: 8),
-              const OfflineNotice(message: 'Connect to WiFi to load your 7-day trend'),
-            ],
-            const SizedBox(height: 10),
-
-            // ── 8. Legend ──────────────────────────────────────────────────
-            Row(children: [
-              _LegendDot(color: AppTheme.bpColor, label: 'Systolic'),
-              const SizedBox(width: 14),
-              _LegendDot(color: _dbpColor, label: 'Diastolic'),
-            ]),
-
-            const SizedBox(height: 80),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── BP Detection card ──────────────────────────────────────────────────────────
-
-class _BPDetectionCard extends StatelessWidget {
-  final bool enabled;
-  final ValueChanged<bool> onToggle;
-  const _BPDetectionCard({required this.enabled, required this.onToggle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Blood Pressure Detection', style: _inter(15, weight: FontWeight.w600)),
-                const SizedBox(height: 5),
-                Text(
-                  'Enable continuous blood pressure monitoring throughout the day.',
-                  style: _inter(12, color: _kSec2, height: 1.45),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              if (_dayOffline && !_isToday) ...[
+                const SizedBox(height: 8),
+                const OfflineNotice(
+                  message: 'Connect to WiFi to load this day\'s blood pressure',
                 ),
               ],
-            ),
+              const SizedBox(height: 10),
+
+              // ── 5. Stats row ───────────────────────────────────────────────
+              Row(
+                children: [
+                  Expanded(
+                    child: _BPStatCard(
+                      label: 'AVERAGE',
+                      value: (_displaySbpAvg > 0 && _displayDbpAvg > 0)
+                          ? '$_displaySbpAvg/$_displayDbpAvg'
+                          : '--',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _BPStatCard(
+                      label: 'MINIMUM',
+                      value: (_displaySbpMin > 0 && _displayDbpMin > 0)
+                          ? '$_displaySbpMin/$_displayDbpMin'
+                          : '--',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _BPStatCard(
+                      label: 'MAXIMUM',
+                      value: (_displaySbpMax > 0 && _displayDbpMax > 0)
+                          ? '$_displaySbpMax/$_displayDbpMax'
+                          : '--',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // ── 6. Real-time measurement ───────────────────────────────────
+              _RealTimeBPCard(
+                sbp: _manualSbp,
+                dbp: _manualDbp,
+                measuring: _measuring,
+                enabled: connected && !_measuring,
+                onTap: _startMeasurement,
+              ),
+              const SizedBox(height: 20),
+
+              // ── 7. 7-day trend ─────────────────────────────────────────────
+              _BPChartCard(
+                headerLabel: 'LAST 7 DAYS TREND',
+                rangeLabel: trendRangeLabel,
+                sbpValues: _trendSbp,
+                dbpValues: _trendDbp,
+                xLabels: _trendXLabels(),
+                loading: _loadingTrend,
+              ),
+              if (_trendOffline) ...[
+                const SizedBox(height: 8),
+                const OfflineNotice(
+                  message: 'Connect to WiFi to load your 7-day trend',
+                ),
+              ],
+              const SizedBox(height: 10),
+
+              // ── 8. Legend ──────────────────────────────────────────────────
+              Row(
+                children: [
+                  _LegendDot(color: AppTheme.bpColor, label: 'Systolic'),
+                  const SizedBox(width: 14),
+                  _LegendDot(color: _dbpColor, label: 'Diastolic'),
+                ],
+              ),
+
+              const SizedBox(height: 80),
+            ],
           ),
-          Switch(value: enabled, onChanged: onToggle),
-        ],
+        ),
       ),
     );
   }
@@ -602,8 +713,18 @@ class _BPDateRow extends StatelessWidget {
   const _BPDateRow({required this.selectedDate, required this.onDateSelected});
 
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   @override
@@ -628,7 +749,11 @@ class _BPDateRow extends StatelessWidget {
   Widget _buildItem(DateTime d, DateTime today) {
     final isToday = d == today;
     final isFuture = d.isAfter(today);
-    final sel = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final sel = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
     final isSelected = d == sel && !isToday;
 
     if (isToday || isSelected) {
@@ -642,7 +767,9 @@ class _BPDateRow extends StatelessWidget {
             border: Border.all(color: const Color(0xFF363636)),
           ),
           child: Text(
-            isToday ? 'Today, ${d.day} ${_months[d.month - 1]}' : '${d.day} ${_months[d.month - 1]}',
+            isToday
+                ? 'Today, ${d.day} ${_months[d.month - 1]}'
+                : '${d.day} ${_months[d.month - 1]}',
             style: _inter(13, weight: FontWeight.w500),
           ),
         ),
@@ -653,7 +780,10 @@ class _BPDateRow extends StatelessWidget {
       onTap: isFuture ? null : () => onDateSelected(d),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: Text('${d.day}', style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2)),
+        child: Text(
+          '${d.day}',
+          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
+        ),
       ),
     );
   }
@@ -695,10 +825,23 @@ class _BPChartCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(headerLabel,
-                  style: _inter(11, weight: FontWeight.w600, color: _kSec, letterSpacing: 0.6)),
-              Text(rangeLabel,
-                  style: _inter(11, weight: FontWeight.w500, color: const Color(0xFF999999))),
+              Text(
+                headerLabel,
+                style: _inter(
+                  11,
+                  weight: FontWeight.w600,
+                  color: _kSec,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              Text(
+                rangeLabel,
+                style: _inter(
+                  11,
+                  weight: FontWeight.w500,
+                  color: const Color(0xFF999999),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -713,20 +856,28 @@ class _BPChartCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: ['160', '120', '80', '40']
-                        .map((l) => Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: Text(l, style: _inter(10, color: _kSec)),
-                            ))
+                        .map(
+                          (l) => Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: Text(l, style: _inter(10, color: _kSec)),
+                          ),
+                        )
                         .toList(),
                   ),
                 ),
                 Expanded(
                   child: loading
                       ? const Center(
-                          child: CircularProgressIndicator(color: AppTheme.bpColor, strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            color: AppTheme.bpColor,
+                            strokeWidth: 2,
+                          ),
                         )
                       : CustomPaint(
-                          painter: _BPBarPainter(sbpValues: sbpValues, dbpValues: dbpValues),
+                          painter: _BPBarPainter(
+                            sbpValues: sbpValues,
+                            dbpValues: dbpValues,
+                          ),
                           child: const SizedBox.expand(),
                         ),
                 ),
@@ -738,7 +889,9 @@ class _BPChartCard extends StatelessWidget {
             padding: const EdgeInsets.only(left: _yAxisW),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: xLabels.map((l) => Text(l, style: _inter(10, color: _kSec))).toList(),
+              children: xLabels
+                  .map((l) => Text(l, style: _inter(10, color: _kSec)))
+                  .toList(),
             ),
           ),
         ],
@@ -782,8 +935,13 @@ class _BPBarPainter extends CustomPainter {
         final ratio = (sbp / _maxY).clamp(0.0, 1.0);
         final barH = (ratio * size.height).clamp(2.0, size.height);
         canvas.drawRRect(
-          RRect.fromLTRBR(cx - barW - 1, size.height - barH, cx - 1, size.height,
-              const Radius.circular(2)),
+          RRect.fromLTRBR(
+            cx - barW - 1,
+            size.height - barH,
+            cx - 1,
+            size.height,
+            const Radius.circular(2),
+          ),
           sbpPaint,
         );
       }
@@ -793,8 +951,13 @@ class _BPBarPainter extends CustomPainter {
         final ratio = (dbp / _maxY).clamp(0.0, 1.0);
         final barH = (ratio * size.height).clamp(2.0, size.height);
         canvas.drawRRect(
-          RRect.fromLTRBR(cx + 1, size.height - barH, cx + barW + 1, size.height,
-              const Radius.circular(2)),
+          RRect.fromLTRBR(
+            cx + 1,
+            size.height - barH,
+            cx + barW + 1,
+            size.height,
+            const Radius.circular(2),
+          ),
           dbpPaint,
         );
       }
@@ -826,8 +989,15 @@ class _BPStatCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label,
-              style: _inter(10, weight: FontWeight.w600, color: _kSec, letterSpacing: 0.7)),
+          Text(
+            label,
+            style: _inter(
+              10,
+              weight: FontWeight.w600,
+              color: _kSec,
+              letterSpacing: 0.7,
+            ),
+          ),
           const SizedBox(height: 8),
           FittedBox(
             fit: BoxFit.scaleDown,
@@ -838,7 +1008,10 @@ class _BPStatCard extends StatelessWidget {
               children: [
                 Text(value, style: _inter(17, weight: FontWeight.w600)),
                 const SizedBox(width: 4),
-                Text(value != '--' ? 'mmHg' : '', style: _inter(11, color: _kSec)),
+                Text(
+                  value != '--' ? 'mmHg' : '',
+                  style: _inter(11, color: _kSec),
+                ),
               ],
             ),
           ),
@@ -872,8 +1045,8 @@ class _RealTimeBPCard extends StatelessWidget {
     final bpText = measuring
         ? '···'
         : (sbp > 0 && dbp > 0)
-            ? '$sbp/$dbp'
-            : '--';
+        ? '$sbp/$dbp'
+        : '--';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -887,15 +1060,24 @@ class _RealTimeBPCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Real Time Blood Pressure', style: _inter(14, weight: FontWeight.w500)),
+              Text(
+                'Real Time Blood Pressure',
+                style: _inter(14, weight: FontWeight.w500),
+              ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Text(bpText,
-                      style: _inter(15,
-                          weight: FontWeight.w600,
-                          color: measuring || (sbp > 0 && dbp > 0) ? Colors.white : _kSec2)),
+                  Text(
+                    bpText,
+                    style: _inter(
+                      15,
+                      weight: FontWeight.w600,
+                      color: measuring || (sbp > 0 && dbp > 0)
+                          ? Colors.white
+                          : _kSec2,
+                    ),
+                  ),
                   const SizedBox(width: 4),
                   Text('mmHg', style: _inter(11, color: _kSec)),
                 ],
@@ -925,7 +1107,11 @@ class _RealTimeBPCard extends StatelessWidget {
                       )
                     : Text(
                         'Click to start measurement',
-                        style: _inter(14, weight: FontWeight.w500, color: enabled ? Colors.white70 : _kSec),
+                        style: _inter(
+                          14,
+                          weight: FontWeight.w500,
+                          color: enabled ? Colors.white70 : _kSec,
+                        ),
                       ),
               ),
             ),
@@ -945,11 +1131,11 @@ class _LegendDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircleAvatar(radius: 4, backgroundColor: color),
-          const SizedBox(width: 4),
-          Text(label, style: _inter(10, color: _kSec)),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      CircleAvatar(radius: 4, backgroundColor: color),
+      const SizedBox(width: 4),
+      Text(label, style: _inter(10, color: _kSec)),
+    ],
+  );
 }

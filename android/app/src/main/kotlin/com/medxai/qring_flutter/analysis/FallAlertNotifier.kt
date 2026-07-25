@@ -8,6 +8,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.medxai.qring_flutter.MainActivity
+import com.medxai.qring_flutter.R
 
 /**
  * Phase 3 — the first user-visible piece of the fall-risk feature. Fires a local, high-
@@ -58,7 +59,7 @@ object FallAlertNotifier {
                         "Otherwise open the app to alert your emergency contact."
                 )
             )
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setSmallIcon(R.drawable.ic_notification)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)

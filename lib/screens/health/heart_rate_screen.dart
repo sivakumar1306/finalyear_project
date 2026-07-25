@@ -6,15 +6,18 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
+import '../../widgets/screenshot_share.dart';
+import 'vital_note_screen.dart';
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
-const _kCard    = Color(0xFF141414);
-const _kBorder  = Color(0xFF242424);
-const _kGrid    = Color(0xFF222222);
-const _kSec     = Color(0xFF666666);
-const _kSec2    = Color(0xFF888888);
+const _kCard = Color(0xFF141414);
+const _kBorder = Color(0xFF242424);
+const _kGrid = Color(0xFF222222);
+const _kSec = Color(0xFF666666);
+const _kSec2 = Color(0xFF888888);
 
 TextStyle _inter(
   double size, {
@@ -22,14 +25,13 @@ TextStyle _inter(
   Color color = Colors.white,
   double? letterSpacing,
   double? height,
-}) =>
-    GoogleFonts.inter(
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-      letterSpacing: letterSpacing,
-      height: height,
-    );
+}) => GoogleFonts.inter(
+  fontSize: size,
+  fontWeight: weight,
+  color: color,
+  letterSpacing: letterSpacing,
+  height: height,
+);
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -41,19 +43,19 @@ class HeartRateScreen extends StatefulWidget {
 
 class _HeartRateScreenState extends State<HeartRateScreen> {
   final _ble = BleService();
+  final _moreButtonKey = GlobalKey();
+  final _screenshotKey = GlobalKey();
 
-  bool _loading       = false;
-  bool _loadingDay    = false;
-  bool _loadingTrend  = false;
-  bool _measuring     = false;
-  bool _dayOffline    = false;
-  bool _trendOffline  = false;
+  bool _loading = false;
+  bool _loadingDay = false;
+  bool _loadingTrend = false;
+  bool _measuring = false;
+  bool _dayOffline = false;
+  bool _trendOffline = false;
 
   DateTime _selectedDate = DateTime.now();
 
   int _manualHr = 0;
-  bool _settingEnabled  = true;
-  int  _settingInterval = 5;
 
   // Today's ring data
   List<int> _chartValues = [];
@@ -80,14 +82,13 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   int get _displayMax => _isToday ? _maxHr : _dayMax;
 
   String _fmt(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   // ── Init ──────────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
-    _loadSettings();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Local DB read — doesn't need a live ring connection, unlike the old
       // direct-ring-fetch this replaced.
@@ -100,11 +101,14 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
 
   void _onDateSelected(DateTime date) {
     final n = DateTime.now();
-    final isToday = date.year == n.year && date.month == n.month && date.day == n.day;
+    final isToday =
+        date.year == n.year && date.month == n.month && date.day == n.day;
     setState(() {
       _selectedDate = date;
       _manualHr = 0;
-      if (isToday) { _dayAvg = _dayMin = _dayMax = 0; }
+      if (isToday) {
+        _dayAvg = _dayMin = _dayMax = 0;
+      }
     });
     if (!isToday) _loadDayFromSupabase(date);
   }
@@ -116,12 +120,26 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   // (which reads the same local DB via BleProvider).
 
   Future<void> _fetchTodayFromLocalDb() async {
-    setState(() { _loading = true; _manualHr = 0; });
+    setState(() {
+      _loading = true;
+      _manualHr = 0;
+    });
     try {
       final now = DateTime.now();
-      final dayStart = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
-      final dayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999)
-          .millisecondsSinceEpoch;
+      final dayStart = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).millisecondsSinceEpoch;
+      final dayEnd = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        23,
+        59,
+        59,
+        999,
+      ).millisecondsSinceEpoch;
 
       final summaryJson = await _ble.getTodaySummary('heart_rate');
       final summary = jsonDecode(summaryJson) as Map<String, dynamic>;
@@ -129,8 +147,12 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
 
       final hourly = List<int>.filled(24, 0);
       if (count > 0) {
-  final readingsJson =
-            await _ble.getReadings('heart_rate', fromMs: dayStart, toMs: dayEnd, limit: 1000);
+        final readingsJson = await _ble.getReadings(
+          'heart_rate',
+          fromMs: dayStart,
+          toMs: dayEnd,
+          limit: 1000,
+        );
         debugPrint('HR_DEBUG2 readingsJson=$readingsJson');
         final decoded = jsonDecode(readingsJson);
         final list = decoded is List ? decoded : <dynamic>[];
@@ -175,8 +197,12 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     if (user == null) return;
     try {
       await SupabaseService.upsertHr(
-        userId: user.id, date: DateTime.now(),
-        avgHr: avg, minHr: min, maxHr: max, sampleCount: count,
+        userId: user.id,
+        date: DateTime.now(),
+        avgHr: avg,
+        minHr: min,
+        maxHr: max,
+        sampleCount: count,
       );
     } catch (_) {}
   }
@@ -186,7 +212,10 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   Future<void> _loadDayFromSupabase(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() { _loadingDay = true; _dayOffline = false; });
+    setState(() {
+      _loadingDay = true;
+      _dayOffline = false;
+    });
     try {
       final row = await SupabaseService.getHrForDate(user.id, date);
       if (!mounted) return;
@@ -207,7 +236,10 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   Future<void> _load7DayTrend() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() { _loadingTrend = true; _trendOffline = false; });
+    setState(() {
+      _loadingTrend = true;
+      _trendOffline = false;
+    });
     try {
       final now = DateTime.now();
       final rows = await SupabaseService.getHrHistory(
@@ -217,7 +249,10 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       );
       final vals = List.generate(7, (i) {
         final day = now.subtract(Duration(days: 6 - i));
-        final row = rows.firstWhere((r) => r['date'] == _fmt(day), orElse: () => {});
+        final row = rows.firstWhere(
+          (r) => r['date'] == _fmt(day),
+          orElse: () => {},
+        );
         return (row['avg_hr'] as num? ?? 0).toInt();
       });
       final valid = rows.where((r) => r['min_hr'] != null).toList();
@@ -226,10 +261,14 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         _trendValues = vals;
         _trendMin = valid.isEmpty
             ? 0
-            : valid.map((r) => (r['min_hr'] as num).toInt()).reduce((a, b) => a < b ? a : b);
+            : valid
+                  .map((r) => (r['min_hr'] as num).toInt())
+                  .reduce((a, b) => a < b ? a : b);
         _trendMax = valid.isEmpty
             ? 0
-            : valid.map((r) => (r['max_hr'] as num).toInt()).reduce((a, b) => a > b ? a : b);
+            : valid
+                  .map((r) => (r['max_hr'] as num).toInt())
+                  .reduce((a, b) => a > b ? a : b);
       });
     } catch (e) {
       if (mounted && isNetworkError(e)) setState(() => _trendOffline = true);
@@ -238,29 +277,12 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     }
   }
 
-  // ── Settings ──────────────────────────────────────────────────────────────────
-
-  Future<void> _loadSettings() async {
-    if (!context.read<BleProvider>().isConnected) return;
-    try {
-      final json = await _ble.getHeartRateSetting();
-      final m = jsonDecode(json);
-      setState(() {
-        _settingEnabled  = m['enable']   ?? true;
-        _settingInterval = m['interval'] ?? 5;
-      });
-    } catch (_) {}
-  }
-
-  Future<void> _saveSettings() async {
-    try {
-      await _ble.setHeartRateSetting(enable: _settingEnabled, interval: _settingInterval);
-    } catch (_) {}
-  }
-
   Future<void> _startMeasurement() async {
     if (_measuring) return;
-    setState(() { _measuring = true; _manualHr = 0; });
+    setState(() {
+      _measuring = true;
+      _manualHr = 0;
+    });
     try {
       final hr = await _ble.readHeartRate();
       if (!mounted) return;
@@ -285,11 +307,81 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     }
   }
 
+  // ── Three-dot menu ────────────────────────────────────────────────────────
+
+  void _openMenu() {
+    showGlassMenu(
+      context: context,
+      anchorKey: _moreButtonKey,
+      items: [
+        GlassMenuItem(
+          label: 'Share',
+          onTap: () =>
+              shareScreenshot(_screenshotKey, text: 'My Heart Rate — SUNDR'),
+        ),
+        GlassMenuItem(
+          label: 'Note',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const VitalNoteScreen(
+                title: 'Heart Rate',
+                heading: 'About Heart Rate',
+                intro:
+                    'Beats per minute, measured continuously by the ring\'s '
+                    'optical sensor. Resting heart rate is one of the '
+                    'clearest day-to-day fitness signals you have.',
+                ranges: [
+                  VitalRange(
+                    label: 'Below normal',
+                    range: '< 60 bpm',
+                    color: AppTheme.hrvColor,
+                  ),
+                  VitalRange(
+                    label: 'Normal',
+                    range: '60–99 bpm',
+                    color: AppTheme.success,
+                  ),
+                  VitalRange(
+                    label: 'Above normal',
+                    range: '100+ bpm',
+                    color: AppTheme.danger,
+                  ),
+                ],
+                tips: [
+                  VitalTip(
+                    icon: Icons.trending_down_rounded,
+                    color: AppTheme.hrvColor,
+                    title: 'Lower can be fine',
+                    tip:
+                        'A resting rate under 60 bpm is often a sign of '
+                        'good cardiovascular fitness, not a problem.',
+                  ),
+                  VitalTip(
+                    icon: Icons.show_chart_rounded,
+                    color: AppTheme.hrColor,
+                    title: 'Watch the trend',
+                    tip:
+                        'A resting rate that\'s creeping up week over week '
+                        'is more meaningful than any single reading.',
+                  ),
+                ],
+                didYouKnow:
+                    'Caffeine, dehydration, and poor sleep can all push '
+                    'your resting heart rate up temporarily.',
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────────
 
   List<String> _trendXLabels() {
     final now = DateTime.now();
-    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return List.generate(7, (i) {
       final d = now.subtract(Duration(days: 6 - i));
       return days[d.weekday - 1];
@@ -305,207 +397,159 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     final hrValue = _measuring
         ? '···'
         : _manualHr > 0
-            ? '$_manualHr'
-            : _displayAvg > 0
-                ? '$_displayAvg'
-                : '--';
+        ? '$_manualHr'
+        : _displayAvg > 0
+        ? '$_displayAvg'
+        : '--';
 
     final hasData = _isToday && _chartValues.any((v) => v > 0);
 
-    final dailyRangeLabel = hasData
-        ? '$_displayMin - $_displayMax'
-        : '-- --';
+    final dailyRangeLabel = hasData ? '$_displayMin - $_displayMax' : '-- --';
 
     final trendRangeLabel = _trendMin > 0 && _trendMax > 0
         ? '$_trendMin - $_trendMax BPM'
         : '-- -- BPM';
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg,
-      appBar: AppBar(
+    return RepaintBoundary(
+      key: _screenshotKey,
+      child: Scaffold(
         backgroundColor: AppTheme.bg,
-        foregroundColor: Colors.white,
-        centerTitle: true,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text('Heart Rate', style: _inter(17, weight: FontWeight.w600)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onPressed: () {},
+        appBar: AppBar(
+          backgroundColor: AppTheme.bg,
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
           ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(0.5),
-          child: Container(color: _kBorder, height: 0.5),
+          title: Text('Heart Rate', style: _inter(17, weight: FontWeight.w600)),
+          actions: [
+            IconButton(
+              key: _moreButtonKey,
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onPressed: _openMenu,
+            ),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(0.5),
+            child: Container(color: _kBorder, height: 0.5),
+          ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 16),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
 
-            // ── 1. HR Detection toggle ─────────────────────────────────────
-            _HRDetectionCard(
-              enabled: _settingEnabled,
-              onToggle: (v) {
-                setState(() => _settingEnabled = v);
-                _saveSettings();
-              },
-            ),
-            const SizedBox(height: 20),
+              // ── 2. Date row ────────────────────────────────────────────────
+              _HRDateRow(
+                selectedDate: _selectedDate,
+                onDateSelected: _onDateSelected,
+              ),
+              const SizedBox(height: 22),
 
-            // ── 2. Date row ────────────────────────────────────────────────
-            _HRDateRow(
-              selectedDate: _selectedDate,
-              onDateSelected: _onDateSelected,
-            ),
-            const SizedBox(height: 22),
-
-            // ── 3. Current HR value ────────────────────────────────────────
-            Text(
-              'CURRENT HEART RATE',
-              style: _inter(11,
+              // ── 3. Current HR value ────────────────────────────────────────
+              Text(
+                'CURRENT HEART RATE',
+                style: _inter(
+                  11,
                   weight: FontWeight.w600,
                   color: AppTheme.gold,
-                  letterSpacing: 1.2),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              hrValue,
-              style: _inter(52,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                hrValue,
+                style: _inter(
+                  52,
                   weight: FontWeight.w300,
                   color: Colors.white,
-                  height: 1.1),
-            ),
-            Text(
-              'bpm',
-              style: _inter(13, color: _kSec),
-            ),
-            const SizedBox(height: 16),
-
-            // ── 4. Daily chart ─────────────────────────────────────────────
-            _HRChartCard(
-              headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
-              rangeLabel: dailyRangeLabel,
-              values: _isToday ? _chartValues : [],
-              xLabels: const ['12am', '6am', '12pm', '6pm', ''],
-              loading: _loading || _loadingDay,
-            ),
-            if (_dayOffline && !_isToday) ...[
-              const SizedBox(height: 8),
-              const OfflineNotice(message: 'Connect to WiFi to load this day\'s heart rate'),
-            ],
-            const SizedBox(height: 10),
-
-            // ── 5. Stats row ───────────────────────────────────────────────
-            Row(children: [
-              Expanded(
-                child: _HRStatCard(
-                  label: 'AVERAGE',
-                  value: _displayAvg > 0 ? '$_displayAvg' : '--',
-                  unit:  _displayAvg > 0 ? 'bpm' : '--',
+                  height: 1.1,
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _HRStatCard(
-                  label: 'MINIMUM',
-                  value: _displayMin > 0 ? '$_displayMin' : '--',
-                  unit:  _displayMin > 0 ? 'bpm' : '--',
-                ),
+              Text('bpm', style: _inter(13, color: _kSec)),
+              const SizedBox(height: 16),
+
+              // ── 4. Daily chart ─────────────────────────────────────────────
+              _HRChartCard(
+                headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
+                rangeLabel: dailyRangeLabel,
+                values: _isToday ? _chartValues : [],
+                xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                loading: _loading || _loadingDay,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _HRStatCard(
-                  label: 'MAXIMUM',
-                  value: _displayMax > 0 ? '$_displayMax' : '--',
-                  unit:  _displayMax > 0 ? 'bpm' : '--',
-                ),
-              ),
-            ]),
-            const SizedBox(height: 10),
-
-            // ── 6. Real-time measurement ───────────────────────────────────
-            _RealTimeCard(
-              latestHr: _manualHr,
-              measuring: _measuring,
-              enabled: connected && !_measuring,
-              onTap: _startMeasurement,
-            ),
-            const SizedBox(height: 20),
-
-            // ── 7. 7-day trend ─────────────────────────────────────────────
-            _HRChartCard(
-              headerLabel: 'LAST 7 DAYS TREND',
-              rangeLabel: trendRangeLabel,
-              values: _trendValues,
-              xLabels: _trendXLabels(),
-              loading: _loadingTrend,
-            ),
-            if (_trendOffline) ...[
-              const SizedBox(height: 8),
-              const OfflineNotice(message: 'Connect to WiFi to load your 7-day trend'),
-            ],
-            const SizedBox(height: 10),
-
-            // ── 8. Sleep ───────────────────────────────────────────────────
-            
-            const SizedBox(height: 80),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Heart Rate Detection card ─────────────────────────────────────────────────
-
-class _HRDetectionCard extends StatelessWidget {
-  final bool enabled;
-  final ValueChanged<bool> onToggle;
-  const _HRDetectionCard({required this.enabled, required this.onToggle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Heart Rate Detection',
-                    style: _inter(15, weight: FontWeight.w600)),
-                const SizedBox(height: 5),
-                Text(
-                  'Start continuous heart rate measurement, '
-                  'monitor it every 30 minutes, automatically hear...',
-                  style: _inter(12, color: _kSec2, height: 1.45),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              if (_dayOffline && !_isToday) ...[
+                const SizedBox(height: 8),
+                const OfflineNotice(
+                  message: 'Connect to WiFi to load this day\'s heart rate',
                 ),
               ],
-            ),
+              const SizedBox(height: 10),
+
+              // ── 5. Stats row ───────────────────────────────────────────────
+              Row(
+                children: [
+                  Expanded(
+                    child: _HRStatCard(
+                      label: 'AVERAGE',
+                      value: _displayAvg > 0 ? '$_displayAvg' : '--',
+                      unit: _displayAvg > 0 ? 'bpm' : '--',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _HRStatCard(
+                      label: 'MINIMUM',
+                      value: _displayMin > 0 ? '$_displayMin' : '--',
+                      unit: _displayMin > 0 ? 'bpm' : '--',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _HRStatCard(
+                      label: 'MAXIMUM',
+                      value: _displayMax > 0 ? '$_displayMax' : '--',
+                      unit: _displayMax > 0 ? 'bpm' : '--',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // ── 6. Real-time measurement ───────────────────────────────────
+              _RealTimeCard(
+                latestHr: _manualHr,
+                measuring: _measuring,
+                enabled: connected && !_measuring,
+                onTap: _startMeasurement,
+              ),
+              const SizedBox(height: 20),
+
+              // ── 7. 7-day trend ─────────────────────────────────────────────
+              _HRChartCard(
+                headerLabel: 'LAST 7 DAYS TREND',
+                rangeLabel: trendRangeLabel,
+                values: _trendValues,
+                xLabels: _trendXLabels(),
+                loading: _loadingTrend,
+              ),
+              if (_trendOffline) ...[
+                const SizedBox(height: 8),
+                const OfflineNotice(
+                  message: 'Connect to WiFi to load your 7-day trend',
+                ),
+              ],
+              const SizedBox(height: 10),
+
+              // ── 8. Sleep ───────────────────────────────────────────────────
+              const SizedBox(height: 80),
+            ],
           ),
-          Switch(
-            value: enabled,
-            onChanged: onToggle,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -519,13 +563,23 @@ class _HRDateRow extends StatelessWidget {
   const _HRDateRow({required this.selectedDate, required this.onDateSelected});
 
   static const _months = [
-    'Jan','Feb','Mar','Apr','May','Jun',
-    'Jul','Aug','Sep','Oct','Nov','Dec'
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   @override
   Widget build(BuildContext context) {
-    final now  = DateTime.now();
+    final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     // Show 3 days before today, today, 3 days after
     final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
@@ -544,9 +598,13 @@ class _HRDateRow extends StatelessWidget {
   }
 
   Widget _buildItem(DateTime d, DateTime today) {
-    final isToday  = d == today;
+    final isToday = d == today;
     final isFuture = d.isAfter(today);
-    final sel = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final sel = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
     final isSelected = d == sel && !isToday;
 
     if (isToday || isSelected) {
@@ -575,8 +633,7 @@ class _HRDateRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Text(
           '${d.day}',
-          style: _inter(15,
-              color: isFuture ? const Color(0xFF333333) : _kSec2),
+          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
         ),
       ),
     );
@@ -618,15 +675,23 @@ class _HRChartCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(headerLabel,
-                  style: _inter(11,
-                      weight: FontWeight.w600,
-                      color: _kSec,
-                      letterSpacing: 0.6)),
-              Text(rangeLabel,
-                  style: _inter(11,
-                      weight: FontWeight.w500,
-                      color: const Color(0xFF999999))),
+              Text(
+                headerLabel,
+                style: _inter(
+                  11,
+                  weight: FontWeight.w600,
+                  color: _kSec,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              Text(
+                rangeLabel,
+                style: _inter(
+                  11,
+                  weight: FontWeight.w500,
+                  color: const Color(0xFF999999),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -642,11 +707,12 @@ class _HRChartCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: ['120', '100', '80', '60']
-                        .map((l) => Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: Text(l,
-                                  style: _inter(10, color: _kSec)),
-                            ))
+                        .map(
+                          (l) => Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: Text(l, style: _inter(10, color: _kSec)),
+                          ),
+                        )
                         .toList(),
                   ),
                 ),
@@ -689,7 +755,7 @@ class _HRBarPainter extends CustomPainter {
   final List<int> values;
   const _HRBarPainter({required this.values});
 
-  static const _maxY   = 120.0;
+  static const _maxY = 120.0;
   static const _yLines = [120, 100, 80, 60];
 
   @override
@@ -708,18 +774,21 @@ class _HRBarPainter extends CustomPainter {
     final slotW = size.width / n;
     // Bar width: narrower for many values, wider for 7-day (few values)
     final barW = (slotW * 0.55).clamp(2.0, 9.0);
-    final barPaint = Paint()
-      ..color = AppTheme.hrColor.withValues(alpha: 0.88);
+    final barPaint = Paint()..color = AppTheme.hrColor.withValues(alpha: 0.88);
 
     for (int i = 0; i < n; i++) {
       if (values[i] <= 0) continue;
       final ratio = (values[i] / _maxY).clamp(0.0, 1.0);
-      final barH  = (ratio * size.height).clamp(2.0, size.height);
-      final x     = i * slotW + (slotW - barW) / 2;
+      final barH = (ratio * size.height).clamp(2.0, size.height);
+      final x = i * slotW + (slotW - barW) / 2;
       canvas.drawRRect(
         RRect.fromLTRBR(
-            x, size.height - barH, x + barW, size.height,
-            const Radius.circular(3)),
+          x,
+          size.height - barH,
+          x + barW,
+          size.height,
+          const Radius.circular(3),
+        ),
         barPaint,
       );
     }
@@ -754,25 +823,27 @@ class _HRStatCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label,
-              style: _inter(10,
-                  weight: FontWeight.w600,
-                  color: _kSec,
-                  letterSpacing: 0.7)),
+          Text(
+            label,
+            style: _inter(
+              10,
+              weight: FontWeight.w600,
+              color: _kSec,
+              letterSpacing: 0.7,
+            ),
+          ),
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(value,
-                  style: _inter(17, weight: FontWeight.w600)),
+              Text(value, style: _inter(17, weight: FontWeight.w600)),
               const SizedBox(width: 4),
               Text(unit, style: _inter(11, color: _kSec)),
             ],
           ),
           const SizedBox(height: 6),
-          Text('know more >',
-              style: _inter(11, color: _kSec)),
+          Text('know more >', style: _inter(11, color: _kSec)),
         ],
       ),
     );
@@ -799,8 +870,8 @@ class _RealTimeCard extends StatelessWidget {
     final hrText = measuring
         ? '···'
         : latestHr > 0
-            ? '$latestHr'
-            : '--';
+        ? '$latestHr'
+        : '--';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -814,18 +885,22 @@ class _RealTimeCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Real Time Heart Rate',
-                  style: _inter(14, weight: FontWeight.w500)),
+              Text(
+                'Real Time Heart Rate',
+                style: _inter(14, weight: FontWeight.w500),
+              ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Text(hrText,
-                      style: _inter(15,
-                          weight: FontWeight.w600,
-                          color: measuring || latestHr > 0
-                              ? Colors.white
-                              : _kSec2)),
+                  Text(
+                    hrText,
+                    style: _inter(
+                      15,
+                      weight: FontWeight.w600,
+                      color: measuring || latestHr > 0 ? Colors.white : _kSec2,
+                    ),
+                  ),
                   const SizedBox(width: 4),
                   Text('BPM', style: _inter(11, color: _kSec)),
                 ],
@@ -849,17 +924,17 @@ class _RealTimeCard extends StatelessWidget {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                          color: enabled
-                              ? AppTheme.hrColor
-                              : _kSec,
+                          color: enabled ? AppTheme.hrColor : _kSec,
                           strokeWidth: 2,
                         ),
                       )
                     : Text(
                         'Click to start measurement',
-                        style: _inter(14,
-                            weight: FontWeight.w500,
-                            color: enabled ? Colors.white70 : _kSec),
+                        style: _inter(
+                          14,
+                          weight: FontWeight.w500,
+                          color: enabled ? Colors.white70 : _kSec,
+                        ),
                       ),
               ),
             ),

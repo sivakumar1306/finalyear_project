@@ -352,6 +352,20 @@ class BleService {
   Future<bool> simulateFallEvent() async =>
       await _methodChannel.invokeMethod<bool>('simulateFallEvent') ?? false;
 
+  /// Posts a phone-side alert notification (via AlertNotifier) for a vital that just
+  /// crossed a user-enabled threshold — see BleProvider._checkAlertThresholds.
+  Future<bool> postHealthAlert({
+    required String title,
+    required String message,
+    required String vital,
+  }) async =>
+      await _methodChannel.invokeMethod<bool>('postHealthAlert', {
+        'title': title,
+        'message': message,
+        'vital': vital,
+      }) ??
+      false;
+
   /// Dev/testing only — posts a real NewReadingEvent so FallRiskAnalyzer's compute-and-log
   /// pipeline can be verified without a real ring connected (seedDemoData bypasses this path).
   Future<bool> simulateFallRiskTrigger() async =>

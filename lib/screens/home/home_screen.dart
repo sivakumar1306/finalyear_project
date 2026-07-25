@@ -9,7 +9,6 @@ import '../../services/supabase_service.dart';
 import '../../services/home_card_prefs.dart';
 import '../../theme/app_theme.dart';
 import '../settings/fall_detection_screen.dart';
-import '../settings/card_settings_screen.dart';
 import 'ring_scan_sheet.dart';
 import 'side_panel.dart';
 import '../settings/about_screen.dart';
@@ -28,10 +27,10 @@ const _kOrbHr = Color(0xFFC96B6B);
 const _kOrbSleep = Color(0xFF6B82D9);
 const _kOrbStress = Color(0xFF6BC99B);
 const _kOrbSpo2 = Color(0xFF73D4F8);
-const _kOrbBp = Color(0xFFD97A7A);
 const _kOrbWomen = Color(0xFFD88CC8);
 const _kOrbActivity = Color(0xFFE08A4A);
 const _kOrbHrv = Color(0xFFC9A86E);
+const _kOrbTemp = Color(0xFFE3B76A);
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -49,6 +48,14 @@ Color _stressColor(int v) {
   if (v < 60) return const Color(0xFFFBBF24);
   if (v < 80) return AppTheme.stressColor;
   return AppTheme.danger;
+}
+
+String _tempStatus(double v) {
+  if (v <= 0) return 'No data';
+  if (v < 36.0) return 'Low';
+  if (v <= 37.2) return 'Normal';
+  if (v <= 38.0) return 'Elevated';
+  return 'Fever';
 }
 
 TextStyle _inter(
@@ -315,24 +322,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               : () => Navigator.pushNamed(context, '/pressure'),
         );
       case HomeCardId.womensHealth:
-        return Row(
-          children: [
-            Expanded(
-              child: _CompactWomensHealthCard(
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/womens-health'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _CompactBloodPressureCard(
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/blood-pressure'),
-              ),
-            ),
-          ],
+        return _CompactWomensHealthCard(
+          onTap: _editMode
+              ? null
+              : () => Navigator.pushNamed(context, '/womens-health'),
         );
       case HomeCardId.sleepHrv:
         return Row(
@@ -469,37 +462,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         );
       case HomeCardId.bloodPressure:
-        return _HomeCard(
-          label: 'Blood Pressure',
-          value: ble.latestBpSbp > 0
-              ? '${ble.latestBpSbp}/${ble.latestBpDbp}'
-              : '--/--',
-          unit: ble.latestBpSbp > 0 ? 'mmHg' : '',
-          status: ble.latestBpSbp > 0 ? 'Normal' : 'No data',
-          statusColor: ble.latestBpSbp > 0 ? _kOrbBp : _kSec2,
-          orbColor: _kOrbBp,
-          sparkData: const [
-            0.6,
-            0.65,
-            0.6,
-            0.68,
-            0.65,
-            0.6,
-            0.64,
-            0.67,
-            0.64,
-            0.6,
-            0.65,
-            0.62,
-          ],
-          connected: ble.isConnected,
-          onTap: _editMode
-              ? null
-              : () => Navigator.pushNamed(context, '/blood-pressure'),
-        );
-      case HomeCardId.temperature:
         return Row(
           children: [
+            Expanded(
+              child: _CompactBloodPressureCard(
+                onTap: _editMode
+                    ? null
+                    : () => Navigator.pushNamed(context, '/blood-pressure'),
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: _TemperatureCard(
                 tempC: ble.latestTempC,
@@ -511,6 +483,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ],
         );
+      case HomeCardId.temperature:
+        // Rendered together with Blood Pressure above as a paired square-card
+        // row; kept as a distinct HomeCardId only for saved order/visibility
+        // back-compat (see HomeCardPrefs).
+        return const SizedBox.shrink();
     }
   }
 
@@ -558,13 +535,37 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         },
         itemBuilder: (context, index) {
           final id = visibleCardIds[index];
+          final hidden = _hiddenCards.contains(id);
           return Padding(
             key: ValueKey(id),
             padding: const EdgeInsets.only(bottom: 12),
             child: Row(
               children: [
-                Expanded(child: IgnorePointer(child: _buildCardBlock(id, ble))),
-                const SizedBox(width: 12),
+                Expanded(
+                  child: IgnorePointer(
+                    child: AnimatedOpacity(
+                      opacity: hidden ? 0.35 : 1.0,
+                      duration: const Duration(milliseconds: 250),
+                      child: _buildCardBlock(id, ble),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Transform.scale(
+                  scale: 0.8,
+                  child: Switch(
+                    value: !hidden,
+                    onChanged: (v) {
+                      setState(() {
+                        if (v) {
+                          _hiddenCards.remove(id);
+                        } else {
+                          _hiddenCards.add(id);
+                        }
+                      });
+                    },
+                  ),
+                ),
                 ReorderableDragStartListener(
                   index: index,
                   child: Container(
@@ -600,14 +601,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
-    if (ble.deviceAddress.isEmpty) {
-      return _buildUnboundState(context, ble);
-    }
-    final visibleCardIds = _cardOrder.where((id) {
+    // Cards eligible to appear at all (independent of the user's show/hide
+    // choice) — this is what edit mode lists, so a hidden card can still be
+    // found and switched back on.
+    final editableCardIds = _cardOrder.where((id) {
       if (id == HomeCardId.womensHealth && !_isFemale) return false;
-      if (_hiddenCards.contains(id)) return false;
+      // Temperature now renders paired with Blood Pressure in a single
+      // square-card row (see _buildCardBlock) rather than as its own block.
+      if (id == HomeCardId.temperature) return false;
       return true;
     }).toList();
+
+    // What's actually rendered day-to-day — editable cards minus anything
+    // the user hid.
+    final visibleCardIds = _editMode
+        ? editableCardIds
+        : editableCardIds.where((id) => !_hiddenCards.contains(id)).toList();
 
     return RefreshIndicator(
       color: AppTheme.gold,
@@ -679,10 +688,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     });
                     if (!_editMode) {
                       _saveCardOrder();
+                      HomeCardPrefs.saveHidden(_hiddenCards);
                     }
                   },
                 ),
-                const SizedBox(height: 100),
+                const SizedBox(height: 20),
               ]),
             ),
           ),
@@ -717,20 +727,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   SidePanelGroup(
                     items: [
                       SidePanelItem(
-                        label: 'Goal setting',
-                        onTap: () async {
-                          Navigator.pop(context);
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const CardSettingsScreen(),
-                            ),
-                          );
-                          _loadCardOrder();
-                          _loadHiddenCards();
-                        },
-                      ),
-                      SidePanelItem(
                         label: 'About',
                         onTap: () {
                           Navigator.pop(context);
@@ -739,6 +735,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             MaterialPageRoute(
                               builder: (_) => const AboutScreen(),
                             ),
+                          );
+                        },
+                      ),
+                      SidePanelItem(
+                        label: 'Share',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Share.share(
+                            'Check out SUNDR — the AI health ring app I use to track my sleep, heart rate, and more.',
                           );
                         },
                       ),
@@ -753,50 +758,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: Text('Home', style: _inter(16, weight: FontWeight.w600)),
             ),
           ),
-          IconButton(
-            icon: const Icon(
-              Icons.more_vert_rounded,
-              color: Colors.white,
-              size: 22,
-            ),
-            onPressed: () => showSidePanel(
-              context: context,
-              fromRight: true,
-              child: SidePanelShell(
-                fromRight: true,
-                icon: GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const Icon(
-                    Icons.more_vert_rounded,
-                    color: Colors.white70,
-                    size: 22,
-                  ),
-                ),
-                items: [
-                  SidePanelGroup(
-                    items: [
-                      SidePanelItem(
-                        label: 'Share',
-                        onTap: () {
-                          Navigator.pop(context);
-                          Share.share(
-                            'Check out SUNDR — the AI health ring app I use to track my sleep, heart rate, and more.',
-                          );
-                        },
-                      ),
-                      SidePanelItem(
-                        label: 'Pair ring',
-                        onTap: () {
-                          Navigator.pop(context);
-                          showRingScanSheet(context);
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+          // Balances the leading menu IconButton's tap target so 'Home' stays centered.
+          const SizedBox(width: 48),
         ],
       ),
     );
@@ -856,108 +819,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildUnboundState(BuildContext context, BleProvider ble) {
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SafeArea(
-            bottom: false,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [_buildTopBar(context), _buildGreetingRow(ble)],
-            ),
-          ),
-        ),
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.gold.withValues(alpha: 0.08),
-                        blurRadius: 40,
-                        spreadRadius: 10,
-                      ),
-                    ],
-                  ),
-                  child: Image.asset('ring.png', fit: BoxFit.contain),
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  "You haven't bound a device yet",
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: RichText(
-                    textAlign: TextAlign.center,
-                    text: TextSpan(
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: Colors.white.withValues(alpha: 0.5),
-                        height: 1.5,
-                      ),
-                      children: [
-                        const TextSpan(
-                          text:
-                              'Welcome to SUNDR rings — bought a ring already? Connect your ring. Haven\'t bought one yet? ',
-                        ),
-                        TextSpan(
-                          text: 'Browse our collection.',
-                          style: const TextStyle(
-                            color: AppTheme.gold,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 36),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: () => showRingScanSheet(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.gold,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      'Pair Ring',
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1420,6 +1281,8 @@ class _StressCard extends StatelessWidget {
       orbColor: _kOrbStress,
       orbOnRight: false,
       orbOffset: -78,
+      height: 205,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1439,7 +1302,7 @@ class _StressCard extends StatelessWidget {
               _chevron(),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
@@ -1459,15 +1322,15 @@ class _StressCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 4),
           SizedBox(
-            height: 36,
+            height: 24,
             width: double.infinity,
             child: connected
                 ? CustomPaint(painter: _BarChartPainter(_kOrbStress, _barData))
                 : const _ConnectHint(),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 4),
 
           // Horizontal Divider added here
           Container(
@@ -1475,7 +1338,7 @@ class _StressCard extends StatelessWidget {
             width: double.infinity,
             color: Colors.white.withValues(alpha: 0.08),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
 
           Row(
             children: [
@@ -1491,7 +1354,7 @@ class _StressCard extends StatelessWidget {
                         weight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       avgStress > 0 ? '$avgStress' : '--',
                       style: GoogleFonts.inter(
@@ -1500,7 +1363,7 @@ class _StressCard extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.95),
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1),
                     Text(
                       _stressStatus(avgStress),
                       style: _inter(
@@ -1531,7 +1394,7 @@ class _StressCard extends StatelessWidget {
                         weight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       maxStress > 0 ? '$minStress-$maxStress' : '--',
                       style: GoogleFonts.inter(
@@ -1540,7 +1403,7 @@ class _StressCard extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.95),
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1),
                     Text(
                       _stressStatus(maxStress),
                       style: _inter(
@@ -1556,7 +1419,6 @@ class _StressCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
         ],
       ),
     );
@@ -1862,6 +1724,9 @@ class _CompactHealthCard extends StatelessWidget {
   final bool orbOnRight;
   final VoidCallback? onTap;
   final Widget child;
+  // When set, replaces the default radial orb glow with this gradient — used
+  // by cards (e.g. Temperature) that need a directional fade instead.
+  final Gradient? overlayGradient;
 
   const _CompactHealthCard({
     required this.title,
@@ -1869,6 +1734,7 @@ class _CompactHealthCard extends StatelessWidget {
     required this.child,
     this.orbOnRight = true,
     this.onTap,
+    this.overlayGradient,
   });
 
   @override
@@ -1891,23 +1757,30 @@ class _CompactHealthCard extends StatelessWidget {
             filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
             child: Stack(
               children: [
-                // Orb
-                Positioned(
-                  top: -40,
-                  left: orbOnRight ? null : -40,
-                  right: orbOnRight ? -40 : null,
-                  child: ImageFiltered(
-                    imageFilter: ImageFilter.blur(sigmaX: 35, sigmaY: 35),
-                    child: Container(
-                      width: 220,
-                      height: 220,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: orbColor.withValues(alpha: 0.35),
+                // Orb (or directional gradient fade when overlayGradient is set)
+                if (overlayGradient != null)
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(gradient: overlayGradient),
+                    ),
+                  )
+                else
+                  Positioned(
+                    top: -40,
+                    left: orbOnRight ? null : -40,
+                    right: orbOnRight ? -40 : null,
+                    child: ImageFiltered(
+                      imageFilter: ImageFilter.blur(sigmaX: 35, sigmaY: 35),
+                      child: Container(
+                        width: 220,
+                        height: 220,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: orbColor.withValues(alpha: 0.35),
+                        ),
                       ),
                     ),
                   ),
-                ),
                 // Content
                 Padding(
                   padding: const EdgeInsets.all(12),
@@ -2137,6 +2010,83 @@ class _CompactBloodPressureCard extends StatelessWidget {
   }
 }
 
+// ── Temperature card ──────────────────────────────────────────────────────────
+// Diagonal glass fade — warm #F5F0E2 highlight top-right easing through the
+// spec's 6% base tone, down to a black-tinted bottom-left corner.
+
+class _TemperatureCard extends StatelessWidget {
+  final double tempC;
+  final bool connected;
+  final VoidCallback? onTap;
+
+  const _TemperatureCard({
+    required this.tempC,
+    required this.connected,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasData = tempC > 0;
+
+    return _CompactHealthCard(
+      title: 'Temperature',
+      orbColor: _kOrbTemp,
+      onTap: onTap,
+      overlayGradient: const LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        stops: [0.0, 0.5, 1.0],
+        colors: [
+          Color(0x26F5F0E2), // brighter warm highlight at the top-right corner
+          Color(0x0FF5F0E2), // spec: #F5F0E2 @ 6%
+          Color(0x59000000), // black touch fading in at the bottom-left
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                hasData ? tempC.toStringAsFixed(1) : '--',
+                style: GoogleFonts.inter(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w200,
+                  color: Colors.white.withValues(alpha: 0.98),
+                  letterSpacing: -0.005,
+                ),
+              ),
+              const SizedBox(width: 3),
+              Text(
+                '°C',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w300,
+                  color: Colors.white.withValues(alpha: 0.6),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _tempStatus(tempC),
+            style: _inter(
+              12,
+              weight: FontWeight.w500,
+              color: hasData ? _kOrbTemp : _kSec2,
+              letterSpacing: -0.005,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ── Device pill ───────────────────────────────────────────────────────────────
 
 class _DevicePill extends StatelessWidget {
@@ -2270,29 +2220,31 @@ class _EditCardsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _ShrinkButton(
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: _kBtnBg,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _kBtnBorder, width: 0.5),
-            ),
-            child: Center(
-              child: Text(
-                editMode ? 'Done' : 'Edit Cards',
-                style: _inter(
-                  14,
-                  weight: FontWeight.w500,
-                  color: editMode
-                      ? AppTheme.gold
-                      : Colors.white.withValues(alpha: 0.5),
+    return Center(
+      child: _ShrinkButton(
+        onTap: onTap,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(
+              width: 85,
+              height: 29,
+              decoration: BoxDecoration(
+                color: _kBtnBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _kBtnBorder, width: 0.5),
+              ),
+              child: Center(
+                child: Text(
+                  editMode ? 'Done' : 'Edit Cards',
+                  style: _inter(
+                    11,
+                    weight: FontWeight.w500,
+                    color: editMode
+                        ? AppTheme.gold
+                        : Colors.white.withValues(alpha: 0.5),
+                  ),
                 ),
               ),
             ),
@@ -2352,10 +2304,12 @@ class _BarChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (data.isEmpty) return;
-    final barW = (size.width / data.length) - 2;
+    final slotW = size.width / data.length;
+    final barW = slotW * 0.55; // thinner bars, more breathing room between them
+    final xOffset = (slotW - barW) / 2;
 
     for (int i = 0; i < data.length; i++) {
-      final x = i * (barW + 2);
+      final x = i * slotW + xOffset;
       final h = data[i] * size.height;
       final y = size.height - h;
 
@@ -2372,7 +2326,7 @@ class _BarChartPainter extends CustomPainter {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(x, y, barW, h),
-          const Radius.circular(2),
+          Radius.circular((barW / 2).clamp(0, 4)),
         ),
         Paint()..color = barColor.withValues(alpha: 0.75),
       );
@@ -2438,139 +2392,4 @@ class _CycleBarPainter extends CustomPainter {
       old.currentDay != currentDay ||
       old.cycleLength != cycleLength ||
       old.periodLength != periodLength;
-}
-
-// ── Temperature Card (Task 1 Design Spec) ───────────────────────────────────
-
-class _TemperatureCard extends StatelessWidget {
-  final double tempC;
-  final bool connected;
-  final VoidCallback? onTap;
-
-  const _TemperatureCard({
-    required this.tempC,
-    required this.connected,
-    this.onTap,
-  });
-
-  static String _tempStatus(double v) {
-    if (v <= 0) return 'No Data';
-    if (v < 36.0) return 'Low';
-    if (v <= 37.2) return 'Normal';
-    if (v <= 38.0) return 'Elevated';
-    return 'Fever';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final hasData = tempC > 0;
-    final statusText = _tempStatus(tempC);
-
-    return _ShrinkButton(
-      onTap: onTap,
-      child: Container(
-        height: 160,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: const Color.fromRGBO(245, 240, 226, 0.06),
-          border: Border.all(
-            color: const Color.fromRGBO(245, 240, 226, 0.09),
-            width: 0.5,
-          ),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(17.5),
-          child: Stack(
-            children: [
-              // Circular glow at top-right (180x180, right: -40, top: -40, rgba(201,168,110,0.15), blur: 35px)
-              Positioned(
-                right: -40,
-                top: -40,
-                child: ImageFiltered(
-                  imageFilter: ImageFilter.blur(sigmaX: 35, sigmaY: 35),
-                  child: Container(
-                    width: 180,
-                    height: 180,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color.fromRGBO(201, 168, 110, 0.15),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned.fill(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Temperature',
-                            style: _inter(
-                              14,
-                              weight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
-                          ),
-                          _chevron(),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Divider(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        height: 1,
-                        thickness: 0.5,
-                      ),
-                      const Spacer(),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Flexible(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                hasData ? tempC.toStringAsFixed(1) : '--',
-                                style: GoogleFonts.inter(
-                                  fontSize: 44,
-                                  fontWeight: FontWeight.w200,
-                                  color: Colors.white.withValues(alpha: 0.95),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '°C',
-                            style: _inter(
-                              14,
-                              weight: FontWeight.w300,
-                              color: Colors.white.withValues(alpha: 0.6),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        statusText,
-                        style: _inter(
-                          12,
-                          weight: FontWeight.w500,
-                          color: const Color(0xFFC9A86E),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
