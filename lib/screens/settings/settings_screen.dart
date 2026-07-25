@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
+import '../../providers/main_tab_provider.dart';
 import '../../services/supabase_service.dart';
+import '../../services/unit_prefs.dart';
 import '../../theme/app_theme.dart';
+import '../ota/ota_screen.dart';
+import 'background_protection_screen.dart';
+import 'find_device_screen.dart';
+import 'health_connect_screen.dart';
+import 'select_notifications_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -13,14 +20,121 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _gestureControls = false;
-  bool _lowBatteryPrompt = false;
   String _firstName = '';
+  UnitSystem _unitSystem = UnitSystem.metric;
+  TempUnit _tempUnit = TempUnit.celsius;
 
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
+    _loadUnitPrefs();
+  }
+
+  Future<void> _loadUnitPrefs() async {
+    final system = await UnitPrefs.loadSystem();
+    final temp = await UnitPrefs.loadTempUnit();
+    if (!mounted) return;
+    setState(() {
+      _unitSystem = system;
+      _tempUnit = temp;
+    });
+  }
+
+  Future<void> _showUnitSystemPicker() async {
+    final picked = await _showChoiceSheet<UnitSystem>(
+      title: 'Unit format',
+      options: const [
+        (value: UnitSystem.metric, label: 'Metric', hint: 'kg, cm'),
+        (value: UnitSystem.us, label: 'US', hint: 'lbs, ft/in'),
+      ],
+      current: _unitSystem,
+    );
+    if (picked == null) return;
+    await UnitPrefs.saveSystem(picked);
+    if (!mounted) return;
+    setState(() => _unitSystem = picked);
+  }
+
+  Future<void> _showTempUnitPicker() async {
+    final picked = await _showChoiceSheet<TempUnit>(
+      title: 'Temperature Unit',
+      options: const [
+        (value: TempUnit.celsius, label: 'Celsius', hint: '°C'),
+        (value: TempUnit.fahrenheit, label: 'Fahrenheit', hint: '°F'),
+      ],
+      current: _tempUnit,
+    );
+    if (picked == null) return;
+    await UnitPrefs.saveTempUnit(picked);
+    if (!mounted) return;
+    setState(() => _tempUnit = picked);
+  }
+
+  Future<T?> _showChoiceSheet<T>({
+    required String title,
+    required List<({T value, String label, String hint})> options,
+    required T current,
+  }) {
+    return showModalBottomSheet<T>(
+      context: context,
+      backgroundColor: AppTheme.card2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              child: Text(
+                title,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            for (final o in options)
+              InkWell(
+                onTap: () => Navigator.pop(ctx, o.value),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  child: Row(
+                    children: [
+                      Icon(
+                        o.value == current
+                            ? Icons.radio_button_checked_rounded
+                            : Icons.radio_button_off_rounded,
+                        color: o.value == current ? AppTheme.gold : AppTheme.textSec,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 14),
+                      Text(
+                        o.label,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        o.hint,
+                        style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _loadUserProfile() async {
@@ -209,20 +323,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   _divider(),
-                  _SettingsRow.toggle(
-                    icon: Icons.swipe_rounded,
-                    title: 'Gesture Controls',
-                    subtitle: 'Enable gesture controls',
-                    value: _gestureControls,
-                    onChanged: (v) => setState(() => _gestureControls = v),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.touch_app_rounded,
-                    title: 'Touch Control',
-                    onTap: () => Navigator.pushNamed(context, '/touch-control'),
-                  ),
-                  _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.alarm_rounded,
                     title: 'Alarms & Notifications',
@@ -240,55 +340,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _SettingsRow.arrow(
                     icon: Icons.gps_fixed_rounded,
                     title: 'Find Device',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const FindDeviceScreen()),
+                    ),
                   ),
                   _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.notifications_outlined,
                     title: 'Notifications',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SelectNotificationsScreen(),
+                      ),
+                    ),
                   ),
                   _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.auto_awesome_rounded,
                     title: 'AI Analysis',
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.camera_alt_outlined,
-                    title: 'Take picture',
+                    onTap: () => context.read<MainTabProvider>().setTab(1),
                   ),
                   _divider(),
                   _SettingsRow.value(
                     icon: Icons.straighten_rounded,
                     title: 'Unit format',
-                    value: 'metric system',
+                    value: _unitSystem == UnitSystem.us ? 'US' : 'Metric',
+                    onTap: _showUnitSystemPicker,
                   ),
                   _divider(),
                   _SettingsRow.value(
                     icon: Icons.thermostat_rounded,
                     title: 'Temperature Unit',
-                    value: 'C',
-                  ),
-                  _divider(),
-                  _SettingsRow.toggle(
-                    icon: Icons.battery_alert_rounded,
-                    title: 'Low battery prompt',
-                    value: _lowBatteryPrompt,
-                    onChanged: (v) => setState(() => _lowBatteryPrompt = v),
+                    value: _tempUnit == TempUnit.fahrenheit ? 'F' : 'C',
+                    onTap: _showTempUnitPicker,
                   ),
                   _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.monitor_heart_outlined,
                     title: 'Health connect',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const HealthConnectScreen(),
+                      ),
+                    ),
                   ),
                   _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.security_rounded,
                     title: 'Background operation protection guide',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const BackgroundProtectionScreen(),
+                      ),
+                    ),
                   ),
                   _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.system_update_outlined,
                     title: 'Firmware upgrade',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const OtaScreen()),
+                    ),
                   ),
                   _divider(),
                   _SettingsRow.arrow(
@@ -357,21 +474,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 class _SettingsRow extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String? subtitle;
   final _RowType type;
   final String? value;
-  final bool? toggleValue;
-  final ValueChanged<bool>? onChanged;
   final VoidCallback? onTap;
 
   const _SettingsRow._({
     required this.icon,
     required this.title,
     required this.type,
-    this.subtitle,
     this.value,
-    this.toggleValue,
-    this.onChanged,
     this.onTap,
   });
 
@@ -390,26 +501,13 @@ class _SettingsRow extends StatelessWidget {
     required IconData icon,
     required String title,
     required String value,
+    VoidCallback? onTap,
   }) => _SettingsRow._(
     icon: icon,
     title: title,
     type: _RowType.value,
     value: value,
-  );
-
-  factory _SettingsRow.toggle({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) => _SettingsRow._(
-    icon: icon,
-    title: title,
-    type: _RowType.toggle,
-    subtitle: subtitle,
-    toggleValue: value,
-    onChanged: onChanged,
+    onTap: onTap,
   );
 
   @override
@@ -427,15 +525,10 @@ class _SettingsRow extends StatelessWidget {
           value ?? '',
           style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
         );
-      case _RowType.toggle:
-        trailing = Transform.scale(
-          scale: 0.85,
-          child: Switch(value: toggleValue ?? false, onChanged: onChanged),
-        );
     }
 
     return InkWell(
-      onTap: type == _RowType.toggle ? null : onTap,
+      onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -463,16 +556,6 @@ class _SettingsRow extends StatelessWidget {
                       fontWeight: FontWeight.w400,
                     ),
                   ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: GoogleFonts.inter(
-                        color: AppTheme.textSec,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -485,4 +568,4 @@ class _SettingsRow extends StatelessWidget {
   }
 }
 
-enum _RowType { arrow, value, toggle }
+enum _RowType { arrow, value }

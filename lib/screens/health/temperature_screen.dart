@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
+import '../../services/unit_prefs.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
@@ -55,6 +56,8 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
 
   DateTime _selectedDate = DateTime.now();
 
+  TempUnit _tempUnit = TempUnit.celsius;
+
   double _manualTemp = 0;
 
   // Today's local-DB data
@@ -100,6 +103,15 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     return AppTheme.danger;
   }
 
+  // Display-only conversion — every stored/aggregated value above stays in
+  // Celsius (the ring's native unit and the DB's canonical column); only the
+  // number shown to the user changes with the Temperature Unit setting.
+  double _disp(double celsiusValue) => _tempUnit == TempUnit.fahrenheit
+      ? UnitPrefs.celsiusToFahrenheit(celsiusValue)
+      : celsiusValue;
+
+  String get _unitLabel => _tempUnit == TempUnit.fahrenheit ? '°F' : '°C';
+
   // ── Init ──────────────────────────────────────────────────────────────────
 
   @override
@@ -111,6 +123,12 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
       _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
+    _loadTempUnit();
+  }
+
+  Future<void> _loadTempUnit() async {
+    final unit = await UnitPrefs.loadTempUnit();
+    if (mounted) setState(() => _tempUnit = unit);
   }
 
   // ── Date selection ────────────────────────────────────────────────────────
@@ -472,20 +490,20 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     final tempValue = _measuring
         ? '···'
         : _manualTemp > 0
-        ? _manualTemp.toStringAsFixed(1)
+        ? _disp(_manualTemp).toStringAsFixed(1)
         : _displayAvg > 0
-        ? _displayAvg.toStringAsFixed(1)
+        ? _disp(_displayAvg).toStringAsFixed(1)
         : '--';
 
     final hasData = _isToday && _chartValues.any((v) => v > 0);
 
     final dailyRangeLabel = hasData
-        ? '${_displayMin.toStringAsFixed(1)} - ${_displayMax.toStringAsFixed(1)}'
+        ? '${_disp(_displayMin).toStringAsFixed(1)} - ${_disp(_displayMax).toStringAsFixed(1)}'
         : '-- --';
 
     final trendRangeLabel = _trendMin > 0 && _trendMax > 0
-        ? '${_trendMin.toStringAsFixed(1)} - ${_trendMax.toStringAsFixed(1)} °C'
-        : '-- -- °C';
+        ? '${_disp(_trendMin).toStringAsFixed(1)} - ${_disp(_trendMax).toStringAsFixed(1)} $_unitLabel'
+        : '-- -- $_unitLabel';
 
     return RepaintBoundary(
       key: _screenshotKey,
@@ -556,7 +574,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Text('°C', style: _inter(20, color: _kSec)),
+                  Text(_unitLabel, style: _inter(20, color: _kSec)),
                 ],
               ),
               Text(
@@ -598,9 +616,9 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                     child: _TempStatCard(
                       label: 'AVERAGE',
                       value: _displayAvg > 0
-                          ? _displayAvg.toStringAsFixed(1)
+                          ? _disp(_displayAvg).toStringAsFixed(1)
                           : '--',
-                      unit: _displayAvg > 0 ? '°C' : '--',
+                      unit: _displayAvg > 0 ? _unitLabel : '--',
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -608,9 +626,9 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                     child: _TempStatCard(
                       label: 'MINIMUM',
                       value: _displayMin > 0
-                          ? _displayMin.toStringAsFixed(1)
+                          ? _disp(_displayMin).toStringAsFixed(1)
                           : '--',
-                      unit: _displayMin > 0 ? '°C' : '--',
+                      unit: _displayMin > 0 ? _unitLabel : '--',
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -618,9 +636,9 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                     child: _TempStatCard(
                       label: 'MAXIMUM',
                       value: _displayMax > 0
-                          ? _displayMax.toStringAsFixed(1)
+                          ? _disp(_displayMax).toStringAsFixed(1)
                           : '--',
-                      unit: _displayMax > 0 ? '°C' : '--',
+                      unit: _displayMax > 0 ? _unitLabel : '--',
                     ),
                   ),
                 ],
@@ -629,7 +647,8 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
 
               // ── 5. Real-time measurement ──────────────────────────────────
               _RealTimeTempCard(
-                latestTemp: _manualTemp,
+                latestTemp: _manualTemp > 0 ? _disp(_manualTemp) : 0,
+                unitLabel: _unitLabel,
                 measuring: _measuring,
                 enabled: connected && !_measuring,
                 onTap: _startMeasurement,
@@ -986,12 +1005,14 @@ class _TempStatCard extends StatelessWidget {
 
 class _RealTimeTempCard extends StatelessWidget {
   final double latestTemp;
+  final String unitLabel;
   final bool measuring;
   final bool enabled;
   final VoidCallback? onTap;
 
   const _RealTimeTempCard({
     required this.latestTemp,
+    required this.unitLabel,
     required this.measuring,
     required this.enabled,
     this.onTap,
@@ -1036,7 +1057,7 @@ class _RealTimeTempCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  Text('°C', style: _inter(11, color: _kSec)),
+                  Text(unitLabel, style: _inter(11, color: _kSec)),
                 ],
               ),
             ],
