@@ -234,6 +234,9 @@ object FallMotionDetector : SensorEventListener {
                     FallAlertNotifier.notifyFall(it, confidence, source)
                     // Auto-SMS to all emergency contacts after a cancelable countdown.
                     EmergencySmsSender.schedule(it, reason = "fall")
+                    // Immediate phone call to primary emergency contact — only if the
+                    // settings toggle is on (fall *detection* only, not prediction).
+                    EmergencyAutoCaller.placeIfEnabled(it)
                 }
             }
         }

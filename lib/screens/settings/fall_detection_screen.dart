@@ -357,7 +357,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
-                        'Simulated fall — SMS countdown started (Cancel in notification or here)',
+                        'Simulated fall — SMS countdown started (auto-call follows Settings toggle)',
                       ),
                     ),
                   );
@@ -435,13 +435,15 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
           ),
           const SizedBox(height: 16),
           if (tier == _FallTier.high)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: _HeartRateCard(hr: hr, compact: true)),
-                const SizedBox(width: 12),
-                Expanded(child: _TemperatureCard(temp: temp)),
-              ],
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: _HeartRateCard(hr: hr, compact: true)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _TemperatureCard(temp: temp)),
+                ],
+              ),
             )
           else
             _HeartRateCard(hr: hr, compact: false),
@@ -660,12 +662,15 @@ class _HeartRateCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppTheme.card,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppTheme.div),
       ),
+      // When shown beside Temperature, stretch to that card's height (IntrinsicHeight row).
+      // Extra vertical room goes into the sparkline so HR matches Temperature.
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -684,13 +689,24 @@ class _HeartRateCard extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(
-            height: compact ? 30 : 46,
-            child: CustomPaint(
-              size: Size.infinite,
-              painter: _SparklinePainter(color: AppTheme.hrColor),
+          if (compact)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: CustomPaint(
+                  size: Size.infinite,
+                  painter: _SparklinePainter(color: AppTheme.hrColor),
+                ),
+              ),
+            )
+          else
+            SizedBox(
+              height: 46,
+              child: CustomPaint(
+                size: Size.infinite,
+                painter: _SparklinePainter(color: AppTheme.hrColor),
+              ),
             ),
-          ),
           Text.rich(
             TextSpan(children: [
               TextSpan(
@@ -716,6 +732,7 @@ class _TemperatureCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppTheme.card,

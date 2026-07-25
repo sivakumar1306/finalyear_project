@@ -48,17 +48,24 @@ object FallAlertNotifier {
         }
         val pct = (confidence * 100).toInt()
         val countdown = EmergencySmsSender.COUNTDOWN_SECONDS
+        val autoCall = EmergencyAutoCaller.isEnabled(context)
+        val callLine = if (autoCall) {
+            " Calling your emergency contact now."
+        } else {
+            ""
+        }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("Possible fall detected")
             .setContentText(
-                "Confidence $pct% — SMS to all emergency contacts in ${countdown}s. Tap I'm okay to cancel."
+                "Confidence $pct% — SMS in ${countdown}s.$callLine Tap I'm okay to cancel SMS."
             )
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
                     "A sudden motion consistent with a fall was detected, corroborated by " +
-                        "$sourceLabel ($pct% confidence). SMS will be sent to all emergency " +
-                        "contacts in $countdown seconds. If you're okay, tap I'm okay to cancel."
+                        "$sourceLabel ($pct% confidence).$callLine SMS will be sent to all " +
+                        "emergency contacts in $countdown seconds. If you're okay, tap I'm okay " +
+                        "to cancel the SMS."
                 )
             )
             .setSmallIcon(android.R.drawable.ic_dialog_alert)

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/supabase_service.dart';
@@ -21,6 +22,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _loadUserProfile();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<BleProvider>().loadAutoCallOnFallSetting();
+    });
   }
 
   Future<void> _loadUserProfile() async {
@@ -34,6 +39,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() => _firstName = fullName.trim().split(' ').first);
       }
     } catch (_) {}
+  }
+
+  Future<void> _onAutoCallToggle(
+    BuildContext context,
+    BleProvider ble,
+    bool enabled,
+  ) async {
+    if (enabled) {
+      final status = await Permission.phone.request();
+      if (!status.isGranted) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Phone permission is required to auto-call your emergency contact',
+            ),
+          ),
+        );
+        // Still leave toggle off.
+        await ble.setAutoCallOnFallEnabled(false);
+        return;
+      }
+    }
+    await ble.setAutoCallOnFallEnabled(enabled);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          enabled
+              ? 'Auto-call on fall detection enabled'
+              : 'Auto-call on fall detection disabled',
+        ),
+      ),
+    );
   }
 
   @override
@@ -235,6 +274,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Fall Prediction',
                     onTap: () =>
                         Navigator.pushNamed(context, '/fall-detection'),
+                  ),
+                  _divider(),
+                  _SettingsRow.toggle(
+                    icon: Icons.phone_in_talk_rounded,
+                    title: 'Auto-call on fall detection',
+                    subtitle:
+                        'Immediately call your emergency contact when a fall is detected (not for fall prediction)',
+                    value: ble.autoCallOnFallEnabled,
+                    onChanged: (v) => _onAutoCallToggle(context, ble, v),
                   ),
                   _divider(),
                   _SettingsRow.arrow(

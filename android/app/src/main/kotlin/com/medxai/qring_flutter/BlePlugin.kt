@@ -66,6 +66,7 @@ import com.oudmon.ble.base.communication.sport.SportPlusHandle
 import com.oudmon.ble.base.scan.BleScannerHelper
 import com.oudmon.ble.base.scan.ScanRecord
 import com.oudmon.ble.base.scan.ScanWrapperCallback
+import com.medxai.qring_flutter.analysis.EmergencyAutoCaller
 import com.medxai.qring_flutter.analysis.EmergencySmsSender
 import com.medxai.qring_flutter.analysis.FallAlertNotifier
 import com.medxai.qring_flutter.analysis.FallPredictionNotifier
@@ -334,6 +335,8 @@ class BlePlugin(private val context: Context) {
             "getEmergencySmsStatus"      -> getEmergencySmsStatus(result)
             "cancelEmergencySms"         -> cancelEmergencySms(result)
             "sendEmergencySms"           -> sendEmergencySms(call, result)
+            "getAutoCallOnFallEnabled"   -> getAutoCallOnFallEnabled(result)
+            "setAutoCallOnFallEnabled"   -> setAutoCallOnFallEnabled(call, result)
             "placeEmergencyCall"         -> placeEmergencyCall(call, result)
             else                         -> result.notImplemented()
         }
@@ -2098,6 +2101,8 @@ class BlePlugin(private val context: Context) {
                 )
                 FallAlertNotifier.notifyFall(context, confidence, source)
                 EmergencySmsSender.schedule(context, reason = "fall")
+                // Same path as a real corroborated fall — respects the settings toggle.
+                EmergencyAutoCaller.placeIfEnabled(context)
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
@@ -2152,6 +2157,16 @@ class BlePlugin(private val context: Context) {
         result.success(gson.toJson(EmergencySmsSender.status(context)))
     }
 
+    private fun getAutoCallOnFallEnabled(result: MethodChannel.Result) {
+        result.success(gson.toJson(EmergencyAutoCaller.status(context)))
+    }
+
+    private fun setAutoCallOnFallEnabled(call: MethodCall, result: MethodChannel.Result) {
+        val enabled = call.argument<Boolean>("enabled") ?: false
+        EmergencyAutoCaller.setEnabled(context, enabled)
+        result.success(gson.toJson(EmergencyAutoCaller.status(context)))
+    }
+
     private fun cancelEmergencySms(result: MethodChannel.Result) {
         EmergencySmsSender.cancel(context)
         // User is okay — also clear the prediction banner so Home stops prompting.
@@ -2180,24 +2195,19 @@ class BlePlugin(private val context: Context) {
             result.error("NO_PHONE", "No phone number provided", null)
             return
         }
-        val hasPermission = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.CALL_PHONE
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!hasPermission) {
-            result.error("NO_PERMISSION", "CALL_PHONE permission not granted", null)
-            return
-        }
-
-        try {
-            val intent = Intent(Intent.ACTION_CALL).apply {
-                data = Uri.parse("tel:$phone")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
+        // Uses TelecomManager + default/first SIM so dual-SIM phones skip the SIM picker.
+        val ok = EmergencyAutoCaller.placeCall(context, phone)
+        if (ok) {
             result.success(true)
-        } catch (e: Exception) {
-            result.error("CALL_FAILED", e.message, null)
+        } else {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.CALL_PHONE
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!hasPermission) {
+                result.error("NO_PERMISSION", "CALL_PHONE permission not granted", null)
+            } else {
+                result.error("CALL_FAILED", "Could not place call", null)
+            }
         }
     }
 

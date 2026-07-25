@@ -397,6 +397,18 @@ class BleService {
     return result ?? false;
   }
 
+  /// Auto-call on fall *detection* (not prediction) — toggle + permission status.
+  Future<String> getAutoCallOnFallEnabled() async =>
+      await _methodChannel.invokeMethod<String>('getAutoCallOnFallEnabled') ??
+      '{"enabled":false,"hasPermission":false}';
+
+  Future<String> setAutoCallOnFallEnabled(bool enabled) async =>
+      await _methodChannel.invokeMethod<String>(
+            'setAutoCallOnFallEnabled',
+            {'enabled': enabled},
+          ) ??
+          '{"enabled":false,"hasPermission":false}';
+
   /// Emergency contacts — persisted natively (Room), not Flutter widget state, so a future
   /// caregiver-push or notification action can read them without the Dart engine running.
   Future<String> getEmergencyContacts() async =>

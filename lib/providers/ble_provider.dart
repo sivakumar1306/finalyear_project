@@ -156,6 +156,12 @@ class BleProvider extends ChangeNotifier {
   int get emergencySmsLastSentCount => _emergencySmsLastSentCount;
   String? get emergencySmsLastError => _emergencySmsLastError;
 
+  /// When true, a corroborated fall *detection* immediately calls the first emergency contact.
+  bool _autoCallOnFallEnabled = false;
+  bool _autoCallOnFallHasPermission = false;
+  bool get autoCallOnFallEnabled => _autoCallOnFallEnabled;
+  bool get autoCallOnFallHasPermission => _autoCallOnFallHasPermission;
+
   // ── Manual update methods (called by individual screens) ──────────────────
 
   void updateStepsData(int steps, int calories, double distanceM, List<int> intervals) {
@@ -472,6 +478,36 @@ class BleProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('[FallDetection] Auto-call failed: $e');
       return false;
+    }
+  }
+
+  Future<void> loadAutoCallOnFallSetting() async {
+    try {
+      final json = await _ble.getAutoCallOnFallEnabled();
+      final decoded = jsonDecode(json);
+      if (decoded is! Map) return;
+      _autoCallOnFallEnabled = decoded['enabled'] == true;
+      _autoCallOnFallHasPermission = decoded['hasPermission'] == true;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[FallDetection] load auto-call setting failed: $e');
+    }
+  }
+
+  /// Persist toggle natively so the background fall detector can read it.
+  Future<void> setAutoCallOnFallEnabled(bool enabled) async {
+    try {
+      final json = await _ble.setAutoCallOnFallEnabled(enabled);
+      final decoded = jsonDecode(json);
+      if (decoded is Map) {
+        _autoCallOnFallEnabled = decoded['enabled'] == true;
+        _autoCallOnFallHasPermission = decoded['hasPermission'] == true;
+      } else {
+        _autoCallOnFallEnabled = enabled;
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[FallDetection] set auto-call setting failed: $e');
     }
   }
 
