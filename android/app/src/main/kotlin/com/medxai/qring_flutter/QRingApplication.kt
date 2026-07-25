@@ -3,6 +3,7 @@ package com.medxai.qring_flutter
 import android.app.Application
 import android.content.pm.ApplicationInfo
 import androidx.core.content.ContextCompat
+import com.medxai.qring_flutter.analysis.EmergencySmsSender
 import com.medxai.qring_flutter.analysis.FallRiskAnalyzer
 import com.oudmon.ble.base.bluetooth.BleAction
 import com.oudmon.ble.base.bluetooth.BleOperateManager
@@ -40,5 +41,7 @@ class QRingApplication : Application() {
             (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
         FallRiskAnalyzer.init(this)
+        // If the process died mid-countdown, resume ticking (or send if the window elapsed).
+        EmergencySmsSender.restoreIfNeeded(this)
     }
 }

@@ -71,6 +71,8 @@ object FallRiskAnalyzer {
         lastAlertAt = measuredAt
         val hr = (result.components["hr"] as? Int) ?: 0
         FallPredictionNotifier.notifyPrediction(context, hr)
+        // Auto-SMS to all emergency contacts after a cancelable countdown.
+        EmergencySmsSender.schedule(context, reason = "prediction")
     }
 
     private suspend fun computeScore(event: NewReadingEvent, repo: ReadingRepository): ScoreResult {

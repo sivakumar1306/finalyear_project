@@ -66,6 +66,8 @@ import com.oudmon.ble.base.communication.sport.SportPlusHandle
 import com.oudmon.ble.base.scan.BleScannerHelper
 import com.oudmon.ble.base.scan.ScanRecord
 import com.oudmon.ble.base.scan.ScanWrapperCallback
+import com.medxai.qring_flutter.analysis.EmergencyAutoCaller
+import com.medxai.qring_flutter.analysis.EmergencySmsSender
 import com.medxai.qring_flutter.analysis.FallAlertNotifier
 import com.medxai.qring_flutter.analysis.FallPredictionNotifier
 import com.medxai.qring_flutter.data.FallEventEntity
@@ -330,6 +332,12 @@ class BlePlugin(private val context: Context) {
             "simulateFallRiskTrigger"    -> simulateFallRiskTrigger(result)
             "simulateFallPrediction"     -> simulateFallPrediction(result)
             "consumeFallPredictionFlag"  -> consumeFallPredictionFlag(result)
+            "clearFallPredictionFlag"    -> clearFallPredictionFlag(result)
+            "getEmergencySmsStatus"      -> getEmergencySmsStatus(result)
+            "cancelEmergencySms"         -> cancelEmergencySms(result)
+            "sendEmergencySms"           -> sendEmergencySms(call, result)
+            "getAutoCallOnFallEnabled"   -> getAutoCallOnFallEnabled(result)
+            "setAutoCallOnFallEnabled"   -> setAutoCallOnFallEnabled(call, result)
             "placeEmergencyCall"         -> placeEmergencyCall(call, result)
             else                         -> result.notImplemented()
         }
@@ -2391,6 +2399,9 @@ class BlePlugin(private val context: Context) {
                     )
                 )
                 FallAlertNotifier.notifyFall(context, confidence, source)
+                EmergencySmsSender.schedule(context, reason = "fall")
+                // Same path as a real corroborated fall — respects the settings toggle.
+                EmergencyAutoCaller.placeIfEnabled(context)
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
@@ -2445,10 +2456,47 @@ class BlePlugin(private val context: Context) {
                     NewReadingEvent(Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(), bpm.toDouble())
                 )
                 FallPredictionNotifier.notifyPrediction(context, bpm)
+                EmergencySmsSender.schedule(context, reason = "prediction")
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
             }
+        }
+    }
+
+    private fun getEmergencySmsStatus(result: MethodChannel.Result) {
+        result.success(gson.toJson(EmergencySmsSender.status(context)))
+    }
+
+    private fun getAutoCallOnFallEnabled(result: MethodChannel.Result) {
+        result.success(gson.toJson(EmergencyAutoCaller.status(context)))
+    }
+
+    private fun setAutoCallOnFallEnabled(call: MethodCall, result: MethodChannel.Result) {
+        val enabled = call.argument<Boolean>("enabled") ?: false
+        EmergencyAutoCaller.setEnabled(context, enabled)
+        result.success(gson.toJson(EmergencyAutoCaller.status(context)))
+    }
+
+    private fun cancelEmergencySms(result: MethodChannel.Result) {
+        EmergencySmsSender.cancel(context)
+        // User is okay — also clear the prediction banner so Home stops prompting.
+        FallPredictionNotifier.clearPending(context)
+        result.success(true)
+    }
+
+    private fun sendEmergencySms(call: MethodCall, result: MethodChannel.Result) {
+        val message = call.argument<String>("message")
+            ?: EmergencySmsSender.DEFAULT_MESSAGE
+        // Off main thread: Room + SmsManager.
+        repo().ioScope.launch {
+            val status = try {
+                EmergencySmsSender.sendNow(context, message)
+            } catch (e: Exception) {
+                mainHandler.post { result.error("SMS_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(gson.toJson(status)) }
         }
     }
 
@@ -2458,35 +2506,37 @@ class BlePlugin(private val context: Context) {
             result.error("NO_PHONE", "No phone number provided", null)
             return
         }
-        val hasPermission = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.CALL_PHONE
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!hasPermission) {
-            result.error("NO_PERMISSION", "CALL_PHONE permission not granted", null)
-            return
-        }
-
-        try {
-            val intent = Intent(Intent.ACTION_CALL).apply {
-                data = Uri.parse("tel:$phone")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
+        // Uses TelecomManager + default/first SIM so dual-SIM phones skip the SIM picker.
+        val ok = EmergencyAutoCaller.placeCall(context, phone)
+        if (ok) {
             result.success(true)
-        } catch (e: Exception) {
-            result.error("CALL_FAILED", e.message, null)
+        } else {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.CALL_PHONE
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!hasPermission) {
+                result.error("NO_PERMISSION", "CALL_PHONE permission not granted", null)
+            } else {
+                result.error("CALL_FAILED", "Could not place call", null)
+            }
         }
     }
 
-    // Reads (and clears) the flag MainActivity sets when a fall-prediction notification tap
-    // launches/resumes the app, so the Home screen can show the banner exactly once per tap.
+    // Reads the fall-prediction pending flag. Restores from SharedPreferences first so a
+    // cold start from the launcher (no notification Intent) still surfaces the Home banner.
+    // Does NOT clear — clearing happens only when the user dismisses the banner
+    // (clearFallPredictionFlag), otherwise reopening the app would hide an active alert.
     private fun consumeFallPredictionFlag(result: MethodChannel.Result) {
+        FallPredictionNotifier.restorePending(context)
         val pending = MainActivity.pendingFallPrediction
         val hr = MainActivity.pendingFallPredictionHr
-        MainActivity.pendingFallPrediction = false
-        MainActivity.pendingFallPredictionHr = 0
         result.success(gson.toJson(mapOf("pending" to pending, "hr" to hr)))
+    }
+
+    // User tapped Ignore / dismissed the Home fall-prediction banner.
+    private fun clearFallPredictionFlag(result: MethodChannel.Result) {
+        FallPredictionNotifier.clearPending(context)
+        result.success(true)
     }
 
     private fun getEmergencyContacts(result: MethodChannel.Result) {

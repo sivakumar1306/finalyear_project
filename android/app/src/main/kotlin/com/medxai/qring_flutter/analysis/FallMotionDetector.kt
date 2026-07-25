@@ -230,7 +230,14 @@ object FallMotionDetector : SensorEventListener {
             // Only ever notify on a corroborated event — a lone phone-motion spike must
             // never surface as a fall alert on its own.
             if (corroborated) {
-                appContext?.let { FallAlertNotifier.notifyFall(it, confidence, source) }
+                appContext?.let {
+                    FallAlertNotifier.notifyFall(it, confidence, source)
+                    // Auto-SMS to all emergency contacts after a cancelable countdown.
+                    EmergencySmsSender.schedule(it, reason = "fall")
+                    // Immediate phone call to primary emergency contact — only if the
+                    // settings toggle is on (fall *detection* only, not prediction).
+                    EmergencyAutoCaller.placeIfEnabled(it)
+                }
             }
         }
     }

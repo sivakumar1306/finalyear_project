@@ -60,6 +60,10 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     _loadRealRisk();
     _loadContacts();
     _loadAddressAndInstructions();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<BleProvider>().refreshEmergencySmsStatus();
+    });
   }
 
   Future<void> _loadAddressAndInstructions() async {
@@ -137,10 +141,8 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     );
   }
 
-  // Lets the user pick Call or Message for the primary emergency contact — launching both
-  // tel: and sms: back-to-back buries the dialer behind the SMS app, which just looks like
-  // calling silently stopped working. Neither auto-dials nor auto-sends: tel: opens the
-  // dialer (ACTION_DIAL) pre-filled, sms: opens the messaging app with the body already typed.
+  // Call opens the dialer for the primary contact. Message uses Android SmsManager to
+  // send immediately to **all** saved emergency contacts (true background send).
   Future<void> _alertContact() async {
     if (_contacts.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -156,21 +158,45 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => _AlertContactSheet(contact: contact),
+      builder: (_) => _AlertContactSheet(
+        contact: contact,
+        contactCount: _contacts.length,
+      ),
     );
     if (action == null || !mounted) return;
 
-    final uri = action == 'call'
-        ? Uri(scheme: 'tel', path: phone)
-        : Uri(scheme: 'sms', path: phone, queryParameters: {
-            'body': 'I may have fallen and need help. Please check on me as soon as possible.',
-          });
-    final ok = await launchUrl(uri);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not reach $phone')),
-      );
+    if (action == 'call') {
+      final uri = Uri(scheme: 'tel', path: phone);
+      final ok = await launchUrl(uri);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not reach $phone')),
+        );
+      }
+      return;
     }
+
+    // Message — SmsManager to every contact, no messaging-app UI.
+    final ble = context.read<BleProvider>();
+    final result = await ble.sendEmergencySms();
+    if (!mounted) return;
+    final ok = result['ok'] == true;
+    final sent = (result['sentCount'] as num?)?.toInt() ?? 0;
+    final err = result['error'] as String?;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'SMS sent to $sent emergency contact${sent == 1 ? '' : 's'}'
+              : (err ?? 'Failed to send emergency SMS'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _ignoreWarning() async {
+    setState(() => _ignoredForTier = _FallTier.high);
+    await context.read<BleProvider>().cancelEmergencySms();
   }
 
   Future<void> _addContact() async {
@@ -327,8 +353,13 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                   break;
                 case 'notify':
                   context.read<BleProvider>().simulateFallEvent();
+                  context.read<BleProvider>().refreshEmergencySmsStatus();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Simulated fall event — check your notification shade')),
+                    const SnackBar(
+                      content: Text(
+                        'Simulated fall — SMS countdown started (auto-call follows Settings toggle)',
+                      ),
+                    ),
                   );
                   break;
                 case 'risk_trigger':
@@ -336,8 +367,13 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                   break;
                 case 'prediction':
                   context.read<BleProvider>().simulateFallPrediction();
+                  context.read<BleProvider>().refreshEmergencySmsStatus();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Simulated fall prediction — check your notification shade')),
+                    const SnackBar(
+                      content: Text(
+                        'Simulated prediction — SMS countdown started (Cancel in notification or here)',
+                      ),
+                    ),
                   );
                   break;
               }
@@ -357,24 +393,37 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          if (showAlert) ...[
+          if (showAlert || ble.emergencySmsActive) ...[
             _HeroCard(
-              tier: tier,
+              tier: ble.emergencySmsActive ? _FallTier.high : tier,
               hr: hr,
-              onPrimaryAction: tier == _FallTier.high
+              smsSecondsRemaining: ble.emergencySmsActive
+                  ? ble.emergencySmsSecondsRemaining
+                  : null,
+              smsHasPermission: ble.emergencySmsHasPermission,
+              onPrimaryAction: (ble.emergencySmsActive || tier == _FallTier.high)
                   ? _alertContact
                   : () => setState(() => _ignoredForTier = tier),
             ),
             const SizedBox(height: 20),
-            _SectionLabel(tier == _FallTier.high ? 'OTHER ACTIONS' : 'RECOMMENDED ACTIONS'),
-            const SizedBox(height: 8),
-            _ActionRow(
-              icon: tier == _FallTier.high ? Icons.close_rounded : Icons.call_rounded,
-              label: tier == _FallTier.high ? 'Ignore warning' : 'Alert emergency contact',
-              onTap: tier == _FallTier.high
-                  ? () => setState(() => _ignoredForTier = tier)
-                  : _alertContact,
+            _SectionLabel(
+              (ble.emergencySmsActive || tier == _FallTier.high)
+                  ? 'OTHER ACTIONS'
+                  : 'RECOMMENDED ACTIONS',
             ),
+            const SizedBox(height: 8),
+            if (ble.emergencySmsActive)
+              _ActionRow(
+                icon: Icons.sms_failed_outlined,
+                label: 'Cancel emergency SMS (${ble.emergencySmsSecondsRemaining}s)',
+                onTap: _ignoreWarning,
+              )
+            else
+              _ActionRow(
+                icon: tier == _FallTier.high ? Icons.close_rounded : Icons.call_rounded,
+                label: tier == _FallTier.high ? 'Ignore warning' : 'Alert emergency contact',
+                onTap: tier == _FallTier.high ? _ignoreWarning : _alertContact,
+              ),
             const SizedBox(height: 20),
           ],
           const _SectionLabel('FALL RISK SCORE'),
@@ -386,13 +435,15 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
           ),
           const SizedBox(height: 16),
           if (tier == _FallTier.high)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: _HeartRateCard(hr: hr, compact: true)),
-                const SizedBox(width: 12),
-                Expanded(child: _TemperatureCard(temp: temp)),
-              ],
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: _HeartRateCard(hr: hr, compact: true)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _TemperatureCard(temp: temp)),
+                ],
+              ),
             )
           else
             _HeartRateCard(hr: hr, compact: false),
@@ -462,18 +513,35 @@ class _SectionLabel extends StatelessWidget {
 class _HeroCard extends StatelessWidget {
   final _FallTier tier;
   final int hr;
+  final int? smsSecondsRemaining;
+  final bool smsHasPermission;
   final VoidCallback onPrimaryAction;
 
-  const _HeroCard({required this.tier, required this.hr, required this.onPrimaryAction});
+  const _HeroCard({
+    required this.tier,
+    required this.hr,
+    this.smsSecondsRemaining,
+    this.smsHasPermission = true,
+    required this.onPrimaryAction,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isHigh = tier == _FallTier.high;
+    final countdown = smsSecondsRemaining;
+    final isHigh = tier == _FallTier.high || countdown != null;
     final accent = isHigh ? AppTheme.hrColor : AppTheme.tempColor;
-    final title = isHigh ? 'You might fall soon...' : 'We are concerned ...';
-    final body = isHigh
-        ? 'We have detected multiple signs that you might fall down in the next 2-3 minutes. Take a seat and contact your caretaker.'
-        : 'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.';
+    final title = countdown != null
+        ? 'Emergency SMS in ${countdown}s'
+        : (isHigh ? 'You might fall soon...' : 'We are concerned ...');
+    final body = countdown != null
+        ? (!smsHasPermission
+            ? 'SMS permission is missing. Grant SEND_SMS so contacts can be alerted automatically.'
+            : 'SMS will be sent to all emergency contacts in $countdown seconds unless you cancel. '
+                'You can also alert them immediately below.')
+        : (isHigh
+            ? 'We have detected multiple signs that you might fall down in the next 2-3 minutes. '
+                'Take a seat and contact your caretaker.'
+            : 'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.');
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -492,7 +560,7 @@ class _HeroCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                'FALL PREDICTION',
+                countdown != null ? 'EMERGENCY SMS' : 'FALL PREDICTION',
                 style: GoogleFonts.inter(
                   color: accent,
                   fontSize: 11,
@@ -535,7 +603,10 @@ class _HeroCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                 ),
-                child: const Text('Alert emergency contact', style: TextStyle(fontWeight: FontWeight.w600)),
+                child: Text(
+                  countdown != null ? 'Alert now (all contacts)' : 'Alert emergency contact',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             )
           else
@@ -591,12 +662,15 @@ class _HeartRateCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppTheme.card,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppTheme.div),
       ),
+      // When shown beside Temperature, stretch to that card's height (IntrinsicHeight row).
+      // Extra vertical room goes into the sparkline so HR matches Temperature.
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -615,13 +689,24 @@ class _HeartRateCard extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(
-            height: compact ? 30 : 46,
-            child: CustomPaint(
-              size: Size.infinite,
-              painter: _SparklinePainter(color: AppTheme.hrColor),
+          if (compact)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: CustomPaint(
+                  size: Size.infinite,
+                  painter: _SparklinePainter(color: AppTheme.hrColor),
+                ),
+              ),
+            )
+          else
+            SizedBox(
+              height: 46,
+              child: CustomPaint(
+                size: Size.infinite,
+                painter: _SparklinePainter(color: AppTheme.hrColor),
+              ),
             ),
-          ),
           Text.rich(
             TextSpan(children: [
               TextSpan(
@@ -647,6 +732,7 @@ class _TemperatureCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppTheme.card,
@@ -863,10 +949,14 @@ class _SparklinePainter extends CustomPainter {
 
 class _AlertContactSheet extends StatelessWidget {
   final _EmergencyContact contact;
-  const _AlertContactSheet({required this.contact});
+  final int contactCount;
+  const _AlertContactSheet({required this.contact, this.contactCount = 1});
 
   @override
   Widget build(BuildContext context) {
+    final smsLabel = contactCount > 1
+        ? 'Message all $contactCount contacts'
+        : 'Message ${contact.name}';
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -875,24 +965,24 @@ class _AlertContactSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Alert ${contact.name}',
+              'Alert emergency contacts',
               style: GoogleFonts.inter(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 4),
             Text(
-              contact.phone,
-              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
+              'Call opens the dialer for ${contact.name}. Message sends SMS to every saved contact.',
+              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12, height: 1.4),
             ),
             const SizedBox(height: 16),
             _ActionRow(
               icon: Icons.call_rounded,
-              label: 'Call',
+              label: 'Call ${contact.name}',
               onTap: () => Navigator.pop(context, 'call'),
             ),
             const SizedBox(height: 8),
             _ActionRow(
               icon: Icons.message_rounded,
-              label: 'Message',
+              label: smsLabel,
               onTap: () => Navigator.pop(context, 'message'),
             ),
           ],

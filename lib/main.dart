@@ -20,6 +20,10 @@ Future<void> _requestPermissionsAndStartService() async {
     Permission.bluetoothAdvertise,
     Permission.locationWhenInUse,
     Permission.notification,
+    // Required for true background SMS to emergency contacts after a fall.
+    Permission.sms,
+    // Required for auto-call on fall detection (when the settings toggle is on).
+    Permission.phone,
   ].request();
   // Start the BLE foreground service now that permissions are granted.
   // Safe to call repeatedly — the service is sticky and ignores duplicate starts.

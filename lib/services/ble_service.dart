@@ -377,15 +377,51 @@ class BleService {
   Future<bool> simulateFallPrediction() async =>
       await _methodChannel.invokeMethod<bool>('simulateFallPrediction') ?? false;
 
-  /// Reads (and clears) the flag MainActivity sets when a fall-prediction notification
-  /// tap launches/resumes the app — `{"pending": bool, "hr": int}`.
+  /// Reads the fall-prediction pending flag — `{"pending": bool, "hr": int}`.
+  /// Pending is set when a prediction fires (not only when the notification is tapped),
+  /// so a normal app open still surfaces the alert. Does not clear; call
+  /// [clearFallPredictionFlag] when the user dismisses the banner.
   Future<String> consumeFallPredictionFlag() async =>
       await _methodChannel.invokeMethod<String>('consumeFallPredictionFlag') ?? '{"pending":false,"hr":0}';
+
+  /// Clears a dismissed fall-prediction alert so it does not reappear on next resume.
+  Future<bool> clearFallPredictionFlag() async =>
+      await _methodChannel.invokeMethod<bool>('clearFallPredictionFlag') ?? false;
+
+  /// Emergency SMS countdown / last-send status — see EmergencySmsSender.kt.
+  Future<String> getEmergencySmsStatus() async =>
+      await _methodChannel.invokeMethod<String>('getEmergencySmsStatus') ??
+      '{"active":false,"secondsRemaining":0}';
+
+  /// Cancel a pending auto-SMS countdown (I'm okay / Cancel SMS).
+  Future<bool> cancelEmergencySms() async =>
+      await _methodChannel.invokeMethod<bool>('cancelEmergencySms') ?? false;
+
+  /// Send SMS via SmsManager to **all** emergency contacts immediately.
+  /// Optional [message] overrides the default fall-help text.
+  Future<String> sendEmergencySms({String? message}) async {
+    final args = <String, dynamic>{};
+    if (message != null) args['message'] = message;
+    return await _methodChannel.invokeMethod<String>('sendEmergencySms', args) ??
+        '{"ok":false,"sentCount":0,"error":"no response"}';
+  }
 
   Future<bool> placeEmergencyCall(String phone) async {
     final result = await _methodChannel.invokeMethod<bool>('placeEmergencyCall', {'phone': phone});
     return result ?? false;
   }
+
+  /// Auto-call on fall *detection* (not prediction) — toggle + permission status.
+  Future<String> getAutoCallOnFallEnabled() async =>
+      await _methodChannel.invokeMethod<String>('getAutoCallOnFallEnabled') ??
+      '{"enabled":false,"hasPermission":false}';
+
+  Future<String> setAutoCallOnFallEnabled(bool enabled) async =>
+      await _methodChannel.invokeMethod<String>(
+            'setAutoCallOnFallEnabled',
+            {'enabled': enabled},
+          ) ??
+          '{"enabled":false,"hasPermission":false}';
 
   /// Emergency contacts — persisted natively (Room), not Flutter widget state, so a future
   /// caregiver-push or notification action can read them without the Dart engine running.

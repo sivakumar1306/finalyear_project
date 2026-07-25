@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../providers/main_tab_provider.dart';
@@ -29,6 +30,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadUserProfile();
     _loadUnitPrefs();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<BleProvider>().loadAutoCallOnFallSetting();
+    });
   }
 
   Future<void> _loadUnitPrefs() async {
@@ -148,6 +153,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() => _firstName = fullName.trim().split(' ').first);
       }
     } catch (_) {}
+  }
+
+  Future<void> _onAutoCallToggle(
+    BuildContext context,
+    BleProvider ble,
+    bool enabled,
+  ) async {
+    if (enabled) {
+      final status = await Permission.phone.request();
+      if (!status.isGranted) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Phone permission is required to auto-call your emergency contact',
+            ),
+          ),
+        );
+        // Still leave toggle off.
+        await ble.setAutoCallOnFallEnabled(false);
+        return;
+      }
+    }
+    await ble.setAutoCallOnFallEnabled(enabled);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          enabled
+              ? 'Auto-call on fall detection enabled'
+              : 'Auto-call on fall detection disabled',
+        ),
+      ),
+    );
   }
 
   @override
@@ -331,6 +370,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Navigator.pushNamed(context, '/fall-detection'),
                   ),
                   _divider(),
+                  _SettingsRow.toggle(
+                    icon: Icons.phone_in_talk_rounded,
+                    title: 'Auto-call on fall detection',
+                    subtitle:
+                        'Immediately call your emergency contact when a fall is detected (not for fall prediction)',
+                    value: ble.autoCallOnFallEnabled,
+                    onChanged: (v) => _onAutoCallToggle(context, ble, v),
+                  ),
+                  _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.gps_fixed_rounded,
                     title: 'Find Device',
@@ -468,15 +516,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
 class _SettingsRow extends StatelessWidget {
   final IconData icon;
   final String title;
+  final String? subtitle;
   final _RowType type;
   final String? value;
+  final bool? toggleValue;
+  final ValueChanged<bool>? onChanged;
   final VoidCallback? onTap;
 
   const _SettingsRow._({
     required this.icon,
     required this.title,
     required this.type,
+    this.subtitle,
     this.value,
+    this.toggleValue,
+    this.onChanged,
     this.onTap,
   });
 
@@ -504,6 +558,21 @@ class _SettingsRow extends StatelessWidget {
     onTap: onTap,
   );
 
+  factory _SettingsRow.toggle({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) => _SettingsRow._(
+    icon: icon,
+    title: title,
+    type: _RowType.toggle,
+    subtitle: subtitle,
+    toggleValue: value,
+    onChanged: onChanged,
+  );
+
   @override
   Widget build(BuildContext context) {
     Widget trailing;
@@ -519,10 +588,15 @@ class _SettingsRow extends StatelessWidget {
           value ?? '',
           style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
         );
+      case _RowType.toggle:
+        trailing = Transform.scale(
+          scale: 0.85,
+          child: Switch(value: toggleValue ?? false, onChanged: onChanged),
+        );
     }
 
     return InkWell(
-      onTap: onTap,
+      onTap: type == _RowType.toggle ? null : onTap,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -550,6 +624,16 @@ class _SettingsRow extends StatelessWidget {
                       fontWeight: FontWeight.w400,
                     ),
                   ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: GoogleFonts.inter(
+                        color: AppTheme.textSec,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -562,4 +646,4 @@ class _SettingsRow extends StatelessWidget {
   }
 }
 
-enum _RowType { arrow, value }
+enum _RowType { arrow, value, toggle }
