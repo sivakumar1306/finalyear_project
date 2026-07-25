@@ -298,6 +298,36 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 28),
+                  Text(
+                    'ACCOUNT',
+                    style: GoogleFonts.inter(
+                      color: AppTheme.textSec,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppTheme.card,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      children: [
+                        _AccountEmailRow(
+                          email: SupabaseService.currentUser?.email ?? '—',
+                        ),
+                        _divider(),
+                        _AccountActionRow(
+                          icon: Icons.logout_rounded,
+                          label: 'Log out',
+                          onTap: () => _confirmLogout(context),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -306,6 +336,122 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   }
 
   Widget _divider() => const Divider(height: 1, color: AppTheme.div);
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.card2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Log out',
+            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+        content: Text('Are you sure you want to log out?',
+            style: GoogleFonts.inter(color: AppTheme.textSec)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Log out',
+                style: GoogleFonts.inter(
+                    color: AppTheme.danger, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) {
+      await SupabaseService.signOut();
+      if (context.mounted) {
+        Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
+      }
+    }
+  }
+}
+
+class _AccountEmailRow extends StatelessWidget {
+  final String email;
+  const _AccountEmailRow({required this.email});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppTheme.gold.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.person_rounded, color: AppTheme.gold, size: 17),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              email,
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccountActionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _AccountActionRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AppTheme.card2,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: const Color(0xFFAAAAAA), size: 17),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ProfileRow extends StatelessWidget {
