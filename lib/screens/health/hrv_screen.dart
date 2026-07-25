@@ -6,15 +6,18 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
+import '../../widgets/screenshot_share.dart';
+import 'vital_note_screen.dart';
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
-const _kCard   = Color(0xFF141414);
+const _kCard = Color(0xFF141414);
 const _kBorder = Color(0xFF242424);
-const _kGrid   = Color(0xFF222222);
-const _kSec    = Color(0xFF666666);
-const _kSec2   = Color(0xFF888888);
+const _kGrid = Color(0xFF222222);
+const _kSec = Color(0xFF666666);
+const _kSec2 = Color(0xFF888888);
 
 TextStyle _inter(
   double size, {
@@ -22,14 +25,13 @@ TextStyle _inter(
   Color color = Colors.white,
   double? letterSpacing,
   double? height,
-}) =>
-    GoogleFonts.inter(
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-      letterSpacing: letterSpacing,
-      height: height,
-    );
+}) => GoogleFonts.inter(
+  fontSize: size,
+  fontWeight: weight,
+  color: color,
+  letterSpacing: letterSpacing,
+  height: height,
+);
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -41,14 +43,16 @@ class HrvScreen extends StatefulWidget {
 
 class _HrvScreenState extends State<HrvScreen> {
   final _ble = BleService();
+  final _moreButtonKey = GlobalKey();
+  final _screenshotKey = GlobalKey();
 
-  bool _loading      = false;
-  bool _loadingDay   = false;
+  bool _loading = false;
+  bool _loadingDay = false;
   bool _loadingTrend = false;
-  bool _measuring    = false;
-  bool _dayOffline   = false;
+  bool _measuring = false;
+  bool _dayOffline = false;
   bool _trendOffline = false;
-  int  _manualHrv    = 0;
+  int _manualHrv = 0;
 
   DateTime _selectedDate = DateTime.now();
 
@@ -123,7 +127,8 @@ class _HrvScreenState extends State<HrvScreen> {
 
   void _onDateSelected(DateTime date) {
     final n = DateTime.now();
-    final isToday = date.year == n.year && date.month == n.month && date.day == n.day;
+    final isToday =
+        date.year == n.year && date.month == n.month && date.day == n.day;
     setState(() {
       _selectedDate = date;
       if (isToday) {
@@ -146,19 +151,35 @@ class _HrvScreenState extends State<HrvScreen> {
     setState(() => _loading = true);
     try {
       final now = DateTime.now();
-      final dayStart = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
-      final dayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999)
-          .millisecondsSinceEpoch;
+      final dayStart = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).millisecondsSinceEpoch;
+      final dayEnd = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        23,
+        59,
+        59,
+        999,
+      ).millisecondsSinceEpoch;
 
-      final summary = jsonDecode(await _ble.getTodaySummary('hrv')) as Map<String, dynamic>;
+      final summary =
+          jsonDecode(await _ble.getTodaySummary('hrv')) as Map<String, dynamic>;
       final count = (summary['count'] as num? ?? 0).toInt();
 
       const totalSlots = 48;
       final slots = List<int>.filled(totalSlots, 0);
 
       if (count > 0) {
-        final readingsJson = await _ble.getReadings('hrv',
-            fromMs: dayStart, toMs: dayEnd, limit: 1000);
+        final readingsJson = await _ble.getReadings(
+          'hrv',
+          fromMs: dayStart,
+          toMs: dayEnd,
+          limit: 1000,
+        );
         final decoded = jsonDecode(readingsJson);
         final list = decoded is List ? decoded : <dynamic>[];
 
@@ -177,7 +198,8 @@ class _HrvScreenState extends State<HrvScreen> {
           }
         }
         for (int i = 0; i < totalSlots; i++) {
-          if (slotCounts[i] > 0) slots[i] = (slotSums[i] / slotCounts[i]).round();
+          if (slotCounts[i] > 0)
+            slots[i] = (slotSums[i] / slotCounts[i]).round();
         }
       }
 
@@ -202,7 +224,10 @@ class _HrvScreenState extends State<HrvScreen> {
 
   Future<void> _startMeasurement() async {
     if (_measuring) return;
-    setState(() { _measuring = true; _manualHrv = 0; });
+    setState(() {
+      _measuring = true;
+      _manualHrv = 0;
+    });
     try {
       final result = await _ble.manualModeHrv(start: true);
       int liveVal = 0;
@@ -223,7 +248,10 @@ class _HrvScreenState extends State<HrvScreen> {
       // app) — surface the actual error instead of failing silently so a timeout is
       // distinguishable from e.g. a disconnect.
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('HRV measurement failed: $e'), backgroundColor: AppTheme.danger),
+        SnackBar(
+          content: Text('HRV measurement failed: $e'),
+          backgroundColor: AppTheme.danger,
+        ),
       );
     }
   }
@@ -232,7 +260,10 @@ class _HrvScreenState extends State<HrvScreen> {
     final user = SupabaseService.currentUser;
     if (user == null) return;
     try {
-      final existing = await SupabaseService.getHrvForDate(user.id, DateTime.now());
+      final existing = await SupabaseService.getHrvForDate(
+        user.id,
+        DateTime.now(),
+      );
       int newAvg, newMin, newMax, newCount;
       final prevCount = (existing?['sample_count'] as num? ?? 0).toInt();
       if (existing != null && prevCount > 0) {
@@ -271,7 +302,10 @@ class _HrvScreenState extends State<HrvScreen> {
   Future<void> _loadDayFromSupabase(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() { _loadingDay = true; _dayOffline = false; });
+    setState(() {
+      _loadingDay = true;
+      _dayOffline = false;
+    });
     try {
       final row = await SupabaseService.getHrvForDate(user.id, date);
       if (!mounted) return;
@@ -292,7 +326,10 @@ class _HrvScreenState extends State<HrvScreen> {
   Future<void> _load7DayTrend() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    setState(() { _loadingTrend = true; _trendOffline = false; });
+    setState(() {
+      _loadingTrend = true;
+      _trendOffline = false;
+    });
     try {
       final now = DateTime.now();
       final rows = await SupabaseService.getHrvHistory(
@@ -302,7 +339,10 @@ class _HrvScreenState extends State<HrvScreen> {
       );
       final vals = List.generate(7, (i) {
         final day = now.subtract(Duration(days: 6 - i));
-        final row = rows.firstWhere((r) => r['date'] == _fmt(day), orElse: () => {});
+        final row = rows.firstWhere(
+          (r) => r['date'] == _fmt(day),
+          orElse: () => {},
+        );
         return (row['avg_hrv'] as num? ?? 0).toInt();
       });
       final valid = rows.where((r) => r['min_hrv'] != null).toList();
@@ -311,16 +351,99 @@ class _HrvScreenState extends State<HrvScreen> {
         _trendValues = vals;
         _trendMin = valid.isEmpty
             ? 0
-            : valid.map((r) => (r['min_hrv'] as num).toInt()).reduce((a, b) => a < b ? a : b);
+            : valid
+                  .map((r) => (r['min_hrv'] as num).toInt())
+                  .reduce((a, b) => a < b ? a : b);
         _trendMax = valid.isEmpty
             ? 0
-            : valid.map((r) => (r['max_hrv'] as num).toInt()).reduce((a, b) => a > b ? a : b);
+            : valid
+                  .map((r) => (r['max_hrv'] as num).toInt())
+                  .reduce((a, b) => a > b ? a : b);
       });
     } catch (e) {
       if (mounted && isNetworkError(e)) setState(() => _trendOffline = true);
     } finally {
       if (mounted) setState(() => _loadingTrend = false);
     }
+  }
+
+  // ── Three-dot menu ────────────────────────────────────────────────────────
+
+  void _openMenu() {
+    showGlassMenu(
+      context: context,
+      anchorKey: _moreButtonKey,
+      items: [
+        GlassMenuItem(
+          label: 'Share',
+          onTap: () => shareScreenshot(_screenshotKey, text: 'My HRV — SUNDR'),
+        ),
+        GlassMenuItem(
+          label: 'Note',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const VitalNoteScreen(
+                title: 'HRV',
+                heading: 'About HRV',
+                intro:
+                    'Heart rate variability — the tiny variation in time '
+                    'between heartbeats. Higher generally means your body '
+                    'is more recovered and ready to handle stress.',
+                ranges: [
+                  VitalRange(
+                    label: 'Very Low',
+                    range: '0–19',
+                    color: AppTheme.danger,
+                  ),
+                  VitalRange(
+                    label: 'Low',
+                    range: '20–39',
+                    color: AppTheme.stressColor,
+                  ),
+                  VitalRange(
+                    label: 'Moderate',
+                    range: '40–59',
+                    color: Color(0xFFFBBF24),
+                  ),
+                  VitalRange(
+                    label: 'Good',
+                    range: '60–79',
+                    color: AppTheme.success,
+                  ),
+                  VitalRange(
+                    label: 'Excellent',
+                    range: '80+',
+                    color: AppTheme.hrvColor,
+                  ),
+                ],
+                tips: [
+                  VitalTip(
+                    icon: Icons.fitness_center_rounded,
+                    color: AppTheme.hrvColor,
+                    title: 'It\'s personal',
+                    tip:
+                        'HRV varies a lot person to person — track your '
+                        'own trend over weeks rather than comparing to others.',
+                  ),
+                  VitalTip(
+                    icon: Icons.local_bar_rounded,
+                    color: AppTheme.stressColor,
+                    title: 'Alcohol drops it fast',
+                    tip:
+                        'Alcohol, illness, and poor sleep are the most '
+                        'common causes of a sudden overnight dip.',
+                  ),
+                ],
+                didYouKnow:
+                    'A rising HRV trend over time is one of the best signs '
+                    'that training or lifestyle changes are working.',
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -347,8 +470,8 @@ class _HrvScreenState extends State<HrvScreen> {
     final hrvText = _loading
         ? '···'
         : displayAvg > 0
-            ? '$displayAvg'
-            : '--';
+        ? '$displayAvg'
+        : '--';
 
     final hasData = _hasRingData;
     final dailyRangeLabel = hasData
@@ -359,181 +482,203 @@ class _HrvScreenState extends State<HrvScreen> {
         ? '$_trendMin - $_trendMax ms'
         : '-- -- ms';
 
-    return Scaffold(
-      backgroundColor: AppTheme.bg,
-      appBar: AppBar(
+    return RepaintBoundary(
+      key: _screenshotKey,
+      child: Scaffold(
         backgroundColor: AppTheme.bg,
-        foregroundColor: Colors.white,
-        centerTitle: true,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text('HRV', style: _inter(17, weight: FontWeight.w600)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onPressed: () {},
+        appBar: AppBar(
+          backgroundColor: AppTheme.bg,
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
           ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(0.5),
-          child: Container(color: _kBorder, height: 0.5),
+          title: Text('HRV', style: _inter(17, weight: FontWeight.w600)),
+          actions: [
+            IconButton(
+              key: _moreButtonKey,
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onPressed: _openMenu,
+            ),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(0.5),
+            child: Container(color: _kBorder, height: 0.5),
+          ),
         ),
-      ),
-      body: RefreshIndicator(
-        color: AppTheme.hrvColor,
-        backgroundColor: _kCard,
-        onRefresh: () async {
-          await _fetchTodayFromLocalDb();
-          await _load7DayTrend();
-        },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 16),
+        body: RefreshIndicator(
+          color: AppTheme.hrvColor,
+          backgroundColor: _kCard,
+          onRefresh: () async {
+            await _fetchTodayFromLocalDb();
+            await _load7DayTrend();
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 16),
 
-              // ── 1. Date row ────────────────────────────────────────────
-              _HRVDateRow(
-                selectedDate: _selectedDate,
-                onDateSelected: _onDateSelected,
-              ),
-              const SizedBox(height: 22),
+                // ── 1. Date row ────────────────────────────────────────────
+                _HRVDateRow(
+                  selectedDate: _selectedDate,
+                  onDateSelected: _onDateSelected,
+                ),
+                const SizedBox(height: 22),
 
-              // ── 2. Current HRV value ───────────────────────────────────
-              Text(
-                'CURRENT HRV',
-                style: _inter(11,
+                // ── 2. Current HRV value ───────────────────────────────────
+                Text(
+                  'CURRENT HRV',
+                  style: _inter(
+                    11,
                     weight: FontWeight.w600,
                     color: AppTheme.gold,
-                    letterSpacing: 1.2),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                hrvText,
-                style: _inter(52, weight: FontWeight.w300, height: 1.1),
-              ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text('ms', style: _inter(13, color: _kSec)),
-                  const SizedBox(width: 10),
-                  if (!_loading && displayAvg > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _hrvColor(displayAvg).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        _hrvLabel(displayAvg),
-                        style: _inter(11,
-                            weight: FontWeight.w600,
-                            color: _hrvColor(displayAvg)),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // ── 3. Daily chart ─────────────────────────────────────────
-              _HRVChartCard(
-                headerLabel: hasData ? 'TODAY' : (_isToday ? 'NO DATA YET' : _dateLabel()),
-                rangeLabel: dailyRangeLabel,
-                values: _isToday ? _chartValues : [],
-                xLabels: const ['12am', '6am', '12pm', '6pm', ''],
-                loading: _loading || _loadingDay,
-              ),
-              if (_dayOffline && !_isToday) ...[
-                const SizedBox(height: 8),
-                const OfflineNotice(message: 'Connect to WiFi to load this day\'s HRV'),
-              ],
-              const SizedBox(height: 10),
-
-              // ── 4. Stats row ───────────────────────────────────────────
-              Row(children: [
-                Expanded(
-                  child: _HRVStatCard(
-                    label: 'AVERAGE',
-                    value: displayAvg > 0 ? '$displayAvg' : '--',
-                    unit: displayAvg > 0 ? 'ms' : '--',
+                    letterSpacing: 1.2,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _HRVStatCard(
-                    label: 'MINIMUM',
-                    value: displayMin > 0 ? '$displayMin' : '--',
-                    unit: displayMin > 0 ? 'ms' : '--',
-                  ),
+                const SizedBox(height: 2),
+                Text(
+                  hrvText,
+                  style: _inter(52, weight: FontWeight.w300, height: 1.1),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _HRVStatCard(
-                    label: 'MAXIMUM',
-                    value: displayMax > 0 ? '$displayMax' : '--',
-                    unit: displayMax > 0 ? 'ms' : '--',
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 10),
-
-              // ── 4b. Real-time measurement ───────────────────────────────
-              _RealTimeCard(
-                latestHrv: _manualHrv,
-                measuring: _measuring,
-                enabled: connected && !_measuring,
-                onTap: _startMeasurement,
-              ),
-              const SizedBox(height: 20),
-
-              // ── 5. 7-day trend ─────────────────────────────────────────
-              _HRVChartCard(
-                headerLabel: 'LAST 7 DAYS TREND',
-                rangeLabel: trendRangeLabel,
-                values: _trendValues,
-                xLabels: _trendXLabels(),
-                loading: _loadingTrend,
-              ),
-              if (_trendOffline) ...[
-                const SizedBox(height: 8),
-                const OfflineNotice(message: 'Connect to WiFi to load your 7-day trend'),
-              ],
-              const SizedBox(height: 10),
-
-              // ── 6. Color legend ────────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                decoration: BoxDecoration(
-                  color: _kCard,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _kBorder),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    _LegendDot(color: AppTheme.danger, label: 'Very Low'),
-                    _LegendDot(color: AppTheme.stressColor, label: 'Low'),
-                    _LegendDot(color: const Color(0xFFFBBF24), label: 'Moderate'),
-                    _LegendDot(color: AppTheme.success, label: 'Good'),
-                    _LegendDot(color: AppTheme.hrvColor, label: 'Excellent'),
+                    Text('ms', style: _inter(13, color: _kSec)),
+                    const SizedBox(width: 10),
+                    if (!_loading && displayAvg > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _hrvColor(displayAvg).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _hrvLabel(displayAvg),
+                          style: _inter(
+                            11,
+                            weight: FontWeight.w600,
+                            color: _hrvColor(displayAvg),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
-              ),
+                const SizedBox(height: 16),
 
-              // ── 7. Slot readings (today only) ──────────────────────────
-              if (hasData) ...[
+                // ── 3. Daily chart ─────────────────────────────────────────
+                _HRVChartCard(
+                  headerLabel: hasData
+                      ? 'TODAY'
+                      : (_isToday ? 'NO DATA YET' : _dateLabel()),
+                  rangeLabel: dailyRangeLabel,
+                  values: _isToday ? _chartValues : [],
+                  xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                  loading: _loading || _loadingDay,
+                ),
+                if (_dayOffline && !_isToday) ...[
+                  const SizedBox(height: 8),
+                  const OfflineNotice(
+                    message: 'Connect to WiFi to load this day\'s HRV',
+                  ),
+                ],
                 const SizedBox(height: 10),
-                _slotReadingsList(_chartValues),
-              ],
 
-              const SizedBox(height: 80),
-            ],
+                // ── 4. Stats row ───────────────────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: _HRVStatCard(
+                        label: 'AVERAGE',
+                        value: displayAvg > 0 ? '$displayAvg' : '--',
+                        unit: displayAvg > 0 ? 'ms' : '--',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _HRVStatCard(
+                        label: 'MINIMUM',
+                        value: displayMin > 0 ? '$displayMin' : '--',
+                        unit: displayMin > 0 ? 'ms' : '--',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _HRVStatCard(
+                        label: 'MAXIMUM',
+                        value: displayMax > 0 ? '$displayMax' : '--',
+                        unit: displayMax > 0 ? 'ms' : '--',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // ── 4b. Real-time measurement ───────────────────────────────
+                _RealTimeCard(
+                  latestHrv: _manualHrv,
+                  measuring: _measuring,
+                  enabled: connected && !_measuring,
+                  onTap: _startMeasurement,
+                ),
+                const SizedBox(height: 20),
+
+                // ── 5. 7-day trend ─────────────────────────────────────────
+                _HRVChartCard(
+                  headerLabel: 'LAST 7 DAYS TREND',
+                  rangeLabel: trendRangeLabel,
+                  values: _trendValues,
+                  xLabels: _trendXLabels(),
+                  loading: _loadingTrend,
+                ),
+                if (_trendOffline) ...[
+                  const SizedBox(height: 8),
+                  const OfflineNotice(
+                    message: 'Connect to WiFi to load your 7-day trend',
+                  ),
+                ],
+                const SizedBox(height: 10),
+
+                // ── 6. Color legend ────────────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  decoration: BoxDecoration(
+                    color: _kCard,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _kBorder),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _LegendDot(color: AppTheme.danger, label: 'Very Low'),
+                      _LegendDot(color: AppTheme.stressColor, label: 'Low'),
+                      _LegendDot(
+                        color: const Color(0xFFFBBF24),
+                        label: 'Moderate',
+                      ),
+                      _LegendDot(color: AppTheme.success, label: 'Good'),
+                      _LegendDot(color: AppTheme.hrvColor, label: 'Excellent'),
+                    ],
+                  ),
+                ),
+
+                // ── 7. Slot readings (today only) ──────────────────────────
+                if (hasData) ...[
+                  const SizedBox(height: 10),
+                  _slotReadingsList(_chartValues),
+                ],
+
+                const SizedBox(height: 80),
+              ],
+            ),
           ),
         ),
       ),
@@ -542,8 +687,18 @@ class _HrvScreenState extends State<HrvScreen> {
 
   String _dateLabel() {
     const months = [
-      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
     ];
     return '${months[_selectedDate.month - 1]} ${_selectedDate.day}';
   }
@@ -554,8 +709,11 @@ class _HrvScreenState extends State<HrvScreen> {
       if (values[i] <= 0) continue;
       final minutes = i * 30;
       final dt = DateTime(
-        _selectedDate.year, _selectedDate.month, _selectedDate.day,
-        minutes ~/ 60, minutes % 60,
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+        minutes ~/ 60,
+        minutes % 60,
       );
       entries.add((_fmtTime(dt), values[i]));
     }
@@ -574,7 +732,12 @@ class _HrvScreenState extends State<HrvScreen> {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
             child: Text(
               'READINGS',
-              style: _inter(10, weight: FontWeight.w600, color: _kSec, letterSpacing: 0.7),
+              style: _inter(
+                10,
+                weight: FontWeight.w600,
+                color: _kSec,
+                letterSpacing: 0.7,
+              ),
             ),
           ),
           ...entries.asMap().entries.map((e) {
@@ -583,43 +746,58 @@ class _HrvScreenState extends State<HrvScreen> {
             final color = _hrvColor(v);
             final label = _hrvLabel(v);
             final isLast = e.key == entries.length - 1;
-            return Column(children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.monitor_heart_rounded, color: color, size: 18),
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(time,
-                            style: _inter(14, weight: FontWeight.w600)),
-                        Text(label,
-                            style: _inter(11, color: color)),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  child: Row(
                     children: [
-                      Text('$v', style: _inter(22, weight: FontWeight.w700)),
-                      Text('ms', style: _inter(10, color: _kSec)),
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.monitor_heart_rounded,
+                          color: color,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              time,
+                              style: _inter(14, weight: FontWeight.w600),
+                            ),
+                            Text(label, style: _inter(11, color: color)),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '$v',
+                            style: _inter(22, weight: FontWeight.w700),
+                          ),
+                          Text('ms', style: _inter(10, color: _kSec)),
+                        ],
+                      ),
                     ],
                   ),
-                ]),
-              ),
-              if (!isLast)
-                const Divider(color: _kBorder, height: 0.5, indent: 66),
-            ]);
+                ),
+                if (!isLast)
+                  const Divider(color: _kBorder, height: 0.5, indent: 66),
+              ],
+            );
           }),
         ],
       ),
@@ -635,8 +813,18 @@ class _HRVDateRow extends StatelessWidget {
   const _HRVDateRow({required this.selectedDate, required this.onDateSelected});
 
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   @override
@@ -661,7 +849,11 @@ class _HRVDateRow extends StatelessWidget {
   Widget _buildItem(DateTime d, DateTime today) {
     final isToday = d == today;
     final isFuture = d.isAfter(today);
-    final sel = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final sel = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
     final isSelected = d == sel && !isToday;
 
     if (isToday || isSelected) {
@@ -731,15 +923,23 @@ class _HRVChartCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(headerLabel,
-                  style: _inter(11,
-                      weight: FontWeight.w600,
-                      color: _kSec,
-                      letterSpacing: 0.6)),
-              Text(rangeLabel,
-                  style: _inter(11,
-                      weight: FontWeight.w500,
-                      color: const Color(0xFF999999))),
+              Text(
+                headerLabel,
+                style: _inter(
+                  11,
+                  weight: FontWeight.w600,
+                  color: _kSec,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              Text(
+                rangeLabel,
+                style: _inter(
+                  11,
+                  weight: FontWeight.w500,
+                  color: const Color(0xFF999999),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -754,10 +954,12 @@ class _HRVChartCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: ['100', '80', '60', '40']
-                        .map((l) => Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: Text(l, style: _inter(10, color: _kSec)),
-                            ))
+                        .map(
+                          (l) => Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: Text(l, style: _inter(10, color: _kSec)),
+                          ),
+                        )
                         .toList(),
                   ),
                 ),
@@ -799,7 +1001,7 @@ class _HRVBarPainter extends CustomPainter {
   final List<int> values;
   const _HRVBarPainter({required this.values});
 
-  static const _maxY   = 100.0;
+  static const _maxY = 100.0;
   static const _yLines = [100, 80, 60, 40, 20];
 
   static Color _barColor(int v) {
@@ -837,8 +1039,12 @@ class _HRVBarPainter extends CustomPainter {
       final x = i * slotW + (slotW - barW) / 2;
       canvas.drawRRect(
         RRect.fromLTRBR(
-            x, size.height - barH, x + barW, size.height,
-            const Radius.circular(3)),
+          x,
+          size.height - barH,
+          x + barW,
+          size.height,
+          const Radius.circular(3),
+        ),
         Paint()..color = _barColor(values[i]).withValues(alpha: 0.88),
       );
     }
@@ -873,11 +1079,15 @@ class _HRVStatCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label,
-              style: _inter(10,
-                  weight: FontWeight.w600,
-                  color: _kSec,
-                  letterSpacing: 0.7)),
+          Text(
+            label,
+            style: _inter(
+              10,
+              weight: FontWeight.w600,
+              color: _kSec,
+              letterSpacing: 0.7,
+            ),
+          ),
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -916,8 +1126,8 @@ class _RealTimeCard extends StatelessWidget {
     final hrvText = measuring
         ? '···'
         : latestHrv > 0
-            ? '$latestHrv'
-            : '--';
+        ? '$latestHrv'
+        : '--';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -931,18 +1141,19 @@ class _RealTimeCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Real Time HRV',
-                  style: _inter(14, weight: FontWeight.w500)),
+              Text('Real Time HRV', style: _inter(14, weight: FontWeight.w500)),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Text(hrvText,
-                      style: _inter(15,
-                          weight: FontWeight.w600,
-                          color: measuring || latestHrv > 0
-                              ? Colors.white
-                              : _kSec2)),
+                  Text(
+                    hrvText,
+                    style: _inter(
+                      15,
+                      weight: FontWeight.w600,
+                      color: measuring || latestHrv > 0 ? Colors.white : _kSec2,
+                    ),
+                  ),
                   const SizedBox(width: 4),
                   Text('ms', style: _inter(11, color: _kSec)),
                 ],
@@ -972,9 +1183,11 @@ class _RealTimeCard extends StatelessWidget {
                       )
                     : Text(
                         'Click to start measurement',
-                        style: _inter(14,
-                            weight: FontWeight.w500,
-                            color: enabled ? Colors.white70 : _kSec),
+                        style: _inter(
+                          14,
+                          weight: FontWeight.w500,
+                          color: enabled ? Colors.white70 : _kSec,
+                        ),
                       ),
               ),
             ),
@@ -994,12 +1207,11 @@ class _LegendDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircleAvatar(radius: 3.5, backgroundColor: color),
-          const SizedBox(width: 4),
-          Text(label, style: _inter(9, color: _kSec2)),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      CircleAvatar(radius: 3.5, backgroundColor: color),
+      const SizedBox(width: 4),
+      Text(label, style: _inter(9, color: _kSec2)),
+    ],
+  );
 }
-
