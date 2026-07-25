@@ -20,8 +20,30 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final List<Map<String, dynamic>> _messages = [];
   bool _isLoading = false;
+  bool _hasText = false;
   String? _conversationId;
   String _errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    final hasText = _controller.text.trim().isNotEmpty;
+    if (hasText != _hasText) {
+      setState(() => _hasText = hasText);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_onTextChanged);
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   void _startVoiceInput() async {
     final transcript = await VoiceListeningSheet.show(context);
@@ -81,16 +103,21 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       backgroundColor: AppTheme.bg,
       appBar: null, // Removed standard AppBar to match Figma design
-      resizeToAvoidBottomInset: true, // Allow standard resizing; we scroll the header out of the way dynamically
+      resizeToAvoidBottomInset:
+          true, // Allow standard resizing; we scroll the header out of the way dynamically
       body: SafeArea(
-        bottom: false, // Let input bar handle its own bottom padding dynamically to avoid keyboard overflow
+        bottom:
+            false, // Let input bar handle its own bottom padding dynamically to avoid keyboard overflow
         child: Column(
           children: [
             // Error Message Banner (if any)
             if (_errorMessage.isNotEmpty)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 color: AppTheme.danger.withValues(alpha: 0.15),
                 child: Row(
                   children: [
@@ -127,7 +154,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   ? _buildEmptyState()
                   : ListView.builder(
                       controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 8,
+                      ),
                       // Add 1 to count to include the InsightsHeader as item 0
                       itemCount: _messages.length + (_isLoading ? 1 : 0) + 1,
                       itemBuilder: (context, index) {
@@ -137,10 +167,15 @@ class _ChatScreenState extends State<ChatScreen> {
                             children: [
                               const InsightsHeader(),
                               Padding(
-                                padding: const EdgeInsets.only(top: 18, bottom: 14),
+                                padding: const EdgeInsets.only(
+                                  top: 18,
+                                  bottom: 14,
+                                ),
                                 child: Container(
                                   height: 0.5,
-                                  color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
+                                  color: const Color(
+                                    0x1AFFFFFF,
+                                  ), // rgba(255,255,255,0.1)
                                 ),
                               ),
                             ],
@@ -158,24 +193,38 @@ class _ChatScreenState extends State<ChatScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Padding(
-                                  padding: const EdgeInsets.only(left: 6, bottom: 4),
+                                  padding: const EdgeInsets.only(
+                                    left: 6,
+                                    bottom: 4,
+                                  ),
                                   child: Text(
                                     'AH ASSIST',
                                     style: GoogleFonts.inter(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w500,
                                       letterSpacing: 0.12 * 10,
-                                      color: const Color(0x66FFFFFF), // rgba(255,255,255,0.4)
+                                      color: const Color(
+                                        0x66FFFFFF,
+                                      ), // rgba(255,255,255,0.4)
                                     ),
                                   ),
                                 ),
                                 Container(
-                                  margin: const EdgeInsets.symmetric(vertical: 6),
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                  margin: const EdgeInsets.symmetric(
+                                    vertical: 6,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 16,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
+                                    color: const Color(
+                                      0x0AFFFFFF,
+                                    ), // rgba(255,255,255,0.04)
                                     border: Border.all(
-                                      color: const Color(0x12FFFFFF), // rgba(255,255,255,0.07)
+                                      color: const Color(
+                                        0x12FFFFFF,
+                                      ), // rgba(255,255,255,0.07)
                                       width: 1,
                                     ),
                                     borderRadius: const BorderRadius.only(
@@ -196,7 +245,10 @@ class _ChatScreenState extends State<ChatScreen> {
                         final isUser = msg['role'] == 'user';
 
                         if (isUser) {
-                          return _buildUserBubble(context, msg['content'] ?? '');
+                          return _buildUserBubble(
+                            context,
+                            msg['content'] ?? '',
+                          );
                         } else {
                           final String content = msg['content'] ?? '';
                           final card = msg['card'];
@@ -207,7 +259,8 @@ class _ChatScreenState extends State<ChatScreen> {
                               children: [
                                 if (content.isNotEmpty)
                                   _buildAssistantBubble(context, content),
-                                if (card != null && card['type'] == 'sleep_highlights') ...[
+                                if (card != null &&
+                                    card['type'] == 'sleep_highlights') ...[
                                   const SizedBox(height: 8),
                                   SleepHighlightsCard(data: card['data']),
                                 ],
@@ -279,10 +332,7 @@ class _ChatScreenState extends State<ChatScreen> {
               onTap: _sendMessage,
             ),
             const SizedBox(height: 8),
-            _SuggestionChip(
-              text: 'I have a headache',
-              onTap: _sendMessage,
-            ),
+            _SuggestionChip(text: 'I have a headache', onTap: _sendMessage),
             const SizedBox(height: 8),
             _SuggestionChip(
               text: 'What vitamins should I take?',
@@ -352,7 +402,10 @@ class _ChatScreenState extends State<ChatScreen> {
             margin: const EdgeInsets.symmetric(vertical: 6),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
             constraints: BoxConstraints(
-              maxWidth: math.min(MediaQuery.of(context).size.width * 0.78, 274.7),
+              maxWidth: math.min(
+                MediaQuery.of(context).size.width * 0.78,
+                274.7,
+              ),
             ),
             decoration: BoxDecoration(
               color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
@@ -384,6 +437,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildInputBar(bool isKeyboardOpen) {
+    // Send button only appears once the user has typed something; otherwise
+    // the pill fills the row with just the mic icon, matching the Figma spec.
+    final bool showSend = _hasText;
+
     return ClipRRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
@@ -430,7 +487,9 @@ class _ChatScreenState extends State<ChatScreen> {
                               fontSize: 13,
                               fontWeight: FontWeight.w400,
                               letterSpacing: -0.005 * 13,
-                              color: const Color(0x6BFFFFFF), // rgba(255,255,255,0.42)
+                              color: const Color(
+                                0x6BFFFFFF,
+                              ), // rgba(255,255,255,0.42)
                             ),
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.zero,
@@ -450,32 +509,50 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _isLoading ? null : _sendMessage,
-                child: Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: _isLoading ? Colors.transparent : AppTheme.goldAccent,
-                    shape: BoxShape.circle,
-                    border: _isLoading
-                        ? Border.all(color: const Color(0x1AFFFFFF), width: 0.5)
-                        : null,
-                  ),
-                  child: Center(
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: AppTheme.goldAccent,
-                              strokeWidth: 2,
+              // Animated show/hide of the send button based on whether text is present.
+              AnimatedSize(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                child: showSend
+                    ? Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: GestureDetector(
+                          onTap: _isLoading ? null : _sendMessage,
+                          child: Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: _isLoading
+                                  ? Colors.transparent
+                                  : AppTheme.goldAccent,
+                              shape: BoxShape.circle,
+                              border: _isLoading
+                                  ? Border.all(
+                                      color: const Color(0x1AFFFFFF),
+                                      width: 0.5,
+                                    )
+                                  : null,
                             ),
-                          )
-                        : const Icon(Icons.send, color: Colors.black, size: 20),
-                  ),
-                ),
+                            child: Center(
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        color: AppTheme.goldAccent,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.send,
+                                      color: Colors.black,
+                                      size: 20,
+                                    ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : const SizedBox(width: 0, height: 52),
               ),
             ],
           ),
@@ -574,10 +651,7 @@ class _ChatLoadingIndicatorState extends State<_ChatLoadingIndicator>
           child: Container(
             width: size,
             height: size,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
         );
       },

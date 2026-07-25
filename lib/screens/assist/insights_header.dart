@@ -2,7 +2,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
-import '../../services/insights_service.dart';
+import '../../services/chat_api_service.dart';
 import 'key_change_card.dart';
 
 class InsightsHeader extends StatefulWidget {
@@ -14,10 +14,7 @@ class InsightsHeader extends StatefulWidget {
 
 class _InsightsHeaderState extends State<InsightsHeader> {
   String _selectedRange = '30D';
-  InsightsResult? _result;
-  bool _loading = true;
-
-  static const _rangeDays = {'7D': 7, '30D': 30, '90D': 90};
+  Future<Map<String, dynamic>>? _insightsFuture;
 
   @override
   void initState() {
@@ -25,21 +22,16 @@ class _InsightsHeaderState extends State<InsightsHeader> {
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    final result = await InsightsService.compute(_rangeDays[_selectedRange]!);
-    if (mounted) {
-      setState(() {
-        _result = result;
-        _loading = false;
-      });
-    }
+  void _load() {
+    _insightsFuture = ChatApiService.getInsights(_selectedRange);
   }
 
   void _onRangeSelect(String range) {
     if (range == _selectedRange) return;
-    setState(() => _selectedRange = range);
-    _load();
+    setState(() {
+      _selectedRange = range;
+      _load();
+    });
   }
 
   @override
@@ -60,8 +52,8 @@ class _InsightsHeaderState extends State<InsightsHeader> {
                 style: GoogleFonts.inter(
                   fontSize: 28,
                   fontWeight: FontWeight.w300,
-                  letterSpacing: -0.04 * 28, // -0.04em
-                  color: const Color(0xF2FFFFFF), // rgba(255,255,255,0.95)
+                  letterSpacing: -0.04 * 28,
+                  color: const Color(0xF2FFFFFF),
                 ),
               ),
               _buildSegmentedControl(),
@@ -70,7 +62,19 @@ class _InsightsHeaderState extends State<InsightsHeader> {
 
           const SizedBox(height: 24),
 
-          if (_loading) _buildLoading() else _buildInsights(_result!),
+          FutureBuilder<Map<String, dynamic>>(
+            future: _insightsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return _buildLoading();
+              }
+              final data = snapshot.data;
+              if (data == null || data['error'] != null) {
+                return _buildFallback();
+              }
+              return _buildContent(data);
+            },
+          ),
 
           const SizedBox(height: 18),
         ],
@@ -78,115 +82,157 @@ class _InsightsHeaderState extends State<InsightsHeader> {
     );
   }
 
-  Widget _buildLoading() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 40),
-      child: Center(
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: AppTheme.gold,
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildContent(Map<String, dynamic> data) {
+    final headlineParts = (data['headline_parts'] as List?) ?? [];
+    final subtext = data['subtext'] as String? ?? '';
+    final updates = (data['updates'] as List?) ?? [];
 
-  Widget _buildInsights(InsightsResult result) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Eyebrow label
         Text(
-          result.eyebrow,
+          'YOUR LAST ${_rangeLabel(_selectedRange)}',
           style: GoogleFonts.inter(
             fontSize: 10,
             fontWeight: FontWeight.w500,
-            letterSpacing: 0.2 * 10, // 0.2em
+            letterSpacing: 0.2 * 10,
             color: AppTheme.goldAccent,
           ),
         ),
 
         const SizedBox(height: 6),
 
-        // Headline (RichText, dynamically built spans)
+        // Headline (dynamic, built from headline_parts)
         RichText(
           text: TextSpan(
             style: GoogleFonts.inter(
               fontSize: 21,
               fontWeight: FontWeight.w400,
-              height: 1.30, // line-height 130%
-              letterSpacing: -0.025 * 21, // -0.025em
-              color: const Color(0xEBFFFFFF), // rgba(255,255,255,0.92)
+              height: 1.30,
+              letterSpacing: -0.025 * 21,
+              color: const Color(0xEBFFFFFF),
             ),
-            children: result.headline
-                .map(
-                  (span) => TextSpan(
-                    text: span.text,
-                    style: span.highlight
-                        ? GoogleFonts.inter(
-                            color: AppTheme.goldAccent,
-                            fontWeight: FontWeight.w400,
-                          )
-                        : null,
-                  ),
-                )
-                .toList(),
+            children: [
+              for (final part in headlineParts)
+                TextSpan(
+                  text: part['text'] as String? ?? '',
+                  style: (part['highlight'] == true)
+                      ? GoogleFonts.inter(
+                          color: AppTheme.goldAccent,
+                          fontWeight: FontWeight.w400,
+                        )
+                      : null,
+                ),
+            ],
           ),
         ),
 
-        const SizedBox(height: 8),
-
-        // Subtext
-        Text(
-          result.subtext,
-          style: GoogleFonts.inter(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w400,
-            height: 1.50, // line-height 150%
-            letterSpacing: 0.02 * 12.5, // 0.02em
-            color: const Color(0x85FFFFFF), // rgba(255,255,255,0.52)
-          ),
-        ),
-
-        const SizedBox(height: 20),
-
-        // KEY CHANGES Eyebrow
-        Text(
-          'KEY CHANGES',
-          style: GoogleFonts.inter(
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0.2 * 10, // 0.2em
-            color: const Color(0x6BFFFFFF), // rgba(255,255,255,0.42)
-          ),
-        ),
-
-        const SizedBox(height: 10),
-
-        // Cards Row (2 cards side by side, flexible sizing)
-        Row(
-          children: [
-            KeyChangeCard(
-              title: result.sleep.title,
-              delta: result.sleep.delta,
-              subtitle: result.sleep.subtitle,
-              onTap: () => Navigator.pushNamed(context, result.sleep.route),
+        if (subtext.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            subtext,
+            style: GoogleFonts.inter(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w400,
+              height: 1.50,
+              letterSpacing: 0.02 * 12.5,
+              color: const Color(0x85FFFFFF),
             ),
-            const SizedBox(width: 8),
-            KeyChangeCard(
-              title: result.bloodPressure.title,
-              delta: result.bloodPressure.delta,
-              subtitle: result.bloodPressure.subtitle,
-              onTap: () =>
-                  Navigator.pushNamed(context, result.bloodPressure.route),
+          ),
+        ],
+
+        if (updates.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Text(
+            updates.any((u) => u['alarming'] == true)
+                ? 'NEEDS ATTENTION'
+                : 'KEY CHANGES',
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.2 * 10,
+              color: const Color(0x6BFFFFFF),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (int i = 0; i < updates.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                KeyChangeCard(
+                  title: updates[i]['title'] as String? ?? '',
+                  delta: updates[i]['delta_label'] as String? ?? '',
+                  subtitle: updates[i]['subtitle'] as String? ?? '',
+                  alarming: updates[i]['alarming'] == true,
+                  onTap: () => _navigateFor(updates[i]['key'] as String?),
+                ),
+              ],
+            ],
+          ),
+        ],
       ],
     );
+  }
+
+  Widget _buildLoading() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 24),
+      child: SizedBox(
+        height: 16,
+        width: 16,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Color(0x66FFFFFF),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFallback() {
+    return Text(
+      'Your trends will appear here once we have enough recent readings.',
+      style: GoogleFonts.inter(
+        fontSize: 12.5,
+        fontWeight: FontWeight.w400,
+        height: 1.50,
+        color: const Color(0x85FFFFFF),
+      ),
+    );
+  }
+
+  String _rangeLabel(String range) {
+    switch (range) {
+      case '7D':
+        return '7 DAYS';
+      case '90D':
+        return '90 DAYS';
+      default:
+        return '30 DAYS';
+    }
+  }
+
+  void _navigateFor(String? key) {
+    switch (key) {
+      case 'sleep':
+        Navigator.pushNamed(context, '/sleep');
+        break;
+      case 'blood_pressure':
+        Navigator.pushNamed(context, '/blood-pressure');
+        break;
+      case 'heart_rate':
+        Navigator.pushNamed(context, '/heart-rate');
+        break;
+      case 'hrv':
+        Navigator.pushNamed(context, '/hrv');
+        break;
+      case 'spo2':
+        Navigator.pushNamed(context, '/blood-oxygen');
+        break;
+      case 'steps':
+        Navigator.pushNamed(context, '/steps');
+        break;
+    }
   }
 
   Widget _buildSegmentedControl() {
@@ -195,11 +241,8 @@ class _InsightsHeaderState extends State<InsightsHeader> {
       height: 33,
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
-        border: Border.all(
-          color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
-          width: 0.5,
-        ),
+        color: const Color(0x0AFFFFFF),
+        border: Border.all(color: const Color(0x0FFFFFFF), width: 0.5),
         borderRadius: BorderRadius.circular(100),
       ),
       child: ClipRRect(
@@ -226,9 +269,7 @@ class _InsightsHeaderState extends State<InsightsHeader> {
         behavior: HitTestBehavior.opaque,
         child: Container(
           decoration: BoxDecoration(
-            color: isSelected
-                ? const Color(0x14FFFFFF)
-                : Colors.transparent, // rgba(255,255,255,0.08)
+            color: isSelected ? const Color(0x14FFFFFF) : Colors.transparent,
             borderRadius: BorderRadius.circular(100),
           ),
           child: Center(
@@ -237,8 +278,8 @@ class _InsightsHeaderState extends State<InsightsHeader> {
               style: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.w400,
-                letterSpacing: 0.02 * 11, // 0.02em
-                color: const Color(0xF2FFFFFF), // rgba(255,255,255,0.95)
+                letterSpacing: 0.02 * 11,
+                color: const Color(0xF2FFFFFF),
               ),
             ),
           ),

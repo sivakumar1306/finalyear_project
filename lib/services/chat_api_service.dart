@@ -39,4 +39,23 @@ class ChatApiService {
     );
     return jsonDecode(response.body);
   }
+
+  /// Dynamic AI-assist header data: headline, subtext, and key-change cards,
+  /// computed server-side from real DB trends for the given range.
+  static Future<Map<String, dynamic>> getInsights(String range) async {
+    final userId = _userId;
+    if (userId == null) {
+      return {
+        'headline_parts': [
+          {'text': 'Sign in to see your trends', 'highlight': false},
+        ],
+        'subtext': '',
+        'updates': [],
+      };
+    }
+    final response = await http.get(
+      Uri.parse('$baseUrl/insights/$userId?range=$range'),
+    );
+    return jsonDecode(response.body);
+  }
 }
