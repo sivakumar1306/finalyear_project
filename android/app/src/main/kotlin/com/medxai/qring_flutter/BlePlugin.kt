@@ -679,46 +679,112 @@ class BlePlugin(private val context: Context) {
 
     private fun manualModeHeart(call: MethodCall, result: MethodChannel.Result) {
         val start = call.argument<Boolean>("start") ?: true
-        BleOperateManager.getInstance().manualModeHeart(
-            ICommandResponse<StartHeartRateRsp> { rsp ->
-                mainHandler.post { result.success(gson.toJson(rsp)) }
-            },
-            !start
-        )
+        val owner = "manual"
+        fun acquireWithRetry(onAcquired: () -> Unit) {
+            if (!start) {
+                onAcquired()
+                return
+            }
+            MeasurementCoordinator.manualRequestPending = true
+            if (MeasurementCoordinator.tryAcquire(owner)) {
+                MeasurementCoordinator.manualRequestPending = false
+                onAcquired()
+            } else {
+                mainHandler.postDelayed({
+                    if (MeasurementCoordinator.tryAcquire(owner)) {
+                        MeasurementCoordinator.manualRequestPending = false
+                        onAcquired()
+                    } else {
+                        MeasurementCoordinator.manualRequestPending = false
+                        result.error("BUSY", "Another measurement is already in progress", null)
+                    }
+                }, 500L)
+            }
+        }
+        acquireWithRetry {
+            try {
+                BleOperateManager.getInstance().manualModeHeart(
+                    ICommandResponse<StartHeartRateRsp> { rsp ->
+                        if (!start) {
+                            MeasurementCoordinator.release(owner)
+                        }
+                        mainHandler.post { result.success(gson.toJson(rsp)) }
+                    },
+                    !start
+                )
+            } catch (e: Exception) {
+                if (start) {
+                    MeasurementCoordinator.release(owner)
+                }
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+            }
+        }
     }
 
     // Single-call measurement: starts HR, waits for a valid (>0) reading,
     // auto-stops, then resolves. Mirrors the test_app RingSdkBridge.readHeartRate().
     private fun readHeartRate(result: MethodChannel.Result) {
-        val done = AtomicBoolean(false)
-
-        BleOperateManager.getInstance().manualModeHeart(
-            ICommandResponse<StartHeartRateRsp> { rsp ->
-                if (done.get()) return@ICommandResponse
-
-                if (rsp.status == BaseRspCmd.RESULT_OK) {
-                    val value = if (rsp.getHeartRate() > 0) rsp.getHeartRate() else rsp.getValue()
-                    if (value > 0 && done.compareAndSet(false, true)) {
-                        BleOperateManager.getInstance().manualModeHeart(null, true) // stop
-                        mainHandler.post { result.success(value) }
+        val owner = "manual"
+        fun acquireWithRetry(onAcquired: () -> Unit) {
+            MeasurementCoordinator.manualRequestPending = true
+            if (MeasurementCoordinator.tryAcquire(owner)) {
+                MeasurementCoordinator.manualRequestPending = false
+                onAcquired()
+            } else {
+                mainHandler.postDelayed({
+                    if (MeasurementCoordinator.tryAcquire(owner)) {
+                        MeasurementCoordinator.manualRequestPending = false
+                        onAcquired()
+                    } else {
+                        MeasurementCoordinator.manualRequestPending = false
+                        result.error("BUSY", "Another measurement is already in progress", null)
                     }
-                    // value == 0: measurement still warming up — wait for next callback
-                } else {
-                    if (done.compareAndSet(false, true)) {
-                        mainHandler.post { result.success(null) }
-                    }
-                }
-            },
-            false // false = start measurement
-        )
-
-        // Stop and time out after 60 s so the Dart await never hangs forever
-        mainHandler.postDelayed({
-            if (done.compareAndSet(false, true)) {
-                BleOperateManager.getInstance().manualModeHeart(null, true) // stop
-                result.error("TIMEOUT", "Heart rate measurement timed out", null)
+                }, 500L)
             }
-        }, 60_000L)
+        }
+        acquireWithRetry {
+            val done = AtomicBoolean(false)
+
+            try {
+                BleOperateManager.getInstance().manualModeHeart(
+                    ICommandResponse<StartHeartRateRsp> { rsp ->
+                        if (done.get()) return@ICommandResponse
+
+                        if (rsp.status == BaseRspCmd.RESULT_OK) {
+                            val value = if (rsp.getHeartRate() > 0) rsp.getHeartRate() else rsp.getValue()
+                            if (value > 0 && done.compareAndSet(false, true)) {
+                                try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
+                                MeasurementCoordinator.release(owner)
+                                mainHandler.post { result.success(value) }
+                            }
+                            // value == 0: measurement still warming up — wait for next callback
+                        } else {
+                            if (done.compareAndSet(false, true)) {
+                                try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
+                                MeasurementCoordinator.release(owner)
+                                mainHandler.post { result.success(null) }
+                            }
+                        }
+                    },
+                    false // false = start measurement
+                )
+            } catch (e: Exception) {
+                if (done.compareAndSet(false, true)) {
+                    MeasurementCoordinator.release(owner)
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                }
+                return@acquireWithRetry
+            }
+
+            // Stop and time out after 60 s so the Dart await never hangs forever
+            mainHandler.postDelayed({
+                if (done.compareAndSet(false, true)) {
+                    try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
+                    MeasurementCoordinator.release(owner)
+                    result.error("TIMEOUT", "Heart rate measurement timed out", null)
+                }
+            }, 60_000L)
+        }
     }
 
     private fun syncIntervalHeartRate(result: MethodChannel.Result) {
@@ -823,30 +889,67 @@ class BlePlugin(private val context: Context) {
 
     private fun manualModeBP(call: MethodCall, result: MethodChannel.Result) {
         val start = call.argument<Boolean>("start") ?: true
-        val done = AtomicBoolean(false)
-        BleOperateManager.getInstance().manualModeBP(
-            ICommandResponse<StartHeartRateRsp> { rsp ->
-                val sbp = rsp.getSbp()
-                val dbp = rsp.getDbp()
-                val shouldRespond = if (start) (sbp > 0 && dbp > 0) else true
-                if (shouldRespond && done.compareAndSet(false, true)) {
-                    mainHandler.post {
-                        result.success(gson.toJson(mapOf(
-                            "sbp" to sbp,
-                            "dbp" to dbp,
-                            "status" to rsp.status
-                        )))
+        val owner = "manual"
+        fun acquireWithRetry(onAcquired: () -> Unit) {
+            if (!start) {
+                onAcquired()
+                return
+            }
+            MeasurementCoordinator.manualRequestPending = true
+            if (MeasurementCoordinator.tryAcquire(owner)) {
+                MeasurementCoordinator.manualRequestPending = false
+                onAcquired()
+            } else {
+                mainHandler.postDelayed({
+                    if (MeasurementCoordinator.tryAcquire(owner)) {
+                        MeasurementCoordinator.manualRequestPending = false
+                        onAcquired()
+                    } else {
+                        MeasurementCoordinator.manualRequestPending = false
+                        result.error("BUSY", "Another measurement is already in progress", null)
                     }
-                }
-            },
-            !start
-        )
-        if (start) {
-            mainHandler.postDelayed({
+                }, 500L)
+            }
+        }
+        acquireWithRetry {
+            val done = AtomicBoolean(false)
+            try {
+                BleOperateManager.getInstance().manualModeBP(
+                    ICommandResponse<StartHeartRateRsp> { rsp ->
+                        val sbp = rsp.getSbp()
+                        val dbp = rsp.getDbp()
+                        val shouldRespond = if (start) (sbp > 0 && dbp > 0) else true
+                        if (shouldRespond && done.compareAndSet(false, true)) {
+                            MeasurementCoordinator.release(owner)
+                            mainHandler.post {
+                                result.success(gson.toJson(mapOf(
+                                    "sbp" to sbp,
+                                    "dbp" to dbp,
+                                    "status" to rsp.status
+                                )))
+                            }
+                        }
+                    },
+                    !start
+                )
+            } catch (e: Exception) {
                 if (done.compareAndSet(false, true)) {
-                    result.error("TIMEOUT", "Blood pressure measurement timed out", null)
+                    MeasurementCoordinator.release(owner)
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
                 }
-            }, 60000)
+                return@acquireWithRetry
+            }
+            if (start) {
+                mainHandler.postDelayed({
+                    if (done.compareAndSet(false, true)) {
+                        MeasurementCoordinator.release(owner)
+                        result.error("TIMEOUT", "Blood pressure measurement timed out", null)
+                    }
+                }, 60000)
+            } else {
+                // When start=false (stopping measurement), release immediately after sending stop command
+                MeasurementCoordinator.release(owner)
+            }
         }
     }
 
@@ -965,28 +1068,65 @@ class BlePlugin(private val context: Context) {
 
     private fun manualModeBloodOxygen(call: MethodCall, result: MethodChannel.Result) {
         val start = call.argument<Boolean>("start") ?: true
-        val done = AtomicBoolean(false)
-        BleOperateManager.getInstance().manualModeSpO2(
-            ICommandResponse<StartHeartRateRsp> { rsp ->
-                val spo2 = if (rsp.getBloodOxygen() > 0) rsp.getBloodOxygen() else rsp.getValue()
-                // For start: skip zero ACK callbacks, wait for actual reading.
-                // For stop: respond on first callback regardless.
-                val shouldRespond = if (start) spo2 > 0 else true
-                if (shouldRespond && done.compareAndSet(false, true)) {
-                    mainHandler.post {
-                        result.success(gson.toJson(mapOf("spo2" to spo2, "status" to rsp.status)))
+        val owner = "manual"
+        fun acquireWithRetry(onAcquired: () -> Unit) {
+            if (!start) {
+                onAcquired()
+                return
+            }
+            MeasurementCoordinator.manualRequestPending = true
+            if (MeasurementCoordinator.tryAcquire(owner)) {
+                MeasurementCoordinator.manualRequestPending = false
+                onAcquired()
+            } else {
+                mainHandler.postDelayed({
+                    if (MeasurementCoordinator.tryAcquire(owner)) {
+                        MeasurementCoordinator.manualRequestPending = false
+                        onAcquired()
+                    } else {
+                        MeasurementCoordinator.manualRequestPending = false
+                        result.error("BUSY", "Another measurement is already in progress", null)
                     }
-                }
-            },
-            !start
-        )
-        // Timeout after 60 s so the Dart await doesn't hang forever
-        if (start) {
-            mainHandler.postDelayed({
+                }, 500L)
+            }
+        }
+        acquireWithRetry {
+            val done = AtomicBoolean(false)
+            try {
+                BleOperateManager.getInstance().manualModeSpO2(
+                    ICommandResponse<StartHeartRateRsp> { rsp ->
+                        val spo2 = if (rsp.getBloodOxygen() > 0) rsp.getBloodOxygen() else rsp.getValue()
+                        // For start: skip zero ACK callbacks, wait for actual reading.
+                        // For stop: respond on first callback regardless.
+                        val shouldRespond = if (start) spo2 > 0 else true
+                        if (shouldRespond && done.compareAndSet(false, true)) {
+                            MeasurementCoordinator.release(owner)
+                            mainHandler.post {
+                                result.success(gson.toJson(mapOf("spo2" to spo2, "status" to rsp.status)))
+                            }
+                        }
+                    },
+                    !start
+                )
+            } catch (e: Exception) {
                 if (done.compareAndSet(false, true)) {
-                    result.error("TIMEOUT", "SpO2 measurement timed out", null)
+                    MeasurementCoordinator.release(owner)
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
                 }
-            }, 60000)
+                return@acquireWithRetry
+            }
+            // Timeout after 60 s so the Dart await doesn't hang forever
+            if (start) {
+                mainHandler.postDelayed({
+                    if (done.compareAndSet(false, true)) {
+                        MeasurementCoordinator.release(owner)
+                        result.error("TIMEOUT", "SpO2 measurement timed out", null)
+                    }
+                }, 60000)
+            } else {
+                // When start=false (stopping measurement), release immediately after sending stop command
+                MeasurementCoordinator.release(owner)
+            }
         }
     }
 
@@ -1296,32 +1436,69 @@ class BlePlugin(private val context: Context) {
     // told apart from "never called back at all" during on-device debugging.
     private fun manualModeHrv(call: MethodCall, result: MethodChannel.Result) {
         val start = call.argument<Boolean>("start") ?: true
-        val done = AtomicBoolean(false)
-        var callbackCount = 0
-        BleOperateManager.getInstance().manualModeHrv(
-            ICommandResponse<StartHeartRateRsp> { rsp ->
-                // HRV comes back through the dedicated getHrv() field, not the generic
-                // getValue() field used by HR/SpO2/BP/Stress — confirmed against the SDK
-                // sample (HrvActivity.kt) and the bundled SDK's StartHeartRateRsp class.
-                val value = if (rsp.getHrv() > 0) rsp.getHrv() else rsp.getValue()
-                callbackCount++
-                Log.d(TAG, "manualModeHrv callback #$callbackCount: value=$value status=${rsp.status}")
-                val shouldRespond = if (start) value > 0 else true
-                if (shouldRespond && done.compareAndSet(false, true)) {
-                    mainHandler.post {
-                        result.success(gson.toJson(mapOf("value" to value, "status" to rsp.status)))
+        val owner = "manual"
+        fun acquireWithRetry(onAcquired: () -> Unit) {
+            if (!start) {
+                onAcquired()
+                return
+            }
+            MeasurementCoordinator.manualRequestPending = true
+            if (MeasurementCoordinator.tryAcquire(owner)) {
+                MeasurementCoordinator.manualRequestPending = false
+                onAcquired()
+            } else {
+                mainHandler.postDelayed({
+                    if (MeasurementCoordinator.tryAcquire(owner)) {
+                        MeasurementCoordinator.manualRequestPending = false
+                        onAcquired()
+                    } else {
+                        MeasurementCoordinator.manualRequestPending = false
+                        result.error("BUSY", "Another measurement is already in progress", null)
                     }
-                }
-            },
-            !start
-        )
-        if (start) {
-            mainHandler.postDelayed({
+                }, 500L)
+            }
+        }
+        acquireWithRetry {
+            val done = AtomicBoolean(false)
+            var callbackCount = 0
+            try {
+                BleOperateManager.getInstance().manualModeHrv(
+                    ICommandResponse<StartHeartRateRsp> { rsp ->
+                        // HRV comes back through the dedicated getHrv() field, not the generic
+                        // getValue() field used by HR/SpO2/BP/Stress — confirmed against the SDK
+                        // sample (HrvActivity.kt) and the bundled SDK's StartHeartRateRsp class.
+                        val value = if (rsp.getHrv() > 0) rsp.getHrv() else rsp.getValue()
+                        callbackCount++
+                        Log.d(TAG, "manualModeHrv callback #$callbackCount: value=$value status=${rsp.status}")
+                        val shouldRespond = if (start) value > 0 else true
+                        if (shouldRespond && done.compareAndSet(false, true)) {
+                            MeasurementCoordinator.release(owner)
+                            mainHandler.post {
+                                result.success(gson.toJson(mapOf("value" to value, "status" to rsp.status)))
+                            }
+                        }
+                    },
+                    !start
+                )
+            } catch (e: Exception) {
                 if (done.compareAndSet(false, true)) {
-                    Log.e(TAG, "manualModeHrv timed out after $callbackCount callback(s), none with a valid value")
-                    result.error("TIMEOUT", "HRV measurement timed out", null)
+                    MeasurementCoordinator.release(owner)
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
                 }
-            }, 90000)
+                return@acquireWithRetry
+            }
+            if (start) {
+                mainHandler.postDelayed({
+                    if (done.compareAndSet(false, true)) {
+                        Log.e(TAG, "manualModeHrv timed out after $callbackCount callback(s), none with a valid value")
+                        MeasurementCoordinator.release(owner)
+                        result.error("TIMEOUT", "HRV measurement timed out", null)
+                    }
+                }, 90000)
+            } else {
+                // When start=false (stopping measurement), release immediately after sending stop command
+                MeasurementCoordinator.release(owner)
+            }
         }
     }
 
@@ -1410,25 +1587,62 @@ class BlePlugin(private val context: Context) {
 
     private fun manualModePressure(call: MethodCall, result: MethodChannel.Result) {
         val start = call.argument<Boolean>("start") ?: true
-        val done = AtomicBoolean(false)
-        BleOperateManager.getInstance().manualModePressure(
-            ICommandResponse<StartHeartRateRsp> { rsp ->
-                val value = rsp.getValue()
-                val shouldRespond = if (start) value > 0 else true
-                if (shouldRespond && done.compareAndSet(false, true)) {
-                    mainHandler.post {
-                        result.success(gson.toJson(mapOf("value" to value, "status" to rsp.status)))
+        val owner = "manual"
+        fun acquireWithRetry(onAcquired: () -> Unit) {
+            if (!start) {
+                onAcquired()
+                return
+            }
+            MeasurementCoordinator.manualRequestPending = true
+            if (MeasurementCoordinator.tryAcquire(owner)) {
+                MeasurementCoordinator.manualRequestPending = false
+                onAcquired()
+            } else {
+                mainHandler.postDelayed({
+                    if (MeasurementCoordinator.tryAcquire(owner)) {
+                        MeasurementCoordinator.manualRequestPending = false
+                        onAcquired()
+                    } else {
+                        MeasurementCoordinator.manualRequestPending = false
+                        result.error("BUSY", "Another measurement is already in progress", null)
                     }
-                }
-            },
-            !start
-        )
-        if (start) {
-            mainHandler.postDelayed({
+                }, 500L)
+            }
+        }
+        acquireWithRetry {
+            val done = AtomicBoolean(false)
+            try {
+                BleOperateManager.getInstance().manualModePressure(
+                    ICommandResponse<StartHeartRateRsp> { rsp ->
+                        val value = rsp.getValue()
+                        val shouldRespond = if (start) value > 0 else true
+                        if (shouldRespond && done.compareAndSet(false, true)) {
+                            MeasurementCoordinator.release(owner)
+                            mainHandler.post {
+                                result.success(gson.toJson(mapOf("value" to value, "status" to rsp.status)))
+                            }
+                        }
+                    },
+                    !start
+                )
+            } catch (e: Exception) {
                 if (done.compareAndSet(false, true)) {
-                    result.error("TIMEOUT", "Pressure measurement timed out", null)
+                    MeasurementCoordinator.release(owner)
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
                 }
-            }, 60000)
+                return@acquireWithRetry
+            }
+            if (start) {
+                mainHandler.postDelayed({
+                    if (done.compareAndSet(false, true)) {
+                        MeasurementCoordinator.release(owner)
+                        result.error("TIMEOUT", "Pressure measurement timed out", null)
+                    }
+                }, 60000)
+            } else {
+                // When start=false (stopping measurement), release immediately after sending stop command
+                MeasurementCoordinator.release(owner)
+            }
         }
     }
 
@@ -1506,130 +1720,214 @@ class BlePlugin(private val context: Context) {
 
     // Syncs continuous body temperature via FileHandle; waits for onUpdateTemperature callback.
     //
-    // Acquires the same MeasurementCoordinator lock that MeasurementLoopManager's
-    // HR/SpO2/Stress/BP/HRV cycle and WorkoutService use. Without this, calling
-    // startObtainTemperatureSeries() while the background loop is mid-measurement
-    // makes the ring firmware reject the request with a BUSY error, since the ring
-    // can only service one command channel at a time even though FileHandle and
-    // BleOperateManager are different SDK classes.
+    // Acquires MeasurementCoordinator (owner="temperature") before writing, because Android's
+    // BLE stack only permits ONE outstanding GATT write per connection at a time. If
+    // MeasurementLoopManager's auto-cycle loop has a write in flight on its own characteristic
+    // when this tries to write to the temperature file characteristic, the write silently fails
+    // (logcat shows "write-no-rsp-fail" instead of "write-no-rsp"), and onUpdateTemperature
+    // never fires — this is true even though HR/SpO2/etc. and temperature use different
+    // characteristics; the collision happens at the connection level, not per-characteristic.
+    //
+    // Unlike the manual measurement functions, this retries the acquire once after a short
+    // delay instead of instantly failing, since the auto-cycle loop only holds the channel
+    // briefly between vitals — a single retry is usually enough to land in that gap.
+    // Syncs continuous body temperature via FileHandle; waits for onUpdateTemperature callback.
+    //
+    // Acquires MeasurementCoordinator (owner="temperature") before writing, since a busy loop
+    // vital keeps the connection occupied. But the coordinator lock alone isn't sufficient:
+    // other writers outside its scope (e.g. HeartRateSettingReq and other direct
+    // CommandHandle.executeReqCmd calls triggered by periodic background steps) can still land
+    // on the connection at the same instant and cause the GATT write itself to fail
+    // (logcat shows "write-no-rsp-fail" instead of "write-no-rsp"). There's no callback that
+    // tells us a write failed — the only signal we get is silence (onUpdateTemperature never
+    // fires), which we can only detect via our own timeout.
+    //
+    // So instead of one long 30s wait, this makes up to MAX_ATTEMPTS short attempts
+    // (ATTEMPT_TIMEOUT_MS each): if an attempt times out, release the lock, re-acquire, and
+    // re-issue the write fresh. A genuine collision is a one-off event, not a sustained one, so
+    // a fresh write moments later on a freshly re-acquired lock is very likely to land cleanly.
     private fun syncAutoTemperature(result: MethodChannel.Result) {
         val owner = "temperature"
-        if (!MeasurementCoordinator.tryAcquire(owner)) {
-            Log.w("TempSync", "syncAutoTemperature: ring busy with another measurement, rejecting")
-            result.error(
-                "BUSY",
-                "A measurement is already in progress. Please wait a moment and try again.",
-                null
-            )
-            return
-        }
-        val done = AtomicBoolean(false)
-        Log.d("TempSync", "syncAutoTemperature: starting clearCallback+registerCallback+initRegister+startObtainTemperatureSeries(2)")
-        fun releaseAndRun(block: () -> Unit) {
-            MeasurementCoordinator.release(owner)
-            block()
-        }
-        val timeoutRunnable = Runnable {
-            if (done.compareAndSet(false, true)) {
-                Log.e("TempSync", "syncAutoTemperature: TIMED OUT after 30s — onUpdateTemperature never fired")
-                FileHandle.getInstance().clearCallback()
-                releaseAndRun { result.error("TIMEOUT", "Temperature auto sync timed out — ring did not send data", null) }
+        val MAX_ATTEMPTS = 4
+        val ATTEMPT_TIMEOUT_MS = 8_000L
+
+        fun acquireWithRetry(elapsedMs: Long = 0L, onAcquired: () -> Unit) {
+            MeasurementCoordinator.manualRequestPending = true
+            if (MeasurementCoordinator.tryAcquire(owner)) {
+                MeasurementCoordinator.manualRequestPending = false
+                onAcquired()
+                return
             }
+            if (elapsedMs >= 20_000L) {
+                MeasurementCoordinator.manualRequestPending = false
+                Log.w("TempSync", "syncAutoTemperature: still busy after ${elapsedMs}ms, giving up")
+                result.error(
+                    "BUSY",
+                    "A measurement is already in progress. Please wait a moment and try again.",
+                    null
+                )
+                return
+            }
+            mainHandler.postDelayed({ acquireWithRetry(elapsedMs + 1000L, onAcquired) }, 1000L)
         }
-        FileHandle.getInstance().clearCallback()
-        FileHandle.getInstance().registerCallback(object : SimpleCallback() {
-            override fun onUpdateTemperature(data: TemperatureEntity) {
-                Log.d("TempSync", "syncAutoTemperature: onUpdateTemperature fired, data=${gson.toJson(data)}")
-                if (done.compareAndSet(false, true)) {
-                    mainHandler.removeCallbacks(timeoutRunnable)
-                    FileHandle.getInstance().clearCallback()
-                    mainHandler.post { releaseAndRun { result.success(gson.toJson(data)) } }
+
+        fun attempt(attemptNum: Int) {
+            acquireWithRetry {
+                val done = AtomicBoolean(false)
+                Log.d("TempSync", "syncAutoTemperature: attempt $attemptNum/$MAX_ATTEMPTS — clearCallback+registerCallback+startObtainTemperatureSeries(2)")
+
+                fun releaseAndRun(block: () -> Unit) {
+                    MeasurementCoordinator.release(owner)
+                    block()
                 }
-            }
-            override fun onUpdateTemperatureList(array: MutableList<TemperatureOnceEntity>?) {
-                Log.d("TempSync", "syncAutoTemperature: onUpdateTemperatureList fired size=${array?.size ?: 0}")
-                if (done.compareAndSet(false, true)) {
-                    mainHandler.removeCallbacks(timeoutRunnable)
-                    FileHandle.getInstance().clearCallback()
-                    mainHandler.post { releaseAndRun { result.success(gson.toJson(array)) } }
-                }
-            }
-            override fun onActionResult(type: Int, errCode: Int) {
-                Log.d("TempSync", "syncAutoTemperature: onActionResult type=$type errCode=$errCode")
-                if (errCode != 0 && done.compareAndSet(false, true)) {
-                    mainHandler.removeCallbacks(timeoutRunnable)
-                    FileHandle.getInstance().clearCallback()
-                    mainHandler.post {
-                        releaseAndRun { result.error("ACTION_FAILED", "Ring rejected: type=$type errCode=$errCode", null) }
+
+                val timeoutRunnable = Runnable {
+                    if (done.compareAndSet(false, true)) {
+                        FileHandle.getInstance().clearCallback()
+                        if (attemptNum < MAX_ATTEMPTS) {
+                            Log.w("TempSync", "syncAutoTemperature: attempt $attemptNum timed out after ${ATTEMPT_TIMEOUT_MS}ms — retrying")
+                            releaseAndRun { attempt(attemptNum + 1) }
+                        } else {
+                            Log.e("TempSync", "syncAutoTemperature: TIMED OUT after $MAX_ATTEMPTS attempts — onUpdateTemperature never fired")
+                            releaseAndRun { result.error("TIMEOUT", "Temperature auto sync timed out — ring did not send data", null) }
+                        }
                     }
                 }
+
+                FileHandle.getInstance().clearCallback()
+                FileHandle.getInstance().registerCallback(object : SimpleCallback() {
+                    override fun onUpdateTemperature(data: TemperatureEntity) {
+                        Log.d("TempSync", "syncAutoTemperature: onUpdateTemperature fired on attempt $attemptNum, data=${gson.toJson(data)}")
+                        if (done.compareAndSet(false, true)) {
+                            mainHandler.removeCallbacks(timeoutRunnable)
+                            FileHandle.getInstance().clearCallback()
+                            mainHandler.post { releaseAndRun { result.success(gson.toJson(data)) } }
+                        }
+                    }
+                    override fun onUpdateTemperatureList(array: MutableList<TemperatureOnceEntity>?) {
+                        Log.d("TempSync", "syncAutoTemperature: onUpdateTemperatureList fired on attempt $attemptNum size=${array?.size ?: 0}")
+                        if (done.compareAndSet(false, true)) {
+                            mainHandler.removeCallbacks(timeoutRunnable)
+                            FileHandle.getInstance().clearCallback()
+                            mainHandler.post { releaseAndRun { result.success(gson.toJson(array)) } }
+                        }
+                    }
+                    override fun onActionResult(type: Int, errCode: Int) {
+                        Log.d("TempSync", "syncAutoTemperature: onActionResult attempt $attemptNum type=$type errCode=$errCode")
+                        if (errCode != 0 && done.compareAndSet(false, true)) {
+                            mainHandler.removeCallbacks(timeoutRunnable)
+                            FileHandle.getInstance().clearCallback()
+                            if (attemptNum < MAX_ATTEMPTS) {
+                                Log.w("TempSync", "syncAutoTemperature: attempt $attemptNum rejected (errCode=$errCode) — retrying")
+                                releaseAndRun { attempt(attemptNum + 1) }
+                            } else {
+                                releaseAndRun {
+                                    result.error("ACTION_FAILED", "Ring rejected: type=$type errCode=$errCode", null)
+                                }
+                            }
+                        }
+                    }
+                })
+
+                FileHandle.getInstance().startObtainTemperatureSeries(2)
+                mainHandler.postDelayed(timeoutRunnable, ATTEMPT_TIMEOUT_MS)
             }
-        })
-        // NOTE: initRegister() is for file UPLOAD (watch faces). Temperature sync does NOT use it —
-        // calling it puts the ring in file-receive mode and blocks startObtainTemperatureSeries.
-        Log.d("TempSync", "syncAutoTemperature: calling startObtainTemperatureSeries(2)")
-        FileHandle.getInstance().startObtainTemperatureSeries(2)
-        mainHandler.postDelayed(timeoutRunnable, 30_000L)
+        }
+
+        attempt(1)
     }
 
     // Syncs manual/single temperature readings via FileHandle; waits for onUpdateTemperatureList.
-    // Same MeasurementCoordinator lock reasoning as syncAutoTemperature above.
+    // Same retry-on-timeout reasoning as syncAutoTemperature above.
     private fun syncManualTemperature(result: MethodChannel.Result) {
         val owner = "temperature"
-        if (!MeasurementCoordinator.tryAcquire(owner)) {
-            Log.w("TempSync", "syncManualTemperature: ring busy with another measurement, rejecting")
-            result.error(
-                "BUSY",
-                "A measurement is already in progress. Please wait a moment and try again.",
-                null
-            )
-            return
-        }
-        val done = AtomicBoolean(false)
-        Log.d("TempSync", "syncManualTemperature: starting clearCallback+registerCallback+initRegister+startObtainTemperatureOnce(0)")
-        fun releaseAndRun(block: () -> Unit) {
-            MeasurementCoordinator.release(owner)
-            block()
-        }
-        val timeoutRunnable = Runnable {
-            if (done.compareAndSet(false, true)) {
-                Log.e("TempSync", "syncManualTemperature: TIMED OUT after 30s — onUpdateTemperatureList never fired")
-                FileHandle.getInstance().clearCallback()
-                releaseAndRun { result.error("TIMEOUT", "Temperature manual sync timed out — ring did not send data", null) }
+        val MAX_ATTEMPTS = 4
+        val ATTEMPT_TIMEOUT_MS = 8_000L
+
+        fun acquireWithRetry(elapsedMs: Long = 0L, onAcquired: () -> Unit) {
+            MeasurementCoordinator.manualRequestPending = true
+            if (MeasurementCoordinator.tryAcquire(owner)) {
+                MeasurementCoordinator.manualRequestPending = false
+                onAcquired()
+                return
             }
+            if (elapsedMs >= 20_000L) {
+                MeasurementCoordinator.manualRequestPending = false
+                Log.w("TempSync", "syncManualTemperature: still busy after ${elapsedMs}ms, giving up")
+                result.error(
+                    "BUSY",
+                    "A measurement is already in progress. Please wait a moment and try again.",
+                    null
+                )
+                return
+            }
+            mainHandler.postDelayed({ acquireWithRetry(elapsedMs + 1000L, onAcquired) }, 1000L)
         }
-        FileHandle.getInstance().clearCallback()
-        FileHandle.getInstance().registerCallback(object : SimpleCallback() {
-            override fun onUpdateTemperatureList(array: MutableList<TemperatureOnceEntity>?) {
-                Log.d("TempSync", "syncManualTemperature: onUpdateTemperatureList fired size=${array?.size ?: 0}")
-                if (done.compareAndSet(false, true)) {
-                    mainHandler.removeCallbacks(timeoutRunnable)
-                    FileHandle.getInstance().clearCallback()
-                    mainHandler.post { releaseAndRun { result.success(gson.toJson(array)) } }
+
+        fun attempt(attemptNum: Int) {
+            acquireWithRetry {
+                val done = AtomicBoolean(false)
+                Log.d("TempSync", "syncManualTemperature: attempt $attemptNum/$MAX_ATTEMPTS — clearCallback+registerCallback+startObtainTemperatureOnce(0)")
+
+                fun releaseAndRun(block: () -> Unit) {
+                    MeasurementCoordinator.release(owner)
+                    block()
                 }
-            }
-            override fun onUpdateTemperature(data: TemperatureEntity) {
-                Log.d("TempSync", "syncManualTemperature: onUpdateTemperature fired (unexpected for manual)")
-                if (done.compareAndSet(false, true)) {
-                    mainHandler.removeCallbacks(timeoutRunnable)
-                    FileHandle.getInstance().clearCallback()
-                    mainHandler.post { releaseAndRun { result.success(gson.toJson(data)) } }
-                }
-            }
-            override fun onActionResult(type: Int, errCode: Int) {
-                Log.d("TempSync", "syncManualTemperature: onActionResult type=$type errCode=$errCode")
-                if (errCode != 0 && done.compareAndSet(false, true)) {
-                    mainHandler.removeCallbacks(timeoutRunnable)
-                    FileHandle.getInstance().clearCallback()
-                    mainHandler.post {
-                        releaseAndRun { result.error("ACTION_FAILED", "Ring rejected: type=$type errCode=$errCode", null) }
+
+                val timeoutRunnable = Runnable {
+                    if (done.compareAndSet(false, true)) {
+                        FileHandle.getInstance().clearCallback()
+                        if (attemptNum < MAX_ATTEMPTS) {
+                            Log.w("TempSync", "syncManualTemperature: attempt $attemptNum timed out after ${ATTEMPT_TIMEOUT_MS}ms — retrying")
+                            releaseAndRun { attempt(attemptNum + 1) }
+                        } else {
+                            Log.e("TempSync", "syncManualTemperature: TIMED OUT after $MAX_ATTEMPTS attempts — onUpdateTemperatureList never fired")
+                            releaseAndRun { result.error("TIMEOUT", "Temperature manual sync timed out — ring did not send data", null) }
+                        }
                     }
                 }
+
+                FileHandle.getInstance().clearCallback()
+                FileHandle.getInstance().registerCallback(object : SimpleCallback() {
+                    override fun onUpdateTemperatureList(array: MutableList<TemperatureOnceEntity>?) {
+                        Log.d("TempSync", "syncManualTemperature: onUpdateTemperatureList fired on attempt $attemptNum size=${array?.size ?: 0}")
+                        if (done.compareAndSet(false, true)) {
+                            mainHandler.removeCallbacks(timeoutRunnable)
+                            FileHandle.getInstance().clearCallback()
+                            mainHandler.post { releaseAndRun { result.success(gson.toJson(array)) } }
+                        }
+                    }
+                    override fun onUpdateTemperature(data: TemperatureEntity) {
+                        Log.d("TempSync", "syncManualTemperature: onUpdateTemperature fired on attempt $attemptNum (unexpected for manual)")
+                        if (done.compareAndSet(false, true)) {
+                            mainHandler.removeCallbacks(timeoutRunnable)
+                            FileHandle.getInstance().clearCallback()
+                            mainHandler.post { releaseAndRun { result.success(gson.toJson(data)) } }
+                        }
+                    }
+                    override fun onActionResult(type: Int, errCode: Int) {
+                        Log.d("TempSync", "syncManualTemperature: onActionResult attempt $attemptNum type=$type errCode=$errCode")
+                        if (errCode != 0 && done.compareAndSet(false, true)) {
+                            mainHandler.removeCallbacks(timeoutRunnable)
+                            FileHandle.getInstance().clearCallback()
+                            if (attemptNum < MAX_ATTEMPTS) {
+                                Log.w("TempSync", "syncManualTemperature: attempt $attemptNum rejected (errCode=$errCode) — retrying")
+                                releaseAndRun { attempt(attemptNum + 1) }
+                            } else {
+                                releaseAndRun {
+                                    result.error("ACTION_FAILED", "Ring rejected: type=$type errCode=$errCode", null)
+                                }
+                            }
+                        }
+                    }
+                })
+
+                FileHandle.getInstance().startObtainTemperatureOnce(0)
+                mainHandler.postDelayed(timeoutRunnable, ATTEMPT_TIMEOUT_MS)
             }
-        })
-        Log.d("TempSync", "syncManualTemperature: calling startObtainTemperatureOnce(0)")
-        FileHandle.getInstance().startObtainTemperatureOnce(0)
-        mainHandler.postDelayed(timeoutRunnable, 30_000L)
+        }
+
+        attempt(1)
     }
 
     // ── POC: manualTemperature (BleOperateManager direct sensor command) ─────

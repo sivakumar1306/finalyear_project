@@ -8,6 +8,9 @@ object MeasurementCoordinator {
     @Volatile
     var isWorkoutActive: Boolean = false
 
+    @Volatile
+    var manualRequestPending: Boolean = false
+
     private val busyOwner = AtomicReference<String?>(null)
 
     fun tryAcquire(owner: String): Boolean = busyOwner.compareAndSet(null, owner)

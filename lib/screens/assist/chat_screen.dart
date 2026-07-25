@@ -2,11 +2,18 @@ import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/chat_api_service.dart';
+import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import 'voice_listening_sheet.dart';
 import 'insights_header.dart';
 import 'sleep_highlights_card.dart';
+
+// Persist the active conversation id per-user so the thread survives an
+// app close/reopen. Keyed by user id so switching accounts doesn't leak
+// one user's conversation into another's screen.
+String _conversationPrefsKey(String userId) => 'chat_conversation_id_$userId';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -21,6 +28,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<Map<String, dynamic>> _messages = [];
   bool _isLoading = false;
   bool _hasText = false;
+  bool _isRestoring = true;
   String? _conversationId;
   String _errorMessage = '';
 
@@ -28,12 +36,61 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _controller.addListener(_onTextChanged);
+    _restoreConversation();
   }
 
   void _onTextChanged() {
     final hasText = _controller.text.trim().isNotEmpty;
     if (hasText != _hasText) {
       setState(() => _hasText = hasText);
+    }
+  }
+
+  // Restores the last active conversation (if any) so the chat survives an
+  // app close/reopen instead of always starting blank.
+  Future<void> _restoreConversation() async {
+    final userId = SupabaseService.currentUser?.id;
+
+    // Not logged in: the backend never saves history for an "anonymous"
+    // user_id, so there's nothing to restore — just show the empty state.
+    if (userId == null) {
+      setState(() => _isRestoring = false);
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String? conversationId = prefs.getString(_conversationPrefsKey(userId));
+
+      // No cached conversation id yet on this device — fall back to the
+      // most recent conversation stored on the server for this user.
+      if (conversationId == null) {
+        final convResult = await ChatApiService.getConversations();
+        final conversations = convResult['conversations'] as List<dynamic>?;
+        if (conversations != null && conversations.isNotEmpty) {
+          conversationId = conversations.first['id'] as String?;
+        }
+      }
+
+      if (conversationId != null) {
+        final msgResult = await ChatApiService.getMessages(conversationId);
+        final rawMessages = msgResult['messages'] as List<dynamic>?;
+        if (rawMessages != null && rawMessages.isNotEmpty) {
+          setState(() {
+            _conversationId = conversationId;
+            _messages.addAll(
+              rawMessages.map((m) => Map<String, dynamic>.from(m as Map)),
+            );
+          });
+          await prefs.setString(_conversationPrefsKey(userId), conversationId);
+          _scrollToBottom();
+        }
+      }
+    } catch (_) {
+      // Silently fall back to a fresh chat if history can't be loaded — no
+      // need to block the screen with an error for a background restore.
+    } finally {
+      if (mounted) setState(() => _isRestoring = false);
     }
   }
 
@@ -75,6 +132,13 @@ class _ChatScreenState extends State<ChatScreen> {
         _conversationId = result['conversation_id'];
         _isLoading = false;
       });
+
+      // Remember which conversation this is so reopening the app resumes it.
+      final userId = SupabaseService.currentUser?.id;
+      if (userId != null && _conversationId != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_conversationPrefsKey(userId), _conversationId!);
+      }
     } catch (e) {
       setState(() {
         _errorMessage = 'Connection error. Check if backend is running.';
@@ -150,12 +214,19 @@ class _ChatScreenState extends State<ChatScreen> {
 
             // Messages Area / Suggestion Chips / Header
             Expanded(
-              child: _messages.isEmpty
+              child: _isRestoring
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: AppTheme.goldAccent,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : _messages.isEmpty
                   ? _buildEmptyState()
                   : ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
+                        horizontal: 16,
                         vertical: 8,
                       ),
                       // Add 1 to count to include the InsightsHeader as item 0
@@ -283,7 +354,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildEmptyState() {
     return ListView(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       children: [
         const InsightsHeader(),
         Padding(

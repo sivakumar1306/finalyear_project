@@ -18,7 +18,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
-// Every 1h, batch-pushes unsynced local Room rows to new Supabase "raw reading" tables
+// Every 1 min, batch-pushes unsynced local Room rows to new Supabase "raw reading" tables
 // (idempotent via a local_reading_id unique constraint), then recomputes and upserts the
 // existing daily-aggregate tables (user_hr/user_spo2/user_hrv/user_steps) from local Room so
 // existing chart/history screens keep working unchanged. Driven by BleConnectionService, same
@@ -28,8 +28,8 @@ object SupabaseSyncManager {
     private const val PREFS_NAME = "qring_supabase_sync_state"
     private const val KEY_LAST_ATTEMPT = "last_attempt_at"
     private const val KEY_LAST_SUCCESS = "last_success_at"
-    private const val TICK_MS = 10 * 60 * 1000L // check every 10 min whether a push is due
-    private const val PUSH_INTERVAL_MS = 60 * 60 * 1000L
+    private const val TICK_MS = 60 * 1000L // check every 1 min whether a push is due
+    private const val PUSH_INTERVAL_MS = 60 * 1000L
     private const val BATCH_LIMIT = 200
 
     private val gson = Gson()
@@ -52,13 +52,17 @@ object SupabaseSyncManager {
     }
 
     fun start(context: Context) {
-        if (started) return
+        if (started) {
+            Log.d(TAG, "start: already started, ignoring")
+            return
+        }
         started = true
         val appContext = context.applicationContext
         MeasurementConfig.init(appContext)
         SupabaseConfig.init(appContext)
         repository = ReadingRepository.getInstance(appContext)
         prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        Log.d(TAG, "start: scheduling tick loop (first tick in 30s, then every ${TICK_MS}ms)")
         handler.postDelayed(tickRunnable, 30_000L) // let the connection settle first
     }
 
@@ -83,12 +87,22 @@ object SupabaseSyncManager {
     }
 
     private fun maybePush() {
-        if (!MeasurementConfig.isSyncEnabled()) return
-        if (!SupabaseConfig.isConfigured) return
+        if (!MeasurementConfig.isSyncEnabled()) {
+            Log.d(TAG, "maybePush: skipped — sync disabled (MeasurementConfig.isSyncEnabled()=false)")
+            return
+        }
+        if (!SupabaseConfig.isConfigured) {
+            Log.d(TAG, "maybePush: skipped — not configured (url=${SupabaseConfig.url != null}, " +
+                "anonKey=${SupabaseConfig.anonKey != null}, userId=${SupabaseConfig.userId != null})")
+            return
+        }
         val lastSuccess = prefs.getLong(KEY_LAST_SUCCESS, 0L)
-        // Resilient to service/process restarts: pushes immediately if 1h has already
-        // elapsed since the last confirmed success, rather than waiting a fresh 1h.
-        if (System.currentTimeMillis() - lastSuccess < PUSH_INTERVAL_MS) return
+        val elapsedMs = System.currentTimeMillis() - lastSuccess
+        if (elapsedMs < PUSH_INTERVAL_MS) {
+            Log.d(TAG, "maybePush: skipped — only ${elapsedMs}ms elapsed, need ${PUSH_INTERVAL_MS}ms")
+            return
+        }
+        Log.d(TAG, "maybePush: starting push cycle")
         repository.ioScope.launch { runPushCycle() }
     }
 
@@ -100,6 +114,9 @@ object SupabaseSyncManager {
         ).all { it }
         if (allOk) {
             prefs.edit().putLong(KEY_LAST_SUCCESS, System.currentTimeMillis()).apply()
+            Log.d(TAG, "runPushCycle: all pushes succeeded")
+        } else {
+            Log.w(TAG, "runPushCycle: one or more pushes failed — will retry next tick, lastSuccess not advanced")
         }
         try {
             recomputeAndUpsertAggregates()
@@ -315,6 +332,8 @@ object SupabaseSyncManager {
                     // missing column, RLS denial, etc.) in the response body — without this,
                     // a failed push looks identical to a silent no-op in the local DB.
                     Log.e(TAG, "postJson $path failed: HTTP ${resp.code} body=${resp.body?.string()}")
+                } else {
+                    Log.d(TAG, "postJson $path succeeded: HTTP ${resp.code}")
                 }
                 resp.isSuccessful
             }

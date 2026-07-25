@@ -25,9 +25,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 // BleConnectionService.onCreate()/onDestroy() — never runs standalone.
 object MeasurementLoopManager {
     private const val TAG = "MeasurementLoop"
-    // TESTING ONLY: shortened from 60_000L (1 min) to speed up test iteration.
-    // Revert to 60_000L before any real/production use.
-    private const val CYCLE_COOLDOWN_MS = 20_000L
+    // PRODUCTION VALUE: 60_000L (1 min).
+    private const val CYCLE_COOLDOWN_MS = 60_000L
     private const val DISCONNECTED_RECHECK_MS = 8_000L
     private const val WORKOUT_RECHECK_MS = 15_000L
     private const val MEASURE_TIMEOUT_MS = 60_000L
@@ -123,6 +122,10 @@ object MeasurementLoopManager {
         }
         if (MeasurementCoordinator.isWorkoutActive) {
             finishCycle(cycleId, "SKIPPED_WORKOUT", sequence[index].name)
+            return
+        }
+        if (MeasurementCoordinator.manualRequestPending) {
+            finishCycle(cycleId, "YIELDED_TO_MANUAL", sequence[index].name)
             return
         }
         val vital = sequence[index]

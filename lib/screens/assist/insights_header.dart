@@ -37,7 +37,7 @@ class _InsightsHeaderState extends State<InsightsHeader> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -160,12 +160,14 @@ class _InsightsHeaderState extends State<InsightsHeader> {
             children: [
               for (int i = 0; i < updates.length; i++) ...[
                 if (i > 0) const SizedBox(width: 8),
-                KeyChangeCard(
-                  title: updates[i]['title'] as String? ?? '',
-                  delta: updates[i]['delta_label'] as String? ?? '',
-                  subtitle: updates[i]['subtitle'] as String? ?? '',
-                  alarming: updates[i]['alarming'] == true,
-                  onTap: () => _navigateFor(updates[i]['key'] as String?),
+                Expanded(
+                  child: KeyChangeCard(
+                    title: updates[i]['title'] as String? ?? '',
+                    delta: updates[i]['delta_label'] as String? ?? '',
+                    subtitle: updates[i]['subtitle'] as String? ?? '',
+                    alarming: updates[i]['alarming'] == true,
+                    onTap: () => _navigateFor(updates[i]['key'] as String?),
+                  ),
                 ),
               ],
             ],

@@ -156,7 +156,10 @@ class _BottomNav extends StatelessWidget {
           decoration: const BoxDecoration(
             color: Color(0x8C050505), // rgba(5,5,5,0.55)
             border: Border(
-              top: BorderSide(color: Color(0x0DFFFFFF), width: 0.5), // rgba(255,255,255,0.05)
+              top: BorderSide(
+                color: Color(0x0DFFFFFF),
+                width: 0.5,
+              ), // rgba(255,255,255,0.05)
             ),
           ),
           child: SafeArea(
@@ -175,7 +178,7 @@ class _BottomNav extends StatelessWidget {
                       onTap: () => onTap(0),
                     ),
                     _NavTab(
-                      icon: Icons.insights_outlined,
+                      icon: Icons.auto_awesome,
                       label: 'AI assist',
                       active: selected == 1,
                       onTap: () => onTap(1),
