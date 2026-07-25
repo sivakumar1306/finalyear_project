@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
+import 'privacy_policy_screen.dart';
+import 'terms_of_service_screen.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -89,14 +91,18 @@ class AboutScreen extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  _inertRow(
+                  _linkRow(
+                    context: context,
                     icon: Icons.privacy_tip_outlined,
                     title: 'Privacy Policy',
+                    destination: const PrivacyPolicyScreen(),
                   ),
                   const Divider(height: 1, color: AppTheme.div),
-                  _inertRow(
+                  _linkRow(
+                    context: context,
                     icon: Icons.description_outlined,
                     title: 'Terms of Service',
+                    destination: const TermsOfServiceScreen(),
                   ),
                 ],
               ),
@@ -108,33 +114,44 @@ class AboutScreen extends StatelessWidget {
     );
   }
 
-  Widget _inertRow({required IconData icon, required String title}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: AppTheme.card2,
-              borderRadius: BorderRadius.circular(8),
+  Widget _linkRow({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required Widget destination,
+  }) {
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => destination),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AppTheme.card2,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: const Color(0xFFAAAAAA), size: 17),
             ),
-            child: Icon(icon, color: const Color(0xFFAAAAAA), size: 17),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              title,
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
               ),
             ),
-          ),
-          const Icon(Icons.chevron_right_rounded, color: Colors.white24, size: 20),
-        ],
+            const Icon(Icons.chevron_right_rounded, color: Colors.white24, size: 20),
+          ],
+        ),
       ),
     );
   }

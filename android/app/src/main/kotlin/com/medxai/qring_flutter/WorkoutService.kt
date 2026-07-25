@@ -162,7 +162,7 @@ class WorkoutService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("$label • $elapsed")
             .setContentText("Workout in progress — tap to open")
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pi)
             .setOngoing(true)
             .setSilent(true)

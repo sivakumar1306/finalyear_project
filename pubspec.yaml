@@ -33,6 +33,7 @@ flutter:
   uses-material-design: true
   assets:
     - ring.png
+    - sundr_logo.png
 
 flutter_launcher_icons:
   android: true
