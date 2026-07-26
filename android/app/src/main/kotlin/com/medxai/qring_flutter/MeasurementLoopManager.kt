@@ -20,13 +20,18 @@ import org.greenrobot.eventbus.EventBus
 import java.util.concurrent.atomic.AtomicBoolean
 
 // Continuously round-robins Steps -> HR -> SpO2 -> Stress -> BP (HRV/Temperature skipped
-// while disabled) with a 1-minute cooldown between full cycles, persisting every reading
-// to Room and publishing a NewReadingEvent for future analyzer modules. Driven by
+// while disabled) with a configurable cooldown between full cycles (see
+// MeasurementConfig.getCycleCooldownMs/setCycleCooldownMs, default 3 min), persisting every
+// reading to Room and publishing a NewReadingEvent for future analyzer modules. Driven by
 // BleConnectionService.onCreate()/onDestroy() — never runs standalone.
+//
+// Manual ("Measure Now") measurements from BlePlugin preempt this loop: BlePlugin sets
+// MeasurementCoordinator.manualRequestPending before it starts trying to acquire the ring,
+// and this loop polls that flag both between vitals (walkSequence) and while a vital is
+// actively in flight (watchForPreempt) so it can abort quickly instead of running to its
+// own (up to 90s, for HRV) timeout. See watchForPreempt's kdoc for the timing budget.
 object MeasurementLoopManager {
     private const val TAG = "MeasurementLoop"
-    // PRODUCTION VALUE: 60_000L (1 min).
-    private const val CYCLE_COOLDOWN_MS = 60_000L
     private const val DISCONNECTED_RECHECK_MS = 8_000L
     private const val WORKOUT_RECHECK_MS = 15_000L
     private const val MEASURE_TIMEOUT_MS = 60_000L
@@ -41,6 +46,11 @@ object MeasurementLoopManager {
     // possible until the ring was power-cycled).
     private const val POST_STOP_SETTLE_MS = 2_000L
     private const val OWNER = "loop"
+    // How often watchForPreempt checks manualRequestPending while a vital is in flight.
+    // Kept short relative to BlePlugin's manual acquire retry window (currently up to 4s)
+    // so the stop-command + POST_STOP_SETTLE_MS below comfortably finishes before that
+    // window closes: worst case is POLL + POST_STOP_SETTLE_MS (~2.2s), well under 4s.
+    private const val PREEMPT_POLL_MS = 200L
 
     private val sequence = listOf(
         Vital.STEPS, Vital.HEART_RATE, Vital.SPO2, Vital.STRESS, Vital.BLOOD_PRESSURE,
@@ -101,6 +111,13 @@ object MeasurementLoopManager {
             scheduleNext(WORKOUT_RECHECK_MS)
             return
         }
+        val currentHolder = MeasurementCoordinator.currentOwner()
+        if (MeasurementCoordinator.manualRequestPending || (currentHolder != null && currentHolder != OWNER)) {
+            // Manual measurement is using or about to use the ring — don't start a new cycle
+            // (and don't race it for the lock), just come back shortly.
+            scheduleNext(WORKOUT_RECHECK_MS)
+            return
+        }
         if (!runningCycle.compareAndSet(false, true)) return // a cycle is already in flight
 
         repository.ioScope.launch {
@@ -125,6 +142,10 @@ object MeasurementLoopManager {
             return
         }
         if (MeasurementCoordinator.manualRequestPending) {
+            // Manual "Measure Now" wants the ring — yield instead of starting the next vital.
+            // We deliberately don't try to resume mid-sequence; the next cycle starts fresh
+            // from the top (same as the disconnect-abort path above).
+            Log.d(TAG, "walkSequence: yielding to manual before ${sequence[index].name}")
             finishCycle(cycleId, "YIELDED_TO_MANUAL", sequence[index].name)
             return
         }
@@ -141,7 +162,13 @@ object MeasurementLoopManager {
             repository.completeCycle(cycleId, status, abortedAtVital)
         }
         runningCycle.set(false)
-        scheduleNext(CYCLE_COOLDOWN_MS)
+        // After yielding to manual measurement, come back sooner than the full cooldown so
+        // the loop resumes promptly once manual measurement is done, instead of the user
+        // seeing a full cooldown-length gap in the auto cycle. Otherwise use the
+        // user/dev-configurable cooldown (MeasurementConfig.getCycleCooldownMs(), default 3
+        // min) read fresh each time so a runtime change takes effect on the very next cycle.
+        val delay = if (status == "YIELDED_TO_MANUAL") WORKOUT_RECHECK_MS else MeasurementConfig.getCycleCooldownMs()
+        scheduleNext(delay)
     }
 
     // ── Per-vital measurement, mirroring BlePlugin's proven wait-for-nonzero pattern ──
@@ -164,6 +191,23 @@ object MeasurementLoopManager {
         }
     }
 
+    // Polls every PREEMPT_POLL_MS while a vital is in flight; if manual measurement has
+    // requested the ring (MeasurementCoordinator.manualRequestPending), fires `onPreempted`
+    // immediately instead of waiting for the vital's own timeout (up to 90s for HRV).
+    // Stops polling once `done` is true (vital finished/errored/timed out on its own) —
+    // callers pass the same AtomicBoolean they use to gate their own completion.
+    private fun watchForPreempt(done: AtomicBoolean, onPreempted: () -> Unit) {
+        handler.postDelayed({
+            if (done.get()) return@postDelayed
+            if (MeasurementCoordinator.manualRequestPending) {
+                Log.d(TAG, "watchForPreempt: manualRequestPending detected, yielding mid-vital")
+                if (done.compareAndSet(false, true)) onPreempted()
+            } else {
+                watchForPreempt(done, onPreempted)
+            }
+        }, PREEMPT_POLL_MS)
+    }
+
     private fun measureHeartRate(cycleId: Long, onDone: () -> Unit) {
         if (!MeasurementCoordinator.tryAcquire(OWNER)) { onDone(); return }
         val done = AtomicBoolean(false)
@@ -180,6 +224,7 @@ object MeasurementLoopManager {
             MeasurementCoordinator.release(OWNER)
             onDone()
         }
+        watchForPreempt(done) { finishWithStop() }
         try {
             BleOperateManager.getInstance().manualModeHeart(
                 ICommandResponse<StartHeartRateRsp> { rsp ->
@@ -227,6 +272,7 @@ object MeasurementLoopManager {
             MeasurementCoordinator.release(OWNER)
             onDone()
         }
+        watchForPreempt(done) { finishWithStop() }
         try {
             BleOperateManager.getInstance().manualModeSpO2(
                 ICommandResponse<StartHeartRateRsp> { rsp ->
@@ -265,6 +311,7 @@ object MeasurementLoopManager {
             MeasurementCoordinator.release(OWNER)
             onDone()
         }
+        watchForPreempt(done) { finishWithStop() }
         try {
             BleOperateManager.getInstance().manualModePressure(
                 ICommandResponse<StartHeartRateRsp> { rsp ->
@@ -303,6 +350,7 @@ object MeasurementLoopManager {
             MeasurementCoordinator.release(OWNER)
             onDone()
         }
+        watchForPreempt(done) { finishWithStop() }
         try {
             BleOperateManager.getInstance().manualModeBP(
                 ICommandResponse<StartHeartRateRsp> { rsp ->
@@ -345,6 +393,10 @@ object MeasurementLoopManager {
             MeasurementCoordinator.release(OWNER)
             onDone()
         }
+        // HRV's own timeout is 90s — this is exactly the case mid-vital preemption matters
+        // most for, since without it a manual tap during an auto-cycle HRV read could wait
+        // up to 90s instead of the ~200ms this gives it.
+        watchForPreempt(done) { finishWithStop() }
         try {
             BleOperateManager.getInstance().manualModeHrv(
                 ICommandResponse<StartHeartRateRsp> { rsp ->
@@ -380,6 +432,8 @@ object MeasurementLoopManager {
 
     // Passive fetch (not a blocking manual-mode measurement) of the ring's own cumulative
     // day totals — one snapshot row per cycle. Aggregation mirrors WorkoutService.syncSteps().
+    // Not gated on the coordinator lock (it doesn't send a manual-mode start/stop command),
+    // so there's nothing here for manual measurement to preempt.
     private fun measureSteps(cycleId: Long, onDone: () -> Unit) {
         try {
             BleOperateManager.getInstance().getTodayStepDetail(

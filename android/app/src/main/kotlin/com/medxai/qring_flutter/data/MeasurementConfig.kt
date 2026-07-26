@@ -11,6 +11,17 @@ object MeasurementConfig {
     private const val KEY_PREFIX_ENABLED = "vital_enabled_"
     private const val KEY_MASTER_ENABLED = "master_loop_enabled"
     private const val KEY_SYNC_ENABLED = "supabase_sync_enabled"
+    private const val KEY_CYCLE_COOLDOWN_MS = "cycle_cooldown_ms"
+
+    // Default gap between the end of one auto-measurement cycle and the start of the next.
+    // Chosen to reduce continuous PPG sensor duty-cycle (battery/heat) versus the earlier
+    // 60s value, while still giving a reasonable sampling cadence for trend charts.
+    private const val DEFAULT_CYCLE_COOLDOWN_MS = 180_000L // 3 minutes
+
+    // Sanity bounds so a bad value (e.g. a stray 0 or a typo like "300" meaning ms instead
+    // of seconds) can't make the loop spin constantly or effectively stop running.
+    private const val MIN_CYCLE_COOLDOWN_MS = 30_000L   // 30s floor
+    private const val MAX_CYCLE_COOLDOWN_MS = 1_800_000L // 30 min ceiling
 
     private var prefs: SharedPreferences? = null
 
@@ -40,5 +51,17 @@ object MeasurementConfig {
 
     fun setEnabled(vital: Vital, enabled: Boolean) {
         prefs?.edit()?.putBoolean(KEY_PREFIX_ENABLED + vital.name, enabled)?.apply()
+    }
+
+    // Gap between auto-cycles, in milliseconds. Configurable from Flutter (see
+    // BlePlugin.getCycleCooldownMs/setCycleCooldownMs) so it can be tuned without a rebuild.
+    fun getCycleCooldownMs(): Long {
+        val stored = prefs?.getLong(KEY_CYCLE_COOLDOWN_MS, DEFAULT_CYCLE_COOLDOWN_MS) ?: DEFAULT_CYCLE_COOLDOWN_MS
+        return stored.coerceIn(MIN_CYCLE_COOLDOWN_MS, MAX_CYCLE_COOLDOWN_MS)
+    }
+
+    fun setCycleCooldownMs(ms: Long) {
+        val clamped = ms.coerceIn(MIN_CYCLE_COOLDOWN_MS, MAX_CYCLE_COOLDOWN_MS)
+        prefs?.edit()?.putLong(KEY_CYCLE_COOLDOWN_MS, clamped)?.apply()
     }
 }

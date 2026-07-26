@@ -12,9 +12,9 @@ class BleService {
   Stream<Map<String, dynamic>>? _eventStream;
 
   Stream<Map<String, dynamic>> get events {
-    _eventStream ??= _eventChannel
-        .receiveBroadcastStream()
-        .map((e) => Map<String, dynamic>.from(e as Map));
+    _eventStream ??= _eventChannel.receiveBroadcastStream().map(
+      (e) => Map<String, dynamic>.from(e as Map),
+    );
     return _eventStream!;
   }
 
@@ -26,7 +26,9 @@ class BleService {
 
   // ── Connection ─────────────────────────────────────────────────────
   Future<bool> connect(String address) async {
-    final result = await _methodChannel.invokeMethod<bool>('connect', {'address': address});
+    final result = await _methodChannel.invokeMethod<bool>('connect', {
+      'address': address,
+    });
     return result ?? false;
   }
 
@@ -54,7 +56,9 @@ class BleService {
   }
 
   Future<String> getDeviceSupport() async {
-    final result = await _methodChannel.invokeMethod<String>('getDeviceSupport');
+    final result = await _methodChannel.invokeMethod<String>(
+      'getDeviceSupport',
+    );
     return result ?? '{}';
   }
 
@@ -63,19 +67,36 @@ class BleService {
       await _methodChannel.invokeMethod<String>('getTodayHeartRate') ?? '{}';
 
   Future<String> getHeartRate(int dayIndex) async =>
-      await _methodChannel.invokeMethod<String>('getHeartRate', {'dayIndex': dayIndex}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('getHeartRate', {
+        'dayIndex': dayIndex,
+      }) ??
+      '{}';
 
   Future<String> getHeartRates(int startDay, int count) async =>
-      await _methodChannel.invokeMethod<String>('getHeartRates', {'startDay': startDay, 'count': count}) ?? '[]';
+      await _methodChannel.invokeMethod<String>('getHeartRates', {
+        'startDay': startDay,
+        'count': count,
+      }) ??
+      '[]';
 
   Future<String> getHeartRateSetting() async =>
       await _methodChannel.invokeMethod<String>('getHeartRateSetting') ?? '{}';
 
-  Future<bool> setHeartRateSetting({required bool enable, required int interval}) async =>
-      await _methodChannel.invokeMethod<bool>('setHeartRateSetting', {'enable': enable, 'interval': interval}) ?? false;
+  Future<bool> setHeartRateSetting({
+    required bool enable,
+    required int interval,
+  }) async =>
+      await _methodChannel.invokeMethod<bool>('setHeartRateSetting', {
+        'enable': enable,
+        'interval': interval,
+      }) ??
+      false;
 
   Future<String> manualModeHeart({required bool start}) async =>
-      await _methodChannel.invokeMethod<String>('manualModeHeart', {'start': start}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('manualModeHeart', {
+        'start': start,
+      }) ??
+      '{}';
 
   // Single-call measurement: starts, waits for a valid reading, auto-stops.
   // Returns the heart rate in bpm, or null if no reading received.
@@ -83,48 +104,87 @@ class BleService {
       _methodChannel.invokeMethod<int>('readHeartRate');
 
   Future<String> syncIntervalHeartRate() async =>
-      await _methodChannel.invokeMethod<String>('syncIntervalHeartRate') ?? '[]';
+      await _methodChannel.invokeMethod<String>('syncIntervalHeartRate') ??
+      '[]';
 
   // ── Blood Pressure ─────────────────────────────────────────────────
   Future<String> getTodayBloodPressure() async =>
-      await _methodChannel.invokeMethod<String>('getTodayBloodPressure') ?? '[]';
+      await _methodChannel.invokeMethod<String>('getTodayBloodPressure') ??
+      '[]';
 
   Future<String> getBloodPressure(int dayIndex) async =>
-      await _methodChannel.invokeMethod<String>('getBloodPressure', {'dayIndex': dayIndex}) ?? '[]';
+      await _methodChannel.invokeMethod<String>('getBloodPressure', {
+        'dayIndex': dayIndex,
+      }) ??
+      '[]';
 
   Future<String> getBloodPressures(int startDay, int count) async =>
-      await _methodChannel.invokeMethod<String>('getBloodPressures', {'startDay': startDay, 'count': count}) ?? '[]';
+      await _methodChannel.invokeMethod<String>('getBloodPressures', {
+        'startDay': startDay,
+        'count': count,
+      }) ??
+      '[]';
 
   Future<String> getBloodPressureSetting() async =>
-      await _methodChannel.invokeMethod<String>('getBloodPressureSetting') ?? '{}';
+      await _methodChannel.invokeMethod<String>('getBloodPressureSetting') ??
+      '{}';
 
-  Future<bool> setBloodPressureSetting({required bool enable, required int interval}) async =>
-      await _methodChannel.invokeMethod<bool>('setBloodPressureSetting', {'enable': enable, 'interval': interval}) ?? false;
+  Future<bool> setBloodPressureSetting({
+    required bool enable,
+    required int interval,
+  }) async =>
+      await _methodChannel.invokeMethod<bool>('setBloodPressureSetting', {
+        'enable': enable,
+        'interval': interval,
+      }) ??
+      false;
 
   Future<String> manualModeBP({required bool start}) async =>
-      await _methodChannel.invokeMethod<String>('manualModeBP', {'start': start}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('manualModeBP', {
+        'start': start,
+      }) ??
+      '{}';
 
   // ── Blood Oxygen ───────────────────────────────────────────────────
   Future<String> getTodayBloodOxygen() async =>
       await _methodChannel.invokeMethod<String>('getTodayBloodOxygen') ?? '{}';
 
   Future<String> getBloodOxygen(int dayIndex) async =>
-      await _methodChannel.invokeMethod<String>('getBloodOxygen', {'dayIndex': dayIndex}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('getBloodOxygen', {
+        'dayIndex': dayIndex,
+      }) ??
+      '{}';
 
   Future<String> getBloodOxygens(int startDay, int count) async =>
-      await _methodChannel.invokeMethod<String>('getBloodOxygens', {'startDay': startDay, 'count': count}) ?? '[]';
+      await _methodChannel.invokeMethod<String>('getBloodOxygens', {
+        'startDay': startDay,
+        'count': count,
+      }) ??
+      '[]';
 
   Future<String> getBloodOxygenSetting() async =>
-      await _methodChannel.invokeMethod<String>('getBloodOxygenSetting') ?? '{}';
+      await _methodChannel.invokeMethod<String>('getBloodOxygenSetting') ??
+      '{}';
 
-  Future<bool> setBloodOxygenSetting({required bool enable, required int interval}) async =>
-      await _methodChannel.invokeMethod<bool>('setBloodOxygenSetting', {'enable': enable, 'interval': interval}) ?? false;
+  Future<bool> setBloodOxygenSetting({
+    required bool enable,
+    required int interval,
+  }) async =>
+      await _methodChannel.invokeMethod<bool>('setBloodOxygenSetting', {
+        'enable': enable,
+        'interval': interval,
+      }) ??
+      false;
 
   Future<String> manualModeBloodOxygen({required bool start}) async =>
-      await _methodChannel.invokeMethod<String>('manualModeBloodOxygen', {'start': start}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('manualModeBloodOxygen', {
+        'start': start,
+      }) ??
+      '{}';
 
   Future<String> syncIntervalBloodOxygen() async =>
-      await _methodChannel.invokeMethod<String>('syncIntervalBloodOxygen') ?? '[]';
+      await _methodChannel.invokeMethod<String>('syncIntervalBloodOxygen') ??
+      '[]';
 
   // ── Steps ──────────────────────────────────────────────────────────
   Future<bool> syncTodaySteps() async =>
@@ -134,10 +194,17 @@ class BleService {
       await _methodChannel.invokeMethod<String>('getTodaySteps') ?? '{}';
 
   Future<String> getSteps(int dayIndex) async =>
-      await _methodChannel.invokeMethod<String>('getSteps', {'dayIndex': dayIndex}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('getSteps', {
+        'dayIndex': dayIndex,
+      }) ??
+      '{}';
 
   Future<String> getStepsList(int startDay, int count) async =>
-      await _methodChannel.invokeMethod<String>('getStepsList', {'startDay': startDay, 'count': count}) ?? '[]';
+      await _methodChannel.invokeMethod<String>('getStepsList', {
+        'startDay': startDay,
+        'count': count,
+      }) ??
+      '[]';
 
   Future<String> syncStepDetails() async =>
       await _methodChannel.invokeMethod<String>('syncStepDetails') ?? '[]';
@@ -147,10 +214,17 @@ class BleService {
       await _methodChannel.invokeMethod<String>('getTodaySleep') ?? '{}';
 
   Future<String> getSleep(int dayIndex) async =>
-      await _methodChannel.invokeMethod<String>('getSleep', {'dayIndex': dayIndex}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('getSleep', {
+        'dayIndex': dayIndex,
+      }) ??
+      '{}';
 
   Future<String> getSleepList(int startDay, int count) async =>
-      await _methodChannel.invokeMethod<String>('getSleepList', {'startDay': startDay, 'count': count}) ?? '[]';
+      await _methodChannel.invokeMethod<String>('getSleepList', {
+        'startDay': startDay,
+        'count': count,
+      }) ??
+      '[]';
 
   Future<String> syncSleep() async =>
       await _methodChannel.invokeMethod<String>('syncSleep') ?? '[]';
@@ -160,59 +234,108 @@ class BleService {
       await _methodChannel.invokeMethod<String>('getTodayHrv') ?? '{}';
 
   Future<String> getHrv(int dayIndex) async =>
-      await _methodChannel.invokeMethod<String>('getHrv', {'dayIndex': dayIndex}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('getHrv', {
+        'dayIndex': dayIndex,
+      }) ??
+      '{}';
 
   Future<String> getHrvList(int startDay, int count) async =>
-      await _methodChannel.invokeMethod<String>('getHrvList', {'startDay': startDay, 'count': count}) ?? '[]';
+      await _methodChannel.invokeMethod<String>('getHrvList', {
+        'startDay': startDay,
+        'count': count,
+      }) ??
+      '[]';
 
   Future<String> manualModeHrv({required bool start}) async =>
-      await _methodChannel.invokeMethod<String>('manualModeHrv', {'start': start}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('manualModeHrv', {
+        'start': start,
+      }) ??
+      '{}';
+
+  Future<String> getHrvSetting() async =>
+      await _methodChannel.invokeMethod<String>('getHrvSetting') ?? '{}';
+
+  Future<bool> setHrvSetting({required bool enable}) async =>
+      await _methodChannel.invokeMethod<bool>('setHrvSetting', {
+        'enable': enable,
+      }) ??
+      false;
 
   // ── Pressure ───────────────────────────────────────────────────────
   Future<String> getTodayPressure() async =>
       await _methodChannel.invokeMethod<String>('getTodayPressure') ?? '{}';
 
   Future<String> getPressure(int dayIndex) async =>
-      await _methodChannel.invokeMethod<String>('getPressure', {'dayIndex': dayIndex}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('getPressure', {
+        'dayIndex': dayIndex,
+      }) ??
+      '{}';
 
   Future<String> getPressureList(int startDay, int count) async =>
-      await _methodChannel.invokeMethod<String>('getPressureList', {'startDay': startDay, 'count': count}) ?? '[]';
+      await _methodChannel.invokeMethod<String>('getPressureList', {
+        'startDay': startDay,
+        'count': count,
+      }) ??
+      '[]';
 
   Future<String> getPressureSetting() async =>
       await _methodChannel.invokeMethod<String>('getPressureSetting') ?? '{}';
 
   Future<bool> setPressureSetting({required bool enable}) async =>
-      await _methodChannel.invokeMethod<bool>('setPressureSetting', {'enable': enable}) ?? false;
+      await _methodChannel.invokeMethod<bool>('setPressureSetting', {
+        'enable': enable,
+      }) ??
+      false;
 
   Future<String> manualModePressure({required bool start}) async =>
-      await _methodChannel.invokeMethod<String>('manualModePressure', {'start': start}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('manualModePressure', {
+        'start': start,
+      }) ??
+      '{}';
 
   // ── Temperature ────────────────────────────────────────────────────
   Future<String> getTodayTemperature() async =>
       await _methodChannel.invokeMethod<String>('getTodayTemperature') ?? '{}';
 
   Future<String> getTemperature(int dayIndex) async =>
-      await _methodChannel.invokeMethod<String>('getTemperature', {'dayIndex': dayIndex}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('getTemperature', {
+        'dayIndex': dayIndex,
+      }) ??
+      '{}';
 
   Future<String> getTemperatureList(int startDay, int count) async =>
-      await _methodChannel.invokeMethod<String>('getTemperatureList', {'startDay': startDay, 'count': count}) ?? '[]';
+      await _methodChannel.invokeMethod<String>('getTemperatureList', {
+        'startDay': startDay,
+        'count': count,
+      }) ??
+      '[]';
 
   Future<String> getTemperatureSetting() async =>
-      await _methodChannel.invokeMethod<String>('getTemperatureSetting') ?? '{}';
+      await _methodChannel.invokeMethod<String>('getTemperatureSetting') ??
+      '{}';
 
-  Future<bool> setTemperatureSetting({required bool enable, required int interval}) async =>
-      await _methodChannel.invokeMethod<bool>('setTemperatureSetting', {'enable': enable, 'interval': interval}) ?? false;
+  Future<bool> setTemperatureSetting({
+    required bool enable,
+    required int interval,
+  }) async =>
+      await _methodChannel.invokeMethod<bool>('setTemperatureSetting', {
+        'enable': enable,
+        'interval': interval,
+      }) ??
+      false;
 
   Future<String> syncAutoTemperature() async =>
       await _methodChannel.invokeMethod<String>('syncAutoTemperature') ?? '{}';
 
   Future<String> syncManualTemperature() async =>
-      await _methodChannel.invokeMethod<String>('syncManualTemperature') ?? '[]';
+      await _methodChannel.invokeMethod<String>('syncManualTemperature') ??
+      '[]';
 
   /// POC: calls BleOperateManager.manualTemperature() to verify the ring
   /// actually supports command-based temperature measurement.
   Future<String> testManualTemperature() async =>
-      await _methodChannel.invokeMethod<String>('testManualTemperature') ?? '{}';
+      await _methodChannel.invokeMethod<String>('testManualTemperature') ??
+      '{}';
 
   // ── Sport Records ──────────────────────────────────────────────────
   Future<String> getSportRecords() async =>
@@ -223,39 +346,61 @@ class BleService {
       await _methodChannel.invokeMethod<String>('getHealthSettings') ?? '{}';
 
   Future<bool> setHealthSettings(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setHealthSettings', {'data': jsonData}) ?? false;
+      await _methodChannel.invokeMethod<bool>('setHealthSettings', {
+        'data': jsonData,
+      }) ??
+      false;
 
   Future<String> getNotificationSettings() async =>
-      await _methodChannel.invokeMethod<String>('getNotificationSettings') ?? '{}';
+      await _methodChannel.invokeMethod<String>('getNotificationSettings') ??
+      '{}';
 
   Future<bool> setNotificationSetting(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setNotificationSetting', {'data': jsonData}) ?? false;
+      await _methodChannel.invokeMethod<bool>('setNotificationSetting', {
+        'data': jsonData,
+      }) ??
+      false;
 
   Future<String> getDisplaySettings() async =>
       await _methodChannel.invokeMethod<String>('getDisplaySettings') ?? '{}';
 
   Future<bool> setDisplaySetting(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setDisplaySetting', {'data': jsonData}) ?? false;
+      await _methodChannel.invokeMethod<bool>('setDisplaySetting', {
+        'data': jsonData,
+      }) ??
+      false;
 
   Future<String> getTargetAndProfile() async =>
       await _methodChannel.invokeMethod<String>('getTargetAndProfile') ?? '{}';
 
   Future<bool> setTargetAndProfile(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setTargetAndProfile', {'data': jsonData}) ?? false;
+      await _methodChannel.invokeMethod<bool>('setTargetAndProfile', {
+        'data': jsonData,
+      }) ??
+      false;
 
   Future<String> getAdvancedSettings() async =>
       await _methodChannel.invokeMethod<String>('getAdvancedSettings') ?? '{}';
 
   Future<bool> setAdvancedSetting(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setAdvancedSetting', {'data': jsonData}) ?? false;
+      await _methodChannel.invokeMethod<bool>('setAdvancedSetting', {
+        'data': jsonData,
+      }) ??
+      false;
 
   // ── Touch Control ──────────────────────────────────────────────────
   Future<String> getTouchControlSetting() async =>
-      await _methodChannel.invokeMethod<String>('getTouchControlSetting') ?? '{}';
+      await _methodChannel.invokeMethod<String>('getTouchControlSetting') ??
+      '{}';
 
-  Future<String> setTouchControlSetting({required bool enable, int strength = 5}) async =>
-      await _methodChannel.invokeMethod<String>(
-          'setTouchControlSetting', {'enable': enable, 'strength': strength}) ??
+  Future<String> setTouchControlSetting({
+    required bool enable,
+    int strength = 5,
+  }) async =>
+      await _methodChannel.invokeMethod<String>('setTouchControlSetting', {
+        'enable': enable,
+        'strength': strength,
+      }) ??
       '{}';
 
   // ── Reminders ──────────────────────────────────────────────────────
@@ -263,32 +408,53 @@ class BleService {
       await _methodChannel.invokeMethod<String>('getDrinkReminder') ?? '{}';
 
   Future<bool> setDrinkReminder(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setDrinkReminder', {'data': jsonData}) ?? false;
+      await _methodChannel.invokeMethod<bool>('setDrinkReminder', {
+        'data': jsonData,
+      }) ??
+      false;
 
   Future<String> getSedentaryReminder() async =>
       await _methodChannel.invokeMethod<String>('getSedentaryReminder') ?? '{}';
 
   Future<bool> setSedentaryReminder(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setSedentaryReminder', {'data': jsonData}) ?? false;
+      await _methodChannel.invokeMethod<bool>('setSedentaryReminder', {
+        'data': jsonData,
+      }) ??
+      false;
 
   // ── OTA ────────────────────────────────────────────────────────────
   Future<bool> startOta(String filePath) async =>
-      await _methodChannel.invokeMethod<bool>('startOta', {'filePath': filePath}) ?? false;
+      await _methodChannel.invokeMethod<bool>('startOta', {
+        'filePath': filePath,
+      }) ??
+      false;
 
   // ── Notification ───────────────────────────────────────────────────
-  Future<void> sendNotification({required int type, required String title, required String content}) =>
-      _methodChannel.invokeMethod('sendNotification', {'type': type, 'title': title, 'content': content});
+  Future<void> sendNotification({
+    required int type,
+    required String title,
+    required String content,
+  }) => _methodChannel.invokeMethod('sendNotification', {
+    'type': type,
+    'title': title,
+    'content': content,
+  });
 
   // ── Workout ────────────────────────────────────────────────────────
-  Future<void> startWorkout(String type, int startTimeMs) =>
-      _methodChannel.invokeMethod('startWorkout', {'type': type, 'startTimeMs': startTimeMs});
+  Future<void> startWorkout(String type, int startTimeMs) => _methodChannel
+      .invokeMethod('startWorkout', {'type': type, 'startTimeMs': startTimeMs});
 
   Future<void> stopWorkout() => _methodChannel.invokeMethod('stopWorkout');
 
   // ── Local readings (Room, via the continuous background measurement loop) ──
   // vital keys: heart_rate | spo2 | stress | blood_pressure | steps | hrv | temperature
 
-  Future<String> getReadings(String vital, {int? fromMs, int? toMs, int limit = 1000}) async =>
+  Future<String> getReadings(
+    String vital, {
+    int? fromMs,
+    int? toMs,
+    int limit = 1000,
+  }) async =>
       await _methodChannel.invokeMethod<String>('getReadings', {
         'vital': vital,
         'fromMs': fromMs ?? 0,
@@ -298,10 +464,16 @@ class BleService {
       '[]';
 
   Future<String> getTodaySummary(String vital) async =>
-      await _methodChannel.invokeMethod<String>('getTodaySummary', {'vital': vital}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('getTodaySummary', {
+        'vital': vital,
+      }) ??
+      '{}';
 
   Future<String> getLatestReading(String vital) async =>
-      await _methodChannel.invokeMethod<String>('getLatestReading', {'vital': vital}) ?? '{}';
+      await _methodChannel.invokeMethod<String>('getLatestReading', {
+        'vital': vital,
+      }) ??
+      '{}';
 
   Future<String> getStepsToday() async =>
       await _methodChannel.invokeMethod<String>('getStepsToday') ?? '{}';
@@ -321,7 +493,11 @@ class BleService {
   Future<String> getFallRiskScore() async =>
       await _methodChannel.invokeMethod<String>('getFallRiskScore') ?? 'null';
 
-  Future<String> getFallRiskLog({int? fromMs, int? toMs, int limit = 500}) async =>
+  Future<String> getFallRiskLog({
+    int? fromMs,
+    int? toMs,
+    int limit = 500,
+  }) async =>
       await _methodChannel.invokeMethod<String>('getFallRiskLog', {
         'fromMs': fromMs ?? 0,
         'toMs': toMs ?? DateTime.now().millisecondsSinceEpoch,
@@ -330,7 +506,11 @@ class BleService {
       '[]';
 
   /// Phase 2 fall-event read surface — silent-logging only, see FallMotionDetector.kt.
-  Future<String> getFallEvents({int? fromMs, int? toMs, int limit = 200}) async =>
+  Future<String> getFallEvents({
+    int? fromMs,
+    int? toMs,
+    int limit = 200,
+  }) async =>
       await _methodChannel.invokeMethod<String>('getFallEvents', {
         'fromMs': fromMs ?? 0,
         'toMs': toMs ?? DateTime.now().millisecondsSinceEpoch,
@@ -339,7 +519,11 @@ class BleService {
       '[]';
 
   /// Focus/Prayer usage read surface — see PhoneModeSessionEntity / PhoneModePlugin.kt.
-  Future<String> getPhoneModeSessions({int? fromMs, int? toMs, int limit = 200}) async =>
+  Future<String> getPhoneModeSessions({
+    int? fromMs,
+    int? toMs,
+    int limit = 200,
+  }) async =>
       await _methodChannel.invokeMethod<String>('getPhoneModeSessions', {
         'fromMs': fromMs ?? 0,
         'toMs': toMs ?? DateTime.now().millisecondsSinceEpoch,
@@ -369,24 +553,28 @@ class BleService {
   /// Dev/testing only — posts a real NewReadingEvent so FallRiskAnalyzer's compute-and-log
   /// pipeline can be verified without a real ring connected (seedDemoData bypasses this path).
   Future<bool> simulateFallRiskTrigger() async =>
-      await _methodChannel.invokeMethod<bool>('simulateFallRiskTrigger') ?? false;
+      await _methodChannel.invokeMethod<bool>('simulateFallRiskTrigger') ??
+      false;
 
   /// Client-demo only — posts a real vitals spike then deterministically fires the
   /// predictive "you might fall soon" notification, so the alert flow can be shown
   /// without waiting on real elevated vitals. See FallPredictionNotifier.kt.
   Future<bool> simulateFallPrediction() async =>
-      await _methodChannel.invokeMethod<bool>('simulateFallPrediction') ?? false;
+      await _methodChannel.invokeMethod<bool>('simulateFallPrediction') ??
+      false;
 
   /// Reads the fall-prediction pending flag — `{"pending": bool, "hr": int}`.
   /// Pending is set when a prediction fires (not only when the notification is tapped),
   /// so a normal app open still surfaces the alert. Does not clear; call
   /// [clearFallPredictionFlag] when the user dismisses the banner.
   Future<String> consumeFallPredictionFlag() async =>
-      await _methodChannel.invokeMethod<String>('consumeFallPredictionFlag') ?? '{"pending":false,"hr":0}';
+      await _methodChannel.invokeMethod<String>('consumeFallPredictionFlag') ??
+      '{"pending":false,"hr":0}';
 
   /// Clears a dismissed fall-prediction alert so it does not reappear on next resume.
   Future<bool> clearFallPredictionFlag() async =>
-      await _methodChannel.invokeMethod<bool>('clearFallPredictionFlag') ?? false;
+      await _methodChannel.invokeMethod<bool>('clearFallPredictionFlag') ??
+      false;
 
   /// Emergency SMS countdown / last-send status — see EmergencySmsSender.kt.
   Future<String> getEmergencySmsStatus() async =>
@@ -402,12 +590,18 @@ class BleService {
   Future<String> sendEmergencySms({String? message}) async {
     final args = <String, dynamic>{};
     if (message != null) args['message'] = message;
-    return await _methodChannel.invokeMethod<String>('sendEmergencySms', args) ??
+    return await _methodChannel.invokeMethod<String>(
+          'sendEmergencySms',
+          args,
+        ) ??
         '{"ok":false,"sentCount":0,"error":"no response"}';
   }
 
   Future<bool> placeEmergencyCall(String phone) async {
-    final result = await _methodChannel.invokeMethod<bool>('placeEmergencyCall', {'phone': phone});
+    final result = await _methodChannel.invokeMethod<bool>(
+      'placeEmergencyCall',
+      {'phone': phone},
+    );
     return result ?? false;
   }
 
@@ -417,11 +611,10 @@ class BleService {
       '{"enabled":false,"hasPermission":false}';
 
   Future<String> setAutoCallOnFallEnabled(bool enabled) async =>
-      await _methodChannel.invokeMethod<String>(
-            'setAutoCallOnFallEnabled',
-            {'enabled': enabled},
-          ) ??
-          '{"enabled":false,"hasPermission":false}';
+      await _methodChannel.invokeMethod<String>('setAutoCallOnFallEnabled', {
+        'enabled': enabled,
+      }) ??
+      '{"enabled":false,"hasPermission":false}';
 
   /// Emergency contacts — persisted natively (Room), not Flutter widget state, so a future
   /// caregiver-push or notification action can read them without the Dart engine running.
@@ -429,34 +622,78 @@ class BleService {
       await _methodChannel.invokeMethod<String>('getEmergencyContacts') ?? '[]';
 
   Future<bool> addEmergencyContact(String name, String phone) async =>
-      await _methodChannel.invokeMethod<bool>('addEmergencyContact', {'name': name, 'phone': phone}) ?? false;
+      await _methodChannel.invokeMethod<bool>('addEmergencyContact', {
+        'name': name,
+        'phone': phone,
+      }) ??
+      false;
 
-  Future<bool> updateEmergencyContact(int id, String name, String phone) async =>
-      await _methodChannel.invokeMethod<bool>('updateEmergencyContact', {'id': id, 'name': name, 'phone': phone}) ?? false;
+  Future<bool> updateEmergencyContact(
+    int id,
+    String name,
+    String phone,
+  ) async =>
+      await _methodChannel.invokeMethod<bool>('updateEmergencyContact', {
+        'id': id,
+        'name': name,
+        'phone': phone,
+      }) ??
+      false;
 
   Future<bool> deleteEmergencyContact(int id) async =>
-      await _methodChannel.invokeMethod<bool>('deleteEmergencyContact', {'id': id}) ?? false;
+      await _methodChannel.invokeMethod<bool>('deleteEmergencyContact', {
+        'id': id,
+      }) ??
+      false;
 
   /// Dev/testing only — fills the local Room DB with plausible readings spanning
   /// the last [hoursBack] hours, so a freshly reinstalled app has data to show
   /// without needing the ring connected.
   Future<bool> seedDemoData({int hoursBack = 3}) async =>
-      await _methodChannel.invokeMethod<bool>('seedDemoData', {'hoursBack': hoursBack}) ?? false;
+      await _methodChannel.invokeMethod<bool>('seedDemoData', {
+        'hoursBack': hoursBack,
+      }) ??
+      false;
 
   Future<bool> setVitalEnabled(String vital, bool enabled) async =>
-      await _methodChannel.invokeMethod<bool>('setVitalEnabled', {'vital': vital, 'enabled': enabled}) ?? false;
+      await _methodChannel.invokeMethod<bool>('setVitalEnabled', {
+        'vital': vital,
+        'enabled': enabled,
+      }) ??
+      false;
 
   Future<bool> getVitalEnabled(String vital) async =>
-      await _methodChannel.invokeMethod<bool>('getVitalEnabled', {'vital': vital}) ?? false;
+      await _methodChannel.invokeMethod<bool>('getVitalEnabled', {
+        'vital': vital,
+      }) ??
+      false;
 
   Future<bool> setMasterLoopEnabled(bool enabled) async =>
-      await _methodChannel.invokeMethod<bool>('setMasterLoopEnabled', {'enabled': enabled}) ?? false;
+      await _methodChannel.invokeMethod<bool>('setMasterLoopEnabled', {
+        'enabled': enabled,
+      }) ??
+      false;
 
   Future<bool> getMasterLoopEnabled() async =>
       await _methodChannel.invokeMethod<bool>('getMasterLoopEnabled') ?? false;
 
+  /// Gap between automatic measurement cycles, in milliseconds. This is a phone-side
+  /// setting (SharedPreferences via MeasurementConfig), so it works whether or not the
+  /// ring is connected. Native clamps to [30s, 30min]; default is 3 minutes.
+  Future<bool> setCycleCooldownMs(int ms) async =>
+      await _methodChannel.invokeMethod<bool>('setCycleCooldownMs', {
+        'ms': ms,
+      }) ??
+      false;
+
+  Future<int> getCycleCooldownMs() async =>
+      await _methodChannel.invokeMethod<int>('getCycleCooldownMs') ?? 180000;
+
   Future<bool> setSyncEnabled(bool enabled) async =>
-      await _methodChannel.invokeMethod<bool>('setSyncEnabled', {'enabled': enabled}) ?? false;
+      await _methodChannel.invokeMethod<bool>('setSyncEnabled', {
+        'enabled': enabled,
+      }) ??
+      false;
 
   Future<bool> getSyncEnabled() async =>
       await _methodChannel.invokeMethod<bool>('getSyncEnabled') ?? false;

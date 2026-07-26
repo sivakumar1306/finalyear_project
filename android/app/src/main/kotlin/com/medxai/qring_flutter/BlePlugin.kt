@@ -100,6 +100,12 @@ class BlePlugin(private val context: Context) {
         private const val INIT_COMMAND_DELAY_MS = 400L
         private const val INIT_RETRY_TIMEOUT_MS = 4_000L
         private const val INIT_MAX_ATTEMPTS = 3
+        // How long manual ("Measure Now") measurements will keep retrying tryAcquire() before
+        // giving up with BUSY. Must comfortably exceed MeasurementLoopManager's worst-case
+        // yield time (its preempt-detection poll + its post-stop settle delay, currently
+        // ~200ms + 2000ms = ~2.2s) — set with margin above that.
+        private const val MANUAL_ACQUIRE_POLL_MS = 300L
+        private const val MANUAL_ACQUIRE_TIMEOUT_MS = 4_000L
 
         var instance: BlePlugin? = null
             private set
@@ -311,6 +317,12 @@ class BlePlugin(private val context: Context) {
                 result.success(true)
             }
             "getMasterLoopEnabled"       -> result.success(MeasurementConfig.isMasterEnabled())
+            "setCycleCooldownMs"         -> {
+                val ms = (call.argument<Number>("ms") ?: 180_000L).toLong()
+                MeasurementConfig.setCycleCooldownMs(ms)
+                result.success(true)
+            }
+            "getCycleCooldownMs"         -> result.success(MeasurementConfig.getCycleCooldownMs())
             "setSyncEnabled"             -> {
                 MeasurementConfig.setSyncEnabled(call.argument<Boolean>("enabled") ?: true)
                 result.success(true)
@@ -350,8 +362,6 @@ class BlePlugin(private val context: Context) {
     private fun startScan(call: MethodCall, result: MethodChannel.Result) {
         val filterName = call.argument<String>("filterName") ?: ""
 
-        // Emit already-bonded devices immediately — covers the case where the ring is
-        // not advertising (e.g. after being used by another app that didn't close GATT).
         try {
             val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE)
                     as? android.bluetooth.BluetoothManager
@@ -361,7 +371,6 @@ class BlePlugin(private val context: Context) {
                     sendEvent("scanResult", mapOf("name" to name, "address" to device.address, "rssi" to -80))
                 }
             }
-            // Also include any device already connected via GATT.
             btManager?.getConnectedDevices(android.bluetooth.BluetoothProfile.GATT)
                 ?.forEach { device ->
                     val name = try { device.name ?: "" } catch (_: SecurityException) { "" }
@@ -413,8 +422,6 @@ class BlePlugin(private val context: Context) {
         BleScannerHelper.getInstance().stopScan(context)
 
         if (BleOperateManager.getInstance().isConnected) {
-            // Already connected (e.g. reconnecting to a live session) — the SDK will not
-            // re-fire onServiceDiscovered(), so resolve immediately instead of waiting for it.
             _isConnected = true
             mainHandler.post { result.success(true) }
             return
@@ -439,8 +446,6 @@ class BlePlugin(private val context: Context) {
     // Connection lifecycle callbacks (invoked by QRingBluetoothReceiver)
     // ─────────────────────────────────────────────────────────────────
 
-    // The SDK requires waiting for onServiceDiscovered() before sending any commands —
-    // sending them right off the raw GATT-connected state can be answered with no response.
     fun onServiceDiscovered() {
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         _isConnected = true
@@ -451,8 +456,6 @@ class BlePlugin(private val context: Context) {
         pendingConnectResult = null
         result?.let { r -> mainHandler.post { r.success(true) } }
 
-        // Give the phone/device GATT and notify state a moment to settle before sending
-        // the bind-success command — sending immediately can receive no response.
         mainHandler.postDelayed({ readDeviceCapabilityAndPairIfNeeded() }, INIT_COMMAND_DELAY_MS)
     }
 
@@ -464,15 +467,10 @@ class BlePlugin(private val context: Context) {
         MeasurementLoopManager.onRingDisconnected()
     }
 
-    // Fires for any successful connection, including ones BleConnectionService's background
-    // reconnect loop initiates directly (bypassing connect()) — keeps isAlreadyBonded() working
-    // regardless of who triggered the connection.
     fun onDeviceAddressKnown(address: String) {
         deviceAddress = address
     }
 
-    // Called by QRingSystemBluetoothReceiver when a bond attempt ends in BOND_NONE
-    // (rejected/cancelled/timed out) — unblocks whatever init command was waiting on it.
     fun onBondFailed() {
         val fallback = pendingBondFallback
         pendingBondFallback = null
@@ -488,11 +486,6 @@ class BlePlugin(private val context: Context) {
         }
     }
 
-    // Devices with supportBlePair = true require the app to trigger system Bluetooth
-    // pairing after connecting; until that bond exists, the ring's firmware silently
-    // ignores every command (no error, just no response). If it's already bonded, skip
-    // straight to sendBindSuccessWithRetry() — concurrent GATT writes during an in-flight
-    // pairing handshake can starve the handshake itself, so the two must not overlap.
     private fun readDeviceCapabilityAndPairIfNeeded() {
         CommandHandle.getInstance().executeReqCmd(
             DeviceSupportReq.getReadInstance(),
@@ -500,10 +493,6 @@ class BlePlugin(private val context: Context) {
                 Log.d(TAG, "DeviceSupportReq: supportBlePair=${rsp.supportBlePair}, alreadyBonded=${isAlreadyBonded()}")
                 if (rsp.supportBlePair && !isAlreadyBonded()) {
                     Log.d(TAG, "Device requires BLE pairing — calling bleCreateBond(), deferring other init commands")
-                    // If bonding succeeds, QRingSystemBluetoothReceiver reconnects the GATT
-                    // link, which re-enters this whole flow fresh (and isAlreadyBonded() will
-                    // then be true). If it fails, onBondFailed() runs this fallback so the app
-                    // isn't stuck silently.
                     pendingBondFallback = Runnable { sendBindSuccessWithRetry() }
                     BleOperateManager.getInstance().bleCreateBond()
                 } else {
@@ -524,10 +513,6 @@ class BlePlugin(private val context: Context) {
                     sendBindSuccessWithRetry(attempt + 1)
                 } else {
                     Log.e(TAG, "CMD_BIND_SUCCESS: no raw-echo confirmation after $INIT_MAX_ATTEMPTS attempts — proceeding anyway")
-                    // The SDK runs this command as NO_ACK (no registered response parser), so a
-                    // missing echo is inconclusive rather than a hard failure — the write itself
-                    // may still have landed. Don't force a disconnect/unbind loop over it; continue
-                    // with init instead of leaving the ring stuck retrying forever.
                 }
             }
         }
@@ -537,13 +522,9 @@ class BlePlugin(private val context: Context) {
         }
         mainHandler.postDelayed(timeoutRunnable, INIT_RETRY_TIMEOUT_MS)
 
-        // Still submit through CommandHandle so the SDK's internal task-queue bookkeeping stays
-        // consistent — we just no longer block success/failure on its (broken) callback.
         CommandHandle.getInstance().executeReqCmd(
             SimpleKeyReq(Constants.CMD_BIND_SUCCESS),
             ICommandResponse<BaseRspCmd> {
-                // Kept for completeness in case a future SDK version does register a parser and
-                // starts calling this — treat it as an alternate confirmation path too.
                 if (bindConfirmed.compareAndSet(false, true)) {
                     Log.d(TAG, "CMD_BIND_SUCCESS confirmed via ICommandResponse (unexpected but fine)")
                     val confirm = pendingBindConfirmation
@@ -574,8 +555,6 @@ class BlePlugin(private val context: Context) {
     }
 
     private fun getFirmwareVersion(result: MethodChannel.Result) {
-        // Populated by QRingBluetoothReceiver.onCharacteristicRead once the SDK broadcasts it;
-        // empty until the device has sent it (shortly after connect).
         mainHandler.post {
             result.success(mapOf("hardware" to cachedHardwareVersion, "firmware" to cachedFirmwareVersion, "model" to ""))
         }
@@ -591,18 +570,46 @@ class BlePlugin(private val context: Context) {
     }
 
     private fun getDeviceSupport(result: MethodChannel.Result) {
-    CommandHandle.getInstance().executeReqCmd(
-        DeviceSupportReq.getReadInstance(),
-        ICommandResponse<DeviceSupportFunctionRsp> { rsp ->
-
-            Log.d("DeviceSupport", gson.toJson(rsp))   // <-- ADD THIS
-
-            mainHandler.post {
-                result.success(gson.toJson(rsp))
+        CommandHandle.getInstance().executeReqCmd(
+            DeviceSupportReq.getReadInstance(),
+            ICommandResponse<DeviceSupportFunctionRsp> { rsp ->
+                Log.d("DeviceSupport", gson.toJson(rsp))
+                mainHandler.post {
+                    result.success(gson.toJson(rsp))
+                }
             }
+        )
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Manual measurement coordination
+    // ─────────────────────────────────────────────────────────────────
+
+    // Shared by every manual ("Measure Now") measurement entry point below. Signals
+    // MeasurementLoopManager to yield (manualRequestPending) and polls tryAcquire() until it
+    // succeeds or MANUAL_ACQUIRE_TIMEOUT_MS elapses, in which case it reports BUSY.
+    private fun acquireManualSlot(owner: String, result: MethodChannel.Result, onAcquired: () -> Unit) {
+        if (MeasurementCoordinator.tryAcquire(owner)) {
+            onAcquired()
+            return
         }
-    )
-}
+        MeasurementCoordinator.manualRequestPending = true
+        val deadline = System.currentTimeMillis() + MANUAL_ACQUIRE_TIMEOUT_MS
+        fun poll() {
+            if (MeasurementCoordinator.tryAcquire(owner)) {
+                MeasurementCoordinator.manualRequestPending = false
+                onAcquired()
+                return
+            }
+            if (System.currentTimeMillis() >= deadline) {
+                MeasurementCoordinator.manualRequestPending = false
+                result.error("BUSY", "Another measurement is already in progress. Please try again.", null)
+                return
+            }
+            mainHandler.postDelayed({ poll() }, MANUAL_ACQUIRE_POLL_MS)
+        }
+        mainHandler.postDelayed({ poll() }, MANUAL_ACQUIRE_POLL_MS)
+    }
 
     // ─────────────────────────────────────────────────────────────────
     // Heart Rate
@@ -689,28 +696,7 @@ class BlePlugin(private val context: Context) {
     private fun manualModeHeart(call: MethodCall, result: MethodChannel.Result) {
         val start = call.argument<Boolean>("start") ?: true
         val owner = "manual"
-        fun acquireWithRetry(onAcquired: () -> Unit) {
-            if (!start) {
-                onAcquired()
-                return
-            }
-            MeasurementCoordinator.manualRequestPending = true
-            if (MeasurementCoordinator.tryAcquire(owner)) {
-                MeasurementCoordinator.manualRequestPending = false
-                onAcquired()
-            } else {
-                mainHandler.postDelayed({
-                    if (MeasurementCoordinator.tryAcquire(owner)) {
-                        MeasurementCoordinator.manualRequestPending = false
-                        onAcquired()
-                    } else {
-                        MeasurementCoordinator.manualRequestPending = false
-                        result.error("BUSY", "Another measurement is already in progress", null)
-                    }
-                }, 500L)
-            }
-        }
-        acquireWithRetry {
+        fun proceed() {
             try {
                 BleOperateManager.getInstance().manualModeHeart(
                     ICommandResponse<StartHeartRateRsp> { rsp ->
@@ -728,30 +714,14 @@ class BlePlugin(private val context: Context) {
                 mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
         }
+        if (start) acquireManualSlot(owner, result) { proceed() } else proceed()
     }
 
     // Single-call measurement: starts HR, waits for a valid (>0) reading,
     // auto-stops, then resolves. Mirrors the test_app RingSdkBridge.readHeartRate().
     private fun readHeartRate(result: MethodChannel.Result) {
         val owner = "manual"
-        fun acquireWithRetry(onAcquired: () -> Unit) {
-            MeasurementCoordinator.manualRequestPending = true
-            if (MeasurementCoordinator.tryAcquire(owner)) {
-                MeasurementCoordinator.manualRequestPending = false
-                onAcquired()
-            } else {
-                mainHandler.postDelayed({
-                    if (MeasurementCoordinator.tryAcquire(owner)) {
-                        MeasurementCoordinator.manualRequestPending = false
-                        onAcquired()
-                    } else {
-                        MeasurementCoordinator.manualRequestPending = false
-                        result.error("BUSY", "Another measurement is already in progress", null)
-                    }
-                }, 500L)
-            }
-        }
-        acquireWithRetry {
+        acquireManualSlot(owner, result) {
             val done = AtomicBoolean(false)
 
             try {
@@ -766,7 +736,6 @@ class BlePlugin(private val context: Context) {
                                 MeasurementCoordinator.release(owner)
                                 mainHandler.post { result.success(value) }
                             }
-                            // value == 0: measurement still warming up — wait for next callback
                         } else {
                             if (done.compareAndSet(false, true)) {
                                 try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
@@ -775,17 +744,16 @@ class BlePlugin(private val context: Context) {
                             }
                         }
                     },
-                    false // false = start measurement
+                    false
                 )
             } catch (e: Exception) {
                 if (done.compareAndSet(false, true)) {
                     MeasurementCoordinator.release(owner)
                     mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
                 }
-                return@acquireWithRetry
+                return@acquireManualSlot
             }
 
-            // Stop and time out after 60 s so the Dart await never hangs forever
             mainHandler.postDelayed({
                 if (done.compareAndSet(false, true)) {
                     try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
@@ -899,28 +867,7 @@ class BlePlugin(private val context: Context) {
     private fun manualModeBP(call: MethodCall, result: MethodChannel.Result) {
         val start = call.argument<Boolean>("start") ?: true
         val owner = "manual"
-        fun acquireWithRetry(onAcquired: () -> Unit) {
-            if (!start) {
-                onAcquired()
-                return
-            }
-            MeasurementCoordinator.manualRequestPending = true
-            if (MeasurementCoordinator.tryAcquire(owner)) {
-                MeasurementCoordinator.manualRequestPending = false
-                onAcquired()
-            } else {
-                mainHandler.postDelayed({
-                    if (MeasurementCoordinator.tryAcquire(owner)) {
-                        MeasurementCoordinator.manualRequestPending = false
-                        onAcquired()
-                    } else {
-                        MeasurementCoordinator.manualRequestPending = false
-                        result.error("BUSY", "Another measurement is already in progress", null)
-                    }
-                }, 500L)
-            }
-        }
-        acquireWithRetry {
+        fun proceed() {
             val done = AtomicBoolean(false)
             try {
                 BleOperateManager.getInstance().manualModeBP(
@@ -929,7 +876,7 @@ class BlePlugin(private val context: Context) {
                         val dbp = rsp.getDbp()
                         val shouldRespond = if (start) (sbp > 0 && dbp > 0) else true
                         if (shouldRespond && done.compareAndSet(false, true)) {
-                            MeasurementCoordinator.release(owner)
+                            if (start) MeasurementCoordinator.release(owner)
                             mainHandler.post {
                                 result.success(gson.toJson(mapOf(
                                     "sbp" to sbp,
@@ -943,10 +890,10 @@ class BlePlugin(private val context: Context) {
                 )
             } catch (e: Exception) {
                 if (done.compareAndSet(false, true)) {
-                    MeasurementCoordinator.release(owner)
+                    if (start) MeasurementCoordinator.release(owner)
                     mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
                 }
-                return@acquireWithRetry
+                return
             }
             if (start) {
                 mainHandler.postDelayed({
@@ -955,11 +902,9 @@ class BlePlugin(private val context: Context) {
                         result.error("TIMEOUT", "Blood pressure measurement timed out", null)
                     }
                 }, 60000)
-            } else {
-                // When start=false (stopping measurement), release immediately after sending stop command
-                MeasurementCoordinator.release(owner)
             }
         }
+        if (start) acquireManualSlot(owner, result) { proceed() } else proceed()
     }
 
     private fun syncBloodPressure(result: MethodChannel.Result) {
@@ -1078,38 +1023,15 @@ class BlePlugin(private val context: Context) {
     private fun manualModeBloodOxygen(call: MethodCall, result: MethodChannel.Result) {
         val start = call.argument<Boolean>("start") ?: true
         val owner = "manual"
-        fun acquireWithRetry(onAcquired: () -> Unit) {
-            if (!start) {
-                onAcquired()
-                return
-            }
-            MeasurementCoordinator.manualRequestPending = true
-            if (MeasurementCoordinator.tryAcquire(owner)) {
-                MeasurementCoordinator.manualRequestPending = false
-                onAcquired()
-            } else {
-                mainHandler.postDelayed({
-                    if (MeasurementCoordinator.tryAcquire(owner)) {
-                        MeasurementCoordinator.manualRequestPending = false
-                        onAcquired()
-                    } else {
-                        MeasurementCoordinator.manualRequestPending = false
-                        result.error("BUSY", "Another measurement is already in progress", null)
-                    }
-                }, 500L)
-            }
-        }
-        acquireWithRetry {
+        fun proceed() {
             val done = AtomicBoolean(false)
             try {
                 BleOperateManager.getInstance().manualModeSpO2(
                     ICommandResponse<StartHeartRateRsp> { rsp ->
                         val spo2 = if (rsp.getBloodOxygen() > 0) rsp.getBloodOxygen() else rsp.getValue()
-                        // For start: skip zero ACK callbacks, wait for actual reading.
-                        // For stop: respond on first callback regardless.
                         val shouldRespond = if (start) spo2 > 0 else true
                         if (shouldRespond && done.compareAndSet(false, true)) {
-                            MeasurementCoordinator.release(owner)
+                            if (start) MeasurementCoordinator.release(owner)
                             mainHandler.post {
                                 result.success(gson.toJson(mapOf("spo2" to spo2, "status" to rsp.status)))
                             }
@@ -1119,12 +1041,11 @@ class BlePlugin(private val context: Context) {
                 )
             } catch (e: Exception) {
                 if (done.compareAndSet(false, true)) {
-                    MeasurementCoordinator.release(owner)
+                    if (start) MeasurementCoordinator.release(owner)
                     mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
                 }
-                return@acquireWithRetry
+                return
             }
-            // Timeout after 60 s so the Dart await doesn't hang forever
             if (start) {
                 mainHandler.postDelayed({
                     if (done.compareAndSet(false, true)) {
@@ -1132,11 +1053,9 @@ class BlePlugin(private val context: Context) {
                         result.error("TIMEOUT", "SpO2 measurement timed out", null)
                     }
                 }, 60000)
-            } else {
-                // When start=false (stopping measurement), release immediately after sending stop command
-                MeasurementCoordinator.release(owner)
             }
         }
+        if (start) acquireManualSlot(owner, result) { proceed() } else proceed()
     }
 
     private fun syncIntervalBloodOxygen(result: MethodChannel.Result) {
@@ -1223,8 +1142,6 @@ class BlePlugin(private val context: Context) {
     // Sleep
     // ─────────────────────────────────────────────────────────────────
 
-    // Serialise via getters so Gson reflection issues with obfuscated
-    // inner-class fields (SleepDataBean showing as {}) are bypassed.
     private fun sleepDisplayToMap(data: SleepDisplay): Map<String, Any?> {
         val segments = data.list?.map { bean ->
             mapOf(
@@ -1438,50 +1355,21 @@ class BlePlugin(private val context: Context) {
         )
     }
 
-    // On-device (official QRing app) manual HRV readings take ~50s to resolve — this SDK
-    // call streams intermediate zero-value callbacks the whole time and only the final one
-    // carries a real hrv, so the timeout margin above that observed real-world duration is
-    // what determines whether we ever see it. Logged per-callback so a real timeout can be
-    // told apart from "never called back at all" during on-device debugging.
     private fun manualModeHrv(call: MethodCall, result: MethodChannel.Result) {
         val start = call.argument<Boolean>("start") ?: true
         val owner = "manual"
-        fun acquireWithRetry(onAcquired: () -> Unit) {
-            if (!start) {
-                onAcquired()
-                return
-            }
-            MeasurementCoordinator.manualRequestPending = true
-            if (MeasurementCoordinator.tryAcquire(owner)) {
-                MeasurementCoordinator.manualRequestPending = false
-                onAcquired()
-            } else {
-                mainHandler.postDelayed({
-                    if (MeasurementCoordinator.tryAcquire(owner)) {
-                        MeasurementCoordinator.manualRequestPending = false
-                        onAcquired()
-                    } else {
-                        MeasurementCoordinator.manualRequestPending = false
-                        result.error("BUSY", "Another measurement is already in progress", null)
-                    }
-                }, 500L)
-            }
-        }
-        acquireWithRetry {
+        fun proceed() {
             val done = AtomicBoolean(false)
             var callbackCount = 0
             try {
                 BleOperateManager.getInstance().manualModeHrv(
                     ICommandResponse<StartHeartRateRsp> { rsp ->
-                        // HRV comes back through the dedicated getHrv() field, not the generic
-                        // getValue() field used by HR/SpO2/BP/Stress — confirmed against the SDK
-                        // sample (HrvActivity.kt) and the bundled SDK's StartHeartRateRsp class.
                         val value = if (rsp.getHrv() > 0) rsp.getHrv() else rsp.getValue()
                         callbackCount++
                         Log.d(TAG, "manualModeHrv callback #$callbackCount: value=$value status=${rsp.status}")
                         val shouldRespond = if (start) value > 0 else true
                         if (shouldRespond && done.compareAndSet(false, true)) {
-                            MeasurementCoordinator.release(owner)
+                            if (start) MeasurementCoordinator.release(owner)
                             mainHandler.post {
                                 result.success(gson.toJson(mapOf("value" to value, "status" to rsp.status)))
                             }
@@ -1491,10 +1379,10 @@ class BlePlugin(private val context: Context) {
                 )
             } catch (e: Exception) {
                 if (done.compareAndSet(false, true)) {
-                    MeasurementCoordinator.release(owner)
+                    if (start) MeasurementCoordinator.release(owner)
                     mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
                 }
-                return@acquireWithRetry
+                return
             }
             if (start) {
                 mainHandler.postDelayed({
@@ -1504,11 +1392,9 @@ class BlePlugin(private val context: Context) {
                         result.error("TIMEOUT", "HRV measurement timed out", null)
                     }
                 }, 90000)
-            } else {
-                // When start=false (stopping measurement), release immediately after sending stop command
-                MeasurementCoordinator.release(owner)
             }
         }
+        if (start) acquireManualSlot(owner, result) { proceed() } else proceed()
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -1597,28 +1483,7 @@ class BlePlugin(private val context: Context) {
     private fun manualModePressure(call: MethodCall, result: MethodChannel.Result) {
         val start = call.argument<Boolean>("start") ?: true
         val owner = "manual"
-        fun acquireWithRetry(onAcquired: () -> Unit) {
-            if (!start) {
-                onAcquired()
-                return
-            }
-            MeasurementCoordinator.manualRequestPending = true
-            if (MeasurementCoordinator.tryAcquire(owner)) {
-                MeasurementCoordinator.manualRequestPending = false
-                onAcquired()
-            } else {
-                mainHandler.postDelayed({
-                    if (MeasurementCoordinator.tryAcquire(owner)) {
-                        MeasurementCoordinator.manualRequestPending = false
-                        onAcquired()
-                    } else {
-                        MeasurementCoordinator.manualRequestPending = false
-                        result.error("BUSY", "Another measurement is already in progress", null)
-                    }
-                }, 500L)
-            }
-        }
-        acquireWithRetry {
+        fun proceed() {
             val done = AtomicBoolean(false)
             try {
                 BleOperateManager.getInstance().manualModePressure(
@@ -1626,7 +1491,7 @@ class BlePlugin(private val context: Context) {
                         val value = rsp.getValue()
                         val shouldRespond = if (start) value > 0 else true
                         if (shouldRespond && done.compareAndSet(false, true)) {
-                            MeasurementCoordinator.release(owner)
+                            if (start) MeasurementCoordinator.release(owner)
                             mainHandler.post {
                                 result.success(gson.toJson(mapOf("value" to value, "status" to rsp.status)))
                             }
@@ -1636,10 +1501,10 @@ class BlePlugin(private val context: Context) {
                 )
             } catch (e: Exception) {
                 if (done.compareAndSet(false, true)) {
-                    MeasurementCoordinator.release(owner)
+                    if (start) MeasurementCoordinator.release(owner)
                     mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
                 }
-                return@acquireWithRetry
+                return
             }
             if (start) {
                 mainHandler.postDelayed({
@@ -1648,18 +1513,15 @@ class BlePlugin(private val context: Context) {
                         result.error("TIMEOUT", "Pressure measurement timed out", null)
                     }
                 }, 60000)
-            } else {
-                // When start=false (stopping measurement), release immediately after sending stop command
-                MeasurementCoordinator.release(owner)
             }
         }
+        if (start) acquireManualSlot(owner, result) { proceed() } else proceed()
     }
 
     // ─────────────────────────────────────────────────────────────────
     // Temperature
     // ─────────────────────────────────────────────────────────────────
 
-    // Fetches today's interval temperature using BleOperateManager.getTemperatures (day 0, count 1)
     private fun getTodayTemperature(result: MethodChannel.Result) {
         BleOperateManager.getInstance().getTemperatures(
             0, 1,
@@ -1727,34 +1589,6 @@ class BlePlugin(private val context: Context) {
         )
     }
 
-    // Syncs continuous body temperature via FileHandle; waits for onUpdateTemperature callback.
-    //
-    // Acquires MeasurementCoordinator (owner="temperature") before writing, because Android's
-    // BLE stack only permits ONE outstanding GATT write per connection at a time. If
-    // MeasurementLoopManager's auto-cycle loop has a write in flight on its own characteristic
-    // when this tries to write to the temperature file characteristic, the write silently fails
-    // (logcat shows "write-no-rsp-fail" instead of "write-no-rsp"), and onUpdateTemperature
-    // never fires — this is true even though HR/SpO2/etc. and temperature use different
-    // characteristics; the collision happens at the connection level, not per-characteristic.
-    //
-    // Unlike the manual measurement functions, this retries the acquire once after a short
-    // delay instead of instantly failing, since the auto-cycle loop only holds the channel
-    // briefly between vitals — a single retry is usually enough to land in that gap.
-    // Syncs continuous body temperature via FileHandle; waits for onUpdateTemperature callback.
-    //
-    // Acquires MeasurementCoordinator (owner="temperature") before writing, since a busy loop
-    // vital keeps the connection occupied. But the coordinator lock alone isn't sufficient:
-    // other writers outside its scope (e.g. HeartRateSettingReq and other direct
-    // CommandHandle.executeReqCmd calls triggered by periodic background steps) can still land
-    // on the connection at the same instant and cause the GATT write itself to fail
-    // (logcat shows "write-no-rsp-fail" instead of "write-no-rsp"). There's no callback that
-    // tells us a write failed — the only signal we get is silence (onUpdateTemperature never
-    // fires), which we can only detect via our own timeout.
-    //
-    // So instead of one long 30s wait, this makes up to MAX_ATTEMPTS short attempts
-    // (ATTEMPT_TIMEOUT_MS each): if an attempt times out, release the lock, re-acquire, and
-    // re-issue the write fresh. A genuine collision is a one-off event, not a sustained one, so
-    // a fresh write moments later on a freshly re-acquired lock is very likely to land cleanly.
     private fun syncAutoTemperature(result: MethodChannel.Result) {
         val owner = "temperature"
         val MAX_ATTEMPTS = 4
@@ -1846,8 +1680,6 @@ class BlePlugin(private val context: Context) {
         attempt(1)
     }
 
-    // Syncs manual/single temperature readings via FileHandle; waits for onUpdateTemperatureList.
-    // Same retry-on-timeout reasoning as syncAutoTemperature above.
     private fun syncManualTemperature(result: MethodChannel.Result) {
         val owner = "temperature"
         val MAX_ATTEMPTS = 4
@@ -1939,9 +1771,6 @@ class BlePlugin(private val context: Context) {
         attempt(1)
     }
 
-    // ── POC: manualTemperature (BleOperateManager direct sensor command) ─────
-    // This mirrors readHeartRate(): start measurement, wait for non-zero value,
-    // auto-stop, return JSON. Does NOT touch FileHandle at all.
     private fun testManualTemperature(result: MethodChannel.Result) {
         val done = AtomicBoolean(false)
         var callbackCount = 0
@@ -1961,20 +1790,16 @@ class BlePlugin(private val context: Context) {
                     Log.d("TempPOC", "testManualTemperature callback #$callbackCount: " +
                             "status=$status, getTemperature()=$tempRaw, getValue()=$valueRaw")
 
-                    // Use getTemperature() first; fall back to getValue()
                     val rawValue = if (tempRaw > 0) tempRaw else valueRaw
 
                     if (rawValue > 0 && done.compareAndSet(false, true)) {
-                        // SDK returns temp * 10 (e.g. 364 = 36.4°C)
                         val tempC = rawValue / 10.0
                         Log.d("TempPOC", "testManualTemperature: SUCCESS rawValue=$rawValue tempC=$tempC — stopping sensor")
 
-                        // Stop the sensor
                         try {
                             BleOperateManager.getInstance().manualTemperature(null, true)
                         } catch (_: Exception) {}
 
-                        // Return JSON matching what Flutter already expects
                         val json = gson.toJson(mapOf(
                             "temperature" to tempC,
                             "rawValue" to rawValue,
@@ -1986,9 +1811,8 @@ class BlePlugin(private val context: Context) {
                         ))
                         mainHandler.post { result.success(json) }
                     }
-                    // rawValue == 0: sensor still warming up — wait for next callback
                 },
-                false  // false = start measurement
+                false
             )
         } catch (e: Exception) {
             Log.e("TempPOC", "testManualTemperature: SDK call threw exception", e)
@@ -2000,11 +1824,9 @@ class BlePlugin(private val context: Context) {
             return
         }
 
-        // Timeout after 60s so the Dart await never hangs forever
         mainHandler.postDelayed({
             if (done.compareAndSet(false, true)) {
                 Log.e("TempPOC", "testManualTemperature: TIMED OUT after 60s ($callbackCount callbacks, none with value > 0)")
-                // Stop sensor on timeout
                 try {
                     BleOperateManager.getInstance().manualTemperature(null, true)
                 } catch (_: Exception) {}
@@ -2102,7 +1924,6 @@ class BlePlugin(private val context: Context) {
     // Touch Control
     // ─────────────────────────────────────────────────────────────────
 
-    // appType: 0=close 1=music 2=video 3=muslim 4=ebook 5=camera 6=phone call 7=game 8=heart 9=touch event
     private fun getTouchControlSetting(result: MethodChannel.Result) {
         CommandHandle.getInstance().executeReqCmd(
             TouchControlReq.getReadInstance(true),
@@ -2322,7 +2143,6 @@ class BlePlugin(private val context: Context) {
         }
     }
 
-    // Phase 1 fall-risk read surface — silent-logging only, see FallRiskAnalyzer.
     private fun getFallRiskScore(result: MethodChannel.Result) {
         repo().ioScope.launch {
             val json = try {
@@ -2350,7 +2170,6 @@ class BlePlugin(private val context: Context) {
         }
     }
 
-    // Focus/Prayer usage read surface — see PhoneModeSessionEntity / PhoneModePlugin.
     private fun getPhoneModeSessions(call: MethodCall, result: MethodChannel.Result) {
         val fromMs = (call.argument<Number>("fromMs") ?: 0L).toLong()
         val toMs = (call.argument<Number>("toMs") ?: System.currentTimeMillis()).toLong()
@@ -2366,7 +2185,6 @@ class BlePlugin(private val context: Context) {
         }
     }
 
-    // Phase 2 fall-event read surface — silent-logging only, see FallMotionDetector.
     private fun getFallEvents(call: MethodCall, result: MethodChannel.Result) {
         val fromMs = (call.argument<Number>("fromMs") ?: 0L).toLong()
         val toMs = (call.argument<Number>("toMs") ?: System.currentTimeMillis()).toLong()
@@ -2382,8 +2200,6 @@ class BlePlugin(private val context: Context) {
         }
     }
 
-    // Dev/testing only — fires the real notification pipeline on demand so the fall-alert
-    // flow can be demoed/tested without needing a genuine drop test + concurrent vitals spike.
     private fun simulateFallEvent(result: MethodChannel.Result) {
         val confidence = 0.82f
         val source = "hr_spike"
@@ -2400,7 +2216,6 @@ class BlePlugin(private val context: Context) {
                 )
                 FallAlertNotifier.notifyFall(context, confidence, source)
                 EmergencySmsSender.schedule(context, reason = "fall")
-                // Same path as a real corroborated fall — respects the settings toggle.
                 EmergencyAutoCaller.placeIfEnabled(context)
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
@@ -2409,9 +2224,6 @@ class BlePlugin(private val context: Context) {
         }
     }
 
-    // Fires a phone-side alert notification for a vital that crossed a user-enabled
-    // threshold (see BleProvider's threshold checks in Dart) via the previously-unused
-    // AlertNotifier scaffolding.
     private fun postHealthAlert(call: MethodCall, result: MethodChannel.Result) {
         val title = call.argument<String>("title")
         if (title == null) { result.error("INVALID_ARG", "title required", null); return }
@@ -2421,11 +2233,6 @@ class BlePlugin(private val context: Context) {
         result.success(true)
     }
 
-    // Dev/testing only — posts a real NewReadingEvent through the exact same EventBus path a
-    // genuine ring reading takes, so FallRiskAnalyzer's compute-and-log pipeline can be
-    // verified end-to-end without needing a real ring connected. seedDemoData deliberately
-    // does NOT do this (it writes rows directly via DAOs), so this is the only way to exercise
-    // Phase 1 without live hardware.
     private fun simulateFallRiskTrigger(result: MethodChannel.Result) {
         repo().ioScope.launch {
             try {
@@ -2442,10 +2249,6 @@ class BlePlugin(private val context: Context) {
         }
     }
 
-    // Client-demo only — simulates a vitals spike (a real 122bpm HR reading, posted through the
-    // same NewReadingEvent path a genuine ring reading takes) and, since this is a scripted demo
-    // rather than the live silent-logging analyzer, deterministically fires the predictive
-    // notification right after so the flow can be shown without waiting on real elevated vitals.
     private fun simulateFallPrediction(result: MethodChannel.Result) {
         repo().ioScope.launch {
             try {
@@ -2480,7 +2283,6 @@ class BlePlugin(private val context: Context) {
 
     private fun cancelEmergencySms(result: MethodChannel.Result) {
         EmergencySmsSender.cancel(context)
-        // User is okay — also clear the prediction banner so Home stops prompting.
         FallPredictionNotifier.clearPending(context)
         result.success(true)
     }
@@ -2488,7 +2290,6 @@ class BlePlugin(private val context: Context) {
     private fun sendEmergencySms(call: MethodCall, result: MethodChannel.Result) {
         val message = call.argument<String>("message")
             ?: EmergencySmsSender.DEFAULT_MESSAGE
-        // Off main thread: Room + SmsManager.
         repo().ioScope.launch {
             val status = try {
                 EmergencySmsSender.sendNow(context, message)
@@ -2506,7 +2307,6 @@ class BlePlugin(private val context: Context) {
             result.error("NO_PHONE", "No phone number provided", null)
             return
         }
-        // Uses TelecomManager + default/first SIM so dual-SIM phones skip the SIM picker.
         val ok = EmergencyAutoCaller.placeCall(context, phone)
         if (ok) {
             result.success(true)
@@ -2522,10 +2322,6 @@ class BlePlugin(private val context: Context) {
         }
     }
 
-    // Reads the fall-prediction pending flag. Restores from SharedPreferences first so a
-    // cold start from the launcher (no notification Intent) still surfaces the Home banner.
-    // Does NOT clear — clearing happens only when the user dismisses the banner
-    // (clearFallPredictionFlag), otherwise reopening the app would hide an active alert.
     private fun consumeFallPredictionFlag(result: MethodChannel.Result) {
         FallPredictionNotifier.restorePending(context)
         val pending = MainActivity.pendingFallPrediction
@@ -2533,7 +2329,6 @@ class BlePlugin(private val context: Context) {
         result.success(gson.toJson(mapOf("pending" to pending, "hr" to hr)))
     }
 
-    // User tapped Ignore / dismissed the Home fall-prediction banner.
     private fun clearFallPredictionFlag(result: MethodChannel.Result) {
         FallPredictionNotifier.clearPending(context)
         result.success(true)

@@ -107,14 +107,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               InkWell(
                 onTap: () => Navigator.pop(ctx, o.value),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
                   child: Row(
                     children: [
                       Icon(
                         o.value == current
                             ? Icons.radio_button_checked_rounded
                             : Icons.radio_button_off_rounded,
-                        color: o.value == current ? AppTheme.gold : AppTheme.textSec,
+                        color: o.value == current
+                            ? AppTheme.gold
+                            : AppTheme.textSec,
                         size: 20,
                       ),
                       const SizedBox(width: 14),
@@ -129,7 +134,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(width: 8),
                       Text(
                         o.hint,
-                        style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
+                        style: GoogleFonts.inter(
+                          color: AppTheme.textSec,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -356,6 +364,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   _divider(),
+                  // Auto-measurement cadence + per-vital ring monitoring toggles.
+                  // Uses the '/health-settings' named route already registered in app.dart.
+                  _SettingsRow.arrow(
+                    icon: Icons.monitor_heart_rounded,
+                    title: 'Health Settings',
+                    onTap: () =>
+                        Navigator.pushNamed(context, '/health-settings'),
+                  ),
+                  _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.alarm_rounded,
                     title: 'Alarms & Notifications',
@@ -384,7 +401,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Find Device',
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const FindDeviceScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const FindDeviceScreen(),
+                      ),
                     ),
                   ),
                   _divider(),
