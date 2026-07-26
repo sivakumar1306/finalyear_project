@@ -9,6 +9,11 @@ import '../../theme/app_theme.dart';
 import 'voice_listening_sheet.dart';
 import 'insights_header.dart';
 import 'sleep_highlights_card.dart';
+import 'heart_rate_chat_card.dart';
+import 'blood_oxygen_chat_card.dart';
+import 'hrv_chat_card.dart';
+import 'blood_pressure_chat_card.dart';
+import 'steps_chat_card.dart';
 
 // Persist the active conversation id per-user so the thread survives an
 // app close/reopen. Keyed by user id so switching accounts doesn't leak
@@ -100,6 +105,48 @@ class _ChatScreenState extends State<ChatScreen> {
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _startNewChat() async {
+    if (_messages.isEmpty) return; // nothing to clear
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141414),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Start a new chat?', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+        content: Text(
+          'This clears the current conversation from view. Your history isn\'t deleted.',
+          style: GoogleFonts.inter(color: const Color(0x99FFFFFF), fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0x99FFFFFF))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Start new', style: GoogleFonts.inter(color: AppTheme.goldAccent, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    setState(() {
+      _messages.clear();
+      _conversationId = null;
+      _errorMessage = '';
+    });
+
+    final userId = SupabaseService.currentUser?.id;
+    if (userId != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_conversationPrefsKey(userId));
+    }
   }
 
   void _startVoiceInput() async {
@@ -229,8 +276,11 @@ class _ChatScreenState extends State<ChatScreen> {
                         horizontal: 16,
                         vertical: 8,
                       ),
-                      // Add 1 to count to include the InsightsHeader as item 0
-                      itemCount: _messages.length + (_isLoading ? 1 : 0) + 1,
+                      // header(1) + messages + loading(0/1) + trailing "new chat" chip(0/1)
+                      itemCount: _messages.length +
+                          (_isLoading ? 1 : 0) +
+                          1 +
+                          (_messages.isNotEmpty && !_isLoading ? 1 : 0),
                       itemBuilder: (context, index) {
                         if (index == 0) {
                           return Column(
@@ -246,7 +296,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                   height: 0.5,
                                   color: const Color(
                                     0x1AFFFFFF,
-                                  ), // rgba(255,255,255,0.1)
+                                  ),
                                 ),
                               ),
                             ],
@@ -256,7 +306,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         // Adjust index because of the header at index 0
                         final int msgIndex = index - 1;
 
-                        if (msgIndex == _messages.length) {
+                        if (_isLoading && msgIndex == _messages.length) {
                           // Typing loading indicator (aligned left)
                           return Align(
                             alignment: Alignment.centerLeft,
@@ -269,14 +319,14 @@ class _ChatScreenState extends State<ChatScreen> {
                                     bottom: 4,
                                   ),
                                   child: Text(
-                                    'AH ASSIST',
+                                    'AI ASSIST',
                                     style: GoogleFonts.inter(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w500,
                                       letterSpacing: 0.12 * 10,
                                       color: const Color(
                                         0x66FFFFFF,
-                                      ), // rgba(255,255,255,0.4)
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -291,11 +341,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                   decoration: BoxDecoration(
                                     color: const Color(
                                       0x0AFFFFFF,
-                                    ), // rgba(255,255,255,0.04)
+                                    ),
                                     border: Border.all(
                                       color: const Color(
                                         0x12FFFFFF,
-                                      ), // rgba(255,255,255,0.07)
+                                      ),
                                       width: 1,
                                     ),
                                     borderRadius: const BorderRadius.only(
@@ -308,6 +358,43 @@ class _ChatScreenState extends State<ChatScreen> {
                                   child: const _ChatLoadingIndicator(),
                                 ),
                               ],
+                            ),
+                          );
+                        }
+
+                        // Trailing "New chat" chip — the very last list item, shown once a
+                        // reply (and any card) has fully rendered and nothing is loading.
+                        final bool showNewChatButton = _messages.isNotEmpty && !_isLoading;
+                        final int trailingIndex = _messages.length + (_isLoading ? 1 : 0) + 1;
+                        if (showNewChatButton && index == trailingIndex) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 20, bottom: 8),
+                            child: Center(
+                              child: GestureDetector(
+                                onTap: _startNewChat,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0x0AFFFFFF),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: const Color(0x14FFFFFF), width: 0.5),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.add_comment_outlined,
+                                          size: 14, color: AppTheme.goldAccent),
+                                      const SizedBox(width: 6),
+                                      Text('New chat',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                            color: const Color(0xCCFFFFFF),
+                                          )),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
                           );
                         }
@@ -330,10 +417,20 @@ class _ChatScreenState extends State<ChatScreen> {
                               children: [
                                 if (content.isNotEmpty)
                                   _buildAssistantBubble(context, content),
-                                if (card != null &&
-                                    card['type'] == 'sleep_highlights') ...[
+                                if (card != null) ...[
                                   const SizedBox(height: 8),
-                                  SleepHighlightsCard(data: card['data']),
+                                  if (card['type'] == 'sleep_highlights')
+                                    SleepHighlightsCard(data: card['data'])
+                                  else if (card['type'] == 'heart_rate_trend')
+                                    HeartRateChatCard(data: card['data'])
+                                  else if (card['type'] == 'spo2_trend')
+                                    BloodOxygenChatCard(data: card['data'])
+                                  else if (card['type'] == 'hrv_trend')
+                                    HrvChatCard(data: card['data'])
+                                  else if (card['type'] == 'bp_trend')
+                                    BloodPressureChatCard(data: card['data'])
+                                  else if (card['type'] == 'steps_trend')
+                                    StepsChatCard(data: card['data']),
                                 ],
                               ],
                             ),
@@ -460,7 +557,7 @@ class _ChatScreenState extends State<ChatScreen> {
           Padding(
             padding: const EdgeInsets.only(left: 6, bottom: 4),
             child: Text(
-              'AH ASSIST',
+              'AI ASSIST',
               style: GoogleFonts.inter(
                 fontSize: 10,
                 fontWeight: FontWeight.w500,

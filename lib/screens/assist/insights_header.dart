@@ -12,9 +12,23 @@ class InsightsHeader extends StatefulWidget {
   State<InsightsHeader> createState() => _InsightsHeaderState();
 }
 
-class _InsightsHeaderState extends State<InsightsHeader> {
+class _InsightsHeaderState extends State<InsightsHeader>
+    with AutomaticKeepAliveClientMixin {
+  // Static so it survives this widget being disposed and recreated — e.g.
+  // navigating away from the AI assist tab and back, or a fresh app open —
+  // not just scroll-offscreen (that's handled by AutomaticKeepAliveClientMixin
+  // below). Keyed by range so each tab (7D/30D/90D) caches independently.
+  static final Map<String, Map<String, dynamic>> _cache = {};
+  static final Map<String, DateTime> _cacheTime = {};
+  static const _cacheTtl = Duration(minutes: 5);
+
   String _selectedRange = '30D';
   Future<Map<String, dynamic>>? _insightsFuture;
+  Map<String, dynamic>? _cachedData;
+  bool _refreshing = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -22,8 +36,40 @@ class _InsightsHeaderState extends State<InsightsHeader> {
     _load();
   }
 
-  void _load() {
-    _insightsFuture = ChatApiService.getInsights(_selectedRange);
+  void _load({bool forceRefresh = false}) {
+    final cached = _cache[_selectedRange];
+    final cachedAt = _cacheTime[_selectedRange];
+    final isFresh =
+        cachedAt != null && DateTime.now().difference(cachedAt) < _cacheTtl;
+
+    if (!forceRefresh && cached != null && isFresh) {
+      // Fresh cache hit — show it immediately, no network call, no spinner.
+      _cachedData = cached;
+      _insightsFuture = null;
+      return;
+    }
+
+    // Show stale cache (if any) while a fresh fetch runs in the background,
+    // instead of blanking out to a spinner on every re-fetch.
+    _cachedData = cached;
+    _insightsFuture = ChatApiService.getInsights(_selectedRange).then((data) {
+      _cache[_selectedRange] = data;
+      _cacheTime[_selectedRange] = DateTime.now();
+      return data;
+    });
+  }
+
+  Future<void> _onRefreshTap() async {
+    if (_refreshing) return;
+    setState(() {
+      _refreshing = true;
+      _load(forceRefresh: true);
+    });
+    try {
+      await _insightsFuture;
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
   }
 
   void _onRangeSelect(String range) {
@@ -36,6 +82,7 @@ class _InsightsHeaderState extends State<InsightsHeader> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // required by AutomaticKeepAliveClientMixin
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -43,7 +90,7 @@ class _InsightsHeaderState extends State<InsightsHeader> {
         children: [
           const SizedBox(height: 18),
 
-          // Title and Segmented Control Row
+          // Title, refresh icon, and segmented control row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -56,25 +103,53 @@ class _InsightsHeaderState extends State<InsightsHeader> {
                   color: const Color(0xF2FFFFFF),
                 ),
               ),
-              _buildSegmentedControl(),
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: _onRefreshTap,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child: _refreshing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0x66FFFFFF),
+                              ),
+                            )
+                          : const Icon(
+                              Icons.refresh_rounded,
+                              size: 18,
+                              color: Color(0x66FFFFFF),
+                            ),
+                    ),
+                  ),
+                  _buildSegmentedControl(),
+                ],
+              ),
             ],
           ),
 
           const SizedBox(height: 24),
 
-          FutureBuilder<Map<String, dynamic>>(
-            future: _insightsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return _buildLoading();
-              }
-              final data = snapshot.data;
-              if (data == null || data['error'] != null) {
-                return _buildFallback();
-              }
-              return _buildContent(data);
-            },
-          ),
+          // Show cached content immediately if we have it, even while a
+          // background refresh (from _load) is in flight.
+          _cachedData != null
+              ? _buildContent(_cachedData!)
+              : FutureBuilder<Map<String, dynamic>>(
+                  future: _insightsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return _buildLoading();
+                    }
+                    final data = snapshot.data;
+                    if (data == null || data['error'] != null) {
+                      return _buildFallback();
+                    }
+                    return _buildContent(data);
+                  },
+                ),
 
           const SizedBox(height: 18),
         ],

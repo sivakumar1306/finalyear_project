@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../providers/alarm_mode_provider.dart';
+import '../../services/chat_api_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/home_card_prefs.dart';
 import '../../theme/app_theme.dart';
@@ -642,6 +643,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 children: [
                   _buildTopBar(context),
                   _buildGreetingRow(ble),
+                  const _HomeAiInsightSnippet(),
                   _buildSectionLabel(),
                 ],
               ),
@@ -842,6 +844,105 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: Colors.white.withValues(alpha: 0.38),
           letterSpacing: 1.5,
         ),
+      ),
+    );
+  }
+}
+
+// ── AI insight snippet (under greeting, above ALL METRICS) ──────────────────
+// Reuses the same insights payload the AI assist tab shows, but only surfaces
+// the one-line subtext here — a quick "what matters today" without needing
+// to open the AI assist screen. Cached separately from InsightsHeader's own
+// cache (small duplicate network call at most once per 5 min) to avoid
+// coupling the two screens' widget lifecycles together.
+class _HomeAiInsightSnippet extends StatefulWidget {
+  const _HomeAiInsightSnippet();
+
+  @override
+  State<_HomeAiInsightSnippet> createState() => _HomeAiInsightSnippetState();
+}
+
+class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
+  static Map<String, dynamic>? _cache;
+  static DateTime? _cacheTime;
+  static const _cacheTtl = Duration(minutes: 5);
+
+  Map<String, dynamic>? _data;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final isFresh = _cacheTime != null &&
+        DateTime.now().difference(_cacheTime!) < _cacheTtl;
+    if (_cache != null && isFresh) {
+      setState(() => _data = _cache);
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final result = await ChatApiService.getInsights('7D');
+      _cache = result;
+      _cacheTime = DateTime.now();
+      if (mounted) setState(() => _data = result);
+    } catch (_) {
+      // Silent — this is a supplementary snippet, not worth an error banner
+      // on the home screen if the fetch fails.
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final subtext = _data?['subtext'] as String?;
+    if (_loading && subtext == null) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: SizedBox(
+          height: 14,
+          width: 14,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.5,
+            color: Color(0x4DFFFFFF),
+          ),
+        ),
+      );
+    }
+    if (subtext == null ||
+        subtext.isEmpty ||
+        _data?['error'] != null) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(Icons.auto_awesome_rounded,
+                size: 13, color: AppTheme.goldAccent),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              subtext,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: _inter(
+                12.5,
+                color: Colors.white.withValues(alpha: 0.55),
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
