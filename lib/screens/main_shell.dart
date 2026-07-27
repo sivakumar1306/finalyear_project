@@ -118,13 +118,6 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final tab = context.watch<MainTabProvider>().tab;
-    // AI Assist (index 1) hides the floating nav entirely and shows its own
-    // back arrow instead (see chat_screen.dart) — the pill was overlapping
-    // the chat input bar / message list, and the product wants a focused,
-    // full-screen chat experience without the persistent nav competing for
-    // space at the bottom.
-    final showBottomNav = tab != 1;
-
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
@@ -132,27 +125,16 @@ class _MainShellState extends State<MainShell> {
       ),
       child: Scaffold(
         backgroundColor: const Color.fromRGBO(8, 8, 8, 1),
-        extendBody: true,
-        // Only 3 real tabs — Profile lives inside Settings now (see
-        // settings_screen.dart's "User Profile" row), not as its own
-        // bottom-nav destination. Index: Home=0, AI assist=1, Settings=2.
         body: IndexedStack(
           index: tab,
-          children: [
-            const HomeScreen(),
-            ChatScreen(onBack: () => _onTabTap(0)),
-            const SettingsScreen(),
-          ],
+          children: const [HomeScreen(), ChatScreen(), SettingsScreen()],
         ),
-        bottomNavigationBar: showBottomNav
-            ? _BottomNav(selected: tab, onTap: _onTabTap)
-            : null,
+        bottomNavigationBar: _BottomNav(selected: tab, onTap: _onTabTap),
       ),
     );
   }
 }
 
-/// Glassmorphic floating pill nav bar: Home | gold FAB (AI assist) | Settings
 class _BottomNav extends StatelessWidget {
   final int selected;
   final ValueChanged<int> onTap;
@@ -161,46 +143,48 @@ class _BottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.only(bottom: 12),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(32),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              width: 266,
-              height: 64,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0x08FFFFFF), // rgba(255,255,255,0.03)
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(
-                  color: const Color(0x17FFFFFF), // rgba(255,255,255,0.09)
-                  width: 1,
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0x8C050505), // rgba(5,5,5,0.55)
+            border: Border(
+              top: BorderSide(
+                color: Color(0x0DFFFFFF),
+                width: 0.5,
+              ), // rgba(255,255,255,0.05)
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(36, 12, 36, 14),
+              child: SizedBox(
+                height: 44,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _NavTab(
+                      icon: Icons.home_outlined,
+                      label: 'Home',
+                      active: selected == 0,
+                      onTap: () => onTap(0),
+                    ),
+                    _NavTab(
+                      icon: Icons.auto_awesome,
+                      label: 'AI assist',
+                      active: selected == 1,
+                      onTap: () => onTap(1),
+                    ),
+                    _NavTab(
+                      icon: Icons.settings_outlined,
+                      label: 'Settings',
+                      active: selected == 2,
+                      onTap: () => onTap(2),
+                    ),
+                  ],
                 ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  _NavTab(
-                    icon: Icons.home_outlined,
-                    label: 'Home',
-                    active: selected == 0,
-                    onTap: () => onTap(0),
-                  ),
-                  _FabButton(onTap: () => onTap(1)),
-                  _NavTab(
-                    icon: Icons.settings_outlined,
-                    label: 'Settings',
-                    active: selected == 2,
-                    onTap: () => onTap(2),
-                  ),
-                ],
               ),
             ),
           ),
@@ -232,132 +216,23 @@ class _NavTab extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: GoogleFonts.instrumentSans(
-                fontSize: 11,
-                fontWeight: FontWeight.w400,
-                color: color,
-                height: 1.0,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Flat gold circular FAB with a two-sparkle icon (mingcute:ai-fill style)
-class _FabButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _FabButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Color(0xFFC9A86E),
-        ),
-        child: const Center(
-          child: SizedBox(
-            width: 24,
-            height: 24,
-            child: CustomPaint(
-              painter: _SparklePainter(color: Color(0xD9050505)),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 21),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: GoogleFonts.instrumentSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w400,
+              color: color,
+              height: 1.1,
             ),
           ),
-        ),
+        ],
       ),
     );
   }
-}
-
-/// Draws two 4-point "diamond" sparkle stars: one large centered,
-/// one small offset top-right, matching mingcute:ai-fill.
-class _SparklePainter extends CustomPainter {
-  final Color color;
-  const _SparklePainter({required this.color});
-
-  /// Draws a smooth 4-point curved diamond sparkle (super-ellipse curve style)
-  Path _sparklePath(Offset center, double outerRadius) {
-    final path = Path();
-    final top = Offset(center.dx, center.dy - outerRadius);
-    final right = Offset(center.dx + outerRadius, center.dy);
-    final bottom = Offset(center.dx, center.dy + outerRadius);
-    final left = Offset(center.dx - outerRadius, center.dy);
-
-    // Control point distance from center (0.28x radius gives the exact rounded diamond waist in Mingcute AI icon)
-    final ctrlDist = outerRadius * 0.19;
-
-    path.moveTo(top.dx, top.dy);
-    path.cubicTo(
-      center.dx + ctrlDist,
-      center.dy - ctrlDist * 2.2,
-      center.dx + ctrlDist * 2.2,
-      center.dy - ctrlDist,
-      right.dx,
-      right.dy,
-    );
-    path.cubicTo(
-      center.dx + ctrlDist * 2.2,
-      center.dy + ctrlDist,
-      center.dx + ctrlDist,
-      center.dy + ctrlDist * 2.2,
-      bottom.dx,
-      bottom.dy,
-    );
-    path.cubicTo(
-      center.dx - ctrlDist,
-      center.dy + ctrlDist * 2.2,
-      center.dx - ctrlDist * 2.2,
-      center.dy + ctrlDist,
-      left.dx,
-      left.dy,
-    );
-    path.cubicTo(
-      center.dx - ctrlDist * 2.2,
-      center.dy - ctrlDist,
-      center.dx - ctrlDist,
-      center.dy - ctrlDist * 2.2,
-      top.dx,
-      top.dy,
-    );
-    path.close();
-    return path;
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    // Main diamond sparkle (centered)
-    final mainCenter = Offset(size.width * 0.44, size.height * 0.54);
-    canvas.drawPath(_sparklePath(mainCenter, size.width * 0.38), paint);
-
-    // Top-right accent diamond sparkle
-    final smallCenter = Offset(size.width * 0.77, size.height * 0.22);
-    canvas.drawPath(_sparklePath(smallCenter, size.width * 0.15), paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SparklePainter oldDelegate) =>
-      oldDelegate.color != color;
 }

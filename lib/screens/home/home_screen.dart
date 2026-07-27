@@ -657,7 +657,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               delegate: SliverChildListDelegate([
                 if (ble.showFallPredictionBanner || ble.emergencySmsActive) ...[
                   _FallPredictionBanner(
-                    hr: ble.fallPredictionHr > 0 ? ble.fallPredictionHr : ble.todayMaxHr,
+                    hr: ble.fallPredictionHr > 0
+                        ? ble.fallPredictionHr
+                        : ble.todayMaxHr,
                     smsSecondsRemaining: ble.emergencySmsActive
                         ? ble.emergencySmsSecondsRemaining
                         : null,
@@ -877,7 +879,8 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
   }
 
   Future<void> _load() async {
-    final isFresh = _cacheTime != null &&
+    final isFresh =
+        _cacheTime != null &&
         DateTime.now().difference(_cacheTime!) < _cacheTtl;
     if (_cache != null && isFresh) {
       setState(() => _data = _cache);
@@ -913,36 +916,49 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
         ),
       );
     }
-    if (subtext == null ||
-        subtext.isEmpty ||
-        _data?['error'] != null) {
+    if (subtext == null || subtext.isEmpty || _data?['error'] != null) {
       return const SizedBox.shrink();
     }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 2),
-            child: Icon(Icons.auto_awesome_rounded,
-                size: 13, color: AppTheme.goldAccent),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.gold.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: AppTheme.gold.withValues(alpha: 0.18),
+            width: 0.5,
           ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              subtext,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: _inter(
-                12.5,
-                color: Colors.white.withValues(alpha: 0.55),
-                height: 1.4,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Icon(
+                Icons.auto_awesome_rounded,
+                size: 13,
+                color: AppTheme.goldAccent,
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                subtext,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: _inter(
+                  12.5,
+                  color: Colors.white.withValues(alpha: 0.7),
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -977,11 +993,11 @@ class _FallPredictionBanner extends StatelessWidget {
         : 'We are concerned ...';
     final body = countdown != null
         ? (!smsHasPermission
-            ? 'SMS permission is missing — grant it so contacts can be alerted automatically. Open the app settings if needed.'
-            : 'SMS will be sent to all emergency contacts in $countdown seconds. Tap Cancel if you are okay.')
+              ? 'SMS permission is missing — grant it so contacts can be alerted automatically. Open the app settings if needed.'
+              : 'SMS will be sent to all emergency contacts in $countdown seconds. Tap Cancel if you are okay.')
         : (hr > 0
-            ? 'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.'
-            : 'A fall-related alert is active. Take action or ignore if you are okay.');
+              ? 'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.'
+              : 'A fall-related alert is active. Take action or ignore if you are okay.');
 
     return _ShrinkButton(
       onTap: onTakeAction,
@@ -1027,10 +1043,7 @@ class _FallPredictionBanner extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Text(
-              title,
-              style: _inter(20, weight: FontWeight.w600),
-            ),
+            Text(title, style: _inter(20, weight: FontWeight.w600)),
             const SizedBox(height: 10),
             Text(
               body,

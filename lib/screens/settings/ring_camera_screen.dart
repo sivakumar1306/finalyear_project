@@ -38,6 +38,7 @@ class _RingCameraScreenState extends State<RingCameraScreen>
   String? _lastPhotoPath;
   String? _error;
   bool _exited = false;
+  Future<XFile>? _pendingCapture; // track in-flight capture so dispose() can wait
 
   @override
   void initState() {
@@ -86,11 +87,13 @@ class _RingCameraScreenState extends State<RingCameraScreen>
   Future<void> _capturePhoto() async {
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized || _isCapturing) {
-      return;
+      return; // already guards overlapping calls
     }
     setState(() => _isCapturing = true);
     try {
-      final file = await controller.takePicture();
+      final capture = controller.takePicture();
+      _pendingCapture = capture; // track it so dispose() can wait
+      final file = await capture;
       if (!mounted) return;
       setState(() => _lastPhotoPath = file.path);
       ScaffoldMessenger.of(
@@ -102,6 +105,7 @@ class _RingCameraScreenState extends State<RingCameraScreen>
         context,
       ).showSnackBar(SnackBar(content: Text('Capture failed: $e')));
     } finally {
+      _pendingCapture = null;
       if (mounted) setState(() => _isCapturing = false);
     }
   }
@@ -109,6 +113,12 @@ class _RingCameraScreenState extends State<RingCameraScreen>
   Future<void> _closeScreen({bool tellRing = true}) async {
     if (_exited) return;
     _exited = true;
+    // Wait for any in-flight capture before tearing down
+    if (_pendingCapture != null) {
+      try {
+        await _pendingCapture;
+      } catch (_) {}
+    }
     if (tellRing) {
       try {
         await context.read<BleProvider>().exitRingCameraMode();
@@ -143,9 +153,15 @@ class _RingCameraScreenState extends State<RingCameraScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _shutterSub?.cancel();
-    _controller?.dispose();
-    // Always tell the ring to exit camera mode, even if this screen is being
-    // popped some other way (e.g. system back) rather than via _closeScreen().
+    // Don't dispose the controller while a capture is still pending —
+    // schedule disposal after it resolves to avoid BufferQueue abandoned errors.
+    final pending = _pendingCapture;
+    final controller = _controller;
+    if (pending != null && controller != null) {
+      pending.whenComplete(() => controller.dispose());
+    } else {
+      controller?.dispose();
+    }
     if (!_exited) {
       _exited = true;
       try {
