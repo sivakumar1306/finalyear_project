@@ -221,334 +221,337 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final battery = ble.battery;
     final firmware = ble.firmwareVersion['firmware'] ?? '--';
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 24),
-            Text(
-              'Settings',
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
+    return Scaffold(
+      backgroundColor: const Color.fromRGBO(8, 8, 8, 1),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 24),
+              Text(
+                'Settings',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            // Ring info card
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: AppTheme.card,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          ringTitle,
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (hasDevice) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            ble.deviceName,
-                            style: GoogleFonts.inter(
-                              color: AppTheme.textSec,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                        if (mac.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            mac,
-                            style: GoogleFonts.inter(
-                              color: AppTheme.textSec,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 4),
-                        Text(
-                          firmware,
-                          style: GoogleFonts.inter(
-                            color: AppTheme.textSec,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          connected ? 'Connected' : 'Disconnected',
-                          style: GoogleFonts.inter(
-                            color: AppTheme.textSec,
-                            fontSize: 12,
-                          ),
-                        ),
-                        if (battery >= 0) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            'Battery $battery%',
-                            style: GoogleFonts.inter(
-                              color: AppTheme.textSec,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Image.asset(
-                    'ring.png',
-                    width: 72,
-                    height: 72,
-                    fit: BoxFit.contain,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Unbind button
-            GestureDetector(
-              onTap: () => _confirmUnbind(context),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+              // Ring info card
+              Container(
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: AppTheme.card,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Center(
-                  child: Text(
-                    'Disconnect',
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            Text(
-              'SETTINGS',
-              style: GoogleFonts.inter(
-                color: AppTheme.textSec,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.5,
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            // Settings list
-            Container(
-              decoration: BoxDecoration(
-                color: AppTheme.card,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  // Ring-side wrist-flip/palm-screen wake gesture (PalmScreenReq).
-                  // See BleProvider.gestureEnabled/setGestureEnabled() and
-                  // BlePlugin.kt's getGestureSetting/setGestureSetting.
-                  _SettingsRow.toggle(
-                    icon: Icons.pan_tool_alt_outlined,
-                    title: 'Gesture Controls',
-                    subtitle: 'Enable gesture controls',
-                    value: ble.gestureEnabled,
-                    onChanged: (v) =>
-                        context.read<BleProvider>().setGestureEnabled(v),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.manage_accounts_rounded,
-                    title: 'Account & System settings',
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      '/account-system-settings',
-                    ),
-                  ),
-                  _divider(),
-                  // Auto-measurement cadence + per-vital ring monitoring toggles.
-                  // Uses the '/health-settings' named route already registered in app.dart.
-                  _SettingsRow.arrow(
-                    icon: Icons.monitor_heart_rounded,
-                    title: 'Health Settings',
-                    onTap: () =>
-                        Navigator.pushNamed(context, '/health-settings'),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.alarm_rounded,
-                    title: 'Alarms & Notifications',
-                    onTap: () =>
-                        Navigator.pushNamed(context, '/alarms-notifications'),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.health_and_safety_rounded,
-                    title: 'Fall Prediction',
-                    onTap: () =>
-                        Navigator.pushNamed(context, '/fall-detection'),
-                  ),
-                  _divider(),
-                  _SettingsRow.toggle(
-                    icon: Icons.phone_in_talk_rounded,
-                    title: 'Auto-call on fall detection',
-                    subtitle:
-                        'Immediately call your emergency contact when a fall is detected (not for fall prediction)',
-                    value: ble.autoCallOnFallEnabled,
-                    onChanged: (v) => _onAutoCallToggle(context, ble, v),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.gps_fixed_rounded,
-                    title: 'Find Device',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const FindDeviceScreen(),
-                      ),
-                    ),
-                  ),
-                  _divider(),
-                  // Profile now lives here instead of as its own bottom-nav tab —
-                  // pushed with showBackButton: true so it can pop back to Settings
-                  // (the old IndexedStack tab usage used showBackButton: false
-                  // since there was no route to pop to there).
-                  _SettingsRow.arrow(
-                    icon: Icons.person_outline_rounded,
-                    title: 'User Profile',
-                    onTap: () =>
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const ProfileEditScreen(showBackButton: true),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ringTitle,
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ).then((_) {
-                          // Refresh the ring-card first name in case it was edited.
-                          if (mounted) _loadUserProfile();
-                        }),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.notifications_outlined,
-                    title: 'Notifications',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const SelectNotificationsScreen(),
+                          if (hasDevice) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              ble.deviceName,
+                              style: GoogleFonts.inter(
+                                color: AppTheme.textSec,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                          if (mac.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              mac,
+                              style: GoogleFonts.inter(
+                                color: AppTheme.textSec,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 4),
+                          Text(
+                            firmware,
+                            style: GoogleFonts.inter(
+                              color: AppTheme.textSec,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            connected ? 'Connected' : 'Disconnected',
+                            style: GoogleFonts.inter(
+                              color: AppTheme.textSec,
+                              fontSize: 12,
+                            ),
+                          ),
+                          if (battery >= 0) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Battery $battery%',
+                              style: GoogleFonts.inter(
+                                color: AppTheme.textSec,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.auto_awesome_rounded,
-                    title: 'AI Analysis',
-                    onTap: () => context.read<MainTabProvider>().setTab(1),
-                  ),
-                  _divider(),
-                  // Ring photo control — puts the ring into its camera UI so its
-                  // physical shutter gesture can trigger the phone's camera.
-                  // See ble_provider.dart's enterRingCameraMode()/cameraShutterEvents
-                  // and BlePlugin.kt's takePicture()/exitCameraMode().
-                  _SettingsRow.arrow(
-                    icon: Icons.camera_alt_outlined,
-                    title: 'Take picture',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const RingCameraScreen(),
-                      ),
+                    Image.asset(
+                      'ring.png',
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.contain,
                     ),
-                  ),
-                  _divider(),
-                  _SettingsRow.value(
-                    icon: Icons.straighten_rounded,
-                    title: 'Unit format',
-                    value: _unitSystem == UnitSystem.us ? 'US' : 'Metric',
-                    onTap: _showUnitSystemPicker,
-                  ),
-                  _divider(),
-                  _SettingsRow.value(
-                    icon: Icons.thermostat_rounded,
-                    title: 'Temperature Unit',
-                    value: _tempUnit == TempUnit.fahrenheit ? 'F' : 'C',
-                    onTap: _showTempUnitPicker,
-                  ),
-                  _divider(),
-                  // Phone-side only — no ring command involved. Driven by the ring's
-                  // own proactive battery push (BlePlugin.kt "batteryPush" event,
-                  // native dataType 0x0c); see BleProvider._onBatteryPushEvent().
-                  _SettingsRow.toggle(
-                    icon: Icons.battery_alert_outlined,
-                    title: 'Low battery prompt',
-                    value: ble.lowBatteryPromptEnabled,
-                    onChanged: (v) => context
-                        .read<BleProvider>()
-                        .setLowBatteryPromptEnabled(v),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.monitor_heart_outlined,
-                    title: 'Health connect',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const HealthConnectScreen(),
-                      ),
-                    ),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.security_rounded,
-                    title: 'Background operation protection guide',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const BackgroundProtectionScreen(),
-                      ),
-                    ),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.system_update_outlined,
-                    title: 'Firmware upgrade',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const OtaScreen()),
-                    ),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.help_outline_rounded,
-                    title: "FAQ's",
-                    onTap: () => Navigator.pushNamed(context, '/faq'),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: 40),
-          ],
+              const SizedBox(height: 12),
+
+              // Unbind button
+              GestureDetector(
+                onTap: () => _confirmUnbind(context),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.card,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Disconnect',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              Text(
+                'SETTINGS',
+                style: GoogleFonts.inter(
+                  color: AppTheme.textSec,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              // Settings list
+              Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    // Ring-side wrist-flip/palm-screen wake gesture (PalmScreenReq).
+                    // See BleProvider.gestureEnabled/setGestureEnabled() and
+                    // BlePlugin.kt's getGestureSetting/setGestureSetting.
+                    _SettingsRow.toggle(
+                      icon: Icons.pan_tool_alt_outlined,
+                      title: 'Gesture Controls',
+                      subtitle: 'Enable gesture controls',
+                      value: ble.gestureEnabled,
+                      onChanged: (v) =>
+                          context.read<BleProvider>().setGestureEnabled(v),
+                    ),
+                    _divider(),
+                    _SettingsRow.arrow(
+                      icon: Icons.manage_accounts_rounded,
+                      title: 'Account & System settings',
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        '/account-system-settings',
+                      ),
+                    ),
+                    _divider(),
+                    // Auto-measurement cadence + per-vital ring monitoring toggles.
+                    // Uses the '/health-settings' named route already registered in app.dart.
+                    _SettingsRow.arrow(
+                      icon: Icons.monitor_heart_rounded,
+                      title: 'Health Settings',
+                      onTap: () =>
+                          Navigator.pushNamed(context, '/health-settings'),
+                    ),
+                    _divider(),
+                    _SettingsRow.arrow(
+                      icon: Icons.alarm_rounded,
+                      title: 'Alarms & Notifications',
+                      onTap: () =>
+                          Navigator.pushNamed(context, '/alarms-notifications'),
+                    ),
+                    _divider(),
+                    _SettingsRow.arrow(
+                      icon: Icons.health_and_safety_rounded,
+                      title: 'Fall Prediction',
+                      onTap: () =>
+                          Navigator.pushNamed(context, '/fall-detection'),
+                    ),
+                    _divider(),
+                    _SettingsRow.toggle(
+                      icon: Icons.phone_in_talk_rounded,
+                      title: 'Auto-call on fall detection',
+                      subtitle:
+                          'Immediately call your emergency contact when a fall is detected (not for fall prediction)',
+                      value: ble.autoCallOnFallEnabled,
+                      onChanged: (v) => _onAutoCallToggle(context, ble, v),
+                    ),
+                    _divider(),
+                    _SettingsRow.arrow(
+                      icon: Icons.gps_fixed_rounded,
+                      title: 'Find Device',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const FindDeviceScreen(),
+                        ),
+                      ),
+                    ),
+                    _divider(),
+                    // Profile now lives here instead of as its own bottom-nav tab —
+                    // pushed with showBackButton: true so it can pop back to Settings
+                    // (the old IndexedStack tab usage used showBackButton: false
+                    // since there was no route to pop to there).
+                    _SettingsRow.arrow(
+                      icon: Icons.person_outline_rounded,
+                      title: 'User Profile',
+                      onTap: () =>
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  const ProfileEditScreen(showBackButton: true),
+                            ),
+                          ).then((_) {
+                            // Refresh the ring-card first name in case it was edited.
+                            if (mounted) _loadUserProfile();
+                          }),
+                    ),
+                    _divider(),
+                    _SettingsRow.arrow(
+                      icon: Icons.notifications_outlined,
+                      title: 'Notifications',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SelectNotificationsScreen(),
+                        ),
+                      ),
+                    ),
+                    _divider(),
+                    _SettingsRow.arrow(
+                      icon: Icons.auto_awesome_rounded,
+                      title: 'AI Analysis',
+                      onTap: () => context.read<MainTabProvider>().setTab(1),
+                    ),
+                    _divider(),
+                    // Ring photo control — puts the ring into its camera UI so its
+                    // physical shutter gesture can trigger the phone's camera.
+                    // See ble_provider.dart's enterRingCameraMode()/cameraShutterEvents
+                    // and BlePlugin.kt's takePicture()/exitCameraMode().
+                    _SettingsRow.arrow(
+                      icon: Icons.camera_alt_outlined,
+                      title: 'Take picture',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const RingCameraScreen(),
+                        ),
+                      ),
+                    ),
+                    _divider(),
+                    _SettingsRow.value(
+                      icon: Icons.straighten_rounded,
+                      title: 'Unit format',
+                      value: _unitSystem == UnitSystem.us ? 'US' : 'Metric',
+                      onTap: _showUnitSystemPicker,
+                    ),
+                    _divider(),
+                    _SettingsRow.value(
+                      icon: Icons.thermostat_rounded,
+                      title: 'Temperature Unit',
+                      value: _tempUnit == TempUnit.fahrenheit ? 'F' : 'C',
+                      onTap: _showTempUnitPicker,
+                    ),
+                    _divider(),
+                    // Phone-side only — no ring command involved. Driven by the ring's
+                    // own proactive battery push (BlePlugin.kt "batteryPush" event,
+                    // native dataType 0x0c); see BleProvider._onBatteryPushEvent().
+                    _SettingsRow.toggle(
+                      icon: Icons.battery_alert_outlined,
+                      title: 'Low battery prompt',
+                      value: ble.lowBatteryPromptEnabled,
+                      onChanged: (v) => context
+                          .read<BleProvider>()
+                          .setLowBatteryPromptEnabled(v),
+                    ),
+                    _divider(),
+                    _SettingsRow.arrow(
+                      icon: Icons.monitor_heart_outlined,
+                      title: 'Health connect',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const HealthConnectScreen(),
+                        ),
+                      ),
+                    ),
+                    _divider(),
+                    _SettingsRow.arrow(
+                      icon: Icons.security_rounded,
+                      title: 'Background operation protection guide',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const BackgroundProtectionScreen(),
+                        ),
+                      ),
+                    ),
+                    _divider(),
+                    _SettingsRow.arrow(
+                      icon: Icons.system_update_outlined,
+                      title: 'Firmware upgrade',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const OtaScreen()),
+                      ),
+                    ),
+                    _divider(),
+                    _SettingsRow.arrow(
+                      icon: Icons.help_outline_rounded,
+                      title: "FAQ's",
+                      onTap: () => Navigator.pushNamed(context, '/faq'),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
       ),
     );

@@ -21,7 +21,12 @@ import 'steps_chat_card.dart';
 String _conversationPrefsKey(String userId) => 'chat_conversation_id_$userId';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  /// Called when the user taps the back arrow. The bottom nav is hidden
+  /// entirely on this screen (see main_shell.dart), so this is the only way
+  /// back to Home — wired to switch MainTabProvider back to tab 0.
+  final VoidCallback onBack;
+
+  const ChatScreen({super.key, required this.onBack});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -115,19 +120,37 @@ class _ChatScreenState extends State<ChatScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF141414),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Start a new chat?', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+        title: Text(
+          'Start a new chat?',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         content: Text(
           'This clears the current conversation from view. Your history isn\'t deleted.',
-          style: GoogleFonts.inter(color: const Color(0x99FFFFFF), fontSize: 13),
+          style: GoogleFonts.inter(
+            color: const Color(0x99FFFFFF),
+            fontSize: 13,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0x99FFFFFF))),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: const Color(0x99FFFFFF)),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Start new', style: GoogleFonts.inter(color: AppTheme.goldAccent, fontWeight: FontWeight.w600)),
+            child: Text(
+              'Start new',
+              style: GoogleFonts.inter(
+                color: AppTheme.goldAccent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -213,7 +236,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.bg,
-      appBar: null, // Removed standard AppBar to match Figma design
+      appBar:
+          null, // Custom back-arrow header below instead of a standard AppBar.
       resizeToAvoidBottomInset:
           true, // Allow standard resizing; we scroll the header out of the way dynamically
       body: SafeArea(
@@ -221,6 +245,24 @@ class _ChatScreenState extends State<ChatScreen> {
             false, // Let input bar handle its own bottom padding dynamically to avoid keyboard overflow
         child: Column(
           children: [
+            // Back arrow header — the bottom nav is hidden entirely on this
+            // screen (see main_shell.dart), so this is the only way back.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 16, 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: widget.onBack,
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white70,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             // Error Message Banner (if any)
             if (_errorMessage.isNotEmpty)
               Container(
@@ -277,7 +319,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         vertical: 8,
                       ),
                       // header(1) + messages + loading(0/1) + trailing "new chat" chip(0/1)
-                      itemCount: _messages.length +
+                      itemCount:
+                          _messages.length +
                           (_isLoading ? 1 : 0) +
                           1 +
                           (_messages.isNotEmpty && !_isLoading ? 1 : 0),
@@ -294,9 +337,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 ),
                                 child: Container(
                                   height: 0.5,
-                                  color: const Color(
-                                    0x1AFFFFFF,
-                                  ),
+                                  color: const Color(0x1AFFFFFF),
                                 ),
                               ),
                             ],
@@ -324,9 +365,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                       fontSize: 10,
                                       fontWeight: FontWeight.w500,
                                       letterSpacing: 0.12 * 10,
-                                      color: const Color(
-                                        0x66FFFFFF,
-                                      ),
+                                      color: const Color(0x66FFFFFF),
                                     ),
                                   ),
                                 ),
@@ -339,13 +378,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                     vertical: 16,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(
-                                      0x0AFFFFFF,
-                                    ),
+                                    color: const Color(0x0AFFFFFF),
                                     border: Border.all(
-                                      color: const Color(
-                                        0x12FFFFFF,
-                                      ),
+                                      color: const Color(0x12FFFFFF),
                                       width: 1,
                                     ),
                                     borderRadius: const BorderRadius.only(
@@ -364,8 +399,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
                         // Trailing "New chat" chip — the very last list item, shown once a
                         // reply (and any card) has fully rendered and nothing is loading.
-                        final bool showNewChatButton = _messages.isNotEmpty && !_isLoading;
-                        final int trailingIndex = _messages.length + (_isLoading ? 1 : 0) + 1;
+                        final bool showNewChatButton =
+                            _messages.isNotEmpty && !_isLoading;
+                        final int trailingIndex =
+                            _messages.length + (_isLoading ? 1 : 0) + 1;
                         if (showNewChatButton && index == trailingIndex) {
                           return Padding(
                             padding: const EdgeInsets.only(top: 20, bottom: 8),
@@ -373,24 +410,35 @@ class _ChatScreenState extends State<ChatScreen> {
                               child: GestureDetector(
                                 onTap: _startNewChat,
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 9,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: const Color(0x0AFFFFFF),
                                     borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: const Color(0x14FFFFFF), width: 0.5),
+                                    border: Border.all(
+                                      color: const Color(0x14FFFFFF),
+                                      width: 0.5,
+                                    ),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.add_comment_outlined,
-                                          size: 14, color: AppTheme.goldAccent),
+                                      const Icon(
+                                        Icons.add_comment_outlined,
+                                        size: 14,
+                                        color: AppTheme.goldAccent,
+                                      ),
                                       const SizedBox(width: 6),
-                                      Text('New chat',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                            color: const Color(0xCCFFFFFF),
-                                          )),
+                                      Text(
+                                        'New chat',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: const Color(0xCCFFFFFF),
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
