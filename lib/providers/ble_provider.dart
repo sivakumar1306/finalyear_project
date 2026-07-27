@@ -11,7 +11,11 @@ class ScannedDevice {
   final String name;
   final String address;
   final int rssi;
-  ScannedDevice({required this.name, required this.address, required this.rssi});
+  ScannedDevice({
+    required this.name,
+    required this.address,
+    required this.rssi,
+  });
 }
 
 class BleProvider extends ChangeNotifier {
@@ -59,16 +63,16 @@ class BleProvider extends ChangeNotifier {
 
   // Sleep state
   int _todaySleepDuration = 0; // seconds
-  int _todaySleepScore    = 0;
+  int _todaySleepScore = 0;
 
   // Temperature state
   double _latestTempC = 0.0;
 
   // Background ring sync state
-  bool   _isSyncing     = false;
-  String _syncStep      = '';
-  double _syncProgress  = 0.0;
-  int    _syncGen       = 0; // incremented to cancel a stale in-progress sync
+  bool _isSyncing = false;
+  String _syncStep = '';
+  double _syncProgress = 0.0;
+  int _syncGen = 0; // incremented to cancel a stale in-progress sync
 
   // Delay (seconds) before issuing SDK commands after a connection event.
   int _connectDelaySeconds = 1;
@@ -110,51 +114,72 @@ class BleProvider extends ChangeNotifier {
   String? _emergencySmsLastError;
   Timer? _emergencySmsPollTimer;
 
+  // Ring camera / photo control — broadcasts native "cameraShutter" events
+  // ("capture" | "exit") so a camera screen can react without owning its own
+  // EventChannel subscription. See BlePlugin.kt's takePicture()/exitCameraMode().
+  final StreamController<String> _cameraShutterController =
+      StreamController<String>.broadcast();
+  Stream<String> get cameraShutterEvents => _cameraShutterController.stream;
+
+  // Gesture Controls (PalmScreenReq) — ring-side wrist-flip/palm-screen wake.
+  bool _gestureEnabled = false;
+  bool get gestureEnabled => _gestureEnabled;
+
+  // Low battery prompt — phone-side only (SharedPreferences), driven by the
+  // ring's proactive battery push (see BlePlugin.kt's "batteryPush" event,
+  // native dataType 0x0c). Edge-triggered like the other _maybeAlert() calls
+  // below, so it fires once per drop below threshold rather than repeatedly.
+  static const _kLowBatteryPromptKey = 'low_battery_prompt_enabled';
+  static const _kLowBatteryThreshold = 15;
+  bool _lowBatteryPromptEnabled = false;
+  bool get lowBatteryPromptEnabled => _lowBatteryPromptEnabled;
+
   // ── Getters ───────────────────────────────────────────────────────────────
 
   bool get isReconnecting => _isReconnecting;
-  bool get isConnected    => _isConnected;
-  bool get isScanning     => _isScanning;
-  int  get battery        => _battery;
-  String get deviceName   => _deviceName;
+  bool get isConnected => _isConnected;
+  bool get isScanning => _isScanning;
+  int get battery => _battery;
+  String get deviceName => _deviceName;
   String get deviceAddress => _deviceAddress;
   Map<String, String> get firmwareVersion => _firmwareVersion;
   List<ScannedDevice> get scannedDevices => List.unmodifiable(_scannedDevices);
 
-  int    get todaySteps           => _todaySteps;
-  int    get todayCalories        => _todayCalories;
-  double get todayDistanceM       => _todayDistanceM;
-  bool   get syncingSteps         => _syncingSteps;
-  List<int> get todayStepsByInterval => List.unmodifiable(_todayStepsByInterval);
+  int get todaySteps => _todaySteps;
+  int get todayCalories => _todayCalories;
+  double get todayDistanceM => _todayDistanceM;
+  bool get syncingSteps => _syncingSteps;
+  List<int> get todayStepsByInterval =>
+      List.unmodifiable(_todayStepsByInterval);
 
-  int get todayAvgHr  => _todayAvgHr;
-  int get todayMinHr  => _todayMinHr;
-  int get todayMaxHr  => _todayMaxHr;
+  int get todayAvgHr => _todayAvgHr;
+  int get todayMinHr => _todayMinHr;
+  int get todayMaxHr => _todayMaxHr;
 
   int get todayAvgSpo2 => _todayAvgSpo2;
   int get todayMinSpo2 => _todayMinSpo2;
   int get todayMaxSpo2 => _todayMaxSpo2;
 
-  int get latestBpSbp       => _latestBpSbp;
-  int get latestBpDbp       => _latestBpDbp;
+  int get latestBpSbp => _latestBpSbp;
+  int get latestBpDbp => _latestBpDbp;
   int get latestStressValue => _latestStressValue;
   int get todayAvgStress => _todayAvgStress;
   int get todayMinStress => _todayMinStress;
   int get todayMaxStress => _todayMaxStress;
-  int get todayAvgHrv       => _todayAvgHrv;
+  int get todayAvgHrv => _todayAvgHrv;
 
   int get todaySleepDuration => _todaySleepDuration;
-  int get todaySleepScore    => _todaySleepScore;
+  int get todaySleepScore => _todaySleepScore;
 
   double get latestTempC => _latestTempC;
 
-  bool   get isSyncing    => _isSyncing;
-  String get syncStep     => _syncStep;
+  bool get isSyncing => _isSyncing;
+  String get syncStep => _syncStep;
   double get syncProgress => _syncProgress;
 
   bool get showFallPredictionBanner => _showFallPredictionBanner;
-  int  get fallPredictionHr         => _fallPredictionHr;
-  String get fallPredictionTier     => _fallPredictionTier;
+  int get fallPredictionHr => _fallPredictionHr;
+  String get fallPredictionTier => _fallPredictionTier;
 
   bool get emergencySmsActive => _emergencySmsActive;
   int get emergencySmsSecondsRemaining => _emergencySmsSecondsRemaining;
@@ -171,26 +196,36 @@ class BleProvider extends ChangeNotifier {
 
   // ── Manual update methods (called by individual screens) ──────────────────
 
-  void updateStepsData(int steps, int calories, double distanceM, List<int> intervals) {
-    _todaySteps      = steps;
-    _todayCalories   = calories;
-    _todayDistanceM  = distanceM;
+  void updateStepsData(
+    int steps,
+    int calories,
+    double distanceM,
+    List<int> intervals,
+  ) {
+    _todaySteps = steps;
+    _todayCalories = calories;
+    _todayDistanceM = distanceM;
     _todayStepsByInterval = intervals;
     notifyListeners();
   }
 
   void updateHrData(int avg, int min, int max) {
-    _todayAvgHr = avg; _todayMinHr = min; _todayMaxHr = max;
+    _todayAvgHr = avg;
+    _todayMinHr = min;
+    _todayMaxHr = max;
     notifyListeners();
   }
 
   void updateSpo2Data(int avg, int min, int max) {
-    _todayAvgSpo2 = avg; _todayMinSpo2 = min; _todayMaxSpo2 = max;
+    _todayAvgSpo2 = avg;
+    _todayMinSpo2 = min;
+    _todayMaxSpo2 = max;
     notifyListeners();
   }
 
   void updateBpLatest(int sbp, int dbp) {
-    _latestBpSbp = sbp; _latestBpDbp = dbp;
+    _latestBpSbp = sbp;
+    _latestBpDbp = dbp;
     notifyListeners();
   }
 
@@ -206,7 +241,7 @@ class BleProvider extends ChangeNotifier {
 
   void updateSleepData(int duration, int score) {
     _todaySleepDuration = duration;
-    _todaySleepScore    = score;
+    _todaySleepScore = score;
     notifyListeners();
   }
 
@@ -229,6 +264,7 @@ class BleProvider extends ChangeNotifier {
     _loadTodayHrvFromSupabase();
     _loadTodaySleepFromSupabase();
     _loadLatestTempFromSupabase();
+    loadLowBatteryPromptSetting();
   }
 
   // ── Event listener ────────────────────────────────────────────────────────
@@ -246,7 +282,7 @@ class BleProvider extends ChangeNotifier {
               // already timed out and given up (see connect()'s doc comment) — the
               // connection is real, we just never recorded which device it was.
               // Persist it now so Home's deviceAddress-gated UI reflects reality.
-              _deviceName    = _pendingDeviceName!;
+              _deviceName = _pendingDeviceName!;
               _deviceAddress = _pendingDeviceAddress!;
               SharedPreferences.getInstance().then((prefs) {
                 prefs.setString('device_name', _deviceName);
@@ -268,11 +304,13 @@ class BleProvider extends ChangeNotifier {
           break;
         case 'scanResult':
           final dev = ScannedDevice(
-            name:    data['name']    as String? ?? '',
+            name: data['name'] as String? ?? '',
             address: data['address'] as String? ?? '',
-            rssi:    data['rssi']    as int?    ?? -100,
+            rssi: data['rssi'] as int? ?? -100,
           );
-          final idx = _scannedDevices.indexWhere((d) => d.address == dev.address);
+          final idx = _scannedDevices.indexWhere(
+            (d) => d.address == dev.address,
+          );
           if (idx >= 0) {
             _scannedDevices[idx] = dev;
           } else {
@@ -288,8 +326,93 @@ class BleProvider extends ChangeNotifier {
         case 'newReading':
           _onNewReadingEvent(data);
           break;
+        case 'cameraShutter':
+          _cameraShutterController.add(data['action'] as String? ?? '');
+          break;
+        case 'batteryPush':
+          _onBatteryPushEvent(data);
+          break;
       }
     });
+  }
+
+  // ── Ring camera / photo control ───────────────────────────────────────────
+  //
+  // Enters the ring's camera UI (and starts native's keep-screen-on loop).
+  // Listen on [cameraShutterEvents] for "capture" (ring's shutter button/gesture
+  // was used — trigger the phone's own camera capture) or "exit" (the ring left
+  // camera mode on its own — close the phone's camera screen).
+  Future<bool> enterRingCameraMode() => _ble.takePicture();
+
+  /// Tells the ring to exit its camera UI and stops the native keep-alive loop.
+  /// Always call this when the camera screen is closed/disposed.
+  Future<bool> exitRingCameraMode() => _ble.exitCameraMode();
+
+  // ── Gesture Controls (PalmScreenReq) ──────────────────────────────────────
+
+  Future<void> loadGestureSetting() async {
+    try {
+      final json = await _ble.getGestureSetting();
+      final decoded = jsonDecode(json);
+      if (decoded is Map) {
+        _gestureEnabled = decoded['enabled'] == true;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  /// Writes to the ring (PalmScreenReq.getWriteInstance). [isLeft] mirrors
+  /// whichever hand the ring is worn on if you have that elsewhere; defaults
+  /// to true (left) to match the SDK sample.
+  Future<void> setGestureEnabled(bool enabled, {bool isLeft = true}) async {
+    try {
+      final ok = await _ble.setGestureSetting(enable: enabled, isLeft: isLeft);
+      if (ok) {
+        _gestureEnabled = enabled;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  // ── Low battery prompt (phone-side notification) ──────────────────────────
+  //
+  // Purely local — no ring-side command involved. Driven by the ring's own
+  // proactive battery push (dataType 0x0c, forwarded here as "batteryPush"),
+  // so it fires immediately when the ring reports its level rather than
+  // waiting on the next getBattery() poll.
+
+  Future<void> loadLowBatteryPromptSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    _lowBatteryPromptEnabled = prefs.getBool(_kLowBatteryPromptKey) ?? false;
+    notifyListeners();
+  }
+
+  Future<void> setLowBatteryPromptEnabled(bool enabled) async {
+    _lowBatteryPromptEnabled = enabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kLowBatteryPromptKey, enabled);
+  }
+
+  void _onBatteryPushEvent(Map<String, dynamic> data) {
+    final percent = (data['batteryPercent'] as num?)?.toInt() ?? -1;
+    final charging = data['charging'] as bool? ?? false;
+    if (percent < 0) return;
+    _battery = percent;
+    notifyListeners();
+    if (!charging) {
+      _maybeAlert(
+        'Low Battery Prompt',
+        _lowBatteryPromptEnabled && percent <= _kLowBatteryThreshold,
+        title: 'Ring Battery Low',
+        message: 'Your ring is at $percent% battery.',
+        vital: 'heart_rate',
+      );
+    } else {
+      // Charging again — clear the edge so the prompt can fire once more
+      // next time the ring drops below the threshold.
+      _activeAlerts.remove('Low Battery Prompt');
+    }
   }
 
   // ── Local-DB-backed vitals (continuous background measurement loop) ──────
@@ -301,12 +424,24 @@ class BleProvider extends ChangeNotifier {
 
   void _onNewReadingEvent(Map<String, dynamic> data) {
     switch (data['vital'] as String?) {
-      case 'HEART_RATE': _refreshHrFromLocal(); break;
-      case 'SPO2': _refreshSpo2FromLocal(); break;
-      case 'STRESS': _refreshStressFromLocal(); break;
-      case 'BLOOD_PRESSURE': _refreshBpFromLocal(); break;
-      case 'STEPS': _refreshStepsFromLocal(); break;
-      case 'TEMPERATURE': _refreshTempFromLocal(); break;
+      case 'HEART_RATE':
+        _refreshHrFromLocal();
+        break;
+      case 'SPO2':
+        _refreshSpo2FromLocal();
+        break;
+      case 'STRESS':
+        _refreshStressFromLocal();
+        break;
+      case 'BLOOD_PRESSURE':
+        _refreshBpFromLocal();
+        break;
+      case 'STEPS':
+        _refreshStepsFromLocal();
+        break;
+      case 'TEMPERATURE':
+        _refreshTempFromLocal();
+        break;
     }
   }
 
@@ -333,7 +468,11 @@ class BleProvider extends ChangeNotifier {
     _activeAlerts.add(key);
     if (await NotificationPrefs.isEnabled(key)) {
       try {
-        await _ble.postHealthAlert(title: title, message: message, vital: vital);
+        await _ble.postHealthAlert(
+          title: title,
+          message: message,
+          vital: vital,
+        );
       } catch (_) {}
     }
   }
@@ -452,7 +591,8 @@ class BleProvider extends ChangeNotifier {
       final lastCount = (decoded['lastSentCount'] as num?)?.toInt() ?? 0;
       final lastError = decoded['lastError'] as String?;
 
-      final changed = active != _emergencySmsActive ||
+      final changed =
+          active != _emergencySmsActive ||
           remaining != _emergencySmsSecondsRemaining ||
           reason != _emergencySmsReason ||
           hasPerm != _emergencySmsHasPermission ||
@@ -561,7 +701,8 @@ class BleProvider extends ChangeNotifier {
   Future<void> updateEmergencyContact(int id, String name, String phone) =>
       _ble.updateEmergencyContact(id, name, phone);
 
-  Future<void> deleteEmergencyContact(int id) => _ble.deleteEmergencyContact(id);
+  Future<void> deleteEmergencyContact(int id) =>
+      _ble.deleteEmergencyContact(id);
 
   Future<void> _loadTodayVitalsFromLocal() async {
     if (!await _refreshHrFromLocal()) await _loadTodayHrFromSupabase();
@@ -573,7 +714,9 @@ class BleProvider extends ChangeNotifier {
 
   Future<bool> _refreshHrFromLocal() async {
     try {
-      final m = jsonDecode(await _ble.getTodaySummary('heart_rate')) as Map<String, dynamic>;
+      final m =
+          jsonDecode(await _ble.getTodaySummary('heart_rate'))
+              as Map<String, dynamic>;
       if ((m['count'] as num? ?? 0) <= 0) return false;
       _todayAvgHr = (m['avg'] as num?)?.round() ?? 0;
       _todayMinHr = (m['min'] as num?)?.toInt() ?? 0;
@@ -581,22 +724,32 @@ class BleProvider extends ChangeNotifier {
       notifyListeners();
       final last = (m['lastValue'] as num?)?.toInt() ?? 0;
       if (last > 0) {
-        _maybeAlert('High Heart Rate', last >= 100,
-            title: 'High Heart Rate',
-            message: 'Your heart rate just read $last bpm.',
-            vital: 'heart_rate');
-        _maybeAlert('Low Heart Rate', last < 50,
-            title: 'Low Heart Rate',
-            message: 'Your heart rate just read $last bpm.',
-            vital: 'heart_rate');
+        _maybeAlert(
+          'High Heart Rate',
+          last >= 100,
+          title: 'High Heart Rate',
+          message: 'Your heart rate just read $last bpm.',
+          vital: 'heart_rate',
+        );
+        _maybeAlert(
+          'Low Heart Rate',
+          last < 50,
+          title: 'Low Heart Rate',
+          message: 'Your heart rate just read $last bpm.',
+          vital: 'heart_rate',
+        );
       }
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> _refreshSpo2FromLocal() async {
     try {
-      final m = jsonDecode(await _ble.getTodaySummary('spo2')) as Map<String, dynamic>;
+      final m =
+          jsonDecode(await _ble.getTodaySummary('spo2'))
+              as Map<String, dynamic>;
       if ((m['count'] as num? ?? 0) <= 0) return false;
       _todayAvgSpo2 = (m['avg'] as num?)?.round() ?? 0;
       _todayMinSpo2 = (m['min'] as num?)?.toInt() ?? 0;
@@ -604,17 +757,25 @@ class BleProvider extends ChangeNotifier {
       notifyListeners();
       final last = (m['lastValue'] as num?)?.toInt() ?? 0;
       if (last > 0) {
-        _maybeAlert('High SpO2', last >= 99,
-            title: 'High Blood Oxygen',
-            message: 'Your SpO2 just read $last%.',
-            vital: 'spo2');
-        _maybeAlert('Low SpO2', last < 90,
-            title: 'Low Blood Oxygen',
-            message: 'Your SpO2 just read $last%.',
-            vital: 'spo2');
+        _maybeAlert(
+          'High SpO2',
+          last >= 99,
+          title: 'High Blood Oxygen',
+          message: 'Your SpO2 just read $last%.',
+          vital: 'spo2',
+        );
+        _maybeAlert(
+          'Low SpO2',
+          last < 90,
+          title: 'Low Blood Oxygen',
+          message: 'Your SpO2 just read $last%.',
+          vital: 'spo2',
+        );
       }
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> _refreshStressFromLocal() async {
@@ -623,7 +784,9 @@ class BleProvider extends ChangeNotifier {
       if (m is! Map<String, dynamic>) return false;
       _latestStressValue = (m['value'] as num?)?.toInt() ?? 0;
       try {
-        final summary = jsonDecode(await _ble.getTodaySummary('stress')) as Map<String, dynamic>;
+        final summary =
+            jsonDecode(await _ble.getTodaySummary('stress'))
+                as Map<String, dynamic>;
         if ((summary['count'] as num? ?? 0) > 0) {
           _todayAvgStress = (summary['avg'] as num?)?.round() ?? 0;
           _todayMinStress = (summary['min'] as num?)?.toInt() ?? 0;
@@ -632,7 +795,9 @@ class BleProvider extends ChangeNotifier {
       } catch (_) {}
       notifyListeners();
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> _refreshBpFromLocal() async {
@@ -659,15 +824,17 @@ class BleProvider extends ChangeNotifier {
         );
       }
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> _refreshStepsFromLocal() async {
     try {
       final m = jsonDecode(await _ble.getStepsToday());
       if (m is! Map<String, dynamic>) return false;
-      _todaySteps     = (m['steps'] as num?)?.toInt() ?? 0;
-      _todayCalories  = (m['caloriesKcal'] as num?)?.toInt() ?? 0;
+      _todaySteps = (m['steps'] as num?)?.toInt() ?? 0;
+      _todayCalories = (m['caloriesKcal'] as num?)?.toInt() ?? 0;
       _todayDistanceM = (m['distanceM'] as num?)?.toDouble() ?? 0.0;
       notifyListeners();
       final goal = await GoalPrefs.load();
@@ -679,7 +846,9 @@ class BleProvider extends ChangeNotifier {
         vital: 'steps',
       );
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> _refreshTempFromLocal() async {
@@ -699,14 +868,16 @@ class BleProvider extends ChangeNotifier {
         );
       }
       return true;
-    } catch (_) { return false; }
+    } catch (_) {
+      return false;
+    }
   }
 
   // ── Device management ─────────────────────────────────────────────────────
 
   Future<void> _loadSavedDevice() async {
     final prefs = await SharedPreferences.getInstance();
-    _deviceName    = prefs.getString('device_name')    ?? '';
+    _deviceName = prefs.getString('device_name') ?? '';
     _deviceAddress = prefs.getString('device_address') ?? '';
     notifyListeners();
     if (_deviceAddress.isNotEmpty) {
@@ -752,9 +923,12 @@ class BleProvider extends ChangeNotifier {
     // Await setTime so the ring finishes its daily midnight reset before we
     // start fetching metrics. Skipping this await was the cause of the
     // blood-oxygen SDK crash at 12:03 AM.
-    try { await _ble.setTime(); } catch (_) {}
+    try {
+      await _ble.setTime();
+    } catch (_) {}
     await refreshBattery();
     await refreshFirmwareVersion();
+    await loadGestureSetting();
     // Wait for native's bind handshake to finish before the sleep large-data sync
     // below (syncAllFromRing) — see BlePlugin.kt's "bindReady" event. A 15s timeout
     // is a safety net only (mirrors BlePlugin's own bind-retry budget of
@@ -770,7 +944,9 @@ class BleProvider extends ChangeNotifier {
     try {
       await completer.future.timeout(const Duration(seconds: 15));
     } on TimeoutException {
-      debugPrint('[BleProvider] bindReady timed out — proceeding with sync anyway');
+      debugPrint(
+        '[BleProvider] bindReady timed out — proceeding with sync anyway',
+      );
     }
   }
 
@@ -779,8 +955,8 @@ class BleProvider extends ChangeNotifier {
   void _cancelSync() {
     if (!_isSyncing) return;
     _syncGen++;
-    _isSyncing    = false;
-    _syncStep     = '';
+    _isSyncing = false;
+    _syncStep = '';
     _syncProgress = 0.0;
     notifyListeners();
   }
@@ -797,9 +973,9 @@ class BleProvider extends ChangeNotifier {
     final myGen = ++_syncGen;
     bool alive() => _syncGen == myGen;
 
-    _isSyncing    = true;
+    _isSyncing = true;
     _syncProgress = 0.0;
-    _syncStep     = 'HRV';
+    _syncStep = 'HRV';
     notifyListeners();
 
     const kTimeout = Duration(seconds: 8);
@@ -811,7 +987,9 @@ class BleProvider extends ChangeNotifier {
         _parseAndSaveHrv(json);
       } catch (_) {}
       if (!alive()) return;
-      _syncProgress = 0.33; _syncStep = 'Sleep'; notifyListeners();
+      _syncProgress = 0.33;
+      _syncStep = 'Sleep';
+      notifyListeners();
 
       // 2. Sleep (33% → 66%)
       try {
@@ -819,22 +997,27 @@ class BleProvider extends ChangeNotifier {
         _parseAndSaveSleep(json);
       } catch (_) {}
       if (!alive()) return;
-      _syncProgress = 0.66; _syncStep = 'Temperature'; notifyListeners();
+      _syncProgress = 0.66;
+      _syncStep = 'Temperature';
+      notifyListeners();
 
       // 3. Temperature (66% → 100%) — use syncAutoTemperature to fetch from ring
       try {
-        final json = await _ble.syncAutoTemperature().timeout(const Duration(seconds: 15));
+        final json = await _ble.syncAutoTemperature().timeout(
+          const Duration(seconds: 15),
+        );
         _parseAndSaveTemp(json);
       } catch (_) {}
       if (!alive()) return;
-      _syncProgress = 1.0; notifyListeners();
+      _syncProgress = 1.0;
+      notifyListeners();
 
       // Brief pause so user sees 100% before overlay hides
       await Future.delayed(const Duration(milliseconds: 700));
     } finally {
       if (alive()) {
-        _isSyncing    = false;
-        _syncStep     = '';
+        _isSyncing = false;
+        _syncStep = '';
         _syncProgress = 0.0;
         notifyListeners();
       }
@@ -847,7 +1030,9 @@ class BleProvider extends ChangeNotifier {
     try {
       final decoded = jsonDecode(jsonStr);
       if (decoded == null || decoded is! Map<String, dynamic>) return;
-      final raw = (decoded['d'] as List<dynamic>? ?? []).map((v) => (v as num).toInt()).toList();
+      final raw = (decoded['d'] as List<dynamic>? ?? [])
+          .map((v) => (v as num).toInt())
+          .toList();
       final readings = raw.where((v) => v > 0).toList();
       if (readings.isEmpty) return;
       final avg = (readings.reduce((a, b) => a + b) / readings.length).round();
@@ -861,22 +1046,26 @@ class BleProvider extends ChangeNotifier {
 
   void _parseAndSaveSleep(String jsonStr) {
     try {
-      final d     = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final d = jsonDecode(jsonStr) as Map<String, dynamic>;
       final total = (d['totalSleepDuration'] as num? ?? 0).toInt();
-      final deep  = (d['deepDuration']       as num? ?? 0).toInt();
-      final light = (d['lightDuration']      as num? ?? 0).toInt();
-      final rem   = (d['remDuration']        as num? ?? 0).toInt();
-      final awake = (d['awakeDuration']      as num? ?? 0).toInt();
-      final st    = (d['sleepTime']          as num? ?? 0).toInt();
-      final et    = (d['wakeTime']           as num? ?? 0).toInt();
+      final deep = (d['deepDuration'] as num? ?? 0).toInt();
+      final light = (d['lightDuration'] as num? ?? 0).toInt();
+      final rem = (d['remDuration'] as num? ?? 0).toInt();
+      final awake = (d['awakeDuration'] as num? ?? 0).toInt();
+      final st = (d['sleepTime'] as num? ?? 0).toInt();
+      final et = (d['wakeTime'] as num? ?? 0).toInt();
       if (total <= 0) return;
-      final window     = (st > 0 && et > 0) ? (et - st) : total;
-      final efficiency = window > 0 ? (total / window * 100).clamp(0.0, 100.0) : 0.0;
-      final deepPct    = total > 0 ? (deep / total * 100).clamp(0.0, 40.0) : 0.0;
-      final remPct     = total > 0 ? (rem  / total * 100).clamp(0.0, 30.0) : 0.0;
-      final score      = (efficiency * 0.4 + deepPct * 1.0 + remPct * 0.5).round().clamp(0, 100);
+      final window = (st > 0 && et > 0) ? (et - st) : total;
+      final efficiency = window > 0
+          ? (total / window * 100).clamp(0.0, 100.0)
+          : 0.0;
+      final deepPct = total > 0 ? (deep / total * 100).clamp(0.0, 40.0) : 0.0;
+      final remPct = total > 0 ? (rem / total * 100).clamp(0.0, 30.0) : 0.0;
+      final score = (efficiency * 0.4 + deepPct * 1.0 + remPct * 0.5)
+          .round()
+          .clamp(0, 100);
       _todaySleepDuration = total;
-      _todaySleepScore    = score;
+      _todaySleepScore = score;
       notifyListeners();
       _saveSleepToDb(total, deep, light, rem, awake, score, st, et);
     } catch (_) {}
@@ -893,7 +1082,8 @@ class BleProvider extends ChangeNotifier {
         for (final item in decoded) {
           final m = item as Map<String, dynamic>;
           final ts = (m['mTime'] as num?)?.toInt() ?? (m['a'] as num?)?.toInt();
-          var val = (m['mValue'] as num?)?.toDouble() ?? (m['b'] as num?)?.toDouble();
+          var val =
+              (m['mValue'] as num?)?.toDouble() ?? (m['b'] as num?)?.toDouble();
           if (ts == null || val == null || val <= 0) continue;
           if (val > 100) val /= 10;
           final dt = DateTime.fromMillisecondsSinceEpoch(ts * 1000).toLocal();
@@ -909,8 +1099,9 @@ class BleProvider extends ChangeNotifier {
         // without this check, an older day's data was being saved and shown as
         // "today's" reading.
         final mIndex = (decoded['mIndex'] as num?)?.toInt();
-        final rawVals = (decoded['mValues'] as List<dynamic>?)
-            ?? (decoded['d'] as List<dynamic>?);
+        final rawVals =
+            (decoded['mValues'] as List<dynamic>?) ??
+            (decoded['d'] as List<dynamic>?);
         if (mIndex == 0 && rawVals != null) {
           for (final raw in rawVals.reversed) {
             var v = (raw as num).toDouble();
@@ -945,22 +1136,40 @@ class BleProvider extends ChangeNotifier {
     if (user == null) return;
     try {
       await SupabaseService.upsertHrv(
-        userId: user.id, date: DateTime.now(),
-        avgHrv: avg, minHrv: min, maxHrv: max, sampleCount: count,
+        userId: user.id,
+        date: DateTime.now(),
+        avgHrv: avg,
+        minHrv: min,
+        maxHrv: max,
+        sampleCount: count,
       );
     } catch (_) {}
   }
 
-  Future<void> _saveSleepToDb(int total, int deep, int light, int rem,
-      int awake, int score, int st, int et) async {
+  Future<void> _saveSleepToDb(
+    int total,
+    int deep,
+    int light,
+    int rem,
+    int awake,
+    int score,
+    int st,
+    int et,
+  ) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
     try {
       await SupabaseService.upsertSleep(
-        userId: user.id, date: DateTime.now(),
-        totalDuration: total, deepDuration: deep, lightDuration: light,
-        remDuration: rem, awakeDuration: awake,
-        sleepScore: score, sleepTime: st, wakeTime: et,
+        userId: user.id,
+        date: DateTime.now(),
+        totalDuration: total,
+        deepDuration: deep,
+        lightDuration: light,
+        remDuration: rem,
+        awakeDuration: awake,
+        sleepScore: score,
+        sleepTime: st,
+        wakeTime: et,
       );
     } catch (_) {}
   }
@@ -972,7 +1181,8 @@ class BleProvider extends ChangeNotifier {
       final user = SupabaseService.currentUser;
       if (user == null) return;
       final now = DateTime.now();
-      final ds  = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final ds =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       final data = await SupabaseService.client
           .from('user_steps')
           .select()
@@ -980,8 +1190,8 @@ class BleProvider extends ChangeNotifier {
           .eq('date', ds)
           .maybeSingle();
       if (data != null) {
-        _todaySteps     = (data['steps']      as num? ?? 0).toInt();
-        _todayCalories  = (data['calories']   as num? ?? 0).toInt();
+        _todaySteps = (data['steps'] as num? ?? 0).toInt();
+        _todayCalories = (data['calories'] as num? ?? 0).toInt();
         _todayDistanceM = (data['distance_m'] as num? ?? 0).toDouble();
         notifyListeners();
       }
@@ -1022,7 +1232,7 @@ class BleProvider extends ChangeNotifier {
       if (user == null) return;
       final data = await SupabaseService.getLatestBp(user.id);
       if (data != null) {
-        _latestBpSbp = (data['systolic']  as num? ?? 0).toInt();
+        _latestBpSbp = (data['systolic'] as num? ?? 0).toInt();
         _latestBpDbp = (data['diastolic'] as num? ?? 0).toInt();
         notifyListeners();
       }
@@ -1057,10 +1267,13 @@ class BleProvider extends ChangeNotifier {
     try {
       final user = SupabaseService.currentUser;
       if (user == null) return;
-      final data = await SupabaseService.getSleepForDate(user.id, DateTime.now());
+      final data = await SupabaseService.getSleepForDate(
+        user.id,
+        DateTime.now(),
+      );
       if (data != null) {
         _todaySleepDuration = (data['total_duration'] as num? ?? 0).toInt();
-        _todaySleepScore    = (data['sleep_score']    as num? ?? 0).toInt();
+        _todaySleepScore = (data['sleep_score'] as num? ?? 0).toInt();
         notifyListeners();
       }
     } catch (_) {}
@@ -1141,20 +1354,20 @@ class BleProvider extends ChangeNotifier {
       // the new ring's data, then disconnect before connecting to the new ring.
       _cancelSync();
       await _ble.disconnect();
-      _isConnected    = false;
+      _isConnected = false;
       _isReconnecting = false;
       _connectDelaySeconds = 2;
-      _pendingDeviceName    = device.name;
+      _pendingDeviceName = device.name;
       _pendingDeviceAddress = device.address;
       notifyListeners();
 
       final ok = await _ble.connect(device.address);
       if (ok) {
-        _deviceName    = device.name;
+        _deviceName = device.name;
         _deviceAddress = device.address;
-        _isConnected   = true;
+        _isConnected = true;
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('device_name',    device.name);
+        await prefs.setString('device_name', device.name);
         await prefs.setString('device_address', device.address);
         // _onConnected() is triggered by the connectionState event from the SDK,
         // which fires when the ring is fully ready (green light). Calling it here
@@ -1198,10 +1411,10 @@ class BleProvider extends ChangeNotifier {
     _cancelSync();
     _bindReadyCompleter = null;
     await _ble.disconnect();
-    _isConnected    = false;
-    _battery        = -1;
-    _deviceName     = '';
-    _deviceAddress  = '';
+    _isConnected = false;
+    _battery = -1;
+    _deviceName = '';
+    _deviceAddress = '';
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('device_name');
     await prefs.remove('device_address');
@@ -1212,6 +1425,7 @@ class BleProvider extends ChangeNotifier {
   void dispose() {
     _eventSub?.cancel();
     _stopEmergencySmsPoll();
+    _cameraShutterController.close();
     super.dispose();
   }
 }

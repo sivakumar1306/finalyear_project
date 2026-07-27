@@ -27,7 +27,8 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     try {
       final json = await _ble.getAdvancedSettings();
       setState(() => _settings = jsonDecode(json) ?? {});
-    } catch (_) {} finally {
+    } catch (_) {
+    } finally {
       setState(() => _loading = false);
     }
   }
@@ -35,9 +36,15 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   Future<void> _save() async {
     try {
       await _ble.setAdvancedSetting(jsonEncode(_settings));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Advanced settings saved')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Advanced settings saved')),
+        );
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -45,7 +52,9 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     final val = _settings[key] as bool? ?? false;
     return SwitchListTile(
       title: Text(title),
-      subtitle: subtitle != null ? Text(subtitle, style: const TextStyle(fontSize: 12)) : null,
+      subtitle: subtitle != null
+          ? Text(subtitle, style: const TextStyle(fontSize: 12))
+          : null,
       value: val,
       onChanged: (v) => setState(() => _settings[key] = v),
     );
@@ -60,7 +69,13 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
         actions: [
           TextButton(
             onPressed: connected ? _save : null,
-            child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Save',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -72,7 +87,11 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
                 _switchTile('batterySaving', 'Battery Saving Mode'),
                 const Divider(),
                 _header('Location'),
-                _switchTile('agpsEnable', 'AGPS', subtitle: 'Assisted GPS for faster location fix'),
+                _switchTile(
+                  'agpsEnable',
+                  'AGPS',
+                  subtitle: 'Assisted GPS for faster location fix',
+                ),
                 const Divider(),
                 _header('Interface'),
                 _switchTile('touchControl', 'Touch Control'),
@@ -87,7 +106,14 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   }
 
   Widget _header(String text) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-        child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-      );
+    padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: Colors.grey,
+      ),
+    ),
+  );
 }

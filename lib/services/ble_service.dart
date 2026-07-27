@@ -388,6 +388,21 @@ class BleService {
       }) ??
       false;
 
+  // ── Gesture Control (PalmScreenReq — wrist-flip / palm-screen wake) ──
+  /// Returns JSON: `{"enabled": bool, "isLeft": bool, "needPalm": bool}`.
+  Future<String> getGestureSetting() async =>
+      await _methodChannel.invokeMethod<String>('getGestureSetting') ?? '{}';
+
+  Future<bool> setGestureSetting({
+    required bool enable,
+    bool isLeft = true,
+  }) async =>
+      await _methodChannel.invokeMethod<bool>('setGestureSetting', {
+        'enable': enable,
+        'isLeft': isLeft,
+      }) ??
+      false;
+
   // ── Touch Control ──────────────────────────────────────────────────
   Future<String> getTouchControlSetting() async =>
       await _methodChannel.invokeMethod<String>('getTouchControlSetting') ??
@@ -439,6 +454,20 @@ class BleService {
     'title': title,
     'content': content,
   });
+
+  // ── Ring camera / photo control ────────────────────────────────────
+  // Enters the ring's camera UI and starts the phone-side keep-alive loop
+  // (native re-sends ACTION_KEEP_SCREEN_ON every ~2s). Listen on `events` for
+  // a `cameraShutter` event with data `{"action": "capture"}` (ring's physical
+  // shutter was pressed) or `{"action": "exit"}` (ring itself left camera mode).
+  Future<bool> takePicture() async =>
+      await _methodChannel.invokeMethod<bool>('takePicture') ?? false;
+
+  /// Tells the ring to exit its camera UI and stops the native keep-alive loop.
+  /// Always call this when the phone's camera screen is closed/disposed, even
+  /// if a `cameraShutter` "exit" event was already received.
+  Future<bool> exitCameraMode() async =>
+      await _methodChannel.invokeMethod<bool>('exitCameraMode') ?? false;
 
   // ── Workout ────────────────────────────────────────────────────────
   Future<void> startWorkout(String type, int startTimeMs) => _methodChannel

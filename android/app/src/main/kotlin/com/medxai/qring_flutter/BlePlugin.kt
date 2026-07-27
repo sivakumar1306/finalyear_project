@@ -32,12 +32,14 @@ import com.oudmon.ble.base.communication.file.FileHandle
 import com.oudmon.ble.base.communication.file.SimpleCallback
 import com.oudmon.ble.base.communication.req.BloodOxygenSettingReq
 import com.oudmon.ble.base.communication.req.BpSettingReq
+import com.oudmon.ble.base.communication.req.CameraReq
 import com.oudmon.ble.base.communication.req.DeviceSupportReq
 import com.oudmon.ble.base.communication.req.DndReq
 import com.oudmon.ble.base.communication.req.HRVReq
 import com.oudmon.ble.base.communication.req.HeartRateSettingReq
 import com.oudmon.ble.base.communication.req.HrvSettingReq
 import com.oudmon.ble.base.communication.req.MusicSwitchReq
+import com.oudmon.ble.base.communication.req.PalmScreenReq
 import com.oudmon.ble.base.communication.req.PressureReq
 import com.oudmon.ble.base.communication.req.PressureSettingReq
 import com.oudmon.ble.base.communication.req.ReadDetailSportDataReq
@@ -51,10 +53,12 @@ import com.oudmon.ble.base.communication.req.TouchControlReq
 import com.oudmon.ble.base.communication.responseImpl.DeviceNotifyListener
 import com.oudmon.ble.base.communication.rsp.BaseRspCmd
 import com.oudmon.ble.base.communication.rsp.BatteryRsp
+import com.oudmon.ble.base.communication.rsp.CameraNotifyRsp
 import com.oudmon.ble.base.communication.rsp.DeviceNotifyRsp
 import com.oudmon.ble.base.communication.rsp.DeviceSupportFunctionRsp
 import com.oudmon.ble.base.communication.rsp.HRVRsp
 import com.oudmon.ble.base.communication.rsp.HeartRateSettingRsp
+import com.oudmon.ble.base.communication.rsp.PalmScreenRsp
 import com.oudmon.ble.base.communication.rsp.PressureRsp
 import com.oudmon.ble.base.communication.rsp.ReadDetailSportDataRsp
 import com.oudmon.ble.base.communication.rsp.ReadHeartRateRsp
@@ -100,12 +104,15 @@ class BlePlugin(private val context: Context) {
         private const val INIT_COMMAND_DELAY_MS = 400L
         private const val INIT_RETRY_TIMEOUT_MS = 4_000L
         private const val INIT_MAX_ATTEMPTS = 3
-        // How long manual ("Measure Now") measurements will keep retrying tryAcquire() before
-        // giving up with BUSY. Must comfortably exceed MeasurementLoopManager's worst-case
-        // yield time (its preempt-detection poll + its post-stop settle delay, currently
-        // ~200ms + 2000ms = ~2.2s) — set with margin above that.
         private const val MANUAL_ACQUIRE_POLL_MS = 300L
         private const val MANUAL_ACQUIRE_TIMEOUT_MS = 4_000L
+        // How often to re-send ACTION_KEEP_SCREEN_ON while the ring camera UI is active —
+        // per the SDK docs, the ring's screen would otherwise dim/sleep on its own.
+        private const val CAMERA_KEEP_ALIVE_MS = 2_000L
+        // Raw device-notify dataType for the ring's proactive battery/charging push
+        // (see SDK section "2.3.9 Changes in Ring measurement data are proactively
+        // reported to the APP" — 0x0c carries [reserved, batteryPercent, charging, ...]).
+        private const val DATA_TYPE_BATTERY_PUSH = 0x0c
 
         var instance: BlePlugin? = null
             private set
@@ -125,6 +132,10 @@ class BlePlugin(private val context: Context) {
     // Populated by QRingBluetoothReceiver.onCharacteristicRead once the SDK broadcasts them.
     var cachedFirmwareVersion: String = ""
     var cachedHardwareVersion: String = ""
+
+    // ── Ring camera / photo control state ──────────────────────────────
+    private var cameraKeepAliveRunnable: Runnable? = null
+    private var cameraModeActive = false
 
     private val connectTimeoutRunnable = Runnable {
         val r = pendingConnectResult
@@ -184,6 +195,22 @@ class BlePlugin(private val context: Context) {
                             val confirm = pendingBindConfirmation
                             pendingBindConfirmation = null
                             confirm?.let { mainHandler.post(it) }
+                        }
+                    }
+
+                    // Proactive battery/charging push (0x0c) — per SDK section 2.3.9:
+                    // loadData[1] = battery percent (0-100), loadData[2] = charging flag (>0 = charging).
+                    // Forwarded as its own event so BleProvider can drive the phone-side
+                    // "Low battery prompt" toggle without polling getBattery().
+                    if (resultEntity.dataType == DATA_TYPE_BATTERY_PUSH) {
+                        val loadData = resultEntity.loadData
+                        if (loadData != null && loadData.size >= 3) {
+                            val batteryPercent = loadData[1].toInt() and 0xFF
+                            val charging = (loadData[2].toInt() and 0xFF) > 0
+                            sendEvent(
+                                "batteryPush",
+                                mapOf("batteryPercent" to batteryPercent, "charging" to charging)
+                            )
                         }
                     }
 
@@ -282,12 +309,16 @@ class BlePlugin(private val context: Context) {
             "setTargetAndProfile"        -> result.success(true)
             "getAdvancedSettings"        -> result.success("{}")
             "setAdvancedSetting"         -> result.success(true)
+            "getGestureSetting"          -> getGestureSetting(result)
+            "setGestureSetting"          -> setGestureSetting(call, result)
             "getTouchControlSetting"     -> getTouchControlSetting(result)
             "setTouchControlSetting"     -> setTouchControlSetting(call, result)
             "getDrinkReminder"           -> getDrinkReminder(result)
             "getSedentaryReminder"       -> getSedentaryReminder(result)
             "startOta"                   -> startOta(call, result)
             "sendNotification"           -> result.success(true)
+            "takePicture"                -> takePicture(result)
+            "exitCameraMode"             -> exitCameraMode(result)
             "startForegroundService"     -> {
                 try {
                     BleOperateManager.getInstance(context.applicationContext as Application)
@@ -353,6 +384,106 @@ class BlePlugin(private val context: Context) {
             "placeEmergencyCall"         -> placeEmergencyCall(call, result)
             else                         -> result.notImplemented()
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Gesture control (PalmScreenReq — wrist-flip / palm-screen wake)
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun getGestureSetting(result: MethodChannel.Result) {
+        CommandHandle.getInstance().executeReqCmd(
+            PalmScreenReq.getRingReadInstance(),
+            ICommandResponse<PalmScreenRsp> { rsp ->
+                mainHandler.post {
+                    result.success(
+                        gson.toJson(
+                            mapOf(
+                                "enabled" to rsp.isEnable,
+                                "isLeft" to rsp.isLeft
+                            )
+                        )
+                    )
+                }
+            }
+        )
+    }
+
+    private fun setGestureSetting(call: MethodCall, result: MethodChannel.Result) {
+        val enable = call.argument<Boolean>("enable") ?: true
+        val isLeft = call.argument<Boolean>("isLeft") ?: true
+        CommandHandle.getInstance().executeReqCmd(
+            PalmScreenReq.getWriteInstance(enable, isLeft),
+            null
+        )
+        result.success(true)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Ring photo control (camera mode)
+    // ─────────────────────────────────────────────────────────────────
+    //
+    // Flow (per QC Wireless SDK "Ring photo control" section):
+    //  1. Tell the ring to enter its camera UI (ACTION_INTO_CAMARA_UI).
+    //  2. Keep re-sending ACTION_KEEP_SCREEN_ON every ~2s so the ring's display
+    //     stays lit while the phone shows a live camera preview.
+    //  3. Listen for CMD_TAKING_PICTURE notifications — the ring reports
+    //     ACTION_TAKE_PHOTO when its physical button/gesture is used as a shutter,
+    //     and ACTION_FINISH when the ring itself exits the camera UI.
+    //  4. On screen close (or ACTION_FINISH from the ring), stop the keep-alive
+    //     loop, remove the listener, and tell the ring to exit (ACTION_FINISH).
+    //
+    // Dart side: BleService.takePicture() enters this mode; BleProvider listens for
+    // the "cameraShutter" event (action: "capture" | "exit") to trigger the phone's
+    // own camera capture or close the screen; BleService.exitCameraMode() tears it down.
+
+    private val cameraNotifyListener = ICommandResponse<CameraNotifyRsp> { resultEntity ->
+        when (resultEntity.action) {
+            CameraNotifyRsp.ACTION_TAKE_PHOTO -> sendEvent("cameraShutter", mapOf("action" to "capture"))
+            CameraNotifyRsp.ACTION_FINISH -> {
+                sendEvent("cameraShutter", mapOf("action" to "exit"))
+                stopCameraKeepAlive()
+            }
+        }
+    }
+
+    private fun startCameraKeepAlive() {
+        stopCameraKeepAlive()
+        val runnable = object : Runnable {
+            override fun run() {
+                CommandHandle.getInstance().executeReqCmd(CameraReq(CameraReq.ACTION_KEEP_SCREEN_ON), null)
+                mainHandler.postDelayed(this, CAMERA_KEEP_ALIVE_MS)
+            }
+        }
+        cameraKeepAliveRunnable = runnable
+        mainHandler.post(runnable)
+    }
+
+    private fun stopCameraKeepAlive() {
+        cameraKeepAliveRunnable?.let { mainHandler.removeCallbacks(it) }
+        cameraKeepAliveRunnable = null
+    }
+
+    private fun takePicture(result: MethodChannel.Result) {
+        if (!cameraModeActive) {
+            cameraModeActive = true
+            BleOperateManager.getInstance().addNotifyListener(
+                Constants.CMD_TAKING_PICTURE.toInt(),
+                cameraNotifyListener
+            )
+        }
+        CommandHandle.getInstance().executeReqCmd(CameraReq(CameraReq.ACTION_INTO_CAMARA_UI), null)
+        startCameraKeepAlive()
+        result.success(true)
+    }
+
+    private fun exitCameraMode(result: MethodChannel.Result) {
+        stopCameraKeepAlive()
+        if (cameraModeActive) {
+            BleOperateManager.getInstance().removeNotifyListener(Constants.CMD_TAKING_PICTURE.toInt())
+            cameraModeActive = false
+        }
+        CommandHandle.getInstance().executeReqCmd(CameraReq(CameraReq.ACTION_FINISH), null)
+        result.success(true)
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -585,9 +716,6 @@ class BlePlugin(private val context: Context) {
     // Manual measurement coordination
     // ─────────────────────────────────────────────────────────────────
 
-    // Shared by every manual ("Measure Now") measurement entry point below. Signals
-    // MeasurementLoopManager to yield (manualRequestPending) and polls tryAcquire() until it
-    // succeeds or MANUAL_ACQUIRE_TIMEOUT_MS elapses, in which case it reports BUSY.
     private fun acquireManualSlot(owner: String, result: MethodChannel.Result, onAcquired: () -> Unit) {
         if (MeasurementCoordinator.tryAcquire(owner)) {
             onAcquired()
@@ -717,8 +845,6 @@ class BlePlugin(private val context: Context) {
         if (start) acquireManualSlot(owner, result) { proceed() } else proceed()
     }
 
-    // Single-call measurement: starts HR, waits for a valid (>0) reading,
-    // auto-stops, then resolves. Mirrors the test_app RingSdkBridge.readHeartRate().
     private fun readHeartRate(result: MethodChannel.Result) {
         val owner = "manual"
         acquireManualSlot(owner, result) {
@@ -2459,6 +2585,7 @@ class BlePlugin(private val context: Context) {
 
     fun onDestroy() {
         mainHandler.removeCallbacks(connectTimeoutRunnable)
+        stopCameraKeepAlive()
         BleScannerHelper.getInstance().stopScan(context)
         BleOperateManager.getInstance().removeNotifyListener(NOTIFY_KEY)
         EventBus.getDefault().unregister(this)

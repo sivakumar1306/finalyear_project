@@ -21,7 +21,8 @@ class AlarmsNotificationsScreen extends StatefulWidget {
   const AlarmsNotificationsScreen({super.key});
 
   @override
-  State<AlarmsNotificationsScreen> createState() => _AlarmsNotificationsScreenState();
+  State<AlarmsNotificationsScreen> createState() =>
+      _AlarmsNotificationsScreenState();
 }
 
 class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
@@ -62,7 +63,9 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
   }
 
   Future<void> _loadUsage() async {
-    final sessions = await context.read<BleProvider>().getPhoneModeSessionsToday();
+    final sessions = await context
+        .read<BleProvider>()
+        .getPhoneModeSessionsToday();
     if (!mounted) return;
     setState(() => _modeSessions = sessions);
   }
@@ -71,10 +74,15 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     if (prefs.getBool(_kSleepReminderEnabledKey) ?? false) {
-      setState(() => _sleepReminderTime = TimeOfDay(
-            hour: int.tryParse(prefs.getString(_kSleepReminderHourKey) ?? '') ?? 22,
-            minute: int.tryParse(prefs.getString(_kSleepReminderMinuteKey) ?? '') ?? 30,
-          ));
+      setState(
+        () => _sleepReminderTime = TimeOfDay(
+          hour:
+              int.tryParse(prefs.getString(_kSleepReminderHourKey) ?? '') ?? 22,
+          minute:
+              int.tryParse(prefs.getString(_kSleepReminderMinuteKey) ?? '') ??
+              30,
+        ),
+      );
     }
   }
 
@@ -106,13 +114,16 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
     var total = Duration.zero;
     for (final s in _modeSessions) {
       if (s['mode'] != mode) continue;
-      final startedAt = DateTime.fromMillisecondsSinceEpoch((s['startedAt'] as num).toInt());
+      final startedAt = DateTime.fromMillisecondsSinceEpoch(
+        (s['startedAt'] as num).toInt(),
+      );
       final endedAtRaw = s['endedAt'] as num?;
       final endedAt = endedAtRaw != null
           ? DateTime.fromMillisecondsSinceEpoch(endedAtRaw.toInt())
           : now;
       final clippedStart = startedAt.isBefore(dayStart) ? dayStart : startedAt;
-      if (endedAt.isAfter(clippedStart)) total += endedAt.difference(clippedStart);
+      if (endedAt.isAfter(clippedStart))
+        total += endedAt.difference(clippedStart);
     }
     return total;
   }
@@ -123,7 +134,9 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
     // Native returns sessions ordered startedAt DESC — reverse for chronological display.
     for (final s in _modeSessions.reversed) {
       if (s['mode'] != mode) continue;
-      final startedAt = DateTime.fromMillisecondsSinceEpoch((s['startedAt'] as num).toInt());
+      final startedAt = DateTime.fromMillisecondsSinceEpoch(
+        (s['startedAt'] as num).toInt(),
+      );
       final endedAtRaw = s['endedAt'] as num?;
       final end = endedAtRaw != null
           ? fmt.format(DateTime.fromMillisecondsSinceEpoch(endedAtRaw.toInt()))
@@ -143,7 +156,11 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_rounded,
+            color: Colors.white,
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -197,7 +214,10 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                     subtitleColor: focusOn ? AppTheme.gold : null,
                     trailing: _switch(
                       focusOn,
-                      (v) => _setMode(alarmMode, v ? PhoneMode.focus : PhoneMode.base),
+                      (v) => _setMode(
+                        alarmMode,
+                        v ? PhoneMode.focus : PhoneMode.base,
+                      ),
                     ),
                   ),
                   _divider(),
@@ -211,7 +231,10 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                     subtitleColor: prayerOn ? const Color(0xFF6BC99B) : null,
                     trailing: _switch(
                       prayerOn,
-                      (v) => _setMode(alarmMode, v ? PhoneMode.prayer : PhoneMode.base),
+                      (v) => _setMode(
+                        alarmMode,
+                        v ? PhoneMode.prayer : PhoneMode.base,
+                      ),
                     ),
                   ),
                   _divider(),
@@ -220,7 +243,9 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                     subtitle: _sleepReminderTime != null
                         ? 'Reminder set · ${_sleepReminderTime!.format(context)}'
                         : 'Sleep times not set',
-                    subtitleColor: _sleepReminderTime != null ? AppTheme.sleepColor : null,
+                    subtitleColor: _sleepReminderTime != null
+                        ? AppTheme.sleepColor
+                        : null,
                     onTap: _scheduleSleepReminder,
                     trailing: Text(
                       _sleepReminderTime != null ? 'Change' : 'Schedule now',
@@ -274,10 +299,15 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                 borderRadius: BorderRadius.circular(16),
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const SelectNotificationsScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const SelectNotificationsScreen(),
+                  ),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -290,7 +320,11 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                           ),
                         ),
                       ),
-                      const Icon(Icons.chevron_right_rounded, color: AppTheme.textSec, size: 20),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppTheme.textSec,
+                        size: 20,
+                      ),
                     ],
                   ),
                 ),
@@ -324,7 +358,10 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                       title: app,
                       trailing: Text(
                         'set up',
-                        style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+                        style: GoogleFonts.inter(
+                          color: AppTheme.textSec,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
@@ -339,19 +376,19 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
   }
 
   Widget _switch(bool value, ValueChanged<bool> onChanged) => Transform.scale(
-        scale: 0.85,
-        child: Switch(value: value, onChanged: onChanged),
-      );
+    scale: 0.85,
+    child: Switch(value: value, onChanged: onChanged),
+  );
 
   Widget _sectionLabel(String text) => Text(
-        text,
-        style: GoogleFonts.inter(
-          color: AppTheme.textSec,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1.5,
-        ),
-      );
+    text,
+    style: GoogleFonts.inter(
+      color: AppTheme.textSec,
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 1.5,
+    ),
+  );
 
   Widget _divider() => const Divider(height: 1, color: AppTheme.div);
 }
@@ -380,54 +417,58 @@ class _AlarmRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          if (showEditIcon) ...[
-            InkWell(
-              onTap: onEditTap,
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: AppTheme.card2,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.edit_outlined, color: Color(0xFFAAAAAA), size: 16),
-              ),
-            ),
-            const SizedBox(width: 14),
-          ],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            if (showEditIcon) ...[
+              InkWell(
+                onTap: onEditTap,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppTheme.card2,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.edit_outlined,
+                    color: Color(0xFFAAAAAA),
+                    size: 16,
                   ),
                 ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 3),
+              ),
+              const SizedBox(width: 14),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    subtitle!,
+                    title,
                     style: GoogleFonts.inter(
-                      color: subtitleColor ?? AppTheme.textSec,
-                      fontSize: 11,
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle!,
+                      style: GoogleFonts.inter(
+                        color: subtitleColor ?? AppTheme.textSec,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          trailing,
-        ],
-      ),
+            const SizedBox(width: 8),
+            trailing,
+          ],
+        ),
       ),
     );
   }
@@ -487,13 +528,20 @@ class _UsageRow extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   _durationLabel,
-                  style: GoogleFonts.inter(color: color, fontSize: 11, fontWeight: FontWeight.w500),
+                  style: GoogleFonts.inter(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 if (ranges.isNotEmpty) ...[
                   const SizedBox(height: 3),
                   Text(
                     ranges.join('  ·  '),
-                    style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 11),
+                    style: GoogleFonts.inter(
+                      color: AppTheme.textSec,
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ],

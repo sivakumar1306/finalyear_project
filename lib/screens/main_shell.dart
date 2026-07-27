@@ -10,7 +10,6 @@ import 'home/home_screen.dart';
 import 'settings/settings_screen.dart';
 import 'workouts/active_workout_screen.dart';
 import 'assist/chat_screen.dart';
-import 'settings/profile_edit_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -128,12 +127,7 @@ class _MainShellState extends State<MainShell> {
         backgroundColor: const Color.fromRGBO(8, 8, 8, 1),
         body: IndexedStack(
           index: tab,
-          children: const [
-            HomeScreen(),
-            ChatScreen(),
-            ProfileEditScreen(showBackButton: false),
-            SettingsScreen(),
-          ],
+          children: const [HomeScreen(), ChatScreen(), SettingsScreen()],
         ),
         bottomNavigationBar: _BottomNav(selected: tab, onTap: _onTabTap),
       ),
@@ -184,16 +178,10 @@ class _BottomNav extends StatelessWidget {
                       onTap: () => onTap(1),
                     ),
                     _NavTab(
-                      icon: Icons.person_outline_rounded,
-                      label: 'Profile',
-                      active: selected == 2,
-                      onTap: () => onTap(2),
-                    ),
-                    _NavTab(
                       icon: Icons.settings_outlined,
                       label: 'Settings',
-                      active: selected == 3,
-                      onTap: () => onTap(3),
+                      active: selected == 2,
+                      onTap: () => onTap(2),
                     ),
                   ],
                 ),

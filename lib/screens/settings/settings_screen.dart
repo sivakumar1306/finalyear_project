@@ -11,6 +11,8 @@ import '../ota/ota_screen.dart';
 import 'background_protection_screen.dart';
 import 'find_device_screen.dart';
 import 'health_connect_screen.dart';
+import 'profile_edit_screen.dart';
+import 'ring_camera_screen.dart';
 import 'select_notifications_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -32,7 +34,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadUnitPrefs();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<BleProvider>().loadAutoCallOnFallSetting();
+      final ble = context.read<BleProvider>();
+      ble.loadAutoCallOnFallSetting();
+      // Gesture Controls (PalmScreenReq) is read from the ring on connect (see
+      // BleProvider._initThenSync), but also refresh here in case this screen
+      // opens after that already ran. Low battery prompt is phone-side only
+      // (SharedPreferences) and loaded once in BleProvider's constructor —
+      // refreshed here too in case the value changed elsewhere.
+      ble.loadGestureSetting();
+      ble.loadLowBatteryPromptSetting();
     });
   }
 
@@ -355,6 +365,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: Column(
                 children: [
+                  // Ring-side wrist-flip/palm-screen wake gesture (PalmScreenReq).
+                  // See BleProvider.gestureEnabled/setGestureEnabled() and
+                  // BlePlugin.kt's getGestureSetting/setGestureSetting.
+                  _SettingsRow.toggle(
+                    icon: Icons.pan_tool_alt_outlined,
+                    title: 'Gesture Controls',
+                    subtitle: 'Enable gesture controls',
+                    value: ble.gestureEnabled,
+                    onChanged: (v) =>
+                        context.read<BleProvider>().setGestureEnabled(v),
+                  ),
+                  _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.manage_accounts_rounded,
                     title: 'Account & System settings',
@@ -407,6 +429,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   _divider(),
+                  // Profile now lives here instead of as its own bottom-nav tab —
+                  // pushed with showBackButton: true so it can pop back to Settings
+                  // (the old IndexedStack tab usage used showBackButton: false
+                  // since there was no route to pop to there).
+                  _SettingsRow.arrow(
+                    icon: Icons.person_outline_rounded,
+                    title: 'User Profile',
+                    onTap: () =>
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const ProfileEditScreen(showBackButton: true),
+                          ),
+                        ).then((_) {
+                          // Refresh the ring-card first name in case it was edited.
+                          if (mounted) _loadUserProfile();
+                        }),
+                  ),
+                  _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.notifications_outlined,
                     title: 'Notifications',
@@ -424,6 +466,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () => context.read<MainTabProvider>().setTab(1),
                   ),
                   _divider(),
+                  // Ring photo control — puts the ring into its camera UI so its
+                  // physical shutter gesture can trigger the phone's camera.
+                  // See ble_provider.dart's enterRingCameraMode()/cameraShutterEvents
+                  // and BlePlugin.kt's takePicture()/exitCameraMode().
+                  _SettingsRow.arrow(
+                    icon: Icons.camera_alt_outlined,
+                    title: 'Take picture',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const RingCameraScreen(),
+                      ),
+                    ),
+                  ),
+                  _divider(),
                   _SettingsRow.value(
                     icon: Icons.straighten_rounded,
                     title: 'Unit format',
@@ -436,6 +493,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Temperature Unit',
                     value: _tempUnit == TempUnit.fahrenheit ? 'F' : 'C',
                     onTap: _showTempUnitPicker,
+                  ),
+                  _divider(),
+                  // Phone-side only — no ring command involved. Driven by the ring's
+                  // own proactive battery push (BlePlugin.kt "batteryPush" event,
+                  // native dataType 0x0c); see BleProvider._onBatteryPushEvent().
+                  _SettingsRow.toggle(
+                    icon: Icons.battery_alert_outlined,
+                    title: 'Low battery prompt',
+                    value: ble.lowBatteryPromptEnabled,
+                    onChanged: (v) => context
+                        .read<BleProvider>()
+                        .setLowBatteryPromptEnabled(v),
                   ),
                   _divider(),
                   _SettingsRow.arrow(
