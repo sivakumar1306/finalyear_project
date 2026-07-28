@@ -296,24 +296,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildCardBlock(HomeCardId id, BleProvider ble) {
     switch (id) {
       case HomeCardId.alarmActivity:
-        return Row(
-          children: [
-            const Expanded(child: _AlarmCard()),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ActivityScoreCard(
-                score: _computeActivityScore(
-                  ble.todaySteps,
-                  ble.todayDistanceM,
-                  ble.todayCalories,
+        // IntrinsicHeight keeps both cards equal height while allowing them
+        // to grow with content / text scale instead of a fixed pixel height.
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Expanded(child: _AlarmCard()),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ActivityScoreCard(
+                  score: _computeActivityScore(
+                    ble.todaySteps,
+                    ble.todayDistanceM,
+                    ble.todayCalories,
+                  ),
+                  hasData: ble.todaySteps > 0,
+                  onTap: _editMode
+                      ? null
+                      : () => Navigator.pushNamed(context, '/steps'),
                 ),
-                hasData: ble.todaySteps > 0,
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/steps'),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       case HomeCardId.stress:
         return _StressCard(
@@ -1176,6 +1181,10 @@ class _GlassCard extends StatelessWidget {
     // Small fixed-height cards get a large orb so the ambient glow covers
     // ~90% of the card; full-width auto-height cards keep a corner glow.
     final double resolvedOrbOffset = orbOffset ?? (height == null ? -78 : -56);
+    final content = Padding(
+      padding: padding ?? const EdgeInsets.all(16),
+      child: child,
+    );
 
     return _ShrinkButton(
       onTap: onTap,
@@ -1188,7 +1197,11 @@ class _GlassCard extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(19.5),
+          // expand only for explicit fixed heights so Spacer works; auto-height
+          // cards (and IntrinsicHeight stretch) keep loose fit so intrinsic
+          // measurement still includes real content height.
           child: Stack(
+            fit: height != null ? StackFit.expand : StackFit.loose,
             children: [
               // Ambient orb — blurred circle clipped by card
               Positioned(
@@ -1211,19 +1224,12 @@ class _GlassCard extends StatelessWidget {
                 ),
               ),
               // Fixed height: Positioned.fill gives Column tight constraints so Spacer works.
-              // Variable height: plain Padding lets Stack size to the child content.
+              // Auto height: plain Padding lets Stack size to content (and still
+              // expands when the parent imposes a tight height via stretch).
               if (height != null)
-                Positioned.fill(
-                  child: Padding(
-                    padding: padding ?? const EdgeInsets.all(16),
-                    child: child,
-                  ),
-                )
+                Positioned.fill(child: content)
               else
-                Padding(
-                  padding: padding ?? const EdgeInsets.all(16),
-                  child: child,
-                ),
+                content,
             ],
           ),
         ),
@@ -1415,12 +1421,13 @@ class _StressCard extends StatelessWidget {
     final status = _stressStatus(value);
     final color = _stressColor(value);
 
+    // Auto-height: fixed pixel heights clip on denser fonts / text scale /
+    // narrow phones. Content defines the card height instead.
     return _GlassCard(
       orbColor: _kOrbStress,
       orbOnRight: false,
       orbOffset: -78,
-      height: 205,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1429,18 +1436,23 @@ class _StressCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Stress',
-                style: _inter(
-                  15,
-                  weight: FontWeight.w500,
-                  color: Colors.white.withValues(alpha: 0.9),
+              Flexible(
+                child: Text(
+                  'Stress',
+                  style: _inter(
+                    15,
+                    weight: FontWeight.w500,
+                    color: Colors.white.withValues(alpha: 0.9),
+                    height: 1.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               _chevron(),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
@@ -1450,17 +1462,27 @@ class _StressCard extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 36,
                   fontWeight: FontWeight.w300,
+                  height: 1.1,
                   color: Colors.white.withValues(alpha: 0.95),
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                status,
-                style: _inter(13, color: color, weight: FontWeight.w500),
+              Flexible(
+                child: Text(
+                  status,
+                  style: _inter(
+                    13,
+                    color: color,
+                    weight: FontWeight.w500,
+                    height: 1.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           SizedBox(
             height: 24,
             width: double.infinity,
@@ -1468,97 +1490,100 @@ class _StressCard extends StatelessWidget {
                 ? CustomPaint(painter: _BarChartPainter(_kOrbStress, _barData))
                 : const _ConnectHint(),
           ),
-          const SizedBox(height: 4),
-
-          // Horizontal Divider added here
+          const SizedBox(height: 8),
           Container(
             height: 1,
             width: double.infinity,
             color: Colors.white.withValues(alpha: 0.08),
           ),
-          const SizedBox(height: 4),
-
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center, // Centered
-                  children: [
-                    Text(
-                      'Daily Average',
-                      style: _inter(
-                        11,
-                        color: Colors.white.withValues(alpha: 0.4),
-                        weight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      avgStress > 0 ? '$avgStress' : '--',
-                      style: GoogleFonts.inter(
-                        fontSize: 22, // Increased size to match design
-                        fontWeight: FontWeight.w300, // Thinner font weight
-                        color: Colors.white.withValues(alpha: 0.95),
-                      ),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      _stressStatus(avgStress),
-                      style: _inter(
-                        11,
-                        color: Colors.white.withValues(
-                          alpha: 0.5,
-                        ), // Muted grey instead of active color
-                        weight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
+                child: _StressStatColumn(
+                  label: 'Daily Average',
+                  value: avgStress > 0 ? '$avgStress' : '--',
+                  status: _stressStatus(avgStress),
                 ),
               ),
               Container(
                 width: 1,
-                height: 40,
+                height: 48,
                 color: Colors.white.withValues(alpha: 0.08),
               ),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center, // Centered
-                  children: [
-                    Text(
-                      'Daily Range',
-                      style: _inter(
-                        11,
-                        color: Colors.white.withValues(alpha: 0.4),
-                        weight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      maxStress > 0 ? '$minStress-$maxStress' : '--',
-                      style: GoogleFonts.inter(
-                        fontSize: 22, // Increased size to match design
-                        fontWeight: FontWeight.w300, // Thinner font weight
-                        color: Colors.white.withValues(alpha: 0.95),
-                      ),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      _stressStatus(maxStress),
-                      style: _inter(
-                        11,
-                        color: Colors.white.withValues(
-                          alpha: 0.5,
-                        ), // Muted grey instead of active color
-                        weight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
+                child: _StressStatColumn(
+                  label: 'Daily Range',
+                  value: maxStress > 0 ? '$minStress-$maxStress' : '--',
+                  status: _stressStatus(maxStress),
                 ),
               ),
             ],
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Bottom stat cell for the Stress card — keeps label/value/status from
+/// overflowing by using explicit line heights and ellipsis.
+class _StressStatColumn extends StatelessWidget {
+  final String label;
+  final String value;
+  final String status;
+
+  const _StressStatColumn({
+    required this.label,
+    required this.value,
+    required this.status,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: _inter(
+            11,
+            color: Colors.white.withValues(alpha: 0.4),
+            weight: FontWeight.w500,
+            height: 1.2,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            fontSize: 22,
+            fontWeight: FontWeight.w300,
+            height: 1.15,
+            color: Colors.white.withValues(alpha: 0.95),
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          status,
+          style: _inter(
+            11,
+            color: Colors.white.withValues(alpha: 0.5),
+            weight: FontWeight.w400,
+            height: 1.2,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }
@@ -1577,11 +1602,13 @@ class _ActivityScoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // No fixed height — pairs with _AlarmCard via IntrinsicHeight so both
+    // grow together when text scale / font metrics need more room.
     return _GlassCard(
       orbColor: _kOrbActivity,
       orbOnRight: true,
       orbAlpha: 0.25,
-      height: 165,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1589,36 +1616,51 @@ class _ActivityScoreCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Activity',
-                style: _inter(
-                  15,
-                  weight: FontWeight.w500,
-                  color: Colors.white.withValues(alpha: 0.9),
+              Flexible(
+                child: Text(
+                  'Activity',
+                  style: _inter(
+                    15,
+                    weight: FontWeight.w500,
+                    color: Colors.white.withValues(alpha: 0.9),
+                    height: 1.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               _chevron(),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Divider(
             color: Colors.white.withValues(alpha: 0.08),
             height: 1,
             thickness: 0.5,
           ),
+          // Spacer only expands after IntrinsicHeight assigns a shared height
+          // (contributes 0 to intrinsic measurement).
           const Spacer(),
           Text(
             hasData ? '$score' : '--',
             style: GoogleFonts.inter(
               fontSize: 40,
               fontWeight: FontWeight.w300,
+              height: 1.1,
               color: Colors.white.withValues(alpha: 0.95),
             ),
           ),
           const SizedBox(height: 2),
           Text(
             _HomeScreenState._activityScoreLabel(score),
-            style: _inter(13, weight: FontWeight.w500, color: _kOrbActivity),
+            style: _inter(
+              13,
+              weight: FontWeight.w500,
+              color: _kOrbActivity,
+              height: 1.2,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -1675,81 +1717,91 @@ class _AlarmCard extends StatelessWidget {
     final provider = context.watch<AlarmModeProvider>();
     final mode = provider.mode;
     final info = _kAlarmModeInfo[mode]!;
+    // No fixed height — content + text scale dictate size; IntrinsicHeight in
+    // the parent row keeps this paired with the Activity card.
     return _GlassCard(
       orbColor: info.color,
-      height: 165, // Updated height to exactly 165px
       orbAtTop: true,
       orbSize: 260,
       orbOffset: -80,
       orbAlpha: 0.4,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tapping this region (everything except the mode buttons below)
-          // opens the system Alarms & notifications settings screen.
-          Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () =>
-                  Navigator.pushNamed(context, '/alarms-notifications'),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
+          // Header + mode title (not wrapped in Expanded so intrinsic height
+          // measurement includes this content — critical for IntrinsicHeight).
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () =>
+                Navigator.pushNamed(context, '/alarms-notifications'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
                         'ALARMS',
                         style: _inter(
                           11,
                           weight: FontWeight.w700,
-                          color: info
-                              .color, // Matched to screenshot (colors dynamically change per mode)
+                          color: info.color,
                           letterSpacing: 1.2,
+                          height: 1.2,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      _chevron(),
+                    ),
+                    _chevron(),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 280),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, anim) =>
+                      FadeTransition(opacity: anim, child: child),
+                  child: Column(
+                    key: ValueKey(mode),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        info.title,
+                        style: GoogleFonts.inter(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w500,
+                          height: 1.15,
+                          color: info.color,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        info.subtitle,
+                        style: _inter(
+                          13,
+                          color: Colors.white.withValues(alpha: 0.6),
+                          height: 1.2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                   ),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 280),
-                    switchInCurve: Curves.easeOut,
-                    switchOutCurve: Curves.easeIn,
-                    transitionBuilder: (child, anim) =>
-                        FadeTransition(opacity: anim, child: child),
-                    child: Column(
-                      key: ValueKey(mode),
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          info.title,
-                          style: GoogleFonts.inter(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w500,
-                            color: info.color,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          info.subtitle,
-                          style: _inter(
-                            13,
-                            color: Colors.white.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
+          // Fills leftover space once the row shares a height with Activity.
+          const Spacer(),
+          const SizedBox(height: 10),
           _AlarmModeSelector(
             mode: mode,
             onChanged: (m) => requestPhoneMode(context, provider, m),
@@ -1770,19 +1822,17 @@ class _AlarmModeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Height follows content (icon + label + padding) so large text scales
+    // and narrow widths never force a 1px bottom overflow.
     return Container(
-      width: double.infinity, // Responsive width
-      height: 46, // Specified height
+      width: double.infinity,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: _kBtnBg,
-        borderRadius: BorderRadius.circular(
-          23,
-        ), // Fully rounded ends matching the visual pill shape
+        borderRadius: BorderRadius.circular(23),
         border: Border.all(color: _kBtnBorder, width: 0.5),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: PhoneMode.values.map((m) {
           return Expanded(
             child: _AlarmSegment(
@@ -1819,12 +1869,10 @@ class _AlarmSegment extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOut,
-        height: 40, // Removed fixed width to allow expansion within Expanded
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
         decoration: BoxDecoration(
           color: info.color.withValues(alpha: selected ? 0.16 : 0),
-          borderRadius: BorderRadius.circular(
-            20,
-          ), // Highly rounded individual selected states
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: info.color.withValues(alpha: selected ? 0.5 : 0),
             width: 1,
@@ -1833,18 +1881,21 @@ class _AlarmSegment extends StatelessWidget {
         alignment: Alignment.center,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment:
-              MainAxisAlignment.center, // Vertically center icon and text
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(info.icon, size: 14, color: color), // Specified icon size
-            const SizedBox(height: 2), // Small gap between icon and text
+            Icon(info.icon, size: 14, color: color),
+            const SizedBox(height: 2),
             Text(
               info.segmentLabel,
               style: _inter(
                 10,
                 weight: FontWeight.w500,
                 color: color,
-              ), // Specified text size
+                height: 1.1,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
             ),
           ],
         ),
