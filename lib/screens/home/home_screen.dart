@@ -1,6 +1,7 @@
-import 'dart:ui';
+import 'dart:ui' show ImageFilter, TileMode, lerpDouble;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
@@ -22,6 +23,55 @@ const _kCardBg = Color(0x0FFFFFFF); // rgba(255,255,255,0.06)
 const _kCardBorder = Color(0x17FFFFFF); // rgba(255,255,255,0.09)
 const _kBtnBg = Color(0x08FFFFFF); // rgba(255,255,255,0.03)
 const _kBtnBorder = Color(0x14FFFFFF); // rgba(255,255,255,0.08)
+
+// Shared filter instances — recreating ImageFilter every build is pure waste.
+final ImageFilter _kOrbBlur = ImageFilter.blur(
+  sigmaX: 40,
+  sigmaY: 40,
+  tileMode: TileMode.decal,
+);
+final ImageFilter _kCompactOrbBlur = ImageFilter.blur(
+  sigmaX: 35,
+  sigmaY: 35,
+  tileMode: TileMode.decal,
+);
+
+/// Ambient metric orb — original ImageFiltered blur quality.
+///
+/// [RepaintBoundary] caches the blurred result so scrolling reuses the layer
+/// instead of re-running the blur every frame.
+class _BlurOrb extends StatelessWidget {
+  final Color color;
+  final double size;
+  final double alpha;
+  final bool compact;
+
+  const _BlurOrb({
+    required this.color,
+    required this.size,
+    this.alpha = 0.34,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: ImageFiltered(
+        imageFilter: compact ? _kCompactOrbBlur : _kOrbBlur,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeInOut,
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.withValues(alpha: alpha),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 // DESIGN.md per-metric orb colors (soft, desaturated)
 const _kOrbHr = Color(0xFFC96B6B);
@@ -556,7 +606,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: AnimatedOpacity(
                       opacity: hidden ? 0.35 : 1.0,
                       duration: const Duration(milliseconds: 250),
-                      child: _buildCardBlock(id, ble),
+                      child: RepaintBoundary(child: _buildCardBlock(id, ble)),
                     ),
                   ),
                 ),
@@ -599,7 +649,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           return Padding(
             key: ValueKey(id),
             padding: const EdgeInsets.only(bottom: 12),
-            child: _buildCardBlock(id, ble),
+            // Isolate each card's layer so scrolling doesn't re-rasterize the
+            // whole list when a single card (or BLE update) invalidates paint.
+            child: RepaintBoundary(child: _buildCardBlock(id, ble)),
           );
         }, childCount: visibleCardIds.length),
       );
@@ -1130,19 +1182,18 @@ class _ShrinkButtonState extends State<_ShrinkButton>
 
   @override
   Widget build(BuildContext context) {
+    // Skip the scale layer when the card is not tappable — avoids an extra
+    // composited layer over every non-interactive / edit-mode card.
+    if (widget.onTap == null) {
+      return widget.child;
+    }
     return GestureDetector(
-      onTapDown: (_) {
-        if (widget.onTap != null) _ctrl.forward();
-      },
+      onTapDown: (_) => _ctrl.forward(),
       onTapUp: (_) {
-        if (widget.onTap != null) {
-          _ctrl.reverse();
-          widget.onTap!();
-        }
+        _ctrl.reverse();
+        widget.onTap!();
       },
-      onTapCancel: () {
-        if (widget.onTap != null) _ctrl.reverse();
-      },
+      onTapCancel: () => _ctrl.reverse(),
       behavior: HitTestBehavior.opaque,
       child: ScaleTransition(scale: _scale, child: widget.child),
     );
@@ -1186,52 +1237,40 @@ class _GlassCard extends StatelessWidget {
       child: child,
     );
 
+    // ImageFiltered blur restored for visual quality. Clip + RepaintBoundary
+    // (inside _blurOrb) keep corners clean and limit re-rasterization on scroll.
     return _ShrinkButton(
       onTap: onTap,
       child: Container(
         height: height,
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           color: _kCardBg,
           border: Border.all(color: _kCardBorder, width: 0.5),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(19.5),
-          // expand only for explicit fixed heights so Spacer works; auto-height
-          // cards (and IntrinsicHeight stretch) keep loose fit so intrinsic
-          // measurement still includes real content height.
-          child: Stack(
-            fit: height != null ? StackFit.expand : StackFit.loose,
-            children: [
-              // Ambient orb — blurred circle clipped by card
-              Positioned(
-                top: orbAtTop ? resolvedOrbOffset : null,
-                bottom: orbAtTop ? null : resolvedOrbOffset,
-                right: orbOnRight ? resolvedOrbOffset : null,
-                left: orbOnRight ? null : resolvedOrbOffset,
-                child: ImageFiltered(
-                  imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 320),
-                    curve: Curves.easeInOut,
-                    width: orbSize,
-                    height: orbSize,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: orbColor.withValues(alpha: orbAlpha),
-                    ),
-                  ),
-                ),
+        child: Stack(
+          fit: height != null ? StackFit.expand : StackFit.loose,
+          children: [
+            Positioned(
+              top: orbAtTop ? resolvedOrbOffset : null,
+              bottom: orbAtTop ? null : resolvedOrbOffset,
+              right: orbOnRight ? resolvedOrbOffset : null,
+              left: orbOnRight ? null : resolvedOrbOffset,
+              child: _BlurOrb(
+                color: orbColor,
+                size: orbSize,
+                alpha: orbAlpha,
               ),
-              // Fixed height: Positioned.fill gives Column tight constraints so Spacer works.
-              // Auto height: plain Padding lets Stack size to content (and still
-              // expands when the parent imposes a tight height via stretch).
-              if (height != null)
-                Positioned.fill(child: content)
-              else
-                content,
-            ],
-          ),
+            ),
+            // Fixed height: Positioned.fill gives Column tight constraints so Spacer works.
+            // Auto height: plain Padding lets Stack size to content (and still
+            // expands when the parent imposes a tight height via stretch).
+            if (height != null)
+              Positioned.fill(child: content)
+            else
+              content,
+          ],
         ),
       ),
     );
@@ -1761,11 +1800,31 @@ class _AlarmCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 280),
-                  switchInCurve: Curves.easeOut,
-                  switchOutCurve: Curves.easeIn,
-                  transitionBuilder: (child, anim) =>
-                      FadeTransition(opacity: anim, child: child),
+                  duration: const Duration(milliseconds: 420),
+                  switchInCurve: const Cubic(0.34, 1.2, 0.64, 1.0),
+                  switchOutCurve: Curves.easeInCubic,
+                  layoutBuilder: (currentChild, previousChildren) {
+                    return Stack(
+                      alignment: Alignment.centerLeft,
+                      children: <Widget>[
+                        ...previousChildren,
+                        ?currentChild,
+                      ],
+                    );
+                  },
+                  transitionBuilder: (child, anim) {
+                    final offset = Tween<Offset>(
+                      begin: const Offset(0, 0.18),
+                      end: Offset.zero,
+                    ).animate(anim);
+                    return FadeTransition(
+                      opacity: anim,
+                      child: SlideTransition(
+                        position: offset,
+                        child: child,
+                      ),
+                    );
+                  },
                   child: Column(
                     key: ValueKey(mode),
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1812,18 +1871,28 @@ class _AlarmCard extends StatelessWidget {
   }
 }
 
-// Rounded, glass-background container holding all three modes — Focus, Base,
-// Prayer — always visible with their icon and label; the active mode is
-// highlighted with its accent color.
+// Apple-style liquid-glass segmented control for Focus / Normal / Prayer.
+// A single frosted pill slides under the active mode with springy motion and
+// soft color morph — not per-segment solid fills that pop.
 class _AlarmModeSelector extends StatelessWidget {
   final PhoneMode mode;
   final ValueChanged<PhoneMode> onChanged;
   const _AlarmModeSelector({required this.mode, required this.onChanged});
 
+  static const _kSlideDuration = Duration(milliseconds: 480);
+  // Slight overshoot — feels like liquid glass settling into place.
+  static const _kSlideCurve = Cubic(0.34, 1.25, 0.64, 1.0);
+
   @override
   Widget build(BuildContext context) {
-    // Height follows content (icon + label + padding) so large text scales
-    // and narrow widths never force a 1px bottom overflow.
+    final modes = PhoneMode.values;
+    final selectedIndex = modes.indexOf(mode);
+    final selectedInfo = _kAlarmModeInfo[mode]!;
+    // Alignment.x for equal-width segments: -1, 0, +1 for 3 items.
+    final alignX = modes.length <= 1
+        ? 0.0
+        : -1.0 + (2.0 * selectedIndex / (modes.length - 1));
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(3),
@@ -1832,16 +1901,107 @@ class _AlarmModeSelector extends StatelessWidget {
         borderRadius: BorderRadius.circular(23),
         border: Border.all(color: _kBtnBorder, width: 0.5),
       ),
-      child: Row(
-        children: PhoneMode.values.map((m) {
-          return Expanded(
-            child: _AlarmSegment(
-              mode: m,
-              selected: m == mode,
-              onTap: () => onChanged(m),
+      // Row defines height; thumb fills that height and slides across segments.
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: AnimatedAlign(
+              duration: _kSlideDuration,
+              curve: _kSlideCurve,
+              alignment: Alignment(alignX, 0),
+              child: FractionallySizedBox(
+                widthFactor: 1 / modes.length,
+                heightFactor: 1,
+                child: Padding(
+                  padding: const EdgeInsets.all(1),
+                  child: _LiquidGlassThumb(color: selectedInfo.color),
+                ),
+              ),
             ),
-          );
-        }).toList(),
+          ),
+          Row(
+            children: [
+              for (final m in modes)
+                Expanded(
+                  child: _AlarmSegment(
+                    mode: m,
+                    selected: m == mode,
+                    onTap: () {
+                      if (m == mode) return;
+                      HapticFeedback.selectionClick();
+                      onChanged(m);
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Frosted pill that morphs color as the active mode changes.
+class _LiquidGlassThumb extends StatelessWidget {
+  final Color color;
+  const _LiquidGlassThumb({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: _AlarmModeSelector._kSlideDuration,
+      curve: Curves.easeOutCubic,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(Colors.white, color, 0.55)!.withValues(alpha: 0.28),
+            color.withValues(alpha: 0.18),
+            color.withValues(alpha: 0.10),
+          ],
+          stops: const [0.0, 0.45, 1.0],
+        ),
+        border: Border.all(
+          color: Color.lerp(
+            Colors.white.withValues(alpha: 0.35),
+            color.withValues(alpha: 0.55),
+            0.5,
+          )!,
+          width: 0.8,
+        ),
+        boxShadow: [
+          // Soft colored bloom — liquid glass glow
+          BoxShadow(
+            color: color.withValues(alpha: 0.32),
+            blurRadius: 14,
+            spreadRadius: -2,
+            offset: const Offset(0, 2),
+          ),
+          // Specular top edge
+          BoxShadow(
+            color: Colors.white.withValues(alpha: 0.10),
+            blurRadius: 0.5,
+            offset: const Offset(0, -0.5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: const DecoratedBox(
+          decoration: BoxDecoration(
+            // Subtle top sheen
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.center,
+              colors: [
+                Color(0x28FFFFFF),
+                Color(0x00FFFFFF),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1861,43 +2021,61 @@ class _AlarmSegment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final info = _kAlarmModeInfo[mode]!;
-    final color = selected ? info.color : Colors.white.withValues(alpha: 0.45);
+    final idle = Colors.white.withValues(alpha: 0.42);
+    final active = info.color;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
+      child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-        decoration: BoxDecoration(
-          color: info.color.withValues(alpha: selected ? 0.16 : 0),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: info.color.withValues(alpha: selected ? 0.5 : 0),
-            width: 1,
-          ),
-        ),
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(info.icon, size: 14, color: color),
-            const SizedBox(height: 2),
-            Text(
-              info.segmentLabel,
-              style: _inter(
-                10,
-                weight: FontWeight.w500,
-                color: color,
-                height: 1.1,
+        child: AnimatedScale(
+          scale: selected ? 1.06 : 1.0,
+          duration: _AlarmModeSelector._kSlideDuration,
+          curve: _AlarmModeSelector._kSlideCurve,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 280),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, anim) {
+                  return FadeTransition(
+                    opacity: anim,
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.85, end: 1.0).animate(anim),
+                      child: child,
+                    ),
+                  );
+                },
+                child: Icon(
+                  info.icon,
+                  key: ValueKey<bool>(selected),
+                  size: selected ? 15 : 14,
+                  color: selected ? active : idle,
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-          ],
+              const SizedBox(height: 2),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 320),
+                curve: Curves.easeOutCubic,
+                style: _inter(
+                  10,
+                  weight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: selected ? active : idle,
+                  height: 1.1,
+                ),
+                child: Text(
+                  info.segmentLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1928,10 +2106,13 @@ class _CompactHealthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ImageFiltered blur restored for orb quality. No BackdropFilter — solid
+    // dark scaffold makes backdrop blur nearly free of benefit but costly.
     return _ShrinkButton(
       onTap: onTap,
       child: Container(
         height: 160,
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           color: const Color.fromRGBO(245, 240, 226, 0.06),
@@ -1940,94 +2121,78 @@ class _CompactHealthCard extends StatelessWidget {
             width: 0.5,
           ),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(17.5),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: Stack(
-              children: [
-                // Orb (or directional gradient fade when overlayGradient is set)
-                if (overlayGradient != null)
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(gradient: overlayGradient),
-                    ),
-                  )
-                else
-                  Positioned(
-                    top: -40,
-                    left: orbOnRight ? null : -40,
-                    right: orbOnRight ? -40 : null,
-                    child: ImageFiltered(
-                      imageFilter: ImageFilter.blur(sigmaX: 35, sigmaY: 35),
-                      child: Container(
-                        width: 220,
-                        height: 220,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: orbColor.withValues(alpha: 0.35),
+        child: Stack(
+          children: [
+            if (overlayGradient != null)
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(gradient: overlayGradient),
+                ),
+              )
+            else
+              Positioned(
+                top: -40,
+                left: orbOnRight ? null : -40,
+                right: orbOnRight ? -40 : null,
+                child: _BlurOrb(
+                  color: orbColor,
+                  size: 220,
+                  alpha: 0.35,
+                  compact: true,
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: _inter(
+                            14,
+                            weight: FontWeight.w500,
+                            color: Colors.white.withValues(alpha: 0.95),
+                            letterSpacing: -0.01,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ),
-                  ),
-                // Content
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header Row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              title,
-                              style: _inter(
-                                14,
-                                weight: FontWeight.w500,
-                                color: Colors.white.withValues(alpha: 0.95),
-                                letterSpacing: -0.01,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Container(
-                            width: 26,
-                            height: 26,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withValues(alpha: 0.06),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.1),
-                                width: 0.5,
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.chevron_right_rounded,
-                              color: Colors.white70,
-                              size: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      // Divider
                       Container(
-                        height: 0.5,
-                        width: double.infinity,
-                        color: Colors.white.withValues(alpha: 0.1),
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.06),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.1),
+                            width: 0.5,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.chevron_right_rounded,
+                          color: Colors.white70,
+                          size: 13,
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      // Main content filling remaining space
-                      Expanded(child: child),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 0.5,
+                    width: double.infinity,
+                    color: Colors.white.withValues(alpha: 0.1),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(child: child),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -2290,71 +2455,65 @@ class _DevicePill extends StatelessWidget {
 
     return GestureDetector(
       onTap: () => showRingScanSheet(context),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: _kCardBg,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _kCardBorder, width: 0.5),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (reconnecting)
-                  const SizedBox(
-                    width: 7,
-                    height: 7,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      color: AppTheme.gold,
-                    ),
-                  )
-                else
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: connected
-                          ? AppTheme.success
-                          : Colors.white.withValues(alpha: 0.2),
-                    ),
-                  ),
-                const SizedBox(width: 6),
-                Text(
-                  ble.deviceName.isNotEmpty ? ble.deviceName : 'Ring',
-                  style: _inter(12, weight: FontWeight.w500),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: _kCardBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _kCardBorder, width: 0.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (reconnecting)
+              const SizedBox(
+                width: 7,
+                height: 7,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  color: AppTheme.gold,
                 ),
-                if (battery >= 0) ...[
-                  const SizedBox(width: 5),
-                  Icon(
-                    battery > 60
-                        ? Icons.battery_full_rounded
-                        : battery > 30
-                        ? Icons.battery_3_bar_rounded
-                        : Icons.battery_1_bar_rounded,
-                    color: battery > 20
-                        ? Colors.white.withValues(alpha: 0.5)
-                        : AppTheme.danger,
-                    size: 14,
-                  ),
-                  Text(
-                    '$battery%',
-                    style: _inter(
-                      11,
-                      color: Colors.white.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ],
-              ],
+              )
+            else
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: connected
+                      ? AppTheme.success
+                      : Colors.white.withValues(alpha: 0.2),
+                ),
+              ),
+            const SizedBox(width: 6),
+            Text(
+              ble.deviceName.isNotEmpty ? ble.deviceName : 'Ring',
+              style: _inter(12, weight: FontWeight.w500),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-          ),
+            if (battery >= 0) ...[
+              const SizedBox(width: 5),
+              Icon(
+                battery > 60
+                    ? Icons.battery_full_rounded
+                    : battery > 30
+                    ? Icons.battery_3_bar_rounded
+                    : Icons.battery_1_bar_rounded,
+                color: battery > 20
+                    ? Colors.white.withValues(alpha: 0.5)
+                    : AppTheme.danger,
+                size: 14,
+              ),
+              Text(
+                '$battery%',
+                style: _inter(
+                  11,
+                  color: Colors.white.withValues(alpha: 0.5),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -2412,29 +2571,23 @@ class _EditCardsButton extends StatelessWidget {
     return Center(
       child: _ShrinkButton(
         onTap: onTap,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: Container(
-              width: 85,
-              height: 29,
-              decoration: BoxDecoration(
-                color: _kBtnBg,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _kBtnBorder, width: 0.5),
-              ),
-              child: Center(
-                child: Text(
-                  editMode ? 'Done' : 'Edit Cards',
-                  style: _inter(
-                    11,
-                    weight: FontWeight.w500,
-                    color: editMode
-                        ? AppTheme.gold
-                        : Colors.white.withValues(alpha: 0.5),
-                  ),
-                ),
+        child: Container(
+          width: 85,
+          height: 29,
+          decoration: BoxDecoration(
+            color: _kBtnBg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _kBtnBorder, width: 0.5),
+          ),
+          child: Center(
+            child: Text(
+              editMode ? 'Done' : 'Edit Cards',
+              style: _inter(
+                11,
+                weight: FontWeight.w500,
+                color: editMode
+                    ? AppTheme.gold
+                    : Colors.white.withValues(alpha: 0.5),
               ),
             ),
           ),
