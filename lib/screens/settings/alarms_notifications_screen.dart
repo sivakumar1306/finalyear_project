@@ -122,8 +122,9 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
           ? DateTime.fromMillisecondsSinceEpoch(endedAtRaw.toInt())
           : now;
       final clippedStart = startedAt.isBefore(dayStart) ? dayStart : startedAt;
-      if (endedAt.isAfter(clippedStart))
+      if (endedAt.isAfter(clippedStart)) {
         total += endedAt.difference(clippedStart);
+      }
     }
     return total;
   }

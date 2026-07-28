@@ -113,16 +113,20 @@ class _RingCameraScreenState extends State<RingCameraScreen>
   Future<void> _closeScreen({bool tellRing = true}) async {
     if (_exited) return;
     _exited = true;
-    // Wait for any in-flight capture before tearing down
+    final ble = _bleProviderRef;
     if (_pendingCapture != null) {
       try {
         await _pendingCapture;
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('_closeScreen capture wait: $e');
+      }
     }
-    if (tellRing) {
+    if (tellRing && ble != null) {
       try {
-        await context.read<BleProvider>().exitRingCameraMode();
-      } catch (_) {}
+        await ble.exitRingCameraMode();
+      } catch (e) {
+        debugPrint('_closeScreen exitRingCameraMode: $e');
+      }
     }
     if (mounted) Navigator.of(context).maybePop();
   }
@@ -166,7 +170,9 @@ class _RingCameraScreenState extends State<RingCameraScreen>
       _exited = true;
       try {
         _bleProviderRef?.exitRingCameraMode();
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('dispose exitRingCameraMode: $e');
+      }
     }
     super.dispose();
   }
@@ -262,7 +268,7 @@ class _RingCameraScreenState extends State<RingCameraScreen>
                     height: 72,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(_isCapturing ? 0.4 : 0.9),
+                      color: Colors.white.withValues(alpha: _isCapturing ? 0.4 : 0.9),
                       border: Border.all(color: Colors.white, width: 3),
                     ),
                   ),

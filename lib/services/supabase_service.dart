@@ -1,12 +1,12 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config.dart';
 
 class SupabaseService {
-  static const _url = 'https://eixcdjvfbwrziudieodr.supabase.co';
-  static const _anonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpeGNkanZmYndyeml1ZGllb2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMTUzOTcsImV4cCI6MjA5NTg5MTM5N30.7rxoCLO39zQv1ExFL3IXp0JWySt-_p1iq7CEScufdXA';
+  static const _url = AppConfig.supabaseUrl;
+  static const _publishableKey = AppConfig.supabaseAnonKey;
 
   static Future<void> initialize() async {
-    await Supabase.initialize(url: _url, anonKey: _anonKey);
+    await Supabase.initialize(url: _url, publishableKey: _publishableKey);
   }
 
   static SupabaseClient get client => Supabase.instance.client;
@@ -16,7 +16,7 @@ class SupabaseService {
   // Exposed so the native side (BleConnectionService's SupabaseSyncManager) can be
   // configured to push local Room data directly, independent of the Dart engine.
   static String get url => _url;
-  static String get anonKey => _anonKey;
+  static String get anonKey => _publishableKey;
   static String? get accessToken => client.auth.currentSession?.accessToken;
 
   static Future<AuthResponse> signUp(String email, String password) {

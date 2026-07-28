@@ -27,7 +27,8 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     try {
       final json = await _ble.getAdvancedSettings();
       setState(() => _settings = jsonDecode(json) ?? {});
-    } catch (_) {
+    } catch (e) {
+      debugPrint('AdvancedSettingsScreen._loadSettings: $e');
     } finally {
       setState(() => _loading = false);
     }
@@ -36,15 +37,17 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
   Future<void> _save() async {
     try {
       await _ble.setAdvancedSetting(jsonEncode(_settings));
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Advanced settings saved')),
         );
+      }
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     }
   }
 

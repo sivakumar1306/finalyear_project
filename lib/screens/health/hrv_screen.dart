@@ -198,8 +198,9 @@ class _HrvScreenState extends State<HrvScreen> {
           }
         }
         for (int i = 0; i < totalSlots; i++) {
-          if (slotCounts[i] > 0)
+          if (slotCounts[i] > 0) {
             slots[i] = (slotSums[i] / slotCounts[i]).round();
+          }
         }
       }
 

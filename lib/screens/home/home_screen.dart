@@ -28,7 +28,6 @@ const _kOrbHr = Color(0xFFC96B6B);
 const _kOrbSleep = Color(0xFF6B82D9);
 const _kOrbStress = Color(0xFF6BC99B);
 const _kOrbSpo2 = Color(0xFF73D4F8);
-const _kOrbWomen = Color(0xFFD88CC8);
 const _kOrbActivity = Color(0xFFE08A4A);
 const _kOrbHrv = Color(0xFFC9A86E);
 const _kOrbTemp = Color(0xFFE3B76A);
@@ -2475,60 +2474,4 @@ class _BarChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(_BarChartPainter old) =>
       old.color != color || old.data != data;
-}
-
-// ── Cycle bar painter ─────────────────────────────────────────────────────────
-
-class _CycleBarPainter extends CustomPainter {
-  final int currentDay;
-  final int cycleLength;
-  final int periodLength;
-
-  const _CycleBarPainter({
-    required this.currentDay,
-    required this.cycleLength,
-    required this.periodLength,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const barH = 4.0;
-    const radius = Radius.circular(2);
-    final barY = size.height - barH - 6;
-
-    canvas.drawRRect(
-      RRect.fromLTRBR(0, barY, size.width, barY + barH, radius),
-      Paint()..color = Colors.white.withValues(alpha: 0.08),
-    );
-
-    final double dayW = size.width / cycleLength;
-
-    canvas.drawRRect(
-      RRect.fromLTRBR(0, barY, dayW * periodLength, barY + barH, radius),
-      Paint()..color = _kOrbWomen.withValues(alpha: 0.8),
-    );
-
-    final double ovStart = dayW * 12;
-    final double ovEnd = dayW * 16;
-    canvas.drawRect(
-      Rect.fromLTRB(ovStart, barY, ovEnd, barY + barH),
-      Paint()..color = _kOrbWomen.withValues(alpha: 0.8),
-    );
-
-    final double markerX = dayW * (currentDay - 0.5);
-    canvas.drawPath(
-      Path()
-        ..moveTo(markerX - 4, 0)
-        ..lineTo(markerX + 4, 0)
-        ..lineTo(markerX, 6)
-        ..close(),
-      Paint()..color = _kOrbWomen,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_CycleBarPainter old) =>
-      old.currentDay != currentDay ||
-      old.cycleLength != cycleLength ||
-      old.periodLength != periodLength;
 }
