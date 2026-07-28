@@ -366,7 +366,7 @@ class _HealthSettingsScreenState extends State<HealthSettingsScreen> {
       backgroundColor: AppTheme.bg,
       appBar: AppBar(
         title: Text(
-          'Health Settings',
+          'Measurement Intervals',
           style: GoogleFonts.inter(
             color: Colors.white,
             fontSize: 18,

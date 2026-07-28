@@ -125,7 +125,8 @@ data class FallEventEntity(
     @SerializedName("corroborated") val corroborated: Boolean,
     @SerializedName("corroborationSource") val corroborationSource: String,
     @SerializedName("metadataJson") val metadataJson: String,
-    @SerializedName("detectedAt") val detectedAt: Long
+    @SerializedName("detectedAt") val detectedAt: Long,
+    @SerializedName("eventType") val eventType: String = "DETECTED" // "DETECTED" | "PREDICTED"
 )
 
 // Persisted natively (not just Flutter widget state) so a future caregiver-push or

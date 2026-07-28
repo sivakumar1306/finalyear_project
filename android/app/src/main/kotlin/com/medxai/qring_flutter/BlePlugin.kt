@@ -2386,6 +2386,20 @@ class BlePlugin(private val context: Context) {
                 )
                 FallPredictionNotifier.notifyPrediction(context, bpm)
                 EmergencySmsSender.schedule(context, reason = "prediction")
+
+                // Persist so it shows up in Fall History, same as the real
+                // FallRiskAnalyzer.maybeAlert() path.
+                repo().insertFallEvent(
+                    FallEventEntity(
+                        confidence = 0.7f,
+                        corroborated = false,
+                        corroborationSource = "prediction",
+                        metadataJson = gson.toJson(mapOf("hr" to bpm, "simulated" to true)),
+                        detectedAt = System.currentTimeMillis(),
+                        eventType = "PREDICTED",
+                    )
+                )
+
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }

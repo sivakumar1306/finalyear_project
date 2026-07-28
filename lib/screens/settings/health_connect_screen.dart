@@ -17,7 +17,11 @@ class HealthConnectScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_rounded,
+            color: Colors.white,
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -47,7 +51,11 @@ class HealthConnectScreen extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.hourglass_top_rounded, color: AppTheme.gold, size: 16),
+                  const Icon(
+                    Icons.hourglass_top_rounded,
+                    color: AppTheme.gold,
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Coming Soon',
@@ -87,9 +95,13 @@ class HealthConnectScreen extends StatelessWidget {
               child: Column(
                 children: [
                   for (final app in _apps) ...[
-                    if (app != _apps.first) const Divider(height: 1, color: AppTheme.div),
+                    if (app != _apps.first)
+                      const Divider(height: 1, color: AppTheme.div),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       child: Row(
                         children: [
                           Expanded(
@@ -103,8 +115,11 @@ class HealthConnectScreen extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'set up',
-                            style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+                            'Coming Soon',
+                            style: GoogleFonts.inter(
+                              color: AppTheme.textSec,
+                              fontSize: 13,
+                            ),
                           ),
                         ],
                       ),

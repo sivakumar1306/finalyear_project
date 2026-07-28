@@ -1,3 +1,4 @@
+import '../../providers/alarm_mode_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -13,7 +14,6 @@ import 'find_device_screen.dart';
 import 'health_connect_screen.dart';
 import 'profile_edit_screen.dart';
 import 'ring_camera_screen.dart';
-import 'select_notifications_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -320,9 +320,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 12),
 
-            // Unbind button
+            // Connect/Disconnect button
             GestureDetector(
-              onTap: () => _confirmUnbind(context),
+              onTap: () => connected
+                  ? _confirmUnbind(context)
+                  : Navigator.pushNamed(context, '/device-bind'),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -332,7 +334,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 child: Center(
                   child: Text(
-                    'Disconnect',
+                    connected ? 'Disconnect' : 'Connect',
                     style: GoogleFonts.inter(
                       color: Colors.white,
                       fontSize: 15,
@@ -365,70 +367,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: Column(
                 children: [
-                  // Ring-side wrist-flip/palm-screen wake gesture (PalmScreenReq).
-                  // See BleProvider.gestureEnabled/setGestureEnabled() and
-                  // BlePlugin.kt's getGestureSetting/setGestureSetting.
-                  _SettingsRow.toggle(
-                    icon: Icons.pan_tool_alt_outlined,
-                    title: 'Gesture Controls',
-                    subtitle: 'Enable gesture controls',
-                    value: ble.gestureEnabled,
-                    onChanged: (v) =>
-                        context.read<BleProvider>().setGestureEnabled(v),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.manage_accounts_rounded,
-                    title: 'Account & System settings',
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      '/account-system-settings',
-                    ),
-                  ),
-                  _divider(),
-                  // Auto-measurement cadence + per-vital ring monitoring toggles.
-                  // Uses the '/health-settings' named route already registered in app.dart.
-                  _SettingsRow.arrow(
-                    icon: Icons.monitor_heart_rounded,
-                    title: 'Health Settings',
-                    onTap: () =>
-                        Navigator.pushNamed(context, '/health-settings'),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.alarm_rounded,
-                    title: 'Alarms & Notifications',
-                    onTap: () =>
-                        Navigator.pushNamed(context, '/alarms-notifications'),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.health_and_safety_rounded,
-                    title: 'Fall Prediction',
-                    onTap: () =>
-                        Navigator.pushNamed(context, '/fall-detection'),
-                  ),
-                  _divider(),
-                  _SettingsRow.toggle(
-                    icon: Icons.phone_in_talk_rounded,
-                    title: 'Auto-call on fall detection',
-                    subtitle:
-                        'Immediately call your emergency contact when a fall is detected (not for fall prediction)',
-                    value: ble.autoCallOnFallEnabled,
-                    onChanged: (v) => _onAutoCallToggle(context, ble, v),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
-                    icon: Icons.gps_fixed_rounded,
-                    title: 'Find Device',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const FindDeviceScreen(),
-                      ),
-                    ),
-                  ),
-                  _divider(),
                   // Profile now lives here instead of as its own bottom-nav tab —
                   // pushed with showBackButton: true so it can pop back to Settings
                   // (the old IndexedStack tab usage used showBackButton: false
@@ -449,13 +387,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         }),
                   ),
                   _divider(),
+                  // Ring-side wrist-flip/palm-screen wake gesture (PalmScreenReq).
+                  // See BleProvider.gestureEnabled/setGestureEnabled() and
+                  // BlePlugin.kt's getGestureSetting/setGestureSetting.
+                  _SettingsRow.toggle(
+                    icon: Icons.pan_tool_alt_outlined,
+                    title: 'Gesture Controls',
+                    subtitle: 'Enable gesture controls',
+                    value: ble.gestureEnabled,
+                    onChanged: (v) =>
+                        context.read<BleProvider>().setGestureEnabled(v),
+                  ),
+                  _divider(),
                   _SettingsRow.arrow(
-                    icon: Icons.notifications_outlined,
-                    title: 'Notifications',
+                    icon: Icons.gps_fixed_rounded,
+                    title: 'Find Device',
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const SelectNotificationsScreen(),
+                        builder: (_) => const FindDeviceScreen(),
                       ),
                     ),
                   ),
@@ -518,6 +468,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   _divider(),
+                  _SettingsRow.toggle(
+                    icon: Icons.self_improvement_rounded,
+                    title: 'Prayer Mode',
+                    subtitle: 'Silences calls and enables Do Not Disturb',
+                    value:
+                        context.watch<AlarmModeProvider>().mode ==
+                        PhoneMode.prayer,
+                    onChanged: (v) => requestPhoneMode(
+                      context,
+                      context.read<AlarmModeProvider>(),
+                      v ? PhoneMode.prayer : PhoneMode.base,
+                    ),
+                  ),
+                  _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.security_rounded,
                     title: 'Background operation protection guide',
@@ -529,12 +493,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   _divider(),
+                  // Auto-measurement cadence + per-vital ring monitoring toggles.
+                  // Uses the '/health-settings' named route already registered in app.dart.
+                  _SettingsRow.arrow(
+                    icon: Icons.monitor_heart_rounded,
+                    title: 'Measurement Intervals',
+                    onTap: () =>
+                        Navigator.pushNamed(context, '/health-settings'),
+                  ),
+                  _divider(),
+                  _SettingsRow.arrow(
+                    icon: Icons.alarm_rounded,
+                    title: 'Alarms & Notifications',
+                    onTap: () =>
+                        Navigator.pushNamed(context, '/alarms-notifications'),
+                  ),
+                  _divider(),
+                  _SettingsRow.arrow(
+                    icon: Icons.health_and_safety_rounded,
+                    title: 'Fall Prediction',
+                    onTap: () =>
+                        Navigator.pushNamed(context, '/fall-detection'),
+                  ),
+                  _divider(),
+                  _SettingsRow.toggle(
+                    icon: Icons.phone_in_talk_rounded,
+                    title: 'Auto-call on fall detection',
+                    subtitle:
+                        'Immediately call your emergency contact when a fall is detected (not for fall prediction)',
+                    value: ble.autoCallOnFallEnabled,
+                    onChanged: (v) => _onAutoCallToggle(context, ble, v),
+                  ),
+                  _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.system_update_outlined,
                     title: 'Firmware upgrade',
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const OtaScreen()),
+                    ),
+                  ),
+                  _divider(),
+                  _SettingsRow.arrow(
+                    icon: Icons.manage_accounts_rounded,
+                    title: 'Account & System settings',
+                    onTap: () => Navigator.pushNamed(
+                      context,
+                      '/account-system-settings',
                     ),
                   ),
                   _divider(),

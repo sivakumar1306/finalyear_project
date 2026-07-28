@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../../providers/ble_provider.dart';
+import '../../providers/main_tab_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../services/unit_prefs.dart';
 import '../../theme/app_theme.dart';
+import '../auth/login_screen.dart';
+import '../auth/sign_up_screen.dart';
+import 'account_system_settings_screen.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   final bool showBackButton;
@@ -11,6 +17,13 @@ class ProfileEditScreen extends StatefulWidget {
 
   @override
   State<ProfileEditScreen> createState() => _ProfileEditScreenState();
+}
+
+class _EmergencyContact {
+  final int? id;
+  final String name;
+  final String phone;
+  _EmergencyContact({this.id, required this.name, required this.phone});
 }
 
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
@@ -24,10 +37,22 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   double _weightKg = 0;
   UnitSystem _unitSystem = UnitSystem.metric;
 
+  // Emergency Details — same Room-backed data as Fall Prediction (BleProvider),
+  // not a separate copy, so edits stay consistent across both screens.
+  List<_EmergencyContact> _contacts = [];
+  bool _loadingContacts = true;
+
+  // Address / instructions — DB-backed (user_profiles), not just local prefs.
+  String _address = '';
+  String _instructions = '';
+
+  bool get _loggedIn => SupabaseService.isLoggedIn;
+
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    if (_loggedIn) _loadContacts();
     UnitPrefs.loadSystem().then((s) {
       if (mounted) setState(() => _unitSystem = s);
     });
@@ -45,12 +70,40 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             _age = (p['age'] as int?) ?? 0;
             _heightCm = (p['height_cm'] as int?) ?? 0;
             _weightKg = ((p['weight_kg'] as num?) ?? 0).toDouble();
+            _address = (p['address'] as String?) ?? '';
+            _instructions = (p['additional_instructions'] as String?) ?? '';
           });
         }
       }
-    } catch (_) {} finally {
+    } catch (_) {
+    } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _loadContacts() async {
+    final ble = context.read<BleProvider>();
+    var rows = await ble.getEmergencyContacts();
+    if (rows.isEmpty) {
+      await ble.addEmergencyContact(
+        'Default Emergency (Default)',
+        '9999999999',
+      );
+      rows = await ble.getEmergencyContacts();
+    }
+    if (!mounted) return;
+    setState(() {
+      _contacts = rows
+          .map(
+            (r) => _EmergencyContact(
+              id: (r['id'] as num?)?.toInt(),
+              name: r['name'] as String? ?? '',
+              phone: r['phone'] as String? ?? '',
+            ),
+          )
+          .toList();
+      _loadingContacts = false;
+    });
   }
 
   Future<void> _save() async {
@@ -65,6 +118,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         gender: _gender,
         heightCm: _heightCm,
         weightKg: _weightKg,
+        address: _address,
+        additionalInstructions: _instructions,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -74,12 +129,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        // When embedded as the Profile tab (MainShell's IndexedStack, reached
-        // via pushNamedAndRemoveUntil so it's the app's sole route), there's
-        // no route to pop — Navigator.pop() would empty the stack entirely
-        // and leave a blank screen. Only pop when this was actually pushed
-        // (showBackButton screens: the '/profile-edit' route, or pushed from
-        // Account & System settings).
         if (widget.showBackButton) Navigator.pop(context);
       }
     } catch (e) {
@@ -114,11 +163,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     final options = ['Male', 'Female', 'Other'];
     final result = await showDialog<String>(
       context: context,
-      builder: (_) => _PickerDialog(
-        title: 'Gender',
-        options: options,
-        selected: _gender,
-      ),
+      builder: (_) =>
+          _PickerDialog(title: 'Gender', options: options, selected: _gender),
     );
     if (result != null) setState(() => _gender = result);
   }
@@ -144,11 +190,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   bool get _useUs => _unitSystem == UnitSystem.us;
 
   void _editHeight() async {
-    // Canonical storage stays cm regardless of display unit — in US mode the
-    // dialog shows/accepts total inches and converts back to cm on save.
-    final displayVal = _useUs ? UnitPrefs.cmToInches(_heightCm.toDouble()) : _heightCm.toDouble();
+    final displayVal = _useUs
+        ? UnitPrefs.cmToInches(_heightCm.toDouble())
+        : _heightCm.toDouble();
     final ctrl = TextEditingController(
-        text: _heightCm > 0 ? displayVal.round().toString() : '');
+      text: _heightCm > 0 ? displayVal.round().toString() : '',
+    );
     final result = await showDialog<String>(
       context: context,
       builder: (_) => _InputDialog(
@@ -162,7 +209,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     if (result != null) {
       final v = int.tryParse(result);
       if (v != null) {
-        setState(() => _heightCm = _useUs ? UnitPrefs.inchesToCm(v.toDouble()).round() : v);
+        setState(
+          () => _heightCm = _useUs
+              ? UnitPrefs.inchesToCm(v.toDouble()).round()
+              : v,
+        );
       }
     }
   }
@@ -170,14 +221,17 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   void _editWeight() async {
     final displayVal = _useUs ? UnitPrefs.kgToLbs(_weightKg) : _weightKg;
     final ctrl = TextEditingController(
-        text: _weightKg > 0 ? displayVal.toStringAsFixed(1) : '');
+      text: _weightKg > 0 ? displayVal.toStringAsFixed(1) : '',
+    );
     final result = await showDialog<String>(
       context: context,
       builder: (_) => _InputDialog(
         title: 'Weight',
         controller: ctrl,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,1}'))],
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,1}')),
+        ],
         suffix: _useUs ? 'lbs' : 'kg',
       ),
     );
@@ -189,6 +243,118 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
   }
 
+  Future<void> _addContact() async {
+    final nameCtl = TextEditingController();
+    final phoneCtl = TextEditingController();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _FormDialog(
+        title: 'Add a new contact',
+        fields: [
+          TextField(
+            controller: nameCtl,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(hintText: 'Name'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: phoneCtl,
+            style: const TextStyle(color: Colors.white),
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(hintText: 'Phone number'),
+          ),
+        ],
+      ),
+    );
+    if (saved != true || nameCtl.text.trim().isEmpty) return;
+    if (!mounted) return;
+    final ble = context.read<BleProvider>();
+    await ble.addEmergencyContact(nameCtl.text.trim(), phoneCtl.text.trim());
+    await _loadContacts();
+  }
+
+  Future<void> _editContact(_EmergencyContact contact) async {
+    final nameCtl = TextEditingController(text: contact.name);
+    final phoneCtl = TextEditingController(text: contact.phone);
+    final ble = context.read<BleProvider>();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _FormDialog(
+        title: 'Edit contact',
+        fields: [
+          TextField(
+            controller: nameCtl,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(hintText: 'Name'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: phoneCtl,
+            style: const TextStyle(color: Colors.white),
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(hintText: 'Phone number'),
+          ),
+        ],
+        onDelete: contact.id == null
+            ? null
+            : () async {
+                await ble.deleteEmergencyContact(contact.id!);
+                await _loadContacts();
+              },
+      ),
+    );
+    if (saved != true || contact.id == null) return;
+    if (!mounted) return;
+    await ble.updateEmergencyContact(
+      contact.id!,
+      nameCtl.text.trim(),
+      phoneCtl.text.trim(),
+    );
+    await _loadContacts();
+  }
+
+  Future<void> _editAddress() async {
+    final ctl = TextEditingController(text: _address);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _FormDialog(
+        title: 'Address',
+        fields: [
+          TextField(
+            controller: ctl,
+            style: const TextStyle(color: Colors.white),
+            maxLines: 2,
+            decoration: const InputDecoration(hintText: 'Address'),
+          ),
+        ],
+      ),
+    );
+    if (saved != true) return;
+    setState(() => _address = ctl.text.trim());
+  }
+
+  Future<void> _editInstructions() async {
+    final ctl = TextEditingController(text: _instructions);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _FormDialog(
+        title: 'Additional instructions',
+        fields: [
+          TextField(
+            controller: ctl,
+            style: const TextStyle(color: Colors.white),
+            maxLines: 3,
+            decoration: const InputDecoration(
+              hintText: 'e.g. Gate code, floor, pets...',
+            ),
+          ),
+        ],
+      ),
+    );
+    if (saved != true) return;
+    setState(() => _instructions = ctl.text.trim());
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -198,7 +364,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         automaticallyImplyLeading: false,
         leading: widget.showBackButton
             ? IconButton(
-                icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
+                icon: const Icon(
+                  Icons.arrow_back_ios_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
                 onPressed: () => Navigator.pop(context),
               )
             : null,
@@ -227,7 +397,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             )
           else
             IconButton(
-              icon: const Icon(Icons.check_rounded, color: Colors.white, size: 24),
+              icon: const Icon(
+                Icons.check_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
               onPressed: _save,
             ),
         ],
@@ -240,15 +414,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 28),
-                  Text(
-                    'PROFILE',
-                    style: GoogleFonts.inter(
-                      color: AppTheme.textSec,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
+                  _sectionLabel('ABOUT YOU'),
                   const SizedBox(height: 10),
                   Container(
                     decoration: BoxDecoration(
@@ -259,21 +425,21 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       children: [
                         _ProfileRow(
                           icon: Icons.person_outline_rounded,
-                          label: 'Name',
+                          label: 'Nickname',
                           value: _name.isNotEmpty ? _name : '—',
                           onTap: _editName,
                         ),
                         _divider(),
                         _ProfileRow(
-                          icon: Icons.transgender_rounded,
+                          icon: Icons.edit_outlined,
                           label: 'Gender',
                           value: _gender.isNotEmpty ? _gender : '—',
                           onTap: _editGender,
                         ),
                         _divider(),
                         _ProfileRow(
-                          icon: Icons.cake_outlined,
-                          label: 'Age',
+                          icon: Icons.calendar_today_outlined,
+                          label: 'Birthday',
                           value: _age > 0 ? '$_age years' : '—',
                           onTap: _editAge,
                         ),
@@ -299,41 +465,179 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     ),
                   ),
                   const SizedBox(height: 28),
-                  Text(
-                    'ACCOUNT',
-                    style: GoogleFonts.inter(
-                      color: AppTheme.textSec,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
+                  _sectionLabel('ACCOUNT'),
                   const SizedBox(height: 10),
+                  _buildAccountSection(),
+                  const SizedBox(height: 12),
                   Container(
                     decoration: BoxDecoration(
                       color: AppTheme.card,
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Column(
-                      children: [
-                        _AccountEmailRow(
-                          email: SupabaseService.currentUser?.email ?? '—',
-                        ),
-                        _divider(),
-                        _AccountActionRow(
-                          icon: Icons.logout_rounded,
-                          label: 'Log out',
-                          onTap: () => _confirmLogout(context),
-                        ),
-                      ],
+                    child: _AccountActionRow(
+                      icon: Icons.arrow_forward_rounded,
+                      label: 'Go to system settings',
+                      trailing: true,
+                      onTap: () {
+                        context.read<MainTabProvider>().setTab(2);
+                        Navigator.pop(context);
+                      },
                     ),
                   ),
+
+                  if (_loggedIn) ...[
+                    const SizedBox(height: 28),
+                    _sectionLabel('EMERGENCY DETAILS'),
+                    const SizedBox(height: 10),
+                    if (_loadingContacts)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: AppTheme.gold,
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppTheme.card,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          children: [
+                            for (var i = 0; i < _contacts.length; i++) ...[
+                              if (i > 0) _divider(),
+                              _ContactRow(
+                                contact: _contacts[i],
+                                onTap: () => _editContact(_contacts[i]),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.card,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: _AccountActionRow(
+                        icon: Icons.add_rounded,
+                        label: 'Add a new contact',
+                        onTap: _addContact,
+                      ),
+                    ),
+
+                    const SizedBox(height: 28),
+                    _sectionLabel('ADDRESS'),
+                    const SizedBox(height: 10),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.card,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          _ProfileRow(
+                            icon: Icons.location_on_outlined,
+                            label: 'Address',
+                            value: _address.isEmpty ? 'Add' : _address,
+                            onTap: _editAddress,
+                          ),
+                          _divider(),
+                          _ProfileRow(
+                            icon: Icons.edit_note_rounded,
+                            label: 'Additional instructions',
+                            value: _instructions.isEmpty
+                                ? 'Add'
+                                : _instructions,
+                            onTap: _editInstructions,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 40),
                 ],
               ),
             ),
     );
   }
+
+  Widget _buildAccountSection() {
+    if (!_loggedIn) {
+      // Logged-out state — "Create an account" / "Log into existing account".
+      return Container(
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            _AccountActionRow(
+              icon: Icons.add_circle_outline_rounded,
+              label: 'Create an account',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SignUpScreen()),
+              ),
+            ),
+            _divider(),
+            _AccountActionRow(
+              icon: Icons.person_outline_rounded,
+              label: 'Log into existing account',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Logged-in state — email, account settings, log out.
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          _AccountEmailRow(email: SupabaseService.currentUser?.email ?? '—'),
+          _divider(),
+          _AccountActionRow(
+            icon: Icons.settings_outlined,
+            label: 'Account settings',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AccountSystemSettingsScreen(),
+              ),
+            ),
+          ),
+          _divider(),
+          _AccountActionRow(
+            icon: Icons.logout_rounded,
+            label: 'Log out',
+            onTap: () => _confirmLogout(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String text) => Text(
+    text,
+    style: GoogleFonts.inter(
+      color: AppTheme.textSec,
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 1.5,
+    ),
+  );
 
   Widget _divider() => const Divider(height: 1, color: AppTheme.div);
 
@@ -343,20 +647,34 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       builder: (_) => AlertDialog(
         backgroundColor: AppTheme.card2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Log out',
-            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
-        content: Text('Are you sure you want to log out?',
-            style: GoogleFonts.inter(color: AppTheme.textSec)),
+        title: Text(
+          'Log out',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to log out?',
+          style: GoogleFonts.inter(color: AppTheme.textSec),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: AppTheme.textSec),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Log out',
-                style: GoogleFonts.inter(
-                    color: AppTheme.danger, fontWeight: FontWeight.w600)),
+            child: Text(
+              'Log out',
+              style: GoogleFonts.inter(
+                color: AppTheme.danger,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -387,7 +705,11 @@ class _AccountEmailRow extends StatelessWidget {
               color: AppTheme.gold.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.person_rounded, color: AppTheme.gold, size: 17),
+            child: const Icon(
+              Icons.person_rounded,
+              color: AppTheme.gold,
+              size: 17,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -411,11 +733,13 @@ class _AccountActionRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool trailing;
 
   const _AccountActionRow({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.trailing = false,
   });
 
   @override
@@ -447,6 +771,12 @@ class _AccountActionRow extends StatelessWidget {
                 ),
               ),
             ),
+            if (trailing)
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppTheme.textSec,
+                size: 20,
+              ),
           ],
         ),
       ),
@@ -496,13 +826,109 @@ class _ProfileRow extends StatelessWidget {
                 ),
               ),
             ),
+            Flexible(
+              child: Text(
+                value,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactRow extends StatelessWidget {
+  final _EmergencyContact contact;
+  final VoidCallback? onTap;
+  const _ContactRow({required this.contact, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AppTheme.card2,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.local_hospital_outlined,
+                color: Color(0xFFAAAAAA),
+                size: 17,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                contact.name,
+                style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+              ),
+            ),
             Text(
-              value,
+              contact.phone,
               style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FormDialog extends StatelessWidget {
+  final String title;
+  final List<Widget> fields;
+  final VoidCallback? onDelete;
+  const _FormDialog({required this.title, required this.fields, this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppTheme.card2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(title, style: const TextStyle(color: Colors.white)),
+      content: Column(mainAxisSize: MainAxisSize.min, children: fields),
+      actions: [
+        if (onDelete != null)
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, false);
+              onDelete!();
+            },
+            child: Text(
+              'Delete',
+              style: GoogleFonts.inter(color: AppTheme.danger),
+            ),
+          ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(
+            'Cancel',
+            style: GoogleFonts.inter(color: AppTheme.textSec),
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(
+            'Save',
+            style: GoogleFonts.inter(
+              color: AppTheme.gold,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -527,9 +953,14 @@ class _InputDialog extends StatelessWidget {
     return AlertDialog(
       backgroundColor: AppTheme.card2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text(title,
-          style: GoogleFonts.inter(
-              color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+      title: Text(
+        title,
+        style: GoogleFonts.inter(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          fontSize: 16,
+        ),
+      ),
       content: TextField(
         controller: controller,
         keyboardType: keyboardType,
@@ -540,21 +971,30 @@ class _InputDialog extends StatelessWidget {
           suffixText: suffix,
           suffixStyle: GoogleFonts.inter(color: AppTheme.textSec),
           enabledBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: AppTheme.div)),
+            borderSide: BorderSide(color: AppTheme.div),
+          ),
           focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: AppTheme.gold)),
+            borderSide: BorderSide(color: AppTheme.gold),
+          ),
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+          child: Text(
+            'Cancel',
+            style: GoogleFonts.inter(color: AppTheme.textSec),
+          ),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, controller.text.trim()),
-          child: Text('OK',
-              style: GoogleFonts.inter(
-                  color: AppTheme.gold, fontWeight: FontWeight.w600)),
+          child: Text(
+            'OK',
+            style: GoogleFonts.inter(
+              color: AppTheme.gold,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ],
     );
@@ -592,9 +1032,14 @@ class _PickerDialogState extends State<_PickerDialog> {
     return AlertDialog(
       backgroundColor: AppTheme.card2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text(widget.title,
-          style: GoogleFonts.inter(
-              color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+      title: Text(
+        widget.title,
+        style: GoogleFonts.inter(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          fontSize: 16,
+        ),
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: widget.options.map((opt) {
@@ -607,15 +1052,23 @@ class _PickerDialogState extends State<_PickerDialog> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(opt,
-                        style: GoogleFonts.inter(
-                          color: selected ? AppTheme.gold : Colors.white,
-                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                          fontSize: 15,
-                        )),
+                    child: Text(
+                      opt,
+                      style: GoogleFonts.inter(
+                        color: selected ? AppTheme.gold : Colors.white,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        fontSize: 15,
+                      ),
+                    ),
                   ),
                   if (selected)
-                    const Icon(Icons.check_rounded, color: AppTheme.gold, size: 18),
+                    const Icon(
+                      Icons.check_rounded,
+                      color: AppTheme.gold,
+                      size: 18,
+                    ),
                 ],
               ),
             ),
@@ -625,13 +1078,20 @@ class _PickerDialogState extends State<_PickerDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+          child: Text(
+            'Cancel',
+            style: GoogleFonts.inter(color: AppTheme.textSec),
+          ),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, _current),
-          child: Text('OK',
-              style: GoogleFonts.inter(
-                  color: AppTheme.gold, fontWeight: FontWeight.w600)),
+          child: Text(
+            'OK',
+            style: GoogleFonts.inter(
+              color: AppTheme.gold,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ],
     );

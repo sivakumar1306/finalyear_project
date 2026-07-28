@@ -695,14 +695,58 @@ class BleProvider extends ChangeNotifier {
     return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
-  Future<void> addEmergencyContact(String name, String phone) =>
-      _ble.addEmergencyContact(name, phone);
+  // Local Room stays the source of truth (works with no network/no login); every
+  // write is mirrored to Supabase afterward on a best-effort basis via
+  // _syncContactsToCloud()/_deleteContactFromCloud() so the same contacts show up
+  // on the Profile screen (and any other signed-in device later) too.
 
-  Future<void> updateEmergencyContact(int id, String name, String phone) =>
-      _ble.updateEmergencyContact(id, name, phone);
+  Future<void> addEmergencyContact(String name, String phone) async {
+    await _ble.addEmergencyContact(name, phone);
+    _syncContactsToCloud();
+  }
 
-  Future<void> deleteEmergencyContact(int id) =>
-      _ble.deleteEmergencyContact(id);
+  Future<void> updateEmergencyContact(int id, String name, String phone) async {
+    await _ble.updateEmergencyContact(id, name, phone);
+    _syncContactsToCloud();
+  }
+
+  Future<void> deleteEmergencyContact(int id) async {
+    await _ble.deleteEmergencyContact(id);
+    _deleteContactFromCloud(id);
+  }
+
+  Future<void> _syncContactsToCloud() async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    try {
+      final rows = await getEmergencyContacts();
+      for (final r in rows) {
+        final id = (r['id'] as num?)?.toInt();
+        if (id == null) continue;
+        await SupabaseService.upsertEmergencyContact(
+          userId: user.id,
+          localId: id,
+          name: r['name'] as String? ?? '',
+          phone: r['phone'] as String? ?? '',
+        );
+      }
+    } catch (e) {
+      debugPrint('[BleProvider] emergency contact cloud sync failed: $e');
+    }
+  }
+
+  Future<void> _deleteContactFromCloud(int localId) async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    try {
+      await SupabaseService.deleteEmergencyContactByLocalId(
+        userId: user.id,
+        localId: localId,
+      );
+    } catch (e) {
+      debugPrint('[BleProvider] emergency contact cloud delete failed: $e');
+    }
+  }
 
   Future<void> _loadTodayVitalsFromLocal() async {
     if (!await _refreshHrFromLocal()) await _loadTodayHrFromSupabase();

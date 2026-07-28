@@ -91,18 +91,23 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
       // First run — seed the same two defaults the old in-memory demo used, but for real.
       // Uses a fake test number (not a real emergency line) since the debug menu's
       // "Alert emergency contact" actually opens the dialer/SMS app with this number.
-      await ble.addEmergencyContact('Default Emergency (Default)', '9999999999');
+      await ble.addEmergencyContact(
+        'Default Emergency (Default)',
+        '9999999999',
+      );
       await ble.addEmergencyContact('Mom', '+91 000 000 0000');
       rows = await ble.getEmergencyContacts();
     }
     if (!mounted) return;
     setState(() {
       _contacts = rows
-          .map((r) => _EmergencyContact(
-                id: (r['id'] as num?)?.toInt(),
-                name: r['name'] as String? ?? '',
-                phone: r['phone'] as String? ?? '',
-              ))
+          .map(
+            (r) => _EmergencyContact(
+              id: (r['id'] as num?)?.toInt(),
+              name: r['name'] as String? ?? '',
+              phone: r['phone'] as String? ?? '',
+            ),
+          )
           .toList();
       _loadingContacts = false;
     });
@@ -117,7 +122,11 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     await _loadRealRisk();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Posted a real 135bpm reading — risk score above should update')),
+      const SnackBar(
+        content: Text(
+          'Posted a real 135bpm reading — risk score above should update',
+        ),
+      ),
     );
   }
 
@@ -158,10 +167,8 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => _AlertContactSheet(
-        contact: contact,
-        contactCount: _contacts.length,
-      ),
+      builder: (_) =>
+          _AlertContactSheet(contact: contact, contactCount: _contacts.length),
     );
     if (action == null || !mounted) return;
 
@@ -169,9 +176,9 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
       final uri = Uri(scheme: 'tel', path: phone);
       final ok = await launchUrl(uri);
       if (!ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not reach $phone')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not reach $phone')));
       }
       return;
     }
@@ -261,7 +268,11 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     );
     if (saved != true || contact.id == null) return;
     if (!mounted) return;
-    await ble.updateEmergencyContact(contact.id!, nameCtl.text.trim(), phoneCtl.text.trim());
+    await ble.updateEmergencyContact(
+      contact.id!,
+      nameCtl.text.trim(),
+      phoneCtl.text.trim(),
+    );
     await _loadContacts();
   }
 
@@ -298,7 +309,9 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
             controller: ctl,
             style: const TextStyle(color: Colors.white),
             maxLines: 3,
-            decoration: const InputDecoration(hintText: 'e.g. Gate code, floor, pets...'),
+            decoration: const InputDecoration(
+              hintText: 'e.g. Gate code, floor, pets...',
+            ),
           ),
         ],
       ),
@@ -317,7 +330,9 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     final tier = _debugTier ?? _tierFromScore(realScore);
     final isDemo = _debugTier != null && _debugTier != _FallTier.low;
 
-    final int hr = isDemo ? (tier == _FallTier.high ? 122 : 118) : ble.todayMaxHr;
+    final int hr = isDemo
+        ? (tier == _FallTier.high ? 122 : 118)
+        : ble.todayMaxHr;
     final double temp = isDemo ? 36.0 : ble.latestTempC;
     final int score = isDemo ? (tier == _FallTier.high ? 43 : 38) : realScore;
     final showAlert = tier != _FallTier.low && _ignoredForTier != tier;
@@ -327,12 +342,20 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_rounded,
+            color: Colors.white,
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Fall Prediction',
-          style: GoogleFonts.inter(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         centerTitle: true,
         elevation: 0,
@@ -343,13 +366,22 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
             onSelected: (value) {
               switch (value) {
                 case 'high':
-                  setState(() { _debugTier = _FallTier.high; _ignoredForTier = null; });
+                  setState(() {
+                    _debugTier = _FallTier.high;
+                    _ignoredForTier = null;
+                  });
                   break;
                 case 'medium':
-                  setState(() { _debugTier = _FallTier.medium; _ignoredForTier = null; });
+                  setState(() {
+                    _debugTier = _FallTier.medium;
+                    _ignoredForTier = null;
+                  });
                   break;
                 case 'clear':
-                  setState(() { _debugTier = null; _ignoredForTier = null; });
+                  setState(() {
+                    _debugTier = null;
+                    _ignoredForTier = null;
+                  });
                   break;
                 case 'notify':
                   context.read<BleProvider>().simulateFallEvent();
@@ -379,13 +411,49 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
               }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(value: 'high', child: Text('Simulate: High risk', style: TextStyle(color: Colors.white))),
-              const PopupMenuItem(value: 'medium', child: Text('Simulate: Medium risk', style: TextStyle(color: Colors.white))),
-              const PopupMenuItem(value: 'clear', child: Text('Simulate: Clear (auto)', style: TextStyle(color: Colors.white))),
+              const PopupMenuItem(
+                value: 'high',
+                child: Text(
+                  'Simulate: High risk',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'medium',
+                child: Text(
+                  'Simulate: Medium risk',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'clear',
+                child: Text(
+                  'Simulate: Clear (auto)',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
               const PopupMenuDivider(),
-              const PopupMenuItem(value: 'notify', child: Text('Simulate: Fall notification', style: TextStyle(color: Colors.white))),
-              const PopupMenuItem(value: 'risk_trigger', child: Text('Simulate: Trigger risk analysis', style: TextStyle(color: Colors.white))),
-              const PopupMenuItem(value: 'prediction', child: Text('Simulate Fall prediction', style: TextStyle(color: Colors.white))),
+              const PopupMenuItem(
+                value: 'notify',
+                child: Text(
+                  'Simulate: Fall notification',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'risk_trigger',
+                child: Text(
+                  'Simulate: Trigger risk analysis',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'prediction',
+                child: Text(
+                  'Simulate Fall prediction',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
             ],
           ),
         ],
@@ -401,7 +469,8 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                   ? ble.emergencySmsSecondsRemaining
                   : null,
               smsHasPermission: ble.emergencySmsHasPermission,
-              onPrimaryAction: (ble.emergencySmsActive || tier == _FallTier.high)
+              onPrimaryAction:
+                  (ble.emergencySmsActive || tier == _FallTier.high)
                   ? _alertContact
                   : () => setState(() => _ignoredForTier = tier),
             ),
@@ -415,13 +484,18 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
             if (ble.emergencySmsActive)
               _ActionRow(
                 icon: Icons.sms_failed_outlined,
-                label: 'Cancel emergency SMS (${ble.emergencySmsSecondsRemaining}s)',
+                label:
+                    'Cancel emergency SMS (${ble.emergencySmsSecondsRemaining}s)',
                 onTap: _ignoreWarning,
               )
             else
               _ActionRow(
-                icon: tier == _FallTier.high ? Icons.close_rounded : Icons.call_rounded,
-                label: tier == _FallTier.high ? 'Ignore warning' : 'Alert emergency contact',
+                icon: tier == _FallTier.high
+                    ? Icons.close_rounded
+                    : Icons.call_rounded,
+                label: tier == _FallTier.high
+                    ? 'Ignore warning'
+                    : 'Alert emergency contact',
                 onTap: tier == _FallTier.high ? _ignoreWarning : _alertContact,
               ),
             const SizedBox(height: 20),
@@ -459,15 +533,20 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
           if (_loadingContacts)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(child: CircularProgressIndicator(color: AppTheme.gold)),
+              child: Center(
+                child: CircularProgressIndicator(color: AppTheme.gold),
+              ),
             )
           else
             ..._contacts.asMap().entries.map(
-                  (e) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _ContactRow(contact: e.value, onTap: () => _editContact(e.value)),
-                  ),
+              (e) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _ContactRow(
+                  contact: e.value,
+                  onTap: () => _editContact(e.value),
                 ),
+              ),
+            ),
           _ActionRow(
             icon: Icons.add_rounded,
             label: 'Add a new contact',
@@ -535,13 +614,13 @@ class _HeroCard extends StatelessWidget {
         : (isHigh ? 'You might fall soon...' : 'We are concerned ...');
     final body = countdown != null
         ? (!smsHasPermission
-            ? 'SMS permission is missing. Grant SEND_SMS so contacts can be alerted automatically.'
-            : 'SMS will be sent to all emergency contacts in $countdown seconds unless you cancel. '
-                'You can also alert them immediately below.')
+              ? 'SMS permission is missing. Grant SEND_SMS so contacts can be alerted automatically.'
+              : 'SMS will be sent to all emergency contacts in $countdown seconds unless you cancel. '
+                    'You can also alert them immediately below.')
         : (isHigh
-            ? 'We have detected multiple signs that you might fall down in the next 2-3 minutes. '
-                'Take a seat and contact your caretaker.'
-            : 'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.');
+              ? 'We have detected multiple signs that you might fall down in the next 2-3 minutes. '
+                    'Take a seat and contact your caretaker.'
+              : 'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.');
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -576,19 +655,31 @@ class _HeroCard extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 18),
+                child: const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
             title,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 10),
           Text(
             body,
-            style: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.85), fontSize: 13, height: 1.45),
+            style: GoogleFonts.inter(
+              color: Colors.white.withValues(alpha: 0.85),
+              fontSize: 13,
+              height: 1.45,
+            ),
           ),
           const SizedBox(height: 16),
           if (isHigh)
@@ -601,10 +692,14 @@ class _HeroCard extends StatelessWidget {
                   foregroundColor: Colors.white,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
                 child: Text(
-                  countdown != null ? 'Alert now (all contacts)' : 'Alert emergency contact',
+                  countdown != null
+                      ? 'Alert now (all contacts)'
+                      : 'Alert emergency contact',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
@@ -613,7 +708,14 @@ class _HeroCard extends StatelessWidget {
             Center(
               child: TextButton(
                 onPressed: onPrimaryAction,
-                child: Text('ignore', style: GoogleFonts.inter(color: AppTheme.danger, fontSize: 14, fontWeight: FontWeight.w600)),
+                child: Text(
+                  'ignore',
+                  style: GoogleFonts.inter(
+                    color: AppTheme.danger,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
         ],
@@ -626,17 +728,23 @@ class _RiskScoreCard extends StatelessWidget {
   final int score;
   final bool hasLiveData;
   final bool loading;
-  const _RiskScoreCard({required this.score, required this.hasLiveData, required this.loading});
+  const _RiskScoreCard({
+    required this.score,
+    required this.hasLiveData,
+    required this.loading,
+  });
 
   @override
   Widget build(BuildContext context) {
     final label = !hasLiveData
-        ? (loading ? 'Loading…' : 'No live data yet — waiting for a vital reading')
+        ? (loading
+              ? 'Loading…'
+              : 'No live data yet — waiting for a vital reading')
         : score >= 55
-            ? 'High chance of falling'
-            : score >= 25
-                ? 'Moderate chance of falling'
-                : 'Low chance of falling';
+        ? 'High chance of falling'
+        : score >= 25
+        ? 'Moderate chance of falling'
+        : 'Low chance of falling';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
@@ -644,10 +752,17 @@ class _RiskScoreCard extends StatelessWidget {
         children: [
           Text(
             hasLiveData ? '$score' : '—',
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w300),
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 40,
+              fontWeight: FontWeight.w300,
+            ),
           ),
           const SizedBox(height: 2),
-          Text(label, style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13)),
+          Text(
+            label,
+            style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+          ),
         ],
       ),
     );
@@ -676,15 +791,29 @@ class _HeartRateCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('Heart Rate', style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+              Text(
+                'Heart Rate',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               const Spacer(),
               GestureDetector(
                 onTap: () => Navigator.pushNamed(context, '/heart-rate'),
                 child: Container(
                   width: 26,
                   height: 26,
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle),
-                  child: const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
                 ),
               ),
             ],
@@ -708,16 +837,26 @@ class _HeartRateCard extends StatelessWidget {
               ),
             ),
           Text.rich(
-            TextSpan(children: [
-              TextSpan(
-                text: '$hr ',
-                style: GoogleFonts.inter(color: AppTheme.hrColor, fontSize: compact ? 26 : 34, fontWeight: FontWeight.w700),
-              ),
-              TextSpan(
-                text: 'bpm',
-                style: GoogleFonts.inter(color: AppTheme.hrColor, fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-            ]),
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: '$hr ',
+                  style: GoogleFonts.inter(
+                    color: AppTheme.hrColor,
+                    fontSize: compact ? 26 : 34,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                TextSpan(
+                  text: 'bpm',
+                  style: GoogleFonts.inter(
+                    color: AppTheme.hrColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -742,19 +881,35 @@ class _TemperatureCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Temperature', style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+          Text(
+            'Temperature',
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
           const SizedBox(height: 26),
           Text.rich(
-            TextSpan(children: [
-              TextSpan(
-                text: temp.toStringAsFixed(0),
-                style: GoogleFonts.inter(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700),
-              ),
-              TextSpan(
-                text: ' °C',
-                style: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
-              ),
-            ]),
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: temp.toStringAsFixed(0),
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                TextSpan(
+                  text: ' °C',
+                  style: GoogleFonts.inter(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -771,7 +926,11 @@ class _ActionRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const _ActionRow({required this.icon, required this.label, required this.onTap});
+  const _ActionRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -790,12 +949,24 @@ class _ActionRow extends StatelessWidget {
             Container(
               width: 32,
               height: 32,
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.06), shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                shape: BoxShape.circle,
+              ),
               child: Icon(icon, color: Colors.white, size: 16),
             ),
             const SizedBox(width: 12),
-            Expanded(child: Text(label, style: GoogleFonts.inter(color: Colors.white, fontSize: 14))),
-            Icon(Icons.chevron_right_rounded, color: Colors.white.withValues(alpha: 0.3), size: 20),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.white.withValues(alpha: 0.3),
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -814,25 +985,40 @@ class _ContactRow extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       onTap: onTap,
       child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.div),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.06), shape: BoxShape.circle),
-            child: const Icon(Icons.local_hospital_outlined, color: Colors.white, size: 16),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(contact.name, style: GoogleFonts.inter(color: Colors.white, fontSize: 14))),
-          Text(contact.phone, style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13)),
-        ],
-      ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.div),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.local_hospital_outlined,
+                color: Colors.white,
+                size: 16,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                contact.name,
+                style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+              ),
+            ),
+            Text(
+              contact.phone,
+              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -842,7 +1028,11 @@ class _EditableRow extends StatelessWidget {
   final String label;
   final String value;
   final VoidCallback onTap;
-  const _EditableRow({required this.label, required this.value, required this.onTap});
+  const _EditableRow({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -861,11 +1051,23 @@ class _EditableRow extends StatelessWidget {
             Container(
               width: 32,
               height: 32,
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.06), shape: BoxShape.circle),
-              child: const Icon(Icons.edit_outlined, color: Colors.white, size: 15),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.edit_outlined,
+                color: Colors.white,
+                size: 15,
+              ),
             ),
             const SizedBox(width: 12),
-            Expanded(child: Text(label, style: GoogleFonts.inter(color: Colors.white, fontSize: 14))),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+              ),
+            ),
             Flexible(
               child: Text(
                 value,
@@ -900,15 +1102,27 @@ class _FormDialog extends StatelessWidget {
               Navigator.pop(context, false);
               onDelete!();
             },
-            child: Text('Delete', style: GoogleFonts.inter(color: AppTheme.danger)),
+            child: Text(
+              'Delete',
+              style: GoogleFonts.inter(color: AppTheme.danger),
+            ),
           ),
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+          child: Text(
+            'Cancel',
+            style: GoogleFonts.inter(color: AppTheme.textSec),
+          ),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, true),
-          child: Text('Save', style: GoogleFonts.inter(color: AppTheme.gold, fontWeight: FontWeight.w600)),
+          child: Text(
+            'Save',
+            style: GoogleFonts.inter(
+              color: AppTheme.gold,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ],
     );
@@ -944,7 +1158,8 @@ class _SparklinePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _SparklinePainter oldDelegate) => oldDelegate.color != color;
+  bool shouldRepaint(covariant _SparklinePainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 class _AlertContactSheet extends StatelessWidget {
@@ -966,12 +1181,20 @@ class _AlertContactSheet extends StatelessWidget {
           children: [
             Text(
               'Alert emergency contacts',
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               'Call opens the dialer for ${contact.name}. Message sends SMS to every saved contact.',
-              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12, height: 1.4),
+              style: GoogleFonts.inter(
+                color: AppTheme.textSec,
+                fontSize: 12,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 16),
             _ActionRow(
@@ -1008,7 +1231,11 @@ class _FallHistorySheet extends StatelessWidget {
           children: [
             Text(
               'Fall history',
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -1021,7 +1248,10 @@ class _FallHistorySheet extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Text(
                   'No fall events logged yet.',
-                  style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+                  style: GoogleFonts.inter(
+                    color: AppTheme.textSec,
+                    fontSize: 13,
+                  ),
                 ),
               )
             else
@@ -1033,11 +1263,18 @@ class _FallHistorySheet extends StatelessWidget {
                   itemBuilder: (_, i) {
                     final e = events[i];
                     final detectedAt = (e['detectedAt'] as num?)?.toInt() ?? 0;
-                    final confidence = ((e['confidence'] as num?) ?? 0).toDouble();
+                    final confidence = ((e['confidence'] as num?) ?? 0)
+                        .toDouble();
                     final corroborated = e['corroborated'] as bool? ?? false;
-                    final source = e['corroborationSource'] as String? ?? 'none';
+                    final source =
+                        e['corroborationSource'] as String? ?? 'none';
+                    final eventType = e['eventType'] as String? ?? 'DETECTED';
+                    final isPrediction = eventType == 'PREDICTED';
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: AppTheme.card,
                         borderRadius: BorderRadius.circular(14),
@@ -1046,8 +1283,12 @@ class _FallHistorySheet extends StatelessWidget {
                       child: Row(
                         children: [
                           Icon(
-                            corroborated ? Icons.warning_amber_rounded : Icons.help_outline_rounded,
-                            color: corroborated ? AppTheme.hrColor : AppTheme.textSec,
+                            isPrediction
+                                ? Icons.trending_up_rounded
+                                : (corroborated ? Icons.warning_amber_rounded : Icons.help_outline_rounded),
+                            color: isPrediction
+                                ? AppTheme.tempColor
+                                : (corroborated ? AppTheme.hrColor : AppTheme.textSec),
                             size: 20,
                           ),
                           const SizedBox(width: 12),
@@ -1057,20 +1298,37 @@ class _FallHistorySheet extends StatelessWidget {
                               children: [
                                 Text(
                                   detectedAt > 0
-                                      ? fmt.format(DateTime.fromMillisecondsSinceEpoch(detectedAt))
+                                      ? fmt.format(
+                                          DateTime.fromMillisecondsSinceEpoch(
+                                            detectedAt,
+                                          ),
+                                        )
                                       : 'Unknown time',
-                                  style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                                 Text(
-                                  corroborated ? 'Corroborated by $source' : 'Not corroborated',
-                                  style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 11),
+                                  isPrediction
+                                      ? 'Predicted fall risk'
+                                      : (corroborated ? 'Confirmed by $source' : 'Not confirmed'),
+                                  style: GoogleFonts.inter(
+                                    color: AppTheme.textSec,
+                                    fontSize: 11,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
                           Text(
                             '${(confidence * 100).toInt()}%',
-                            style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),

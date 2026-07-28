@@ -2,6 +2,7 @@ package com.medxai.qring_flutter.analysis
 
 import android.content.Context
 import com.google.gson.Gson
+import com.medxai.qring_flutter.data.FallEventEntity
 import com.medxai.qring_flutter.data.FallRiskLogEntity
 import com.medxai.qring_flutter.data.ReadingRepository
 import com.medxai.qring_flutter.events.NewReadingEvent
@@ -68,11 +69,29 @@ object FallRiskAnalyzer {
         if (result.tier != "HIGH" && result.tier != "CRITICAL" && result.tier != "OVERRIDE") return
         if (measuredAt - lastAlertAt < ALERT_COOLDOWN_MS) return
         val context = appContext ?: return
+        val repo = repository ?: return
         lastAlertAt = measuredAt
         val hr = (result.components["hr"] as? Int) ?: 0
         FallPredictionNotifier.notifyPrediction(context, hr)
-        // Auto-SMS to all emergency contacts after a cancelable countdown.
         EmergencySmsSender.schedule(context, reason = "prediction")
+
+        // Persist so it survives banner dismissal and shows up in Fall History.
+        repo.ioScope.launch {
+            try {
+                repo.insertFallEvent(
+                    FallEventEntity(
+                        confidence = result.score / 100f,
+                        corroborated = false,
+                        corroborationSource = "prediction",
+                        metadataJson = gson.toJson(result.components),
+                        detectedAt = measuredAt,
+                        eventType = "PREDICTED",
+                    )
+                )
+            } catch (_: Exception) {
+                // Must never affect the alert/SMS flow above.
+            }
+        }
     }
 
     private suspend fun computeScore(event: NewReadingEvent, repo: ReadingRepository): ScoreResult {
