@@ -66,8 +66,9 @@ class ActivityDescriptionScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'A single 0–100 number blending how much you moved today — '
-                    'steps, calories burned, and distance covered.',
+                    'A single 0–100 number for how much you moved today. '
+                    'It blends steps (up to 60 pts at 8,000), active calories '
+                    '(up to 25 pts at 250 kcal), and distance (up to 15 pts at 5 km).',
                     style: _t(
                       13,
                       c: Colors.white.withValues(alpha: 0.6),
@@ -77,11 +78,11 @@ class ActivityDescriptionScreen extends StatelessWidget {
                   const SizedBox(height: 14),
                   Row(
                     children: const [
-                      _WeightChip(label: 'Steps', pct: '60%'),
+                      _WeightChip(label: 'Steps', pct: '60 pts'),
                       SizedBox(width: 8),
-                      _WeightChip(label: 'Calories', pct: '25%'),
+                      _WeightChip(label: 'Calories', pct: '25 pts'),
                       SizedBox(width: 8),
-                      _WeightChip(label: 'Distance', pct: '15%'),
+                      _WeightChip(label: 'Distance', pct: '15 pts'),
                     ],
                   ),
                 ],
@@ -117,8 +118,8 @@ class ActivityDescriptionScreen extends StatelessWidget {
               color: _kStepsColor,
               title: 'Steps',
               tip:
-                  '8,000–10,000 steps/day supports heart health. '
-                  'Under 5,000 is considered sedentary.',
+                  'Full steps credit at 8,000/day. Under 5,000 is typically '
+                  'sedentary; 8,000–10,000 supports heart health.',
             ),
             const SizedBox(height: 10),
             const _TipCard(
@@ -126,8 +127,8 @@ class ActivityDescriptionScreen extends StatelessWidget {
               color: _kCalColor,
               title: 'Calories',
               tip:
-                  '250+ active kcal/day is a solid baseline — roughly what '
-                  'a 30-minute brisk walk burns.',
+                  'Full calorie credit at 250 active kcal — about a 30-minute '
+                  'brisk walk. Only movement-related burn counts toward the score.',
             ),
             const SizedBox(height: 10),
             const _TipCard(
@@ -135,8 +136,8 @@ class ActivityDescriptionScreen extends StatelessWidget {
               color: _kDistColor,
               title: 'Distance',
               tip:
-                  '5 km/day ≈ a 45–60 minute walk. Pair with steps to '
-                  'gauge pace, not just movement.',
+                  'Full distance credit at 5 km (~45–60 min walk). Use with '
+                  'steps to see pace, not just total movement.',
             ),
 
             const SizedBox(height: 14),
@@ -156,8 +157,9 @@ class ActivityDescriptionScreen extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Short, frequent walks throughout the day tend to '
-                      'raise your score more evenly than one long workout.',
+                      'A score of 0 shows as Lack of exercise. Short walks '
+                      'spread through the day usually lift the score more '
+                      'evenly than one long workout.',
                       style: _t(
                         13,
                         c: Colors.white.withValues(alpha: 0.6),
@@ -222,9 +224,6 @@ class _WeightChip extends StatelessWidget {
   }
 }
 
-/// Segmented gauge: Sedentary → Lightly active → Moderately active → Highly
-/// active, mirroring the exact thresholds steps_screen.dart's activity
-/// score uses (0 / 25 / 50 / 75 / 100).
 class _ScoreRangeBar extends StatelessWidget {
   const _ScoreRangeBar();
 
@@ -259,7 +258,8 @@ class _ScoreRangeLegend extends StatelessWidget {
   const _ScoreRangeLegend();
 
   static const _rows = [
-    (label: 'Sedentary', range: '0–24', color: AppTheme.danger),
+    (label: 'Lack of exercise', range: '0', color: AppTheme.danger),
+    (label: 'Sedentary', range: '1–24', color: AppTheme.danger),
     (label: 'Lightly active', range: '25–49', color: AppTheme.tempColor),
     (label: 'Moderately active', range: '50–74', color: AppTheme.spo2Color),
     (label: 'Highly active', range: '75–100', color: AppTheme.success),
