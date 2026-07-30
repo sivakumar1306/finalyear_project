@@ -5,46 +5,48 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.medxai.qring_flutter.analysis.EmergencySmsSender
 import com.medxai.qring_flutter.analysis.FallPredictionNotifier
-import io.flutter.embedding.android.FlutterActivity
-import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.EventChannel
-import io.flutter.plugin.common.MethodChannel
+import com.medxai.qring_flutter.ui.navigation.MainScreen
+import com.medxai.qring_flutter.ui.theme.AppColors
+import com.medxai.qring_flutter.ui.theme.QRingTheme
 
-class MainActivity : FlutterActivity() {
+class MainActivity : ComponentActivity() {
 
     companion object {
-        const val BLE_METHOD_CHANNEL = "com.medxai.qring/ble"
-        const val BLE_EVENT_CHANNEL = "com.medxai.qring/ble_events"
-        const val PHONE_MODE_METHOD_CHANNEL = "com.medxai.qring/phone_mode"
-
-        // Fall-prediction pending state. Set when a prediction fires (FallPredictionNotifier
-        // also persists to SharedPreferences) and/or when the notification is tapped.
-        // Home reads via BlePlugin.consumeFallPredictionFlag; cleared only when the user
-        // dismisses the banner (clearFallPredictionFlag) — so opening from the launcher
-        // after a prediction still surfaces the alert.
         var pendingFallPrediction = false
         var pendingFallPredictionHr = 0
     }
 
-    private lateinit var blePlugin: BlePlugin
-    private lateinit var phoneModePlugin: PhoneModePlugin
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Only start the foreground service if Bluetooth permission is already granted.
-        // On first launch permissions haven't been requested yet — Flutter's main() handles that
-        // and calls startForegroundService via method channel after the user accepts.
+
+        requestBlePermissions()
+
         if (hasBlePermission()) {
             BleConnectionService.start(this)
         }
-        // Restore any prediction that fired while the app was backgrounded/killed, then
-        // overlay intent extras if this launch came from the notification itself.
+
         FallPredictionNotifier.restorePending(this)
-        // Re-arm emergency SMS countdown if process died mid-countdown.
         EmergencySmsSender.restoreIfNeeded(this)
         handleIntent(intent)
+
+        setContent {
+            QRingTheme {
+                Surface(
+                    color = AppColors.bg,
+                    modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                ) {
+                    MainScreen()
+                }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -55,9 +57,27 @@ class MainActivity : FlutterActivity() {
     private fun handleIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(FallPredictionNotifier.EXTRA_FALL_PREDICTION, false) == true) {
             val hr = intent.getIntExtra(FallPredictionNotifier.EXTRA_FALL_PREDICTION_HR, 0)
-            // Keep SharedPreferences in sync so a later cold start still sees the alert
-            // until the user dismisses it in-app.
             FallPredictionNotifier.markPending(this, hr)
+        }
+    }
+
+    private fun requestBlePermissions() {
+        val perms = mutableListOf(
+            Manifest.permission.BLUETOOTH,
+            Manifest.permission.BLUETOOTH_ADMIN,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.POST_NOTIFICATIONS,
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            perms.add(Manifest.permission.BLUETOOTH_SCAN)
+            perms.add(Manifest.permission.BLUETOOTH_CONNECT)
+            perms.add(Manifest.permission.BLUETOOTH_ADVERTISE)
+        }
+        val needed = perms.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (needed.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, needed.toTypedArray(), 100)
         }
     }
 
@@ -67,37 +87,5 @@ class MainActivity : FlutterActivity() {
         } else {
             true
         }
-    }
-
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
-        super.configureFlutterEngine(flutterEngine)
-
-        blePlugin = BlePlugin(this)
-
-        MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            BLE_METHOD_CHANNEL
-        ).setMethodCallHandler { call, result ->
-            blePlugin.handleMethodCall(call, result)
-        }
-
-        EventChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            BLE_EVENT_CHANNEL
-        ).setStreamHandler(blePlugin.eventStreamHandler)
-
-        phoneModePlugin = PhoneModePlugin(this)
-
-        MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            PHONE_MODE_METHOD_CHANNEL
-        ).setMethodCallHandler { call, result ->
-            phoneModePlugin.handleMethodCall(call, result)
-        }
-    }
-
-    override fun onDestroy() {
-        blePlugin.onDestroy()
-        super.onDestroy()
     }
 }
