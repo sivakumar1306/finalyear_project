@@ -4,7 +4,33 @@ import 'package:google_fonts/google_fonts.dart';
 class FaqScreen extends StatelessWidget {
   const FaqScreen({super.key});
 
-  static const List<_FaqItem> _faqs = [
+  // Mixed list of FAQ text entries and standalone image entries so a picture
+  // (the charging-indicator diagram) can sit between two questions without
+  // being attached to either one's answer text. Numbering below only counts
+  // _FaqItem entries, skipping _FaqImage ones, so the image doesn't throw
+  // off the "1. / 2. / 3." sequence.
+  static const List<Object> _entries = [
+    _FaqItem(
+      question: 'Why do I need a Sundr account?',
+      answer:
+          'Your account keeps your health data safe and lets you get to it '
+          'from any device. If you switch phones or reinstall the app, '
+          "everything is still there when you sign back in. It also lets "
+          'you share readings with family members, back up your medical '
+          'records securely, and pick up right where you left off with the '
+          'AI chat. Nothing about you is tied to the ring itself, so your '
+          'data stays with you, not the device.',
+    ),
+    _FaqImage(assetPath: 'ring_charge.png'),
+    _FaqItem(
+      question: 'How to charge a ring?',
+      answer:
+          'Use a compliant mobile phone charger or computer USB port to '
+          'connect a charging cable or charging case to charge the ring. '
+          'When the ring is charging, the red light indicates that it is '
+          'charging, and the green light indicates that the battery is '
+          'fully charged.',
+    ),
     _FaqItem(
       question:
           'After downloading the app, cannot find the ring Bluetooth signal?',
@@ -128,11 +154,24 @@ class FaqScreen extends StatelessWidget {
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                    itemCount: _faqs.length,
+                    itemCount: _entries.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 16),
                     itemBuilder: (context, index) {
-                      final faq = _faqs[index];
-                      return _buildFaqCard(index + 1, faq);
+                      final entry = _entries[index];
+
+                      if (entry is _FaqImage) {
+                        return _buildImageCard(entry);
+                      }
+
+                      final faq = entry as _FaqItem;
+                      // Number only counts _FaqItem entries up to and
+                      // including this one, so the image in between doesn't
+                      // break the 1/2/3 sequence.
+                      final number = _entries
+                          .sublist(0, index + 1)
+                          .whereType<_FaqItem>()
+                          .length;
+                      return _buildFaqCard(number, faq);
                     },
                   ),
                 ),
@@ -140,6 +179,21 @@ class FaqScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildImageCard(_FaqImage image) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.asset(image.assetPath, fit: BoxFit.contain),
       ),
     );
   }
@@ -191,4 +245,10 @@ class _FaqItem {
   final String answer;
 
   const _FaqItem({required this.question, required this.answer});
+}
+
+class _FaqImage {
+  final String assetPath;
+
+  const _FaqImage({required this.assetPath});
 }

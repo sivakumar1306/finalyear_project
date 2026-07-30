@@ -76,6 +76,39 @@ class StepsScreen extends StatefulWidget {
   State<StepsScreen> createState() => _StepsScreenState();
 }
 
+class _DaySnapshot {
+  final int steps;
+  final int cal;
+  final double distM;
+  final List<int> stepSlots;
+  final List<int> calSlots;
+  final List<double> distSlots;
+
+  const _DaySnapshot({
+    required this.steps,
+    required this.cal,
+    required this.distM,
+    required this.stepSlots,
+    required this.calSlots,
+    required this.distSlots,
+  });
+
+  bool get hasTotals => steps > 0 || cal > 0 || distM > 0;
+  bool get hasIntervals =>
+      stepSlots.any((v) => v > 0) ||
+      calSlots.any((v) => v > 0) ||
+      distSlots.any((v) => v > 0);
+
+  static _DaySnapshot empty() => _DaySnapshot(
+        steps: 0,
+        cal: 0,
+        distM: 0,
+        stepSlots: List.filled(96, 0),
+        calSlots: List.filled(96, 0),
+        distSlots: List.filled(96, 0.0),
+      );
+}
+
 class _StepsScreenState extends State<StepsScreen> {
   final _ble = BleService();
   final _moreButtonKey = GlobalKey();
@@ -83,104 +116,107 @@ class _StepsScreenState extends State<StepsScreen> {
 
   bool _dayLoad = false;
   bool _pastDayOffline = false;
+  int _loadGen = 0;
 
   DateTime _selectedDate = DateTime.now();
 
-  // Today's totals from ring (cached so switching back to today is instant)
   int _totalSteps = 0;
   int _totalCal = 0;
   double _totalDistM = 0.0;
+  List<int> _todayStepSlots = List.filled(96, 0);
+  List<int> _todayCalSlots = List.filled(96, 0);
+  List<double> _todayDistSlots = List.filled(96, 0.0);
 
-  // The currently displayed day's values (may be a past day loaded from Supabase)
   int _daySteps = 0;
   int _dayCal = 0;
   double _dayDistM = 0.0;
-
-  // 96-slot 15-min intervals for today's bar charts (only populated for today)
   List<int> _stepsSlots = List.filled(96, 0);
   List<int> _calSlots = List.filled(96, 0);
   List<double> _distSlots = List.filled(96, 0.0);
+
+  final Map<String, _DaySnapshot> _dayCache = {};
 
   bool _isToday(DateTime d) {
     final now = DateTime.now();
     return d.year == now.year && d.month == now.month && d.day == now.day;
   }
 
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  String _dateKey(DateTime d) {
+    final x = _dateOnly(d);
+    return '${x.year}-${x.month.toString().padLeft(2, '0')}-${x.day.toString().padLeft(2, '0')}';
+  }
+
+  int _dayIndexFor(DateTime d) {
+    final today = _dateOnly(DateTime.now());
+    return today.difference(_dateOnly(d)).inDays;
+  }
+
   @override
   void initState() {
     super.initState();
-    _selectedDate = DateTime.now();
+    _selectedDate = _dateOnly(DateTime.now());
     WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
 
   Future<void> _init() async {
     final ble = context.read<BleProvider>();
     if (ble.todaySteps > 0) {
+      final slots = ble.todayStepsByInterval.length == 96
+          ? List<int>.from(ble.todayStepsByInterval)
+          : List<int>.filled(96, 0);
       setState(() {
         _totalSteps = ble.todaySteps;
         _totalCal = ble.todayCalories;
         _totalDistM = ble.todayDistanceM;
+        _todayStepSlots = slots;
         _daySteps = ble.todaySteps;
         _dayCal = ble.todayCalories;
         _dayDistM = ble.todayDistanceM;
-        // Only trust the cached interval breakdown when it's the full 96-slot
-        // array a live ring fetch produces (see _parseRingData). The local-DB-only
-        // refresh path (BleProvider._refreshStepsFromLocal, used when the ring
-        // isn't connected) fills in the totals above but leaves this empty —
-        // copying it as-is left _stepsSlots at length 0, and _toHourlyInt's
-        // sublist() calls threw a RangeError during build, blanking the screen.
-        if (ble.todayStepsByInterval.length == 96) {
-          _stepsSlots = List<int>.from(ble.todayStepsByInterval);
-        }
+        _stepsSlots = List<int>.from(slots);
       });
+      _dayCache[_dateKey(DateTime.now())] = _DaySnapshot(
+        steps: ble.todaySteps,
+        cal: ble.todayCalories,
+        distM: ble.todayDistanceM,
+        stepSlots: List<int>.from(slots),
+        calSlots: List<int>.from(_todayCalSlots),
+        distSlots: List<double>.from(_todayDistSlots),
+      );
     }
-    await _syncFromRing();
+    await _loadDay(_selectedDate, force: true);
   }
 
-  // ── Ring sync (today only) ────────────────────────────────────────────────
-
-  Future<void> _syncFromRing() async {
-    if (_dayLoad || !mounted) return;
-    setState(() => _dayLoad = true);
-
-    // Local-DB baseline first (same source as the home screen's Activity card) —
-    // works even without a live BLE connection, so totals stay real instead of
-    // "-- --" if the detailed ring fetch below fails. The ring fetch, when it
-    // succeeds, overwrites this with the richer 15-min interval breakdown.
-    await _syncFromLocalDb();
-
-    try {
-      final json = await _ble.getTodaySteps();
-      if (mounted) _parseRingData(json);
-    } catch (_) {}
-    if (mounted) setState(() => _dayLoad = false);
+  void _applySnapshot(_DaySnapshot snap, {required bool isToday}) {
+    setState(() {
+      _daySteps = snap.steps;
+      _dayCal = snap.cal;
+      _dayDistM = snap.distM;
+      _stepsSlots = List<int>.from(snap.stepSlots);
+      _calSlots = List<int>.from(snap.calSlots);
+      _distSlots = List<double>.from(snap.distSlots);
+      if (isToday) {
+        _totalSteps = snap.steps;
+        _totalCal = snap.cal;
+        _totalDistM = snap.distM;
+        _todayStepSlots = List<int>.from(snap.stepSlots);
+        _todayCalSlots = List<int>.from(snap.calSlots);
+        _todayDistSlots = List<double>.from(snap.distSlots);
+      }
+    });
   }
 
-  Future<void> _syncFromLocalDb() async {
-    try {
-      final decoded = jsonDecode(await _ble.getStepsToday());
-      if (decoded is! Map<String, dynamic>) return;
-      final steps = (decoded['steps'] as num?)?.toInt() ?? 0;
-      final cal = (decoded['caloriesKcal'] as num?)?.toInt() ?? 0;
-      final dist = (decoded['distanceM'] as num?)?.toDouble() ?? 0.0;
-      if (!mounted || steps <= 0) return;
-      setState(() {
-        _totalSteps = steps;
-        _totalCal = cal;
-        _totalDistM = dist;
-        if (_isToday(_selectedDate)) {
-          _daySteps = steps;
-          _dayCal = cal;
-          _dayDistM = dist;
-        }
-      });
-    } catch (_) {}
-  }
+  // ── Interval JSON parsing (today + past ring payloads) ───────────────────
 
-  void _parseRingData(String jsonStr) {
+  _DaySnapshot? _parseIntervalJson(String jsonStr) {
     try {
       final decoded = jsonDecode(jsonStr);
       final list = decoded is List ? decoded : <dynamic>[];
+      if (list.isEmpty) return null;
 
       final stepSlots = List<int>.filled(96, 0);
       final calSlots = List<int>.filled(96, 0);
@@ -189,53 +225,58 @@ class _StepsScreenState extends State<StepsScreen> {
       double totalDist = 0.0;
 
       for (final item in list) {
-        final m = item as Map<String, dynamic>;
-        final d = (m['d'] as num? ?? 0).toInt();
-        final steps = (m['f'] as num? ?? 0).toInt();
-        final cal = (m['e'] as num? ?? 0).toInt() ~/ 1000;
-        final dist = (m['g'] as num? ?? 0).toDouble();
-        totalSteps += steps;
+        if (item is! Map) continue;
+        final m = Map<String, dynamic>.from(item);
+
+        // ProGuard-obfuscated keys (production AAR) and clear SDK field names.
+        final slot = (m['d'] as num?)?.toInt() ??
+            (m['timeIndex'] as num?)?.toInt() ??
+            -1;
+        final steps = (m['f'] as num?)?.toInt() ??
+            (m['walkSteps'] as num?)?.toInt() ??
+            0;
+        final runSteps = (m['runSteps'] as num?)?.toInt() ?? 0;
+        final stepTotal = steps + runSteps;
+        final calRaw = (m['e'] as num?)?.toInt() ??
+            (m['calorie'] as num?)?.toInt() ??
+            0;
+        final cal = calRaw >= 1000 ? calRaw ~/ 1000 : calRaw;
+        final dist = (m['g'] as num?)?.toDouble() ??
+            (m['distance'] as num?)?.toDouble() ??
+            0.0;
+
+        totalSteps += stepTotal;
         totalCal += cal;
         totalDist += dist;
-        if (d >= 0 && d < 96) {
-          stepSlots[d] += steps;
-          calSlots[d] += cal;
-          distSlots[d] += dist;
+        if (slot >= 0 && slot < 96) {
+          stepSlots[slot] += stepTotal;
+          calSlots[slot] += cal;
+          distSlots[slot] += dist;
         }
       }
 
-      if (!mounted) return;
-      setState(() {
-        _totalSteps = totalSteps;
-        _totalCal = totalCal;
-        _totalDistM = totalDist;
-        if (_isToday(_selectedDate)) {
-          _daySteps = totalSteps;
-          _dayCal = totalCal;
-          _dayDistM = totalDist;
-          _stepsSlots = stepSlots;
-          _calSlots = calSlots;
-          _distSlots = distSlots;
-        }
-      });
-      context.read<BleProvider>().updateStepsData(
-        totalSteps,
-        totalCal,
-        totalDist,
-        stepSlots,
+      if (totalSteps <= 0 && totalCal <= 0 && totalDist <= 0) return null;
+      return _DaySnapshot(
+        steps: totalSteps,
+        cal: totalCal,
+        distM: totalDist,
+        stepSlots: stepSlots,
+        calSlots: calSlots,
+        distSlots: distSlots,
       );
-      _saveToDb(totalSteps, totalCal, totalDist);
-    } catch (_) {}
+    } catch (_) {
+      return null;
+    }
   }
 
-  Future<void> _saveToDb(int steps, int cal, double dist) async {
+  Future<void> _saveToDb(DateTime date, int steps, int cal, double dist) async {
     if (steps <= 0 && cal <= 0) return;
     final user = SupabaseService.currentUser;
     if (user == null) return;
     try {
       await SupabaseService.upsertSteps(
         userId: user.id,
-        date: DateTime.now(),
+        date: _dateOnly(date),
         steps: steps,
         calories: cal,
         distanceM: dist,
@@ -243,73 +284,199 @@ class _StepsScreenState extends State<StepsScreen> {
     } catch (_) {}
   }
 
-  // ── Past-day Supabase lookup ──────────────────────────────────────────────
+  Future<_DaySnapshot?> _loadFromLocalDb() async {
+    try {
+      final decoded = jsonDecode(await _ble.getStepsToday());
+      if (decoded is! Map<String, dynamic>) return null;
+      final steps = (decoded['steps'] as num?)?.toInt() ?? 0;
+      final cal = (decoded['caloriesKcal'] as num?)?.toInt() ?? 0;
+      final dist = (decoded['distanceM'] as num?)?.toDouble() ?? 0.0;
+      if (steps <= 0 && cal <= 0) return null;
+      return _DaySnapshot(
+        steps: steps,
+        cal: cal,
+        distM: dist,
+        stepSlots: List<int>.from(_todayStepSlots),
+        calSlots: List<int>.from(_todayCalSlots),
+        distSlots: List<double>.from(_todayDistSlots),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 
-  Future<void> _loadPastDayData(DateTime date) async {
+  Future<_DaySnapshot?> _loadFromRing(int dayIndex) async {
+    try {
+      final json = dayIndex == 0
+          ? await _ble.getTodaySteps()
+          : await _ble.getSteps(dayIndex);
+      return _parseIntervalJson(json);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<_DaySnapshot?> _loadFromSupabase(DateTime date) async {
     final user = SupabaseService.currentUser;
-    if (user == null || !mounted) return;
+    if (user == null) return null;
+    final day = _dateOnly(date);
+    final rows = await SupabaseService.getStepsHistory(
+      userId: user.id,
+      from: day,
+      to: day,
+    );
+    if (rows.isEmpty) return _DaySnapshot.empty();
+    final row = rows.first;
+    return _DaySnapshot(
+      steps: (row['steps'] as num? ?? 0).toInt(),
+      cal: (row['calories'] as num? ?? 0).toInt(),
+      distM: (row['distance_m'] as num? ?? 0.0).toDouble(),
+      stepSlots: List.filled(96, 0),
+      calSlots: List.filled(96, 0),
+      distSlots: List.filled(96, 0.0),
+    );
+  }
+
+  Future<void> _loadDay(DateTime date, {bool force = false}) async {
+    if (!mounted) return;
+    final day = _dateOnly(date);
+    final key = _dateKey(day);
+    final isToday = _isToday(day);
+    final gen = ++_loadGen;
+
+    final cached = _dayCache[key];
+    if (cached != null && !force) {
+      _applySnapshot(cached, isToday: isToday);
+      setState(() {
+        _dayLoad = false;
+        _pastDayOffline = false;
+      });
+      return;
+    }
+
+    if (cached != null) {
+      _applySnapshot(cached, isToday: isToday);
+    } else if (!isToday) {
+      setState(() {
+        _daySteps = 0;
+        _dayCal = 0;
+        _dayDistM = 0.0;
+        _stepsSlots = List.filled(96, 0);
+        _calSlots = List.filled(96, 0);
+        _distSlots = List.filled(96, 0.0);
+      });
+    }
+
     setState(() {
       _dayLoad = true;
       _pastDayOffline = false;
     });
-    try {
-      final start = DateTime(date.year, date.month, date.day);
-      final end = start.add(const Duration(days: 1));
-      final rows = await SupabaseService.getStepsHistory(
-        userId: user.id,
-        from: start,
-        to: end,
-      );
-      if (!mounted) return;
-      setState(() {
-        if (rows.isEmpty) {
-          _daySteps = 0;
-          _dayCal = 0;
-          _dayDistM = 0.0;
-        } else {
-          final row = rows.first;
-          _daySteps = (row['steps'] as num? ?? 0).toInt();
-          _dayCal = (row['calories'] as num? ?? 0).toInt();
-          _dayDistM = (row['distance_m'] as num? ?? 0.0).toDouble();
+
+    _DaySnapshot? snap;
+
+    if (isToday) {
+      final local = await _loadFromLocalDb();
+      if (!mounted || gen != _loadGen) return;
+      if (local != null) {
+        snap = local;
+        _applySnapshot(local, isToday: true);
+      }
+
+      final ring = await _loadFromRing(0);
+      if (!mounted || gen != _loadGen) return;
+      if (ring != null && ring.hasTotals) {
+        snap = ring;
+        _applySnapshot(ring, isToday: true);
+        context.read<BleProvider>().updateStepsData(
+              ring.steps,
+              ring.cal,
+              ring.distM,
+              ring.stepSlots,
+            );
+        await _saveToDb(day, ring.steps, ring.cal, ring.distM);
+      }
+    } else {
+      final dayIndex = _dayIndexFor(day);
+      if (dayIndex > 0 && dayIndex <= 7) {
+        final ring = await _loadFromRing(dayIndex);
+        if (!mounted || gen != _loadGen) return;
+        if (ring != null && ring.hasTotals) {
+          snap = ring;
+          _applySnapshot(ring, isToday: false);
+          await _saveToDb(day, ring.steps, ring.cal, ring.distM);
         }
-        // No 15-min interval breakdown available for past days
-        _stepsSlots = List.filled(96, 0);
-        _calSlots = List.filled(96, 0);
-        _distSlots = List.filled(96, 0.0);
-      });
-    } catch (e) {
-      if (mounted && isNetworkError(e)) setState(() => _pastDayOffline = true);
+      }
+
+      if (snap == null || !snap.hasTotals) {
+        try {
+          final cloud = await _loadFromSupabase(day);
+          if (!mounted || gen != _loadGen) return;
+          if (cloud != null) {
+            if (snap != null && snap.hasIntervals && !cloud.hasIntervals) {
+              snap = _DaySnapshot(
+                steps: cloud.hasTotals ? cloud.steps : snap.steps,
+                cal: cloud.hasTotals ? cloud.cal : snap.cal,
+                distM: cloud.hasTotals ? cloud.distM : snap.distM,
+                stepSlots: snap.stepSlots,
+                calSlots: snap.calSlots,
+                distSlots: snap.distSlots,
+              );
+            } else {
+              snap = cloud;
+            }
+            _applySnapshot(snap, isToday: false);
+          }
+        } catch (e) {
+          if (mounted && gen == _loadGen && isNetworkError(e)) {
+            setState(() => _pastDayOffline = true);
+          }
+        }
+      }
     }
-    if (mounted) setState(() => _dayLoad = false);
+
+    if (!mounted || gen != _loadGen) return;
+    if (snap != null) {
+      _dayCache[key] = snap;
+    }
+    setState(() => _dayLoad = false);
   }
 
-  // ── Date selection ────────────────────────────────────────────────────────
-
   void _onDateSelected(DateTime date) {
-    final today = DateTime.now();
-    final startOfToday = DateTime(today.year, today.month, today.day);
-    final startOfDate = DateTime(date.year, date.month, date.day);
-    if (startOfDate.isAfter(startOfToday)) return; // block future dates
+    final day = _dateOnly(date);
+    final today = _dateOnly(DateTime.now());
+    if (day.isAfter(today)) return;
+    if (_sameDay(_selectedDate, day)) return;
 
-    setState(() => _selectedDate = date);
+    setState(() {
+      _selectedDate = day;
+      _pastDayOffline = false;
+    });
 
-    if (_isToday(date)) {
-      // Restore cached today totals immediately, then re-sync from ring
+    final key = _dateKey(day);
+    final cached = _dayCache[key];
+    if (cached != null) {
+      _applySnapshot(cached, isToday: _isToday(day));
+    } else if (_isToday(day)) {
       setState(() {
         _daySteps = _totalSteps;
         _dayCal = _totalCal;
         _dayDistM = _totalDistM;
+        _stepsSlots = List<int>.from(_todayStepSlots);
+        _calSlots = List<int>.from(_todayCalSlots);
+        _distSlots = List<double>.from(_todayDistSlots);
       });
-      _syncFromRing();
     } else {
-      // Clear slots — past days have no interval data
       setState(() {
+        _daySteps = 0;
+        _dayCal = 0;
+        _dayDistM = 0.0;
         _stepsSlots = List.filled(96, 0);
         _calSlots = List.filled(96, 0);
         _distSlots = List.filled(96, 0.0);
       });
-      _loadPastDayData(date);
     }
+
+    _loadDay(day, force: cached == null || _isToday(day));
   }
 
   // ── Display value getters ─────────────────────────────────────────────────
@@ -340,16 +507,14 @@ class _StepsScreenState extends State<StepsScreen> {
             MaterialPageRoute(builder: (_) => const CardSettingsScreen()),
           ),
         ),
-        GlassMenuItem(
-          label: 'Activity Description',
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const ActivityDescriptionScreen(),
-            ),
-          ),
-        ),
       ],
+    );
+  }
+
+  void _openActivityDescription() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ActivityDescriptionScreen()),
     );
   }
 
@@ -381,8 +546,6 @@ class _StepsScreenState extends State<StepsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-
     return RepaintBoundary(
       key: _screenshotKey,
       child: Scaffold(
@@ -391,19 +554,25 @@ class _StepsScreenState extends State<StepsScreen> {
           backgroundColor: _kBg,
           elevation: 0,
           centerTitle: true,
-          leading: Center(
-            child: _circleIconButton(
-              icon: const Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: Colors.white,
-                size: 16,
+          leadingWidth: 70,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 16),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _circleIconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
+                onTap: () => Navigator.pop(context),
               ),
-              onTap: () => Navigator.pop(context),
             ),
           ),
           title: Text('Activity', style: _t(17, w: FontWeight.w600)),
           actions: [
-            Center(
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
               child: KeyedSubtree(
                 key: _moreButtonKey,
                 child: _circleIconButton(
@@ -416,19 +585,12 @@ class _StepsScreenState extends State<StepsScreen> {
                 ),
               ),
             ),
-            const SizedBox(width: 16),
           ],
         ),
         body: RefreshIndicator(
           color: const Color(0xFFC9A86E),
           backgroundColor: const Color(0xFF1C1C1C),
-          onRefresh: () async {
-            if (_isToday(_selectedDate)) {
-              await _syncFromRing();
-            } else {
-              await _loadPastDayData(_selectedDate);
-            }
-          },
+          onRefresh: () => _loadDay(_selectedDate, force: true),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: Column(
@@ -436,7 +598,6 @@ class _StepsScreenState extends State<StepsScreen> {
               children: [
                 // ── Interactive date strip ───────────────────────────────────
                 _DateStrip(
-                  now: now,
                   selectedDate: _selectedDate,
                   onDateSelected: _onDateSelected,
                 ),
@@ -457,10 +618,14 @@ class _StepsScreenState extends State<StepsScreen> {
                 // ── Activity Score ───────────────────────────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 22, 16, 0),
-                  child: _ActivityScore(
-                    score: _activityScore,
-                    label: _scoreLabel,
-                    loading: _loading,
+                  child: GestureDetector(
+                    onTap: _openActivityDescription,
+                    behavior: HitTestBehavior.opaque,
+                    child: _ActivityScore(
+                      score: _activityScore,
+                      label: _scoreLabel,
+                      loading: _loading,
+                    ),
                   ),
                 ),
 
@@ -470,13 +635,25 @@ class _StepsScreenState extends State<StepsScreen> {
                   child: GestureDetector(
                     onTap: () => Navigator.pushNamed(context, '/workouts'),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      decoration: _glass(r: 16),
+                      padding: const EdgeInsets.all(16),
+                      decoration: _glass(),
                       child: Row(
                         children: [
+                          Container(
+                            width: 34,
+                            height: 34,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE08A4A).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.fitness_center_rounded,
+                              color: Color(0xFFE08A4A),
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
                           Text(
                             'Workout and Sports',
                             style: _t(
@@ -500,35 +677,37 @@ class _StepsScreenState extends State<StepsScreen> {
                 // ── Stats row ────────────────────────────────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _StatCard(
-                          label: 'Total Steps',
-                          value: _dispSteps > 0 ? '$_dispSteps' : '-- --',
-                          color: _kStepsColor,
+                  child: IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _StatCard(
+                            label: 'Total Steps',
+                            value: _dispSteps > 0 ? '$_dispSteps' : '-- --',
+                            color: _kStepsColor,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _StatCard(
-                          label: 'Total Mileage',
-                          value: _dispDistM > 0
-                              ? '${(_dispDistM / 1000).toStringAsFixed(2)} km'
-                              : '-- --',
-                          color: _kDistColor,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _StatCard(
+                            label: 'Total Mileage',
+                            value: _dispDistM > 0
+                                ? '${(_dispDistM / 1000).toStringAsFixed(2)} km'
+                                : '-- --',
+                            color: _kDistColor,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _StatCard(
-                          label:
-                              'Total Calories', // Capitalized for UI consistency
-                          value: _dispCal > 0 ? '$_dispCal' : '-- --',
-                          color: _kCalColor,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _StatCard(
+                            label: 'Total Calories',
+                            value: _dispCal > 0 ? '$_dispCal' : '-- --',
+                            color: _kCalColor,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
 
@@ -598,84 +777,144 @@ class _StepsScreenState extends State<StepsScreen> {
 
 // ── Date strip ────────────────────────────────────────────────────────────────
 
-class _DateStrip extends StatelessWidget {
-  final DateTime now;
+class _DateStrip extends StatefulWidget {
   final DateTime selectedDate;
   final ValueChanged<DateTime> onDateSelected;
 
   const _DateStrip({
-    required this.now,
     required this.selectedDate,
     required this.onDateSelected,
   });
 
+  @override
+  State<_DateStrip> createState() => _DateStripState();
+}
+
+class _DateStripState extends State<_DateStrip> {
+  static const int _pastDays = 6;
+  static const int _futureDays = 3;
+  static const int _itemCount = _pastDays + 1 + _futureDays;
+
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
+  }
+
+  @override
+  void didUpdateWidget(covariant _DateStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_sameDay(oldWidget.selectedDate, widget.selectedDate)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
+  DateTime get _today {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day);
+  }
+
+  DateTime _dateAt(int index) =>
+      _today.add(Duration(days: index - _pastDays));
+
+  int get _selectedIndex {
+    final diff = _today.difference(
+      DateTime(
+        widget.selectedDate.year,
+        widget.selectedDate.month,
+        widget.selectedDate.day,
+      ),
+    ).inDays;
+    return (_pastDays - diff).clamp(0, _itemCount - 1);
+  }
+
+  void _scrollToSelected() {
+    if (!_scrollController.hasClients) return;
+    const approxItemWidth = 56.0;
+    final target = (_selectedIndex * approxItemWidth) -
+        (_scrollController.position.viewportDimension / 2) +
+        (approxItemWidth / 2);
+    _scrollController.animateTo(
+      target.clamp(0.0, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final startOfToday = DateTime(now.year, now.month, now.day);
-
     return SizedBox(
-      height: 54,
+      height: 58,
       child: ListView.builder(
+        controller: _scrollController,
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        itemCount: 10,
+        itemCount: _itemCount,
         itemBuilder: (_, i) {
-          final offset = i - 6; // -6 … +3
-          final date = now.add(Duration(days: offset));
-          final startOfDay = DateTime(date.year, date.month, date.day);
-          final isToday = _sameDay(date, now);
-          final isSelected = _sameDay(date, selectedDate);
-          final isFuture = startOfDay.isAfter(startOfToday);
+          final date = _dateAt(i);
+          final isToday = i == _pastDays;
+          final isSelected = _sameDay(date, widget.selectedDate);
+          final isFuture = i > _pastDays;
 
-          return GestureDetector(
-            onTap: isFuture ? null : () => onDateSelected(date),
-            child: Center(
-              child: isSelected
-                  ? Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          width: 0.5,
-                        ),
-                      ),
-                      child: Text(
-                        isToday
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: isFuture ? null : () => widget.onDateSelected(date),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOut,
+                  alignment: Alignment.center,
+                  constraints: BoxConstraints(
+                    minWidth: isSelected ? 96 : 44,
+                    minHeight: 40,
+                  ),
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSelected ? 16 : 12,
+                    vertical: 8,
+                  ),
+                  decoration: isSelected
+                      ? BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            width: 0.5,
+                          ),
+                        )
+                      : null,
+                  child: Text(
+                    isSelected
+                        ? (isToday
                             ? 'Today, ${date.day} ${_monthAbbr[date.month - 1]}'
-                            : '${date.day} ${_monthAbbr[date.month - 1]}',
-                        style: _t(
-                          13,
-                          w: FontWeight.w500,
-                          c: Colors.white.withValues(alpha: 0.95),
-                        ),
-                      ),
-                    )
-                  : Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 8),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 4,
-                      ),
-                      child: Text(
-                        '${date.day}',
-                        style: _t(
-                          14,
-                          w: FontWeight.w400,
-                          c: isFuture
-                              ? Colors.white.withValues(alpha: 0.18)
-                              : Colors.white.withValues(alpha: 0.4),
-                        ),
-                      ),
+                            : '${date.day} ${_monthAbbr[date.month - 1]}')
+                        : '${date.day}',
+                    style: _t(
+                      isSelected ? 13 : 14,
+                      w: isSelected ? FontWeight.w500 : FontWeight.w400,
+                      c: isFuture
+                          ? Colors.white.withValues(alpha: 0.18)
+                          : isSelected
+                              ? Colors.white.withValues(alpha: 0.95)
+                              : Colors.white.withValues(alpha: 0.45),
                     ),
+                  ),
+                ),
+              ),
             ),
           );
         },
@@ -750,7 +989,8 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: _glass(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -762,6 +1002,8 @@ class _StatCard extends StatelessWidget {
               w: FontWeight.w500,
               c: Colors.white.withValues(alpha: 0.4),
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 12),
           Text(
@@ -773,25 +1015,6 @@ class _StatCard extends StatelessWidget {
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text(
-                'know more',
-                style: _t(
-                  9,
-                  w: FontWeight.w400,
-                  c: Colors.white.withValues(alpha: 0.35),
-                ),
-              ),
-              const SizedBox(width: 2),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: Colors.white.withValues(alpha: 0.35),
-                size: 10,
-              ),
-            ],
           ),
         ],
       ),
@@ -895,7 +1118,7 @@ class _ChartCardState extends State<_ChartCard> {
 
           // Chart body
           SizedBox(
-            height: 239,
+            height: 160,
             width: double.infinity,
             child: widget.loading
                 ? Center(

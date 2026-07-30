@@ -38,6 +38,7 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
   }
 
   void _onClockChanged(TimeOfDay t) {
+    // Draft only — persisted when the user taps the check button.
     setState(() {
       if (_editingStart) {
         _start = t;
@@ -45,7 +46,12 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
         _end = t;
       }
     });
-    PrayerSchedulePrefs.save(_start, _end);
+  }
+
+  Future<void> _confirm() async {
+    await PrayerSchedulePrefs.save(_start, _end);
+    if (!mounted) return;
+    Navigator.pop(context);
   }
 
   String _fmt(TimeOfDay t) => t.format(context);
@@ -107,7 +113,7 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
               ),
               _CircleButton(
                 icon: Icons.check_rounded,
-                onTap: () => Navigator.pop(context),
+                onTap: _confirm,
               ),
             ],
           ),

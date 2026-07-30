@@ -1,6 +1,7 @@
-import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../../providers/main_tab_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../services/chat_api_service.dart';
 import 'key_change_card.dart';
@@ -9,23 +10,26 @@ class InsightsHeader extends StatefulWidget {
   const InsightsHeader({super.key});
 
   @override
-  State<InsightsHeader> createState() => _InsightsHeaderState();
+  State<InsightsHeader> createState() => InsightsHeaderState();
 }
 
-class _InsightsHeaderState extends State<InsightsHeader>
+class InsightsHeaderState extends State<InsightsHeader>
     with AutomaticKeepAliveClientMixin {
   // Static so it survives this widget being disposed and recreated — e.g.
   // navigating away from the AI assist tab and back, or a fresh app open —
   // not just scroll-offscreen (that's handled by AutomaticKeepAliveClientMixin
-  // below). Keyed by range so each tab (7D/30D/90D) caches independently.
-  static final Map<String, Map<String, dynamic>> _cache = {};
-  static final Map<String, DateTime> _cacheTime = {};
+  // below).
+  static Map<String, dynamic>? _cache;
+  static DateTime? _cacheTime;
   static const _cacheTtl = Duration(minutes: 5);
 
-  String _selectedRange = '30D';
+  // Toggle removed — range is fixed. Kept as a constant (rather than deleting
+  // every _selectedRange reference) so _rangeLabel/_load/_navigateFor below
+  // don't need to change shape.
+  static const String _selectedRange = '30D';
+
   Future<Map<String, dynamic>>? _insightsFuture;
   Map<String, dynamic>? _cachedData;
-  bool _refreshing = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -37,8 +41,8 @@ class _InsightsHeaderState extends State<InsightsHeader>
   }
 
   void _load({bool forceRefresh = false}) {
-    final cached = _cache[_selectedRange];
-    final cachedAt = _cacheTime[_selectedRange];
+    final cached = _cache;
+    final cachedAt = _cacheTime;
     final isFresh =
         cachedAt != null && DateTime.now().difference(cachedAt) < _cacheTtl;
 
@@ -53,31 +57,19 @@ class _InsightsHeaderState extends State<InsightsHeader>
     // instead of blanking out to a spinner on every re-fetch.
     _cachedData = cached;
     _insightsFuture = ChatApiService.getInsights(_selectedRange).then((data) {
-      _cache[_selectedRange] = data;
-      _cacheTime[_selectedRange] = DateTime.now();
+      _cache = data;
+      _cacheTime = DateTime.now();
       return data;
     });
   }
 
-  Future<void> _onRefreshTap() async {
-    if (_refreshing) return;
-    setState(() {
-      _refreshing = true;
-      _load(forceRefresh: true);
-    });
-    try {
-      await _insightsFuture;
-    } finally {
-      if (mounted) setState(() => _refreshing = false);
-    }
-  }
-
-  void _onRangeSelect(String range) {
-    if (range == _selectedRange) return;
-    setState(() {
-      _selectedRange = range;
-      _load();
-    });
+  /// Called from a pull-to-refresh gesture on the enclosing scroll view
+  /// (see chat_screen.dart's RefreshIndicator). Public so the parent can
+  /// reach it via a GlobalKey/State reference.
+  Future<void> refresh() async {
+    setState(() => _load(forceRefresh: true));
+    await _insightsFuture;
+    if (mounted) setState(() {});
   }
 
   @override
@@ -90,43 +82,46 @@ class _InsightsHeaderState extends State<InsightsHeader>
         children: [
           const SizedBox(height: 18),
 
-          // Title, refresh icon, and segmented control row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          // Just the centered title, with a back button (per Figma spec) on
+          // the left. Since this screen is a bottom-nav tab (IndexedStack),
+          // not a pushed route, the back button switches to the Home tab
+          // instead of calling Navigator.pop().
+          Stack(
+            alignment: Alignment.center,
             children: [
               Text(
-                'AI assist',
+                'AI Assist',
                 style: GoogleFonts.inter(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w300,
-                  letterSpacing: -0.04 * 28,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.02 * 20,
                   color: const Color(0xF2FFFFFF),
                 ),
               ),
-              Row(
-                children: [
-                  GestureDetector(
-                    onTap: _onRefreshTap,
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 10),
-                      child: _refreshing
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0x66FFFFFF),
-                              ),
-                            )
-                          : const Icon(
-                              Icons.refresh_rounded,
-                              size: 18,
-                              color: Color(0x66FFFFFF),
-                            ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: GestureDetector(
+                  onTap: () => context.read<MainTabProvider>().setTab(0),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
+                      border: Border.all(
+                        color: const Color(
+                          0x14FFFFFF,
+                        ), // rgba(255,255,255,0.08)
+                        width: 0.5,
+                      ),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_rounded,
+                      size: 16,
+                      color: Color(0xD9FFFFFF), // rgba(255,255,255,0.85)
                     ),
                   ),
-                  _buildSegmentedControl(),
-                ],
+                ),
               ),
             ],
           ),
@@ -310,58 +305,5 @@ class _InsightsHeaderState extends State<InsightsHeader>
         Navigator.pushNamed(context, '/steps');
         break;
     }
-  }
-
-  Widget _buildSegmentedControl() {
-    return Container(
-      width: 131,
-      height: 33,
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: const Color(0x0AFFFFFF),
-        border: Border.all(color: const Color(0x0FFFFFFF), width: 0.5),
-        borderRadius: BorderRadius.circular(100),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(100),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Row(
-            children: [
-              _buildSegment('7D'),
-              _buildSegment('30D'),
-              _buildSegment('90D'),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSegment(String range) {
-    final bool isSelected = _selectedRange == range;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => _onRangeSelect(range),
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0x14FFFFFF) : Colors.transparent,
-            borderRadius: BorderRadius.circular(100),
-          ),
-          child: Center(
-            child: Text(
-              range,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w400,
-                letterSpacing: 0.02 * 11,
-                color: const Color(0xF2FFFFFF),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

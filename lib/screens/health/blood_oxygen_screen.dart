@@ -870,8 +870,6 @@ class _Spo2StatCard extends StatelessWidget {
               Text(unit, style: _inter(11, color: _kSec)),
             ],
           ),
-          const SizedBox(height: 6),
-          Text('know more >', style: _inter(11, color: _kSec)),
         ],
       ),
     );

@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/alarm_mode_provider.dart';
-import '../../providers/ble_provider.dart';
 import '../../services/prayer_schedule_prefs.dart';
 import '../../theme/app_theme.dart';
 import 'prayer_schedule_screen.dart';
 import 'select_notifications_screen.dart';
+import 'sleep_schedule_screen.dart';
 
 // Same "FlutterSharedPreferences" file / "flutter."-prefixed keys BleConnectionService
 // already reads natively (device_address, user_logged_in) — the native 8s reconnect loop
@@ -27,10 +26,8 @@ class AlarmsNotificationsScreen extends StatefulWidget {
 
 class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
   bool _push = true;
-  bool _call = false;
   bool _sms = false;
 
-  List<Map<String, dynamic>> _modeSessions = [];
   TimeOfDay? _sleepReminderTime;
   TimeOfDay _prayerStart = PrayerSchedulePrefs.defaultStart;
   TimeOfDay _prayerEnd = PrayerSchedulePrefs.defaultEnd;
@@ -40,7 +37,6 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUsage();
     _loadSleepReminder();
     _loadPrayerSchedule();
   }
@@ -62,14 +58,6 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
     _loadPrayerSchedule();
   }
 
-  Future<void> _loadUsage() async {
-    final sessions = await context
-        .read<BleProvider>()
-        .getPhoneModeSessionsToday();
-    if (!mounted) return;
-    setState(() => _modeSessions = sessions);
-  }
-
   Future<void> _loadSleepReminder() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
@@ -87,64 +75,15 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
   }
 
   Future<void> _scheduleSleepReminder() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _sleepReminderTime ?? const TimeOfDay(hour: 22, minute: 30),
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SleepScheduleScreen()),
     );
-    if (picked == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kSleepReminderEnabledKey, true);
-    // Stored as strings, not setInt — the Android shared_preferences backend stores Dart
-    // ints as Long (to support 64-bit values), so a native getInt() read would crash with
-    // a ClassCastException. Strings round-trip exactly like device_name/device_address do.
-    await prefs.setString(_kSleepReminderHourKey, picked.hour.toString());
-    await prefs.setString(_kSleepReminderMinuteKey, picked.minute.toString());
-    if (!mounted) return;
-    setState(() => _sleepReminderTime = picked);
+    _loadSleepReminder();
   }
 
   Future<void> _setMode(AlarmModeProvider alarmMode, PhoneMode mode) async {
     await requestPhoneMode(context, alarmMode, mode);
-    await _loadUsage();
-  }
-
-  Duration _totalForMode(String mode) {
-    final now = DateTime.now();
-    final dayStart = DateTime(now.year, now.month, now.day);
-    var total = Duration.zero;
-    for (final s in _modeSessions) {
-      if (s['mode'] != mode) continue;
-      final startedAt = DateTime.fromMillisecondsSinceEpoch(
-        (s['startedAt'] as num).toInt(),
-      );
-      final endedAtRaw = s['endedAt'] as num?;
-      final endedAt = endedAtRaw != null
-          ? DateTime.fromMillisecondsSinceEpoch(endedAtRaw.toInt())
-          : now;
-      final clippedStart = startedAt.isBefore(dayStart) ? dayStart : startedAt;
-      if (endedAt.isAfter(clippedStart)) {
-        total += endedAt.difference(clippedStart);
-      }
-    }
-    return total;
-  }
-
-  List<String> _rangesForMode(String mode) {
-    final fmt = DateFormat('HH:mm');
-    final ranges = <String>[];
-    // Native returns sessions ordered startedAt DESC — reverse for chronological display.
-    for (final s in _modeSessions.reversed) {
-      if (s['mode'] != mode) continue;
-      final startedAt = DateTime.fromMillisecondsSinceEpoch(
-        (s['startedAt'] as num).toInt(),
-      );
-      final endedAtRaw = s['endedAt'] as num?;
-      final end = endedAtRaw != null
-          ? fmt.format(DateTime.fromMillisecondsSinceEpoch(endedAtRaw.toInt()))
-          : 'now';
-      ranges.add('${fmt.format(startedAt)}–$end');
-    }
-    return ranges;
   }
 
   @override
@@ -261,34 +200,6 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
               ),
             ),
             const SizedBox(height: 28),
-            _sectionLabel("TODAY'S USAGE"),
-            const SizedBox(height: 10),
-            Container(
-              decoration: BoxDecoration(
-                color: AppTheme.card,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  _UsageRow(
-                    icon: Icons.adjust_rounded,
-                    color: AppTheme.focus,
-                    title: 'Focus',
-                    duration: _totalForMode('focus'),
-                    ranges: _rangesForMode('focus'),
-                  ),
-                  _divider(),
-                  _UsageRow(
-                    icon: Icons.self_improvement_rounded,
-                    color: AppTheme.success,
-                    title: 'Prayer',
-                    duration: _totalForMode('prayer'),
-                    ranges: _rangesForMode('prayer'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 28),
             _sectionLabel('NOTIFICATIONS'),
             const SizedBox(height: 10),
             Container(
@@ -342,11 +253,6 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                   _AlarmRow(
                     title: 'Push',
                     trailing: _switch(_push, (v) => setState(() => _push = v)),
-                  ),
-                  _divider(),
-                  _AlarmRow(
-                    title: 'Call',
-                    trailing: _switch(_call, (v) => setState(() => _call = v)),
                   ),
                   _divider(),
                   _AlarmRow(
@@ -470,85 +376,6 @@ class _AlarmRow extends StatelessWidget {
             trailing,
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _UsageRow extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String title;
-  final Duration duration;
-  final List<String> ranges;
-
-  const _UsageRow({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.duration,
-    required this.ranges,
-  });
-
-  String get _durationLabel {
-    if (duration.inMinutes <= 0) return 'Not used today';
-    final h = duration.inHours;
-    final m = duration.inMinutes % 60;
-    return h > 0 ? '${h}h ${m}m today' : '${m}m today';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: color, size: 16),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  _durationLabel,
-                  style: GoogleFonts.inter(
-                    color: color,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                if (ranges.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    ranges.join('  ·  '),
-                    style: GoogleFonts.inter(
-                      color: AppTheme.textSec,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

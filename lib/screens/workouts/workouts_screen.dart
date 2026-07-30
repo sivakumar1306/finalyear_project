@@ -222,7 +222,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'RECENT WORKOUTS',
+                            "TODAY'S WORKOUTS",
                             style: _inter(11,
                                 weight: FontWeight.w700,
                                 color: _kSec2,
