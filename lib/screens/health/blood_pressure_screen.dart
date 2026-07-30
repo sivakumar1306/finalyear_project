@@ -885,14 +885,30 @@ class _BPChartCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
+          // Day labels: equal-width slots centered under each bar pair.
+          // Time-of-day labels (with an empty end tick): spaceBetween ticks.
           Padding(
             padding: const EdgeInsets.only(left: _yAxisW),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: xLabels
-                  .map((l) => Text(l, style: _inter(10, color: _kSec)))
-                  .toList(),
-            ),
+            child: xLabels.length == sbpValues.length &&
+                    xLabels.every((l) => l.isNotEmpty)
+                ? Row(
+                    children: [
+                      for (final label in xLabels)
+                        Expanded(
+                          child: Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            style: _inter(10, color: _kSec),
+                          ),
+                        ),
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: xLabels
+                        .map((l) => Text(l, style: _inter(10, color: _kSec)))
+                        .toList(),
+                  ),
           ),
         ],
       ),
