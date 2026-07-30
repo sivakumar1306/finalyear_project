@@ -1015,8 +1015,6 @@ class _BPStatCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 6),
-          Text('know more >', style: _inter(11, color: _kSec)),
         ],
       ),
     );
