@@ -30,6 +30,11 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  // Lets pull-to-refresh reach into InsightsHeader and re-fetch its data —
+  // see InsightsHeaderState.refresh(). The toggle/refresh-icon UI was removed
+  // from that header in favor of this gesture.
+  final GlobalKey<InsightsHeaderState> _insightsKey =
+      GlobalKey<InsightsHeaderState>();
   final List<Map<String, dynamic>> _messages = [];
   bool _isLoading = false;
   bool _hasText = false;
@@ -116,19 +121,37 @@ class _ChatScreenState extends State<ChatScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF141414),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Start a new chat?', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+        title: Text(
+          'Start a new chat?',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         content: Text(
           'This clears the current conversation from view. Your history isn\'t deleted.',
-          style: GoogleFonts.inter(color: const Color(0x99FFFFFF), fontSize: 13),
+          style: GoogleFonts.inter(
+            color: const Color(0x99FFFFFF),
+            fontSize: 13,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: const Color(0x99FFFFFF))),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: const Color(0x99FFFFFF)),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Start new', style: GoogleFonts.inter(color: AppTheme.goldAccent, fontWeight: FontWeight.w600)),
+            child: Text(
+              'Start new',
+              style: GoogleFonts.inter(
+                color: AppTheme.goldAccent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -211,6 +234,13 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  // Pull-to-refresh handler — re-fetches the insights header's data. The
+  // header itself no longer has its own refresh icon/toggle (see
+  // insights_header.dart), so this gesture is now the only way to refresh it.
+  Future<void> _onPullToRefresh() async {
+    await _insightsKey.currentState?.refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
@@ -274,173 +304,187 @@ class _ChatScreenState extends State<ChatScreen> {
                     )
                   : _messages.isEmpty
                   ? _buildEmptyState()
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      // header(1) + messages + loading(0/1) + trailing "new chat" chip(0/1)
-                      itemCount: _messages.length +
-                          (_isLoading ? 1 : 0) +
-                          1 +
-                          (_messages.isNotEmpty && !_isLoading ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index == 0) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const InsightsHeader(),
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  top: 18,
-                                  bottom: 14,
-                                ),
-                                child: Container(
-                                  height: 0.5,
-                                  color: const Color(
-                                    0x1AFFFFFF,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        }
-
-                        // Adjust index because of the header at index 0
-                        final int msgIndex = index - 1;
-
-                        if (_isLoading && msgIndex == _messages.length) {
-                          // Typing loading indicator (aligned left)
-                          return Align(
-                            alignment: Alignment.centerLeft,
-                            child: Column(
+                  : RefreshIndicator(
+                      onRefresh: _onPullToRefresh,
+                      color: AppTheme.goldAccent,
+                      backgroundColor: const Color(0xFF141414),
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        // header(1) + messages + loading(0/1) + trailing "new chat" chip(0/1)
+                        itemCount:
+                            _messages.length +
+                            (_isLoading ? 1 : 0) +
+                            1 +
+                            (_messages.isNotEmpty && !_isLoading ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == 0) {
+                            return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                InsightsHeader(key: _insightsKey),
                                 Padding(
                                   padding: const EdgeInsets.only(
-                                    left: 6,
-                                    bottom: 4,
+                                    top: 18,
+                                    bottom: 14,
                                   ),
-                                  child: Text(
-                                    'AI ASSIST',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w500,
-                                      letterSpacing: 0.12 * 10,
-                                      color: const Color(
-                                        0x66FFFFFF,
-                                      ),
-                                    ),
+                                  child: Container(
+                                    height: 0.5,
+                                    color: const Color(0x1AFFFFFF),
                                   ),
-                                ),
-                                Container(
-                                  margin: const EdgeInsets.symmetric(
-                                    vertical: 6,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 16,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                      0x0AFFFFFF,
-                                    ),
-                                    border: Border.all(
-                                      color: const Color(
-                                        0x12FFFFFF,
-                                      ),
-                                      width: 1,
-                                    ),
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(6),
-                                      topRight: Radius.circular(28),
-                                      bottomLeft: Radius.circular(18),
-                                      bottomRight: Radius.circular(18),
-                                    ),
-                                  ),
-                                  child: const _ChatLoadingIndicator(),
                                 ),
                               ],
-                            ),
-                          );
-                        }
+                            );
+                          }
 
-                        // Trailing "New chat" chip — the very last list item, shown once a
-                        // reply (and any card) has fully rendered and nothing is loading.
-                        final bool showNewChatButton = _messages.isNotEmpty && !_isLoading;
-                        final int trailingIndex = _messages.length + (_isLoading ? 1 : 0) + 1;
-                        if (showNewChatButton && index == trailingIndex) {
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 20, bottom: 8),
-                            child: Center(
-                              child: GestureDetector(
-                                onTap: _startNewChat,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0x0AFFFFFF),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: const Color(0x14FFFFFF), width: 0.5),
+                          // Adjust index because of the header at index 0
+                          final int msgIndex = index - 1;
+
+                          if (_isLoading && msgIndex == _messages.length) {
+                            // Typing loading indicator (aligned left)
+                            return Align(
+                              alignment: Alignment.centerLeft,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      left: 6,
+                                      bottom: 4,
+                                    ),
+                                    child: Text(
+                                      'AI ASSIST',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w500,
+                                        letterSpacing: 0.12 * 10,
+                                        color: const Color(0x66FFFFFF),
+                                      ),
+                                    ),
                                   ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.add_comment_outlined,
-                                          size: 14, color: AppTheme.goldAccent),
-                                      const SizedBox(width: 6),
-                                      Text('New chat',
+                                  Container(
+                                    margin: const EdgeInsets.symmetric(
+                                      vertical: 6,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 16,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0x0AFFFFFF),
+                                      border: Border.all(
+                                        color: const Color(0x12FFFFFF),
+                                        width: 1,
+                                      ),
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(6),
+                                        topRight: Radius.circular(28),
+                                        bottomLeft: Radius.circular(18),
+                                        bottomRight: Radius.circular(18),
+                                      ),
+                                    ),
+                                    child: const _ChatLoadingIndicator(),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          // Trailing "New chat" chip — the very last list item, shown once a
+                          // reply (and any card) has fully rendered and nothing is loading.
+                          final bool showNewChatButton =
+                              _messages.isNotEmpty && !_isLoading;
+                          final int trailingIndex =
+                              _messages.length + (_isLoading ? 1 : 0) + 1;
+                          if (showNewChatButton && index == trailingIndex) {
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                top: 20,
+                                bottom: 8,
+                              ),
+                              child: Center(
+                                child: GestureDetector(
+                                  onTap: _startNewChat,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 9,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0x0AFFFFFF),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: const Color(0x14FFFFFF),
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.add_comment_outlined,
+                                          size: 14,
+                                          color: AppTheme.goldAccent,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'New chat',
                                           style: GoogleFonts.inter(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w500,
                                             color: const Color(0xCCFFFFFF),
-                                          )),
-                                    ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          );
-                        }
+                            );
+                          }
 
-                        final msg = _messages[msgIndex];
-                        final isUser = msg['role'] == 'user';
+                          final msg = _messages[msgIndex];
+                          final isUser = msg['role'] == 'user';
 
-                        if (isUser) {
-                          return _buildUserBubble(
-                            context,
-                            msg['content'] ?? '',
-                          );
-                        } else {
-                          final String content = msg['content'] ?? '';
-                          final card = msg['card'];
-                          return Align(
-                            alignment: Alignment.centerLeft,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (content.isNotEmpty)
-                                  _buildAssistantBubble(context, content),
-                                if (card != null) ...[
-                                  const SizedBox(height: 8),
-                                  if (card['type'] == 'sleep_highlights')
-                                    SleepHighlightsCard(data: card['data'])
-                                  else if (card['type'] == 'heart_rate_trend')
-                                    HeartRateChatCard(data: card['data'])
-                                  else if (card['type'] == 'spo2_trend')
-                                    BloodOxygenChatCard(data: card['data'])
-                                  else if (card['type'] == 'hrv_trend')
-                                    HrvChatCard(data: card['data'])
-                                  else if (card['type'] == 'bp_trend')
-                                    BloodPressureChatCard(data: card['data'])
-                                  else if (card['type'] == 'steps_trend')
-                                    StepsChatCard(data: card['data']),
+                          if (isUser) {
+                            return _buildUserBubble(
+                              context,
+                              msg['content'] ?? '',
+                            );
+                          } else {
+                            final String content = msg['content'] ?? '';
+                            final card = msg['card'];
+                            return Align(
+                              alignment: Alignment.centerLeft,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (content.isNotEmpty)
+                                    _buildAssistantBubble(context, content),
+                                  if (card != null) ...[
+                                    const SizedBox(height: 8),
+                                    if (card['type'] == 'sleep_highlights')
+                                      SleepHighlightsCard(data: card['data'])
+                                    else if (card['type'] == 'heart_rate_trend')
+                                      HeartRateChatCard(data: card['data'])
+                                    else if (card['type'] == 'spo2_trend')
+                                      BloodOxygenChatCard(data: card['data'])
+                                    else if (card['type'] == 'hrv_trend')
+                                      HrvChatCard(data: card['data'])
+                                    else if (card['type'] == 'bp_trend')
+                                      BloodPressureChatCard(data: card['data'])
+                                    else if (card['type'] == 'steps_trend')
+                                      StepsChatCard(data: card['data']),
+                                  ],
                                 ],
-                              ],
-                            ),
-                          );
-                        }
-                      },
+                              ),
+                            );
+                          }
+                        },
+                      ),
                     ),
             ),
 
@@ -453,66 +497,71 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildEmptyState() {
-    return ListView(
-      controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      children: [
-        const InsightsHeader(),
-        Padding(
-          padding: const EdgeInsets.only(top: 18, bottom: 14),
-          child: Container(
-            height: 0.5,
-            color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
+    return RefreshIndicator(
+      onRefresh: _onPullToRefresh,
+      color: AppTheme.goldAccent,
+      backgroundColor: const Color(0xFF141414),
+      child: ListView(
+        controller: _scrollController,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        children: [
+          InsightsHeader(key: _insightsKey),
+          Padding(
+            padding: const EdgeInsets.only(top: 18, bottom: 14),
+            child: Container(
+              height: 0.5,
+              color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
+            ),
           ),
-        ),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Color(0x14C9A86E), // rgba(201,168,110,0.08)
-                shape: BoxShape.circle,
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  color: Color(0x14C9A86E), // rgba(201,168,110,0.08)
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.smart_toy_rounded,
+                  size: 48,
+                  color: AppTheme.goldAccent,
+                ),
               ),
-              child: const Icon(
-                Icons.smart_toy_rounded,
-                size: 48,
-                color: AppTheme.goldAccent,
+              const SizedBox(height: 16),
+              Text(
+                'AI Assist',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'AI Assist',
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
+              const SizedBox(height: 8),
+              Text(
+                'Ask me anything about your health',
+                style: GoogleFonts.inter(
+                  color: const Color(0x85FFFFFF), // rgba(255,255,255,0.52)
+                  fontSize: 14,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Ask me anything about your health',
-              style: GoogleFonts.inter(
-                color: const Color(0x85FFFFFF), // rgba(255,255,255,0.52)
-                fontSize: 14,
+              const SizedBox(height: 24),
+              _SuggestionChip(
+                text: 'How does my sleep look this week?',
+                onTap: _sendMessage,
               ),
-            ),
-            const SizedBox(height: 24),
-            _SuggestionChip(
-              text: 'How does my sleep look this week?',
-              onTap: _sendMessage,
-            ),
-            const SizedBox(height: 8),
-            _SuggestionChip(text: 'I have a headache', onTap: _sendMessage),
-            const SizedBox(height: 8),
-            _SuggestionChip(
-              text: 'What vitamins should I take?',
-              onTap: _sendMessage,
-            ),
-          ],
-        ),
-      ],
+              const SizedBox(height: 8),
+              _SuggestionChip(text: 'I have a headache', onTap: _sendMessage),
+              const SizedBox(height: 8),
+              _SuggestionChip(
+                text: 'What vitamins should I take?',
+                onTap: _sendMessage,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

@@ -96,8 +96,10 @@ Future<void> requestPhoneMode(
     builder: (ctx) => AlertDialog(
       backgroundColor: const Color(0xFF111111),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text('Do Not Disturb access needed',
-          style: TextStyle(color: Colors.white)),
+      title: const Text(
+        'Do Not Disturb access needed',
+        style: TextStyle(color: Colors.white),
+      ),
       content: const Text(
         'Focus and Prayer modes change your phone\'s ringer and Do Not '
         'Disturb settings. Allow this app to manage Do Not Disturb to '
