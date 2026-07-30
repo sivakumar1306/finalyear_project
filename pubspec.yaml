@@ -35,6 +35,7 @@ flutter:
   assets:
     - ring.png
     - sundr_logo.png
+    - ring_charge.png
 
 flutter_launcher_icons:
   android: true

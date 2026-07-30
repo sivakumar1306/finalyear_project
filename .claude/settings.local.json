@@ -158,7 +158,8 @@
       "Bash(grep -n \"anyLoading\\\\|ChartCard\\\\|Column\\(\\\\s*$\" C:/Jeffrey/new-flutter/lib/screens/health/temperature_screen.dart)",
       "Bash(grep -n \"_SleepDateRow\\(\\\\|Column\\(\\\\s*$\\\\|SingleChildScrollView\\\\|_ChartCard\\(\\\\|_StagesBreakdownCard\\(\" C:/Jeffrey/new-flutter/lib/screens/health/sleep_screen.dart)",
       "Bash(xargs grep -l \"application\")",
-      "Skill(artifact-design)"
+      "Skill(artifact-design)",
+      "Bash(git --version)"
     ]
   }
 }

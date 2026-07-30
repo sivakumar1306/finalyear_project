@@ -8,9 +8,40 @@ import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
 
 // ── Alphahuman ring detection ─────────────────────────────────────────────────
-// Add new ring model name prefixes here to detect future Alphahuman rings.
-// Examples: 'R09_', 'AH_', 'ALPHA_'
-const _kAlphahumanPrefixes = ['R08_', 'R02_'];
+// Widened from a narrow allowlist of just 'R08_'/'R02_' (which only matched the
+// two specific ring models this app had been tested with) to the full set of
+// device name prefixes actually used across this manufacturer's ring/band
+// lineup (confirmed against the QRing SDK's own BleScannerHelper prefix list),
+// so any genuine ring shows up here — not just the ones we happened to test
+// with — while still filtering out unrelated nearby Bluetooth devices
+// (headphones, phones, etc.) that a fully unfiltered scan would otherwise show.
+const _kAlphahumanPrefixes = [
+  'R',
+  'Q_',
+  'q_',
+  'O_',
+  'o_',
+  'QC',
+  'qc',
+  'R3L',
+  'Wa',
+  'T80',
+  'T90',
+  'T91',
+  'T93',
+  'T95',
+  'TW68',
+  'S9',
+  'C60',
+  'C66',
+  'C67',
+  'C68',
+  'C80',
+  'C86',
+  'C88',
+  'C96',
+  'wxb_w4',
+];
 
 bool _isAlphahumanRing(String name) => _kAlphahumanPrefixes.any(
   (p) => name.toUpperCase().startsWith(p.toUpperCase()),
