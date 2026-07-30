@@ -12,6 +12,7 @@ import '../../theme/app_theme.dart';
 import '../settings/fall_detection_screen.dart';
 import 'ring_scan_sheet.dart';
 import 'side_panel.dart';
+import 'card_settings_screen.dart';
 import '../settings/about_screen.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -74,16 +75,6 @@ TextStyle _inter(
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
-enum HomeCardId {
-  alarmActivity,
-  stress,
-  womensHealth,
-  sleepHrv,
-  bloodOxygenHeartRate,
-  bloodPressure,
-  temperature,
-}
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
   @override
@@ -93,16 +84,21 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _firstName = '';
   String _gender = '';
-  bool _editMode = false;
+  bool _showCardSettings = false;
   Set<HomeCardId> _hiddenCards = {};
+  Set<HomeCardId> _compactCards = {};
   List<HomeCardId> _cardOrder = [
-    HomeCardId.alarmActivity,
+    HomeCardId.alarms,
+    HomeCardId.activity,
     HomeCardId.stress,
+    HomeCardId.sleep,
+    HomeCardId.hrv,
+    HomeCardId.bloodOxygen,
+    HomeCardId.heartRate,
+    HomeCardId.sports,
     HomeCardId.womensHealth,
-    HomeCardId.sleepHrv,
-    HomeCardId.bloodOxygenHeartRate,
-    HomeCardId.bloodPressure,
     HomeCardId.temperature,
+    HomeCardId.bloodPressure,
   ];
 
   @override
@@ -121,6 +117,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _loadUserProfile();
     _loadCardOrder();
     _loadHiddenCards();
+    _loadCompactCards();
   }
 
   @override
@@ -175,10 +172,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _verifyWomensHealthCardVisibility();
   }
 
-  Future<void> _saveCardOrder() async {
-    await HomeCardPrefs.saveOrder(_cardOrder);
-  }
-
   Future<void> _loadHiddenCards() async {
     try {
       final hidden = await HomeCardPrefs.loadHidden();
@@ -186,15 +179,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  Future<void> _loadCompactCards() async {
+    try {
+      final compact = await HomeCardPrefs.loadCompact();
+      if (mounted) setState(() => _compactCards = compact);
+    } catch (_) {}
+  }
+
   void _verifyWomensHealthCardVisibility() {
     if (_isFemale) {
       if (!_cardOrder.contains(HomeCardId.womensHealth)) {
         setState(() {
-          if (_cardOrder.length >= 2) {
-            _cardOrder.insert(2, HomeCardId.womensHealth);
-          } else {
-            _cardOrder.add(HomeCardId.womensHealth);
-          }
+          _cardOrder.add(HomeCardId.womensHealth);
         });
       }
     }
@@ -293,27 +289,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return AppTheme.danger;
   }
 
-  Widget _buildCardBlock(HomeCardId id, BleProvider ble) {
+  bool _isCompact(HomeCardId id) => _compactCards.contains(id);
+
+  Widget _buildCardBlock(HomeCardId id, BleProvider ble, {bool compact = false}) {
+    VoidCallback onTap(String route) => () => Navigator.pushNamed(context, route);
+
+    if (compact) {
+      return _buildCompactCard(id, ble, onTap);
+    }
+
     switch (id) {
-      case HomeCardId.alarmActivity:
-        return Row(
-          children: [
-            const Expanded(child: _AlarmCard()),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ActivityScoreCard(
-                score: _computeActivityScore(
-                  ble.todaySteps,
-                  ble.todayDistanceM,
-                  ble.todayCalories,
-                ),
-                hasData: ble.todaySteps > 0,
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/steps'),
-              ),
-            ),
-          ],
+      case HomeCardId.alarms:
+        return const _AlarmCard();
+      case HomeCardId.activity:
+        return _ActivityScoreCard(
+          score: _computeActivityScore(ble.todaySteps, ble.todayDistanceM, ble.todayCalories),
+          hasData: ble.todaySteps > 0,
+          onTap: onTap('/steps'),
         );
       case HomeCardId.stress:
         return _StressCard(
@@ -322,283 +314,175 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           minStress: ble.todayMinStress,
           maxStress: ble.todayMaxStress,
           connected: ble.isConnected,
-          onTap: _editMode
-              ? null
-              : () => Navigator.pushNamed(context, '/pressure'),
+          onTap: onTap('/pressure'),
         );
+      case HomeCardId.sleep:
+        return _HomeCard(
+          label: 'Sleep', value: _sleepDurationLabel(ble.todaySleepDuration), unit: '',
+          status: ble.todaySleepDuration > 0 ? _sleepStatus(ble.todaySleepScore) : 'No data',
+          statusColor: _sleepStatusColor(ble.todaySleepScore), orbColor: _kOrbSleep,
+          sparkData: const [0.5, 0.7, 0.9, 0.8, 0.6, 0.4, 0.3, 0.5, 0.7, 0.8, 0.6, 0.4],
+          connected: ble.isConnected, onTap: onTap('/sleep'),
+        );
+      case HomeCardId.hrv:
+        return _HomeCard(
+          label: 'HRV', value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
+          unit: ble.todayAvgHrv > 0 ? 'ms' : '',
+          status: _hrvStatus(ble.todayAvgHrv),
+          statusColor: ble.todayAvgHrv > 0 ? _kOrbHrv : _kSec2, orbColor: _kOrbHrv,
+          sparkData: const [0.5, 0.55, 0.6, 0.58, 0.62, 0.65, 0.6, 0.58, 0.55, 0.6, 0.63, 0.6],
+          connected: ble.isConnected, onTap: onTap('/hrv'),
+        );
+      case HomeCardId.bloodOxygen:
+        return _HomeCard(
+          label: 'Blood Oxygen', value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
+          unit: ble.todayAvgSpo2 > 0 ? '%' : '',
+          status: ble.todayAvgSpo2 > 0
+              ? (ble.todayMinSpo2 > 0 && ble.todayMaxSpo2 > 0 ? 'Range: ${ble.todayMinSpo2}-${ble.todayMaxSpo2}%' : _spo2Status(ble.todayAvgSpo2))
+              : 'No data',
+          statusColor: ble.todayAvgSpo2 > 0 ? _kOrbSpo2 : _kSec2, orbColor: _kOrbSpo2,
+          sparkData: const [0.96, 0.97, 0.96, 0.98, 0.97, 0.99, 0.98, 0.97, 0.96, 0.98, 0.97, 0.99],
+          connected: ble.isConnected, onTap: onTap('/blood-oxygen'),
+        );
+      case HomeCardId.heartRate:
+        return _HomeCard(
+          label: 'Heart Rate', value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
+          unit: ble.todayAvgHr > 0 ? 'bpm' : '',
+          status: ble.todayAvgHr > 0
+              ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0 ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm' : _hrStatus(ble.todayAvgHr))
+              : 'No data',
+          statusColor: ble.todayAvgHr > 0 ? _kOrbHr : _kSec2, orbColor: _kOrbHr,
+          sparkData: const [0.45, 0.5, 0.55, 0.5, 0.6, 0.55, 0.5, 0.48, 0.52, 0.58, 0.54, 0.5],
+          connected: ble.isConnected, onTap: onTap('/heart-rate'),
+        );
+      case HomeCardId.sports:
+        return _SportsCard(onTap: onTap('/workouts'));
       case HomeCardId.womensHealth:
-        return _CompactWomensHealthCard(
-          onTap: _editMode
-              ? null
-              : () => Navigator.pushNamed(context, '/womens-health'),
-        );
-      case HomeCardId.sleepHrv:
-        return Row(
-          children: [
-            Expanded(
-              child: _HomeCard(
-                label: 'Sleep',
-                value: _sleepDurationLabel(ble.todaySleepDuration),
-                unit: '',
-                status: ble.todaySleepDuration > 0
-                    ? _sleepStatus(ble.todaySleepScore)
-                    : 'No data',
-                statusColor: _sleepStatusColor(ble.todaySleepScore),
-                orbColor: _kOrbSleep,
-                sparkData: const [
-                  0.5,
-                  0.7,
-                  0.9,
-                  0.8,
-                  0.6,
-                  0.4,
-                  0.3,
-                  0.5,
-                  0.7,
-                  0.8,
-                  0.6,
-                  0.4,
-                ],
-                connected: ble.isConnected,
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/sleep'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _HomeCard(
-                label: 'HRV',
-                value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
-                unit: ble.todayAvgHrv > 0 ? 'ms' : '',
-                status: _hrvStatus(ble.todayAvgHrv),
-                statusColor: ble.todayAvgHrv > 0 ? _kOrbHrv : _kSec2,
-                orbColor: _kOrbHrv,
-                sparkData: const [
-                  0.5,
-                  0.55,
-                  0.6,
-                  0.58,
-                  0.62,
-                  0.65,
-                  0.6,
-                  0.58,
-                  0.55,
-                  0.6,
-                  0.63,
-                  0.6,
-                ],
-                connected: ble.isConnected,
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/hrv'),
-              ),
-            ),
-          ],
-        );
-      case HomeCardId.bloodOxygenHeartRate:
-        return Row(
-          children: [
-            Expanded(
-              child: _HomeCard(
-                label: 'Blood Oxygen',
-                value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
-                unit: ble.todayAvgSpo2 > 0 ? '%' : '',
-                status: ble.todayAvgSpo2 > 0
-                    ? (ble.todayMinSpo2 > 0 && ble.todayMaxSpo2 > 0
-                          ? 'Range: ${ble.todayMinSpo2}-${ble.todayMaxSpo2}%'
-                          : _spo2Status(ble.todayAvgSpo2))
-                    : 'No data',
-                statusColor: ble.todayAvgSpo2 > 0 ? _kOrbSpo2 : _kSec2,
-                orbColor: _kOrbSpo2,
-                sparkData: const [
-                  0.96,
-                  0.97,
-                  0.96,
-                  0.98,
-                  0.97,
-                  0.99,
-                  0.98,
-                  0.97,
-                  0.96,
-                  0.98,
-                  0.97,
-                  0.99,
-                ],
-                connected: ble.isConnected,
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/blood-oxygen'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _HomeCard(
-                label: 'Heart Rate',
-                value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
-                unit: ble.todayAvgHr > 0 ? 'bpm' : '',
-                status: ble.todayAvgHr > 0
-                    ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
-                          ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
-                          : _hrStatus(ble.todayAvgHr))
-                    : 'No data',
-                statusColor: ble.todayAvgHr > 0 ? _kOrbHr : _kSec2,
-                orbColor: _kOrbHr,
-                sparkData: const [
-                  0.45,
-                  0.5,
-                  0.55,
-                  0.5,
-                  0.6,
-                  0.55,
-                  0.5,
-                  0.48,
-                  0.52,
-                  0.58,
-                  0.54,
-                  0.5,
-                ],
-                connected: ble.isConnected,
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/heart-rate'),
-              ),
-            ),
-          ],
-        );
-      case HomeCardId.bloodPressure:
-        return Row(
-          children: [
-            Expanded(
-              child: _CompactBloodPressureCard(
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/blood-pressure'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _TemperatureCard(
-                tempC: ble.latestTempC,
-                connected: ble.isConnected,
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/temperature'),
-              ),
-            ),
-          ],
-        );
+        return _CompactWomensHealthCard(onTap: onTap('/womens-health'));
       case HomeCardId.temperature:
-        // Rendered together with Blood Pressure above as a paired square-card
-        // row; kept as a distinct HomeCardId only for saved order/visibility
-        // back-compat (see HomeCardPrefs).
-        return const SizedBox.shrink();
+        return _TemperatureCard(tempC: ble.latestTempC, connected: ble.isConnected, onTap: onTap('/temperature'));
+      case HomeCardId.bloodPressure:
+        return _CompactBloodPressureCard(onTap: onTap('/blood-pressure'));
     }
   }
 
-  Widget _buildReorderableList(
-    BuildContext context,
-    BleProvider ble,
-    List<HomeCardId> visibleCardIds,
-  ) {
-    if (_editMode) {
-      return SliverReorderableList(
-        itemCount: visibleCardIds.length,
-        onReorderItem: (int oldIndex, int newIndex) {
-          setState(() {
-            final HomeCardId item = visibleCardIds.removeAt(oldIndex);
-            visibleCardIds.insert(newIndex, item);
+  Widget _buildCompactCard(HomeCardId id, BleProvider ble, Function(String) onTap) {
+    switch (id) {
+      case HomeCardId.alarms:
+        return _MiniCard(
+          label: 'Alarms', color: const Color(0xFF6B82D9), icon: Icons.notifications_outlined,
+          onTap: onTap('/alarms-notifications'),
+        );
+      case HomeCardId.activity:
+        final score = _computeActivityScore(ble.todaySteps, ble.todayDistanceM, ble.todayCalories);
+        return _MiniCard(
+          label: 'Activity', value: ble.todaySteps > 0 ? '$score' : '--',
+          sub: score > 0 ? _activityScoreLabel(score) : '', color: _kOrbActivity, icon: Icons.directions_walk,
+          onTap: onTap('/steps'),
+        );
+      case HomeCardId.stress:
+        return _MiniCard(
+          label: 'Stress', value: ble.latestStressValue > 0 ? '${ble.latestStressValue}' : '--',
+          sub: _stressStatus(ble.latestStressValue), color: _kOrbStress, icon: Icons.water_drop,
+          onTap: onTap('/pressure'),
+        );
+      case HomeCardId.sleep:
+        return _MiniCard(
+          label: 'Sleep', value: _sleepDurationLabel(ble.todaySleepDuration),
+          sub: ble.todaySleepDuration > 0 ? _sleepStatus(ble.todaySleepScore) : '',
+          color: _kOrbSleep, icon: Icons.bedtime, onTap: onTap('/sleep'),
+        );
+      case HomeCardId.hrv:
+        return _MiniCard(
+          label: 'HRV', value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
+          sub: ble.todayAvgHrv > 0 ? 'ms' : '', color: _kOrbHrv, icon: Icons.favorite_border,
+          onTap: onTap('/hrv'),
+        );
+      case HomeCardId.bloodOxygen:
+        return _MiniCard(
+          label: 'SpO₂', value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
+          sub: ble.todayAvgSpo2 > 0 ? '%' : '', color: _kOrbSpo2, icon: Icons.air,
+          onTap: onTap('/blood-oxygen'),
+        );
+      case HomeCardId.heartRate:
+        return _MiniCard(
+          label: 'Heart Rate', value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
+          sub: ble.todayAvgHr > 0 ? 'bpm' : '', color: _kOrbHr, icon: Icons.favorite,
+          onTap: onTap('/heart-rate'),
+        );
+      case HomeCardId.sports:
+        return _MiniCard(label: 'Sports', color: _kOrbActivity, icon: Icons.fitness_center, onTap: onTap('/workouts'));
+      case HomeCardId.womensHealth:
+        return _MiniCard(label: "Women's Health", color: const Color(0xFFD860C8), icon: Icons.woman, onTap: onTap('/womens-health'));
+      case HomeCardId.temperature:
+        return _MiniCard(
+          label: 'Temp', value: ble.latestTempC > 0 ? '${ble.latestTempC.toStringAsFixed(1)}°' : '--',
+          color: _kOrbTemp, icon: Icons.device_thermostat, onTap: onTap('/temperature'),
+        );
+      case HomeCardId.bloodPressure:
+        final hasBp = ble.latestBpSbp > 0 && ble.latestBpDbp > 0;
+        return _MiniCard(
+          label: 'Blood Pressure', value: hasBp ? '${ble.latestBpSbp}/${ble.latestBpDbp}' : '--',
+          color: const Color(0xFFD86560), icon: Icons.speed, onTap: onTap('/blood-pressure'),
+        );
+    }
+  }
 
-            // Align the full preferences list _cardOrder with the new order of visible components
-            int visibleIdx = 0;
-            for (int i = 0; i < _cardOrder.length; i++) {
-              if (visibleCardIds.contains(_cardOrder[i])) {
-                _cardOrder[i] = visibleCardIds[visibleIdx++];
-              }
-            }
-          });
-        },
-        proxyDecorator: (Widget child, int index, Animation<double> animation) {
-          return AnimatedBuilder(
-            animation: animation,
-            builder: (context, child) {
-              final double animValue = Curves.easeInOut.transform(
-                animation.value,
-              );
-              final double scale = lerpDouble(1.0, 1.03, animValue)!;
-              return Transform.scale(
-                scale: scale,
-                child: Material(
-                  color: Colors.transparent,
-                  elevation: lerpDouble(0, 6, animValue)!,
-                  child: child,
-                ),
-              );
-            },
-            child: child,
-          );
-        },
-        itemBuilder: (context, index) {
-          final id = visibleCardIds[index];
-          final hidden = _hiddenCards.contains(id);
-          return Padding(
-            key: ValueKey(id),
+  List<Widget> _buildCardRows(BleProvider ble, List<HomeCardId> ids, BuildContext context) {
+    final List<Widget> rows = [];
+    int i = 0;
+    while (i < ids.length) {
+      final id = ids[i];
+      final compact = _isCompact(id);
+
+      if (compact && i + 1 < ids.length && _isCompact(ids[i + 1])) {
+        rows.add(
+          Padding(
+            key: ValueKey('row_${id}_${ids[i + 1]}'),
             padding: const EdgeInsets.only(bottom: 12),
             child: Row(
               children: [
-                Expanded(
-                  child: IgnorePointer(
-                    child: AnimatedOpacity(
-                      opacity: hidden ? 0.35 : 1.0,
-                      duration: const Duration(milliseconds: 250),
-                      child: _buildCardBlock(id, ble),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Transform.scale(
-                  scale: 0.8,
-                  child: Switch(
-                    value: !hidden,
-                    onChanged: (v) {
-                      setState(() {
-                        if (v) {
-                          _hiddenCards.remove(id);
-                        } else {
-                          _hiddenCards.add(id);
-                        }
-                      });
-                    },
-                  ),
-                ),
-                ReorderableDragStartListener(
-                  index: index,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    child: const Icon(
-                      Icons.drag_indicator_rounded,
-                      color: Colors.white38,
-                      size: 24,
-                    ),
-                  ),
-                ),
+                Expanded(child: _buildCardBlock(id, ble, compact: true)),
+                const SizedBox(width: 12),
+                Expanded(child: _buildCardBlock(ids[i + 1], ble, compact: true)),
               ],
             ),
-          );
-        },
-      );
-    } else {
-      return SliverList(
-        delegate: SliverChildBuilderDelegate((context, index) {
-          final id = visibleCardIds[index];
-          return Padding(
+          ),
+        );
+        i += 2;
+      } else if (compact) {
+        rows.add(
+          Padding(
+            key: ValueKey(id),
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Center(
+              child: SizedBox(
+                width: (MediaQuery.of(context).size.width - 16 * 2 - 12) / 2,
+                child: _buildCardBlock(id, ble, compact: true),
+              ),
+            ),
+          ),
+        );
+        i++;
+      } else {
+        rows.add(
+          Padding(
             key: ValueKey(id),
             padding: const EdgeInsets.only(bottom: 12),
             child: _buildCardBlock(id, ble),
-          );
-        }, childCount: visibleCardIds.length),
-      );
+          ),
+        );
+        i++;
+      }
     }
+    return rows;
+  }
+
+  Widget _buildCardList(BuildContext context, BleProvider ble, List<HomeCardId> visibleCardIds) {
+    final rows = _buildCardRows(ble, visibleCardIds, context);
+    return SliverList(
+      delegate: SliverChildListDelegate(rows),
+    );
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -606,32 +490,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
-    // Cards eligible to appear at all (independent of the user's show/hide
-    // choice) — this is what edit mode lists, so a hidden card can still be
-    // found and switched back on.
+
+    if (_showCardSettings) {
+      return CardSettingsScreen(
+        onClose: () {
+          _loadCardOrder();
+          _loadHiddenCards();
+          _loadCompactCards();
+          setState(() => _showCardSettings = false);
+        },
+      );
+    }
+
     final editableCardIds = _cardOrder.where((id) {
       if (id == HomeCardId.womensHealth && !_isFemale) return false;
-      // Temperature now renders paired with Blood Pressure in a single
-      // square-card row (see _buildCardBlock) rather than as its own block.
-      if (id == HomeCardId.temperature) return false;
+      if (id == HomeCardId.sports) return false;
       return true;
     }).toList();
-
-    // What's actually rendered day-to-day — editable cards minus anything
-    // the user hid.
-    final visibleCardIds = _editMode
-        ? editableCardIds
-        : editableCardIds.where((id) => !_hiddenCards.contains(id)).toList();
+    final visibleCardIds =
+        editableCardIds.where((id) => !_hiddenCards.contains(id)).toList();
 
     return RefreshIndicator(
       color: AppTheme.gold,
       backgroundColor: const Color(0xFF111111),
-      onRefresh: _editMode
-          ? () async {}
-          : () async {
-              await ble.checkConnection();
-              await _loadUserProfile();
-            },
+      onRefresh: () async {
+        await ble.checkConnection();
+        await _loadUserProfile();
+      },
       child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
@@ -649,7 +534,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
 
-          // 1. Banner Section (Always first, static)
+          // 1. Banner Section
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverList(
@@ -680,29 +565,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
 
-          // 2. Reorderable / Sequenced list of metrics
+          // 2. Card list
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: _buildReorderableList(context, ble, visibleCardIds),
+            sliver: _buildCardList(context, ble, visibleCardIds),
           ),
 
-          // 3. Edit Button & spacing at bottom
+          // 3. Edit Cards button & spacing
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 const SizedBox(height: 8),
                 _EditCardsButton(
-                  editMode: _editMode,
-                  onTap: () {
-                    setState(() {
-                      _editMode = !_editMode;
-                    });
-                    if (!_editMode) {
-                      _saveCardOrder();
-                      HomeCardPrefs.saveHidden(_hiddenCards);
-                    }
-                  },
+                  onTap: () => setState(() => _showCardSettings = true),
                 ),
                 const SizedBox(height: 20),
               ]),
@@ -2348,13 +2224,115 @@ class _ConnectHint extends StatelessWidget {
   }
 }
 
+// ── Mini card (compact mode) ────────────────────────────────────────────────
+
+class _MiniCard extends StatelessWidget {
+  final String label;
+  final String? value;
+  final String? sub;
+  final Color color;
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  const _MiniCard({
+    required this.label,
+    this.value,
+    this.sub,
+    required this.color,
+    required this.icon,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      orbColor: color,
+      height: 130,
+      orbAlpha: 0.25,
+      orbSize: 180,
+      padding: const EdgeInsets.all(12),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, size: 14, color: color),
+              Container(
+                width: 22, height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.06),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+                ),
+                child: const Icon(Icons.chevron_right_rounded, color: Colors.white54, size: 13),
+              ),
+            ],
+          ),
+          const Spacer(),
+          if (value != null)
+            Text(value!, style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w300, color: Colors.white.withValues(alpha: 0.95))),
+          if (sub != null && sub!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(sub!, style: _inter(10, color: color, weight: FontWeight.w500)),
+            ),
+          if (value == null)
+            Text(label, style: _inter(11, color: Colors.white.withValues(alpha: 0.6), weight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Sports card ──────────────────────────────────────────────────────────────
+
+class _SportsCard extends StatelessWidget {
+  final VoidCallback? onTap;
+  const _SportsCard({this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      orbColor: _kOrbActivity,
+      height: 160,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Sports',
+                style: _inter(13, weight: FontWeight.w500, color: Colors.white.withValues(alpha: 0.85)),
+              ),
+              _chevron(),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            '--',
+            style: GoogleFonts.inter(fontSize: 30, fontWeight: FontWeight.w200, color: Colors.white.withValues(alpha: 0.95)),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No activity',
+            style: _inter(11, color: _kSec2, weight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ── Edit Cards button ─────────────────────────────────────────────────────────
 
 class _EditCardsButton extends StatelessWidget {
-  final bool editMode;
   final VoidCallback onTap;
 
-  const _EditCardsButton({required this.editMode, required this.onTap});
+  const _EditCardsButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -2375,13 +2353,11 @@ class _EditCardsButton extends StatelessWidget {
               ),
               child: Center(
                 child: Text(
-                  editMode ? 'Done' : 'Edit Cards',
+                  'Edit Cards',
                   style: _inter(
                     11,
                     weight: FontWeight.w500,
-                    color: editMode
-                        ? AppTheme.gold
-                        : Colors.white.withValues(alpha: 0.5),
+                    color: Colors.white.withValues(alpha: 0.5),
                   ),
                 ),
               ),

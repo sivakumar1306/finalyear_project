@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config.dart';
+import '../models/health_data.dart';
 
 class SupabaseService {
   static const _url = AppConfig.supabaseUrl;
@@ -660,5 +661,114 @@ class SupabaseService {
         .eq('user_id', userId)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(data);
+  }
+
+  // ── Typed convenience wrappers ──────────────────────────────────────────────
+
+  static Future<UserProfile?> getProfileTyped(String userId) async {
+    final m = await getProfile(userId);
+    return m != null ? UserProfile.fromMap(m) : null;
+  }
+
+  static Future<HrSummary?> getHrForDateTyped(String userId, DateTime date) async {
+    final m = await getHrForDate(userId, date);
+    return m != null ? HrSummary.fromMap(m, date: date) : null;
+  }
+
+  static Future<List<HrSummary>> getHrHistoryTyped({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final rows = await getHrHistory(userId: userId, from: from, to: to);
+    return rows.map((m) => HrSummary.fromMap(m)).toList();
+  }
+
+  static Future<Spo2Summary?> getSpo2ForDateTyped(String userId, DateTime date) async {
+    final m = await getSpo2ForDate(userId, date);
+    return m != null ? Spo2Summary.fromMap(m, date: date) : null;
+  }
+
+  static Future<List<Spo2Summary>> getSpo2HistoryTyped({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final rows = await getSpo2History(userId: userId, from: from, to: to);
+    return rows.map((m) => Spo2Summary.fromMap(m)).toList();
+  }
+
+  static Future<HrvSummary?> getHrvForDateTyped(String userId, DateTime date) async {
+    final m = await getHrvForDate(userId, date);
+    return m != null ? HrvSummary.fromMap(m, date: date) : null;
+  }
+
+  static Future<List<HrvSummary>> getHrvHistoryTyped({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final rows = await getHrvHistory(userId: userId, from: from, to: to);
+    return rows.map((m) => HrvSummary.fromMap(m)).toList();
+  }
+
+  static Future<SleepSummary?> getSleepForDateTyped(String userId, DateTime date) async {
+    final m = await getSleepForDate(userId, date);
+    return m != null ? SleepSummary.fromMap(m, date: date) : null;
+  }
+
+  static Future<List<SleepSummary>> getSleepHistoryTyped({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final rows = await getSleepHistory(userId: userId, from: from, to: to);
+    return rows.map((m) => SleepSummary.fromMap(m)).toList();
+  }
+
+  static Future<List<BpReading>> getBpReadingsTyped({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final rows = await getBpReadings(userId: userId, from: from, to: to);
+    return rows.map((m) => BpReading.fromMap(m)).toList();
+  }
+
+  static Future<List<StressReading>> getStressReadingsTyped({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final rows = await getStressReadings(userId: userId, from: from, to: to);
+    return rows.map((m) => StressReading.fromMap(m)).toList();
+  }
+
+  static Future<List<TempReading>> getTempReadingsTyped({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final rows = await getTempReadings(userId: userId, from: from, to: to);
+    return rows.map((m) => TempReading.fromMap(m)).toList();
+  }
+
+  static Future<List<WorkoutRecord>> getWorkoutHistoryTyped({
+    required String userId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final rows = await getWorkoutHistory(userId: userId, from: from, to: to);
+    return rows.map((m) => WorkoutRecord.fromMap(m)).toList();
+  }
+
+  static Future<List<CycleRecord>> getCyclesTyped(String userId) async {
+    final rows = await getCycles(userId);
+    return rows.map((m) => CycleRecord.fromMap(m)).toList();
+  }
+
+  static Future<SymptomRecord?> getSymptomsForDateTyped(String userId, DateTime date) async {
+    final m = await getSymptomsForDate(userId, date);
+    return m != null ? SymptomRecord.fromMap(m) : null;
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -56,13 +57,16 @@ Future<void> _configureNativeSync() async {
   }
 }
 
+StreamSubscription? _authSub;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _requestPermissionsAndStartService();
   await SupabaseService.initialize();
   await _syncLoggedInFlag();
   await _configureNativeSync();
-  SupabaseService.client.auth.onAuthStateChange.listen((_) {
+  _authSub?.cancel();
+  _authSub = SupabaseService.client.auth.onAuthStateChange.listen((_) {
     _syncLoggedInFlag();
     _configureNativeSync();
   });

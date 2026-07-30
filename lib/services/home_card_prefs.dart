@@ -1,5 +1,18 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import '../screens/home/home_screen.dart';
+
+enum HomeCardId {
+  alarms,
+  activity,
+  stress,
+  sleep,
+  hrv,
+  bloodOxygen,
+  heartRate,
+  sports,
+  womensHealth,
+  temperature,
+  bloodPressure,
+}
 
 /// Centralised persistence for the home dashboard's card order and visibility.
 ///
@@ -60,5 +73,28 @@ class HomeCardPrefs {
   static Future<void> saveHidden(Set<HomeCardId> hidden) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_hiddenKey, hidden.map((e) => e.name).toList());
+  }
+
+  // ── Compact mode ────────────────────────────────────────────────────────────
+
+  static const _compactKey = 'home_card_compact';
+
+  /// Returns the set of cards the user has set to compact (small) mode.
+  /// Cards not in this set are shown in expanded (big) mode.
+  static Future<Set<HomeCardId>> loadCompact() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_compactKey) ?? [];
+    final Set<HomeCardId> compact = {};
+    for (final name in list) {
+      try {
+        compact.add(HomeCardId.values.byName(name));
+      } catch (_) {}
+    }
+    return compact;
+  }
+
+  static Future<void> saveCompact(Set<HomeCardId> compact) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_compactKey, compact.map((e) => e.name).toList());
   }
 }

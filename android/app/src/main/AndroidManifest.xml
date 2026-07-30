@@ -69,7 +69,7 @@
             android:name=".BleConnectionService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="connectedDevice|dataSync" />
         <service
             android:name=".WorkoutService"
             android:enabled="true"

@@ -131,7 +131,19 @@ class BleConnectionService : Service() {
         } catch (_: Exception) {}
 
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification(false))
+
+        // Android 14+ (API 34+) may throw ForegroundServiceStartNotAllowedException
+        // if startForeground() is called while the app is not in the foreground
+        // (e.g. during early boot before Flutter's runApp). Catch and retry.
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification(false))
+        } catch (_: Exception) {
+            handler.postDelayed({
+                try {
+                    startForeground(NOTIFICATION_ID, buildNotification(false))
+                } catch (_: Exception) {}
+            }, 5_000L)
+        }
 
         // Start first check after a short delay to let SDK settle
         handler.postDelayed(checkRunnable, 4_000L)
