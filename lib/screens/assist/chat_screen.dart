@@ -41,6 +41,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isRestoring = true;
   String? _conversationId;
   String _errorMessage = '';
+  int _scrollTimerId = 0;
 
   @override
   void initState() {
@@ -219,7 +220,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _scrollToBottom() {
+    _scrollTimerId++;
+    final tid = _scrollTimerId;
     Future.delayed(const Duration(milliseconds: 100), () {
+      if (tid != _scrollTimerId) return;
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,

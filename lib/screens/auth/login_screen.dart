@@ -32,12 +32,22 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _error = 'Please fill in all fields.');
       return;
     }
+    if (pass.length < 6) {
+      setState(() => _error = 'Password must be at least 6 characters.');
+      return;
+    }
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!emailRegex.hasMatch(email)) {
+      setState(() => _error = 'Please enter a valid email address.');
+      return;
+    }
     setState(() { _loading = true; _error = null; });
     try {
       final res = await SupabaseService.signIn(email, pass);
       if (!mounted) return;
-      if (res.user != null) {
-        final profile = await SupabaseService.getProfile(res.user!.id);
+      final user = res.user;
+      if (user != null) {
+        final profile = await SupabaseService.getProfile(user.id);
         if (!mounted) return;
         final hasProfile = profile != null &&
             (profile['full_name'] as String? ?? '').isNotEmpty;

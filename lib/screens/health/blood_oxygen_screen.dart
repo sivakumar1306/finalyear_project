@@ -172,8 +172,9 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
           slotCounts[hour] += 1;
         }
         for (int i = 0; i < totalSlots; i++) {
-          if (slotCounts[i] > 0)
+          if (slotCounts[i] > 0) {
             slots[i] = (slotSums[i] / slotCounts[i]).round();
+          }
         }
       }
 
@@ -188,8 +189,9 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         _maxSpo2 = maxVal;
         _selectedDate = now;
       });
-      if (avg > 0)
+      if (avg > 0) {
         context.read<BleProvider>().updateSpo2Data(avg, minVal, maxVal);
+      }
     } catch (_) {
       // Local DB read failing isn't worth surfacing loudly — chart just stays blank.
     } finally {
@@ -868,8 +870,6 @@ class _Spo2StatCard extends StatelessWidget {
               Text(unit, style: _inter(11, color: _kSec)),
             ],
           ),
-          const SizedBox(height: 6),
-          Text('know more >', style: _inter(11, color: _kSec)),
         ],
       ),
     );

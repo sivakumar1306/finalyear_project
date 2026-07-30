@@ -56,6 +56,7 @@ const List<({double height, double alpha})> _kWaveformBars = [
 class _VoiceListeningSheetState extends State<VoiceListeningSheet>
     with TickerProviderStateMixin {
   final SpeechToText _speech = SpeechToText();
+  bool _disposed = false;
 
   String _partialTranscript = '';
   String _finalTranscript = '';
@@ -116,12 +117,14 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
     try {
       available = await _speech.initialize(
         onStatus: _onStatus,
-        onError: (SpeechRecognitionError error) => _popWithNull(),
+        onError: _onListenError,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('VoiceListeningSheet._initSpeech: $e');
       available = false;
     }
 
+    if (_disposed) return;
     if (!available) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -181,6 +184,10 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
     if (mounted) Navigator.of(context).pop(null);
   }
 
+  void _onListenError(SpeechRecognitionError error) {
+    _popWithNull();
+  }
+
   void _stopAndReturn() {
     _silenceTimer?.cancel();
     _speech.stop();
@@ -200,6 +207,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
   @override
   void dispose() {
     _silenceTimer?.cancel();
+    _disposed = true;
     _speech.stop();
     _cursorController.dispose();
     _pulseController.dispose();

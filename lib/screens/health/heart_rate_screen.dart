@@ -153,7 +153,6 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           toMs: dayEnd,
           limit: 1000,
         );
-        debugPrint('HR_DEBUG2 readingsJson=$readingsJson');
         final decoded = jsonDecode(readingsJson);
         final list = decoded is List ? decoded : <dynamic>[];
         final sums = List<int>.filled(24, 0);
@@ -162,7 +161,6 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           final m = item as Map<String, dynamic>;
           final bpm = (m['valueBpm'] as num? ?? 0).toInt();
           final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-          debugPrint('HR_DEBUG2 item=$m bpm=$bpm measuredAt=$measuredAt');
           if (bpm <= 0 || measuredAt <= 0) continue;
           final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
           sums[h] += bpm;
@@ -171,7 +169,6 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         for (int h = 0; h < 24; h++) {
           if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
         }
-        debugPrint('HR_DEBUG2 hourly=$hourly');
       }
 
       if (!mounted) return;
@@ -842,8 +839,6 @@ class _HRStatCard extends StatelessWidget {
               Text(unit, style: _inter(11, color: _kSec)),
             ],
           ),
-          const SizedBox(height: 6),
-          Text('know more >', style: _inter(11, color: _kSec)),
         ],
       ),
     );

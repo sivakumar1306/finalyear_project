@@ -38,11 +38,11 @@ class KeyChangeCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: alarming
-                  ? accentColor.withOpacity(0.05)
+                  ? accentColor.withValues(alpha: 0.05)
                   : const Color(0x0AFFFFFF),
               border: Border.all(
                 color: alarming
-                    ? accentColor.withOpacity(0.35)
+                    ? accentColor.withValues(alpha: 0.35)
                     : const Color(0x14FFFFFF),
                 width: 0.5,
               ),
@@ -57,9 +57,9 @@ class KeyChangeCard extends StatelessWidget {
                       width: 22,
                       height: 22,
                       decoration: BoxDecoration(
-                        color: accentColor.withOpacity(0.06),
+                        color: accentColor.withValues(alpha: 0.06),
                         border: Border.all(
-                          color: accentColor.withOpacity(0.2),
+                          color: accentColor.withValues(alpha: 0.2),
                           width: 0.5,
                         ),
                         borderRadius: BorderRadius.circular(7),
@@ -91,7 +91,7 @@ class KeyChangeCard extends StatelessWidget {
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         letterSpacing: -0.005,
-                        color: accentColor.withOpacity(0.93),
+                        color: accentColor.withValues(alpha: 0.93),
                       ),
                     ),
                   ],

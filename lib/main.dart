@@ -20,30 +20,25 @@ Future<void> _requestPermissionsAndStartService() async {
     Permission.bluetoothAdvertise,
     Permission.locationWhenInUse,
     Permission.notification,
-    // Required for true background SMS to emergency contacts after a fall.
     Permission.sms,
-    // Required for auto-call on fall detection (when the settings toggle is on).
     Permission.phone,
   ].request();
-  // Start the BLE foreground service now that permissions are granted.
-  // Safe to call repeatedly — the service is sticky and ignores duplicate starts.
   try {
     await _bleChannel.invokeMethod('startForegroundService');
-  } catch (_) {}
+  } catch (e) {
+    debugPrint('_requestPermissionsAndStartService: $e');
+  }
 }
 
-// Read directly by BleConnectionService's 8s reconnect loop (same "FlutterSharedPreferences"
-// file, "flutter."-prefixed keys) so it doesn't attempt connectDirectly() — and thus doesn't
-// risk popping the system BLE pairing dialog — while the user is still on login/signup.
 Future<void> _syncLoggedInFlag() async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setBool('user_logged_in', SupabaseService.isLoggedIn);
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('user_logged_in', SupabaseService.isLoggedIn);
+  } catch (e) {
+    debugPrint('_syncLoggedInFlag: $e');
+  }
 }
 
-// Caches Supabase config natively so the background MeasurementLoopManager/
-// SupabaseSyncManager (running inside BleConnectionService) can push local Room data
-// independent of whether the Dart engine is currently running. Re-called on every auth
-// state change since native code can't refresh the session token on its own.
 Future<void> _configureNativeSync() async {
   final user = SupabaseService.currentUser;
   if (user == null) return;
@@ -56,7 +51,9 @@ Future<void> _configureNativeSync() async {
     });
     await _bleChannel.invokeMethod('setMasterLoopEnabled', {'enabled': true});
     await _bleChannel.invokeMethod('setSyncEnabled', {'enabled': true});
-  } catch (_) {}
+  } catch (e) {
+    debugPrint('_configureNativeSync: $e');
+  }
 }
 
 void main() async {

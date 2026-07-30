@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../theme/app_theme.dart';
 
 class FaqScreen extends StatelessWidget {
   const FaqScreen({super.key});
@@ -156,7 +155,7 @@ class FaqScreen extends StatelessWidget {
                   child: ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
                     itemCount: _entries.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 16),
+                    separatorBuilder: (_, _) => const SizedBox(height: 16),
                     itemBuilder: (context, index) {
                       final entry = _entries[index];
 

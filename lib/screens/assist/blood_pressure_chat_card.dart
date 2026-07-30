@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import 'chat_vital_shell.dart';
 
@@ -14,7 +13,6 @@ class BloodPressureChatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sbpAvg = (data['sbp_avg'] as num? ?? 0).toInt();
-    final dbpAvg = (data['dbp_avg'] as num? ?? 0).toInt();
     final sbpValues = (data['sbp_values'] as List? ?? [])
         .map((v) => (v as num).toInt())
         .toList();

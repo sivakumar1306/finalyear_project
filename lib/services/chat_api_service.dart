@@ -1,10 +1,10 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config.dart';
 import 'supabase_service.dart';
 
 class ChatApiService {
-  static final String baseUrl =
-      'https://vtialringbackendversion1-production.up.railway.app/api/v1';
+  static final String baseUrl = AppConfig.chatApiBaseUrl;
 
   // Without a timeout, http.get/post will hang indefinitely if the backend is
   // slow, cold-starting, or unreachable — leaving callers' `await` stuck
