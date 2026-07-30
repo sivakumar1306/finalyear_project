@@ -62,9 +62,9 @@ class _SleepScheduleScreenState extends State<SleepScheduleScreen> {
     await prefs.setString(_kSleepReminderMinuteKey, t.minute.toString());
   }
 
-  Future<void> _onClockChanged(TimeOfDay t) async {
+  void _onClockChanged(TimeOfDay t) {
+    // Draft only — persisted when the user taps the check button.
     setState(() => _time = t);
-    await _save(t);
   }
 
   Future<void> _confirm() async {
