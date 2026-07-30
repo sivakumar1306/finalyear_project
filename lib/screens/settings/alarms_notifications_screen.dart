@@ -25,7 +25,6 @@ class AlarmsNotificationsScreen extends StatefulWidget {
 
 class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
   bool _push = true;
-  bool _call = false;
   bool _sms = false;
 
   TimeOfDay? _sleepReminderTime;
@@ -262,11 +261,6 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                   _AlarmRow(
                     title: 'Push',
                     trailing: _switch(_push, (v) => setState(() => _push = v)),
-                  ),
-                  _divider(),
-                  _AlarmRow(
-                    title: 'Call',
-                    trailing: _switch(_call, (v) => setState(() => _call = v)),
                   ),
                   _divider(),
                   _AlarmRow(
