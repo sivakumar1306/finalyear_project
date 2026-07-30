@@ -371,6 +371,17 @@ class _SleepScreenState extends State<SleepScreen> {
     return bars;
   }
 
+  /// Day-of-week letters for the last 7 days (oldest → newest), matching
+  /// `_last7Bars()` order so each bar sits over its label.
+  List<String> _trendDayLabels() {
+    const names = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final now = DateTime.now();
+    return List.generate(7, (i) {
+      final d = now.subtract(Duration(days: 6 - i));
+      return names[d.weekday - 1];
+    });
+  }
+
   // ── Three-dot menu ────────────────────────────────────────────────────────
 
   void _openMenu() {
@@ -711,6 +722,8 @@ class _SleepScreenState extends State<SleepScreen> {
                     ? 'avg ${_fmt(avgDur)}${avgScore > 0 ? " · score $avgScore" : ""}'
                     : '-- --',
                 height: 128,
+                yLabels: const ['8h', '6h', '4h', '2h'],
+                xLabels: _trendDayLabels(),
                 child: trendVals.every((v) => v == 0)
                     ? Center(
                         child: Text(
@@ -718,10 +731,11 @@ class _SleepScreenState extends State<SleepScreen> {
                           style: _inter(12, color: _kSec, letterSpacing: 1.2),
                         ),
                       )
-                    : CustomPaint(painter: _SleepBarPainter(values: trendVals)),
+                    : CustomPaint(
+                        painter: _SleepBarPainter(values: trendVals),
+                        child: const SizedBox.expand(),
+                      ),
               ),
-              const SizedBox(height: 8),
-              const _TrendXAxisRow(),
 
               const SizedBox(height: 80),
             ],
@@ -826,16 +840,23 @@ class _ChartCard extends StatelessWidget {
   final String rangeLabel;
   final double height;
   final Widget child;
+  final List<String>? xLabels;
+  final List<String>? yLabels;
+
+  static const _yAxisW = 30.0;
 
   const _ChartCard({
     required this.headerLabel,
     required this.rangeLabel,
     required this.child,
     this.height = 128,
+    this.xLabels,
+    this.yLabels,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasY = yLabels != null && yLabels!.isNotEmpty;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
@@ -869,7 +890,55 @@ class _ChartCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          SizedBox(height: height, width: double.infinity, child: child),
+          SizedBox(
+            height: height,
+            width: double.infinity,
+            child: hasY
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        width: _yAxisW,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            for (final label in yLabels!)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: Text(
+                                  label,
+                                  style: _inter(10, color: _kSec),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Expanded(child: child),
+                    ],
+                  )
+                : child,
+          ),
+          // Equal-width columns so each label sits under its bar slot.
+          // Offset by Y-axis width when present so labels stay under the bars.
+          if (xLabels != null && xLabels!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: EdgeInsets.only(left: hasY ? _yAxisW : 0),
+              child: Row(
+                children: [
+                  for (final label in xLabels!)
+                    Expanded(
+                      child: Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        style: _inter(10, color: _kSec2),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1097,27 +1166,6 @@ class _LegendDot extends StatelessWidget {
   );
 }
 
-// ── 7-day X-axis row ───────────────────────────────────────────────────────────
-
-class _TrendXAxisRow extends StatelessWidget {
-  const _TrendXAxisRow();
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    const names = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-    final days = List.generate(7, (i) => now.subtract(Duration(days: 6 - i)));
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: days
-          .map(
-            (d) => Text(names[d.weekday - 1], style: _inter(10, color: _kSec2)),
-          )
-          .toList(),
-    );
-  }
-}
-
 // ── Hypnogram Painter ──────────────────────────────────────────────────────────
 
 class _HypnogramPainter extends CustomPainter {
@@ -1244,31 +1292,38 @@ class _SleepBarPainter extends CustomPainter {
   final List<int> values;
   const _SleepBarPainter({required this.values});
 
+  /// Fixed scale matching the Y-axis labels (8h / 6h / 4h / 2h).
+  static const _maxY = 8 * 3600.0; // 8 hours in seconds
+  static const _yHours = [8, 6, 4, 2];
+
   @override
   void paint(Canvas canvas, Size size) {
+    // Subtle horizontal grid lines at each Y-axis label.
+    final gridPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.07)
+      ..strokeWidth = 0.5;
+    for (final h in _yHours) {
+      final yPos = size.height - (h / 8.0) * size.height;
+      canvas.drawLine(Offset(0, yPos), Offset(size.width, yPos), gridPaint);
+    }
+
     if (values.isEmpty) return;
     final maxVal = values.fold(0, math.max).toDouble();
     if (maxVal <= 0) return;
 
     final n = values.length;
-    final gap = size.width * 0.015;
-    final barW = (size.width - gap * (n - 1)) / n;
-
-    // 8h reference line (28800s)
-    final refY = size.height - math.min(28800.0, maxVal) / maxVal * size.height;
-    canvas.drawLine(
-      Offset(0, refY),
-      Offset(size.width, refY),
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.07)
-        ..strokeWidth = 1,
-    );
+    // Equal-width slots so bar centers line up with centered day labels.
+    // ~5–6 px gap between bars; bars extend to fill the rest of each slot.
+    final slotW = size.width / n;
+    const gap = 5.5;
+    final barW = math.max(4.0, slotW - gap);
 
     final paint = Paint()..style = PaintingStyle.fill;
     for (int i = 0; i < n; i++) {
       final v = values[i];
-      final barH = v > 0 ? math.max(3.0, v / maxVal * size.height) : 3.0;
-      final x = i * (barW + gap);
+      final ratio = (v / _maxY).clamp(0.0, 1.0);
+      final barH = v > 0 ? math.max(3.0, ratio * size.height) : 3.0;
+      final x = i * slotW + (slotW - barW) / 2;
       paint.color = v > 0
           ? AppTheme.sleepColor.withValues(alpha: 0.85)
           : _kBorder;
