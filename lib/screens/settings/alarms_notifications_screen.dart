@@ -7,6 +7,7 @@ import '../../services/prayer_schedule_prefs.dart';
 import '../../theme/app_theme.dart';
 import 'prayer_schedule_screen.dart';
 import 'select_notifications_screen.dart';
+import 'sleep_schedule_screen.dart';
 
 // Same "FlutterSharedPreferences" file / "flutter."-prefixed keys BleConnectionService
 // already reads natively (device_address, user_logged_in) — the native 8s reconnect loop
@@ -74,20 +75,11 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
   }
 
   Future<void> _scheduleSleepReminder() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _sleepReminderTime ?? const TimeOfDay(hour: 22, minute: 30),
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SleepScheduleScreen()),
     );
-    if (picked == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kSleepReminderEnabledKey, true);
-    // Stored as strings, not setInt — the Android shared_preferences backend stores Dart
-    // ints as Long (to support 64-bit values), so a native getInt() read would crash with
-    // a ClassCastException. Strings round-trip exactly like device_name/device_address do.
-    await prefs.setString(_kSleepReminderHourKey, picked.hour.toString());
-    await prefs.setString(_kSleepReminderMinuteKey, picked.minute.toString());
-    if (!mounted) return;
-    setState(() => _sleepReminderTime = picked);
+    _loadSleepReminder();
   }
 
   Future<void> _setMode(AlarmModeProvider alarmMode, PhoneMode mode) async {
