@@ -5,48 +5,35 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.medxai.qring_flutter.analysis.EmergencySmsSender
 import com.medxai.qring_flutter.analysis.FallPredictionNotifier
-import com.medxai.qring_flutter.ui.navigation.MainScreen
-import com.medxai.qring_flutter.ui.theme.AppColors
-import com.medxai.qring_flutter.ui.theme.QRingTheme
+import io.flutter.embedding.android.FlutterFragmentActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FlutterFragmentActivity() {
 
     companion object {
+        const val BLE_METHOD_CHANNEL = "com.medxai.qring/ble"
+        const val BLE_EVENT_CHANNEL = "com.medxai.qring/ble_events"
+        const val PHONE_MODE_METHOD_CHANNEL = "com.medxai.qring/phone_mode"
+
         var pendingFallPrediction = false
         var pendingFallPredictionHr = 0
     }
 
+    private lateinit var blePlugin: BlePlugin
+    private lateinit var phoneModePlugin: PhoneModePlugin
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        requestBlePermissions()
-
         if (hasBlePermission()) {
             BleConnectionService.start(this)
         }
-
         FallPredictionNotifier.restorePending(this)
         EmergencySmsSender.restoreIfNeeded(this)
         handleIntent(intent)
-
-        setContent {
-            QRingTheme {
-                Surface(
-                    color = AppColors.bg,
-                    modifier = androidx.compose.ui.Modifier.fillMaxSize(),
-                ) {
-                    MainScreen()
-                }
-            }
-        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -61,31 +48,43 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun requestBlePermissions() {
-        val perms = mutableListOf(
-            Manifest.permission.BLUETOOTH,
-            Manifest.permission.BLUETOOTH_ADMIN,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.POST_NOTIFICATIONS,
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            perms.add(Manifest.permission.BLUETOOTH_SCAN)
-            perms.add(Manifest.permission.BLUETOOTH_CONNECT)
-            perms.add(Manifest.permission.BLUETOOTH_ADVERTISE)
-        }
-        val needed = perms.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-        if (needed.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, needed.toTypedArray(), 100)
-        }
-    }
-
     private fun hasBlePermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
         } else {
             true
         }
+    }
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+
+        blePlugin = BlePlugin(this)
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            BLE_METHOD_CHANNEL
+        ).setMethodCallHandler { call, result ->
+            blePlugin.handleMethodCall(call, result)
+        }
+
+        EventChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            BLE_EVENT_CHANNEL
+        ).setStreamHandler(blePlugin.eventStreamHandler)
+
+        phoneModePlugin = PhoneModePlugin(this)
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            PHONE_MODE_METHOD_CHANNEL
+        ).setMethodCallHandler { call, result ->
+            phoneModePlugin.handleMethodCall(call, result)
+        }
+    }
+
+    override fun onDestroy() {
+        blePlugin.onDestroy()
+        super.onDestroy()
     }
 }
