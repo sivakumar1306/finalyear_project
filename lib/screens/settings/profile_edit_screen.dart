@@ -7,6 +7,7 @@ import '../../providers/main_tab_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../services/unit_prefs.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_icon_button.dart';
 import '../auth/login_screen.dart';
 import '../auth/sign_up_screen.dart';
 import 'account_system_settings_screen.dart';
@@ -363,13 +364,15 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         backgroundColor: AppTheme.bg,
         automaticallyImplyLeading: false,
         leading: widget.showBackButton
-            ? IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_ios_rounded,
-                  color: Colors.white,
-                  size: 20,
+            ? Padding(
+                padding: const EdgeInsets.only(left: 16),
+                child: Center(
+                  child: GlassIconButton(
+                    icon: Icons.arrow_back_ios_rounded,
+                    iconSize: 15,
+                    onTap: () => Navigator.pop(context),
+                  ),
                 ),
-                onPressed: () => Navigator.pop(context),
               )
             : null,
         title: Text(
@@ -396,13 +399,14 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               ),
             )
           else
-            IconButton(
-              icon: const Icon(
-                Icons.check_rounded,
-                color: Colors.white,
-                size: 24,
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Center(
+                child: GlassIconButton(
+                  icon: Icons.check_rounded,
+                  onTap: _save,
+                ),
               ),
-              onPressed: _save,
             ),
         ],
       ),

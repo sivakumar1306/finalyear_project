@@ -1798,6 +1798,7 @@ class BlePlugin(private val context: Context) {
                     }
                 })
 
+                FileHandle.getInstance().initRegister()
                 FileHandle.getInstance().startObtainTemperatureSeries(2)
                 mainHandler.postDelayed(timeoutRunnable, ATTEMPT_TIMEOUT_MS)
             }
@@ -1807,94 +1808,77 @@ class BlePlugin(private val context: Context) {
     }
 
     private fun syncManualTemperature(result: MethodChannel.Result) {
+        // Live single temperature measurement. The old implementation used the
+        // file-pull path (startObtainTemperatureOnce), which only downloads readings
+        // the ring already recorded and produced the "onUpdateTemperatureList never
+        // fired" timeouts. The SDK's dedicated live API is
+        // BleOperateManager.manualTemperature() — raw value is degrees Celsius × 10
+        // (365 → 36.5 °C), same scaling the file-pull TemperatureOnceEntity used.
+        // Mirrors readHeartRate()'s wait-for-value + stop pattern, including the
+        // coordinator acquire/release so it can't collide with the auto loop.
         val owner = "temperature"
-        val MAX_ATTEMPTS = 4
-        val ATTEMPT_TIMEOUT_MS = 8_000L
+        acquireManualSlot(owner, result) {
+            val done = AtomicBoolean(false)
 
-        fun acquireWithRetry(elapsedMs: Long = 0L, onAcquired: () -> Unit) {
-            MeasurementCoordinator.manualRequestPending = true
-            if (MeasurementCoordinator.tryAcquire(owner)) {
-                MeasurementCoordinator.manualRequestPending = false
-                onAcquired()
-                return
-            }
-            if (elapsedMs >= 20_000L) {
-                MeasurementCoordinator.manualRequestPending = false
-                Log.w("TempSync", "syncManualTemperature: still busy after ${elapsedMs}ms, giving up")
-                result.error(
-                    "BUSY",
-                    "A measurement is already in progress. Please wait a moment and try again.",
-                    null
-                )
-                return
-            }
-            mainHandler.postDelayed({ acquireWithRetry(elapsedMs + 1000L, onAcquired) }, 1000L)
-        }
+            try {
+                BleOperateManager.getInstance().manualTemperature(
+                    ICommandResponse<StartHeartRateRsp> { rsp ->
+                        if (done.get()) return@ICommandResponse
 
-        fun attempt(attemptNum: Int) {
-            acquireWithRetry {
-                val done = AtomicBoolean(false)
-                Log.d("TempSync", "syncManualTemperature: attempt $attemptNum/$MAX_ATTEMPTS — clearCallback+registerCallback+startObtainTemperatureOnce(0)")
+                        val tempRaw = rsp.getTemperature()
+                        val valueRaw = rsp.getValue()
+                        Log.d("TempSync", "syncManualTemperature: status=${rsp.status} tempRaw=$tempRaw valueRaw=$valueRaw")
 
-                fun releaseAndRun(block: () -> Unit) {
-                    MeasurementCoordinator.release(owner)
-                    block()
-                }
+                        val raw = if (tempRaw > 0) tempRaw else valueRaw
+                        if (raw > 0 && done.compareAndSet(false, true)) {
+                            try { BleOperateManager.getInstance().manualTemperature(null, true) } catch (_: Exception) {}
+                            MeasurementCoordinator.release(owner)
 
-                val timeoutRunnable = Runnable {
-                    if (done.compareAndSet(false, true)) {
-                        FileHandle.getInstance().clearCallback()
-                        if (attemptNum < MAX_ATTEMPTS) {
-                            Log.w("TempSync", "syncManualTemperature: attempt $attemptNum timed out after ${ATTEMPT_TIMEOUT_MS}ms — retrying")
-                            releaseAndRun { attempt(attemptNum + 1) }
-                        } else {
-                            Log.e("TempSync", "syncManualTemperature: TIMED OUT after $MAX_ATTEMPTS attempts — onUpdateTemperatureList never fired")
-                            releaseAndRun { result.error("TIMEOUT", "Temperature manual sync timed out — ring did not send data", null) }
-                        }
-                    }
-                }
-
-                FileHandle.getInstance().clearCallback()
-                FileHandle.getInstance().registerCallback(object : SimpleCallback() {
-                    override fun onUpdateTemperatureList(array: MutableList<TemperatureOnceEntity>?) {
-                        Log.d("TempSync", "syncManualTemperature: onUpdateTemperatureList fired on attempt $attemptNum size=${array?.size ?: 0}")
-                        if (done.compareAndSet(false, true)) {
-                            mainHandler.removeCallbacks(timeoutRunnable)
-                            FileHandle.getInstance().clearCallback()
-                            mainHandler.post { releaseAndRun { result.success(gson.toJson(array)) } }
-                        }
-                    }
-                    override fun onUpdateTemperature(data: TemperatureEntity) {
-                        Log.d("TempSync", "syncManualTemperature: onUpdateTemperature fired on attempt $attemptNum (unexpected for manual)")
-                        if (done.compareAndSet(false, true)) {
-                            mainHandler.removeCallbacks(timeoutRunnable)
-                            FileHandle.getInstance().clearCallback()
-                            mainHandler.post { releaseAndRun { result.success(gson.toJson(data)) } }
-                        }
-                    }
-                    override fun onActionResult(type: Int, errCode: Int) {
-                        Log.d("TempSync", "syncManualTemperature: onActionResult attempt $attemptNum type=$type errCode=$errCode")
-                        if (errCode != 0 && done.compareAndSet(false, true)) {
-                            mainHandler.removeCallbacks(timeoutRunnable)
-                            FileHandle.getInstance().clearCallback()
-                            if (attemptNum < MAX_ATTEMPTS) {
-                                Log.w("TempSync", "syncManualTemperature: attempt $attemptNum rejected (errCode=$errCode) — retrying")
-                                releaseAndRun { attempt(attemptNum + 1) }
-                            } else {
-                                releaseAndRun {
-                                    result.error("ACTION_FAILED", "Ring rejected: type=$type errCode=$errCode", null)
-                                }
+                            val tempC = raw / 10.0
+                            // Persist to Room and broadcast NewReadingEvent so the Dart
+                            // side refreshes today's summary and pushes the reading to
+                            // Health Connect — mirrors MeasurementLoopManager.persist().
+                            repo().ioScope.launch {
+                                val cycleId = repo().startCycle()
+                                val id = repo().insertTemperature(tempC, cycleId, "manual")
+                                repo().completeCycle(cycleId, "COMPLETED", null)
+                                EventBus.getDefault().post(
+                                    NewReadingEvent(Vital.TEMPERATURE, id, cycleId, System.currentTimeMillis(), tempC)
+                                )
                             }
+
+                            val json = gson.toJson(
+                                listOf(
+                                    mapOf(
+                                        "mTime" to System.currentTimeMillis() / 1000L,
+                                        "mValue" to raw
+                                    )
+                                )
+                            )
+                            mainHandler.post { result.success(json) }
                         }
-                    }
-                })
-
-                FileHandle.getInstance().startObtainTemperatureOnce(0)
-                mainHandler.postDelayed(timeoutRunnable, ATTEMPT_TIMEOUT_MS)
+                    },
+                    false
+                )
+            } catch (e: Exception) {
+                Log.e("TempSync", "syncManualTemperature threw", e)
+                if (done.compareAndSet(false, true)) {
+                    try { BleOperateManager.getInstance().manualTemperature(null, true) } catch (_: Exception) {}
+                    MeasurementCoordinator.release(owner)
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                }
+                return@acquireManualSlot
             }
-        }
 
-        attempt(1)
+            mainHandler.postDelayed({
+                if (done.compareAndSet(false, true)) {
+                    Log.w("TempSync", "syncManualTemperature: timed out after 60s")
+                    try { BleOperateManager.getInstance().manualTemperature(null, true) } catch (_: Exception) {}
+                    MeasurementCoordinator.release(owner)
+                    result.error("TIMEOUT", "Temperature measurement timed out — keep the ring on your finger", null)
+                }
+            }, 60_000L)
+        }
     }
 
     private fun testManualTemperature(result: MethodChannel.Result) {

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/goal_prefs.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_icon_button.dart';
 
 /// Goal setting screen — Figma spec.
 ///
@@ -351,7 +352,7 @@ class _Header extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _CircleButton(icon: Icons.arrow_back_rounded, onTap: onBack),
+          GlassIconButton(icon: Icons.arrow_back_rounded, onTap: onBack),
           Text(
             'Goal setting',
             style: GoogleFonts.inter(
@@ -361,47 +362,8 @@ class _Header extends StatelessWidget {
               color: Colors.white.withValues(alpha: 0.88),
             ),
           ),
-          _CircleButton(icon: Icons.check_rounded, onTap: onBack),
+          GlassIconButton(icon: Icons.check_rounded, onTap: onBack),
         ],
-      ),
-    );
-  }
-}
-
-class _CircleButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _CircleButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(
-        side: BorderSide(color: Colors.white12, width: 0.5),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: 36,
-          height: 36,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
-              width: 0.5,
-            ),
-          ),
-          child: Icon(
-            icon,
-            size: 16,
-            color: Colors.white.withValues(alpha: 0.85),
-          ),
-        ),
       ),
     );
   }

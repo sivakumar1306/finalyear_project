@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/analog_clock_picker.dart';
+import '../../widgets/glass_icon_button.dart';
 
 // Same keys as Alarms & Notifications — native reconnect loop reads these
 // from FlutterSharedPreferences for the daily sleep reminder.
@@ -116,7 +117,7 @@ class _SleepScheduleScreenState extends State<SleepScheduleScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _CircleButton(
+              GlassIconButton(
                 icon: Icons.arrow_back_rounded,
                 onTap: () => Navigator.pop(context),
               ),
@@ -129,7 +130,7 @@ class _SleepScheduleScreenState extends State<SleepScheduleScreen> {
                   color: Colors.white.withValues(alpha: 0.88),
                 ),
               ),
-              _CircleButton(
+              GlassIconButton(
                 icon: Icons.check_rounded,
                 onTap: _confirm,
               ),
@@ -217,41 +218,6 @@ class _SleepScheduleScreenState extends State<SleepScheduleScreen> {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _CircleButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _CircleButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(
-        side: BorderSide(color: Colors.white12, width: 0.5),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: 36,
-          height: 36,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
-              width: 0.5,
-            ),
-          ),
-          child: Icon(icon, size: 16, color: Colors.white.withValues(alpha: 0.85)),
-        ),
-      ),
     );
   }
 }

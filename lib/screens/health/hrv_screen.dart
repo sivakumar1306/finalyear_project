@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/health_connect_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_menu.dart';
@@ -259,6 +261,8 @@ class _HrvScreenState extends State<HrvScreen> {
 
   Future<void> _saveSingleMeasurement(int hrv) async {
     final user = SupabaseService.currentUser;
+    // Two-way sync: send the just-measured HRV sample to Health Connect.
+    unawaited(HealthConnectService.instance.tryWriteHrv(hrv, DateTime.now()));
     if (user == null) return;
     try {
       final existing = await SupabaseService.getHrvForDate(

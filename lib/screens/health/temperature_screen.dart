@@ -152,7 +152,6 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   Future<void> _fetchTodayFromLocalDb() async {
     setState(() {
       _loading = true;
-      _manualTemp = 0;
     });
     try {
       final now = DateTime.now();
@@ -317,6 +316,10 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
           _measuring = false;
         });
         await _saveToSupabase(readings);
+        // The native side persisted the reading to Room and fired a
+        // newReading event; re-pull so the today chart/avg/min/max reflect it.
+        if (_isToday) await _fetchTodayFromLocalDb();
+        setState(() => _manualTemp = latest);
       } else {
         setState(() => _measuring = false);
       }

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/main_tab_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_icon_button.dart';
 import '../../services/chat_api_service.dart';
 import 'key_change_card.dart';
 
@@ -100,27 +101,9 @@ class InsightsHeaderState extends State<InsightsHeader>
               ),
               Align(
                 alignment: Alignment.centerLeft,
-                child: GestureDetector(
+                child: GlassIconButton(
+                  icon: Icons.arrow_back_rounded,
                   onTap: () => context.read<MainTabProvider>().setTab(0),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
-                      border: Border.all(
-                        color: const Color(
-                          0x14FFFFFF,
-                        ), // rgba(255,255,255,0.08)
-                        width: 0.5,
-                      ),
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back_rounded,
-                      size: 16,
-                      color: Color(0xD9FFFFFF), // rgba(255,255,255,0.85)
-                    ),
-                  ),
                 ),
               ),
             ],

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/health_connect_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_menu.dart';
@@ -299,6 +301,21 @@ class _SleepScreenState extends State<SleepScreen> {
         wakeTime: et,
       );
       if (mounted) context.read<BleProvider>().updateSleepData(total, score);
+      // Two-way sync: push last night's sleep into Health Connect.
+      if (st > 0) {
+        unawaited(
+          HealthConnectService.instance.tryWriteSleep(
+            sleepTime: DateTime.fromMillisecondsSinceEpoch(st * 1000),
+            wakeTime: DateTime.fromMillisecondsSinceEpoch(
+              (et > 0 ? et : st + 3600) * 1000,
+            ),
+            lightMinutes: light ~/ 60,
+            deepMinutes: deep ~/ 60,
+            remMinutes: rem ~/ 60,
+            awakeMinutes: awake ~/ 60,
+          ),
+        );
+      }
     } catch (_) {}
   }
 

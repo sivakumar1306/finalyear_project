@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../services/health_connect_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_icon_button.dart';
 
 /// Health Connect — connects Google Health Connect to the app.
 ///
@@ -44,10 +45,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
   }
 
   Future<void> _refreshGrantedAndToday() async {
-    final granted = <HealthSyncType>{};
-    for (final type in _enabled) {
-      if (await _service.hasPermissions({type})) granted.add(type);
-    }
+    final granted = await _service.refreshWriteGrants(_enabled);
     if (!mounted) return;
     setState(() {
       _granted = granted;
@@ -94,9 +92,23 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
       }
     });
     await _service.saveEnabledTypes(_enabled);
-    if (_connected) {
-      // Re-request so Health Connect reflects the new set immediately.
-      await _service.requestAuthorization(_enabled);
+
+    if (value && !_granted.contains(type)) {
+      // Invoke Google's native Health Connect permission grant screen for the
+      // newly enabled type (also covers the "Connect" first-run flow).
+      setState(() => _busy = true);
+      final ok = await _service.requestAuthorization(_enabled);
+      if (!mounted) return;
+      setState(() => _busy = false);
+      if (ok) {
+        _showSnack('${type.label} permission granted.');
+      } else {
+        _showSnack('${type.label} permission not granted — nothing will sync.');
+      }
+      await _refreshGrantedAndToday();
+    } else {
+      // Turning a type off (or re-enabling an already-granted one) needs no
+      // native sheet — just refresh what's synced.
       await _refreshGrantedAndToday();
     }
   }
@@ -134,13 +146,15 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
       backgroundColor: AppTheme.bg,
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_rounded,
-            color: Colors.white,
-            size: 20,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: Center(
+            child: GlassIconButton(
+              icon: Icons.arrow_back_ios_rounded,
+              iconSize: 15,
+              onTap: () => Navigator.pop(context),
+            ),
           ),
-          onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Health Connect',
@@ -176,8 +190,9 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Choose what to sync from Google Health Connect, then allow '
-              'the permissions below.',
+              'Choose what to sync, then allow read & write access. Sundr '
+              'sends the measurements it takes and pulls in your other apps\' '
+              'core health data.',
               style: GoogleFonts.inter(
                 color: AppTheme.textSec,
                 fontSize: 12,
@@ -264,7 +279,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  granted ? 'Syncing' : type.subtitle,
+                  granted ? 'Sending & syncing' : type.subtitle,
                   style: GoogleFonts.inter(
                     color: granted ? AppTheme.gold : AppTheme.textSec,
                     fontSize: 12,

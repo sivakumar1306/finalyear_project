@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ble_service.dart';
 import '../services/goal_prefs.dart';
+import '../services/health_connect_service.dart';
 import '../services/notification_prefs.dart';
 import '../services/supabase_service.dart';
 
@@ -426,23 +427,60 @@ class BleProvider extends ChangeNotifier {
     switch (data['vital'] as String?) {
       case 'HEART_RATE':
         _refreshHrFromLocal();
+        unawaited(_pushToHealthConnect('heart_rate'));
         break;
       case 'SPO2':
         _refreshSpo2FromLocal();
+        unawaited(_pushToHealthConnect('spo2'));
         break;
       case 'STRESS':
         _refreshStressFromLocal();
         break;
       case 'BLOOD_PRESSURE':
         _refreshBpFromLocal();
+        unawaited(_pushToHealthConnect('blood_pressure'));
         break;
       case 'STEPS':
         _refreshStepsFromLocal();
+        unawaited(_pushToHealthConnect('steps'));
         break;
       case 'TEMPERATURE':
         _refreshTempFromLocal();
+        unawaited(_pushToHealthConnect('temperature'));
         break;
     }
+  }
+
+  /// Best-effort two-way sync: forwards the latest Room reading of [vital] to
+  /// Google Health Connect (silently no-ops when not connected/authorized).
+  Future<void> _pushToHealthConnect(String vital) async {
+    try {
+      final hc = HealthConnectService.instance;
+      final m = jsonDecode(await _ble.getLatestReading(vital));
+      if (m is! Map<String, dynamic>) return;
+      final at = DateTime.fromMillisecondsSinceEpoch(
+        (m['measuredAt'] as num?)?.toInt() ??
+            DateTime.now().millisecondsSinceEpoch,
+      );
+      switch (vital) {
+        case 'heart_rate':
+          final v = (m['valueBpm'] as num?)?.toInt() ?? 0;
+          if (v > 0) await hc.tryWriteHeartRate(v, at);
+        case 'spo2':
+          final v = (m['valuePct'] as num?)?.toInt() ?? 0;
+          if (v > 0) await hc.tryWriteBloodOxygen(v, at);
+        case 'blood_pressure':
+          final s = (m['systolic'] as num?)?.toInt() ?? 0;
+          final d = (m['diastolic'] as num?)?.toInt() ?? 0;
+          if (s > 0 && d > 0) await hc.tryWriteBloodPressure(s, d, at);
+        case 'temperature':
+          final v = (m['valueC'] as num?)?.toDouble() ?? 0.0;
+          if (v > 0) await hc.tryWriteTemperature(v, at);
+        case 'steps':
+          final v = (m['steps'] as num?)?.toInt() ?? 0;
+          if (v > 0) await hc.tryWriteSteps(v, at);
+      }
+    } catch (_) {}
   }
 
   // ── Health-event alerts (Select Notifications screen) ────────────────────
@@ -1112,7 +1150,32 @@ class BleProvider extends ChangeNotifier {
       _todaySleepScore = score;
       notifyListeners();
       _saveSleepToDb(total, deep, light, rem, awake, score, st, et);
+      // Two-way sync: push last night's sleep into Health Connect.
+      unawaited(_pushSleepToHealthConnect(st, et, deep, light, rem, awake));
     } catch (_) {}
+  }
+
+  Future<void> _pushSleepToHealthConnect(
+    int stSecs,
+    int etSecs,
+    int deepSecs,
+    int lightSecs,
+    int remSecs,
+    int awakeSecs,
+  ) async {
+    if (stSecs <= 0) return;
+    final sleepTime = DateTime.fromMillisecondsSinceEpoch(stSecs * 1000);
+    final wakeTime = DateTime.fromMillisecondsSinceEpoch(
+      (etSecs > 0 ? etSecs : stSecs + 3600) * 1000,
+    );
+    await HealthConnectService.instance.tryWriteSleep(
+      sleepTime: sleepTime,
+      wakeTime: wakeTime,
+      lightMinutes: lightSecs ~/ 60,
+      deepMinutes: deepSecs ~/ 60,
+      remMinutes: remSecs ~/ 60,
+      awakeMinutes: awakeSecs ~/ 60,
+    );
   }
 
   void _parseAndSaveTemp(String jsonStr) {
