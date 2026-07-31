@@ -260,8 +260,8 @@ class BleProvider extends ChangeNotifier {
     // loop and stored in local Room — read from there first, only falling back to
     // Supabase if local is empty (e.g. very first run before the loop has produced data).
     _loadTodayVitalsFromLocal();
-    // HRV/Temperature are unrelated passive "ask the ring what it already recorded"
-    // reads, not part of the new one-click measurement loop — left untouched.
+    // HRV/Temperature are now also produced by the native measurement loop; these
+    // Supabase reads only cover data recorded before the loop started collecting them.
     _loadTodayHrvFromSupabase();
     _loadTodaySleepFromSupabase();
     _loadLatestTempFromSupabase();
@@ -1048,8 +1048,9 @@ class BleProvider extends ChangeNotifier {
   // HR/SpO2/Steps/Stress/BP are no longer acquired here — the native background
   // MeasurementLoopManager now continuously owns those (see _refresh*FromLocal above).
   // This only covers the vitals still fetched via passive "ask the ring what it already
-  // recorded" calls: HRV and Temperature (their one-click loop entries stay disabled
-  // until separately fixed), plus Sleep (out of scope for this pipeline).
+  // recorded" calls: HRV and Temperature (loop-measured readings are backed by these
+  // ring-stored series too, so pulling them keeps gaps filled), plus Sleep (out of
+  // scope for this pipeline).
   Future<void> syncAllFromRing() async {
     if (_isSyncing || !_isConnected) return;
     final myGen = ++_syncGen;

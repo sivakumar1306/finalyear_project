@@ -33,3 +33,13 @@ plugins {
 }
 
 include(":app")
+
+rootProject.buildDir = File("../build")
+
+subprojects {
+    val newBuildDir: Directory = rootProject.layout.buildDirectory.dir(name).get()
+    project.layout.buildDirectory.value(newBuildDir)
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}

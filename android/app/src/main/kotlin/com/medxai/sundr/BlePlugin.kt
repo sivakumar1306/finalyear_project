@@ -48,7 +48,7 @@ import com.oudmon.ble.base.communication.req.ReadHeartRateReq
 import com.oudmon.ble.base.communication.req.SetANCSReq
 import com.oudmon.ble.base.communication.req.SetTimeReq
 import com.oudmon.ble.base.communication.req.SimpleKeyReq
-import com.oudmon.ble.base.communication.req.TemperatureSettingReq
+import com.oudmon.ble.base.communication.req.SugarLipidsSettingReq
 import com.oudmon.ble.base.communication.req.TouchControlReq
 import com.oudmon.ble.base.communication.responseImpl.DeviceNotifyListener
 import com.oudmon.ble.base.communication.rsp.BaseRspCmd
@@ -1697,7 +1697,7 @@ class BlePlugin(private val context: Context) {
 
     private fun getTemperatureSetting(result: MethodChannel.Result) {
         CommandHandle.getInstance().executeReqCmd(
-            TemperatureSettingReq.getReadInstance(),
+            SugarLipidsSettingReq.getReadTemperatureInstance(),
             ICommandResponse<BaseRspCmd> { rsp ->
                 mainHandler.post { result.success(gson.toJson(rsp)) }
             }
@@ -1708,7 +1708,7 @@ class BlePlugin(private val context: Context) {
         val enable = call.argument<Boolean>("enable") ?: true
         val interval = call.argument<Int>("interval") ?: 2
         CommandHandle.getInstance().executeReqCmd(
-            TemperatureSettingReq.getWriteInstance(enable, interval.toByte()),
+            SugarLipidsSettingReq.getWriteTemperatureInstance(enable, interval),
             ICommandResponse<BaseRspCmd> { _ ->
                 mainHandler.post { result.success(true) }
             }

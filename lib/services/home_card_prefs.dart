@@ -1,16 +1,27 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import '../screens/home/home_screen.dart';
 
-/// Centralised persistence for the home dashboard's card order and visibility.
+/// Centralised persistence for the home dashboard's card order, visibility
+/// and size.
 ///
-/// Both the inline drag-reorder editor on the Home screen and the full-screen
-/// "Edit Cards" screen (CardSettingsScreen) read/write through this class so
-/// they stay in sync without duplicating key names or loading logic.
+/// Both the home dashboard grid and the full-screen "Edit Cards" screen
+/// (CardSettingsScreen) read/write through this class so they stay in sync
+/// without duplicating key names or loading logic.
 class HomeCardPrefs {
   static const _orderKey = 'home_card_order';
   static const _hiddenKey = 'home_card_visibility';
+  static const _expandedKey = 'home_card_expanded';
 
   // ── Order ──────────────────────────────────────────────────────────────────
+
+  /// Legacy composite card ids (pre-flat-model home grid) expanded into the
+  /// individual cards they grouped. Used so previously-saved order/visibility
+  /// survives the migration instead of being dropped.
+  static const _legacyCardMap = <String, List<String>>{
+    'alarmActivity': ['alarms', 'activity'],
+    'sleepHrv': ['sleep', 'hrv'],
+    'bloodOxygenHeartRate': ['bloodOxygen', 'heartRate'],
+  };
 
   /// Returns the persisted card order, back-filled with any enum values that
   /// were added since the user last saved (so new cards appear at the end
@@ -22,10 +33,13 @@ class HomeCardPrefs {
 
     final List<HomeCardId> order = [];
     for (final name in saved) {
-      try {
-        order.add(HomeCardId.values.byName(name));
-      } catch (_) {
-        // ignore invalid/deprecated names
+      for (final n in _legacyCardMap[name] ?? [name]) {
+        try {
+          final id = HomeCardId.values.byName(n);
+          if (!order.contains(id)) order.add(id);
+        } catch (_) {
+          // ignore invalid/deprecated names
+        }
       }
     }
     // Back-fill any new enum values not yet in the persisted list.
@@ -50,9 +64,11 @@ class HomeCardPrefs {
     final list = prefs.getStringList(_hiddenKey) ?? [];
     final Set<HomeCardId> hidden = {};
     for (final name in list) {
-      try {
-        hidden.add(HomeCardId.values.byName(name));
-      } catch (_) {}
+      for (final n in _legacyCardMap[name] ?? [name]) {
+        try {
+          hidden.add(HomeCardId.values.byName(n));
+        } catch (_) {}
+      }
     }
     return hidden;
   }
@@ -60,6 +76,27 @@ class HomeCardPrefs {
   static Future<void> saveHidden(Set<HomeCardId> hidden) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_hiddenKey, hidden.map((e) => e.name).toList());
+  }
+
+  // ── Expanded size ──────────────────────────────────────────────────────────
+
+  /// Returns the set of cards the user has expanded to full width.  Absent
+  /// from this set → normal half-width card.
+  static Future<Set<HomeCardId>> loadExpanded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_expandedKey) ?? [];
+    final Set<HomeCardId> expanded = {};
+    for (final name in list) {
+      try {
+        expanded.add(HomeCardId.values.byName(name));
+      } catch (_) {}
+    }
+    return expanded;
+  }
+
+  static Future<void> saveExpanded(Set<HomeCardId> expanded) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_expandedKey, expanded.map((e) => e.name).toList());
   }
 
   // ── Compact mode ────────────────────────────────────────────────────────────

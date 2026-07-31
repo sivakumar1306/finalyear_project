@@ -1,4 +1,4 @@
-import 'dart:ui' show ImageFilter, TileMode, lerpDouble;
+import 'dart:ui' show ImageFilter, TileMode;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +14,7 @@ import '../settings/fall_detection_screen.dart';
 import 'ring_scan_sheet.dart';
 import 'side_panel.dart';
 import '../settings/about_screen.dart';
+import 'card_settings_screen.dart';
 import 'package:share_plus/share_plus.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -125,11 +126,14 @@ TextStyle _inter(
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 enum HomeCardId {
-  alarmActivity,
+  alarms,
+  activity,
   stress,
   womensHealth,
-  sleepHrv,
-  bloodOxygenHeartRate,
+  sleep,
+  hrv,
+  bloodOxygen,
+  heartRate,
   bloodPressure,
   temperature,
 }
@@ -143,15 +147,18 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _firstName = '';
   String _gender = '';
-  bool _editMode = false;
   bool _compactMode = false;
   Set<HomeCardId> _hiddenCards = {};
+  Set<HomeCardId> _expandedCards = {};
   List<HomeCardId> _cardOrder = [
-    HomeCardId.alarmActivity,
+    HomeCardId.alarms,
+    HomeCardId.activity,
     HomeCardId.stress,
     HomeCardId.womensHealth,
-    HomeCardId.sleepHrv,
-    HomeCardId.bloodOxygenHeartRate,
+    HomeCardId.sleep,
+    HomeCardId.hrv,
+    HomeCardId.bloodOxygen,
+    HomeCardId.heartRate,
     HomeCardId.bloodPressure,
     HomeCardId.temperature,
   ];
@@ -172,6 +179,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _loadUserProfile();
     _loadCardOrder();
     _loadHiddenCards();
+    _loadExpandedCards();
     _loadCompactMode();
   }
 
@@ -227,14 +235,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _verifyWomensHealthCardVisibility();
   }
 
-  Future<void> _saveCardOrder() async {
-    await HomeCardPrefs.saveOrder(_cardOrder);
-  }
-
   Future<void> _loadHiddenCards() async {
     try {
       final hidden = await HomeCardPrefs.loadHidden();
       if (mounted) setState(() => _hiddenCards = hidden);
+    } catch (_) {}
+  }
+
+  Future<void> _loadExpandedCards() async {
+    try {
+      final expanded = await HomeCardPrefs.loadExpanded();
+      if (mounted) setState(() => _expandedCards = expanded);
     } catch (_) {}
   }
 
@@ -257,6 +268,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         });
       }
     }
+  }
+
+  /// Opens the full-screen Edit Cards page; on return, re-reads every
+  /// preference the page may have changed so the grid matches immediately.
+  Future<void> _openCardSettings() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CardSettingsScreen()),
+    );
+    if (!mounted) return;
+    await _loadCardOrder();
+    await _loadHiddenCards();
+    await _loadExpandedCards();
+    await _loadCompactMode();
+    _verifyWomensHealthCardVisibility();
   }
 
   String get _greeting {
@@ -352,37 +378,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return AppTheme.danger;
   }
 
-  Widget _buildCardBlock(HomeCardId id, BleProvider ble, {bool compact = false}) {
-
-    if (compact) {
-      return _buildCompactCard(id, ble);
-    }
-
+  /// Renders a single metric card.  [expanded] spans the full grid width at
+  /// 1.5× the standard card height.
+  Widget _buildCard(HomeCardId id, BleProvider ble, {bool expanded = false}) {
     switch (id) {
-      case HomeCardId.alarmActivity:
-        // IntrinsicHeight keeps both cards equal height while allowing them
-        // to grow with content / text scale instead of a fixed pixel height.
-        return IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Expanded(child: _AlarmCard()),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _ActivityScoreCard(
-                  score: _computeActivityScore(
-                    ble.todaySteps,
-                    ble.todayDistanceM,
-                    ble.todayCalories,
-                  ),
-                  hasData: ble.todaySteps > 0,
-                  onTap: _editMode
-                      ? null
-                      : () => Navigator.pushNamed(context, '/steps'),
-                ),
-              ),
-            ],
+      case HomeCardId.alarms:
+        return _AlarmCard(expanded: expanded);
+      case HomeCardId.activity:
+        return _ActivityScoreCard(
+          score: _computeActivityScore(
+            ble.todaySteps,
+            ble.todayDistanceM,
+            ble.todayCalories,
           ),
+          hasData: ble.todaySteps > 0,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/steps'),
         );
       case HomeCardId.stress:
         return _StressCard(
@@ -391,360 +402,318 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           minStress: ble.todayMinStress,
           maxStress: ble.todayMaxStress,
           connected: ble.isConnected,
-          onTap: _editMode
-              ? null
-              : () => Navigator.pushNamed(context, '/pressure'),
-        );
-      case HomeCardId.womensHealth:
-        return _CompactWomensHealthCard(
-          onTap: _editMode
-              ? null
-              : () => Navigator.pushNamed(context, '/womens-health'),
-        );
-      case HomeCardId.sleepHrv:
-        return Row(
-          children: [
-            Expanded(
-              child: _HomeCard(
-                label: 'Sleep',
-                value: _sleepDurationLabel(ble.todaySleepDuration),
-                unit: '',
-                status: ble.todaySleepDuration > 0
-                    ? _sleepStatus(ble.todaySleepScore)
-                    : 'No data',
-                statusColor: _sleepStatusColor(ble.todaySleepScore),
-                orbColor: _kOrbSleep,
-                sparkData: const [
-                  0.5,
-                  0.7,
-                  0.9,
-                  0.8,
-                  0.6,
-                  0.4,
-                  0.3,
-                  0.5,
-                  0.7,
-                  0.8,
-                  0.6,
-                  0.4,
-                ],
-                connected: ble.isConnected,
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/sleep'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _HomeCard(
-                label: 'HRV',
-                value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
-                unit: ble.todayAvgHrv > 0 ? 'ms' : '',
-                status: _hrvStatus(ble.todayAvgHrv),
-                statusColor: ble.todayAvgHrv > 0 ? _kOrbHrv : _kSec2,
-                orbColor: _kOrbHrv,
-                sparkData: const [
-                  0.5,
-                  0.55,
-                  0.6,
-                  0.58,
-                  0.62,
-                  0.65,
-                  0.6,
-                  0.58,
-                  0.55,
-                  0.6,
-                  0.63,
-                  0.6,
-                ],
-                connected: ble.isConnected,
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/hrv'),
-              ),
-            ),
-          ],
-        );
-      case HomeCardId.bloodOxygenHeartRate:
-        return Row(
-          children: [
-            Expanded(
-              child: _HomeCard(
-                label: 'Blood Oxygen',
-                value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
-                unit: ble.todayAvgSpo2 > 0 ? '%' : '',
-                status: ble.todayAvgSpo2 > 0
-                    ? (ble.todayMinSpo2 > 0 && ble.todayMaxSpo2 > 0
-                          ? 'Range: ${ble.todayMinSpo2}-${ble.todayMaxSpo2}%'
-                          : _spo2Status(ble.todayAvgSpo2))
-                    : 'No data',
-                statusColor: ble.todayAvgSpo2 > 0 ? _kOrbSpo2 : _kSec2,
-                orbColor: _kOrbSpo2,
-                sparkData: const [
-                  0.96,
-                  0.97,
-                  0.96,
-                  0.98,
-                  0.97,
-                  0.99,
-                  0.98,
-                  0.97,
-                  0.96,
-                  0.98,
-                  0.97,
-                  0.99,
-                ],
-                connected: ble.isConnected,
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/blood-oxygen'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _HomeCard(
-                label: 'Heart Rate',
-                value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
-                unit: ble.todayAvgHr > 0 ? 'bpm' : '',
-                status: ble.todayAvgHr > 0
-                    ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
-                          ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
-                          : _hrStatus(ble.todayAvgHr))
-                    : 'No data',
-                statusColor: ble.todayAvgHr > 0 ? _kOrbHr : _kSec2,
-                orbColor: _kOrbHr,
-                sparkData: const [
-                  0.45,
-                  0.5,
-                  0.55,
-                  0.5,
-                  0.6,
-                  0.55,
-                  0.5,
-                  0.48,
-                  0.52,
-                  0.58,
-                  0.54,
-                  0.5,
-                ],
-                connected: ble.isConnected,
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/heart-rate'),
-              ),
-            ),
-          ],
-        );
-      case HomeCardId.bloodPressure:
-        return Row(
-          children: [
-            Expanded(
-              child: _CompactBloodPressureCard(
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/blood-pressure'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _TemperatureCard(
-                tempC: ble.latestTempC,
-                connected: ble.isConnected,
-                onTap: _editMode
-                    ? null
-                    : () => Navigator.pushNamed(context, '/temperature'),
-              ),
-            ),
-          ],
-        );
-      case HomeCardId.temperature:
-        // Rendered together with Blood Pressure above as a paired square-card
-        // row; kept as a distinct HomeCardId only for saved order/visibility
-        // back-compat (see HomeCardPrefs).
-        return const SizedBox.shrink();
-    }
-  }
-
-  Widget _buildCompactCard(HomeCardId id, BleProvider ble) {
-    switch (id) {
-      case HomeCardId.alarmActivity:
-        return _MiniCard(
-          label: 'Alarms', color: _kOrbSleep, icon: Icons.notifications_outlined,
-          onTap: () => Navigator.pushNamed(context, '/alarms-notifications'),
-        );
-      case HomeCardId.stress:
-        return _MiniCard(
-          label: 'Stress', value: ble.latestStressValue > 0 ? '${ble.latestStressValue}' : '--',
-          sub: _stressStatus(ble.latestStressValue), color: _kOrbStress, icon: Icons.water_drop,
+          expanded: expanded,
           onTap: () => Navigator.pushNamed(context, '/pressure'),
         );
       case HomeCardId.womensHealth:
-        return _MiniCard(
-          label: "Women's Health", color: const Color(0xFFD860C8), icon: Icons.woman,
+        return _CompactWomensHealthCard(
+          expanded: expanded,
           onTap: () => Navigator.pushNamed(context, '/womens-health'),
         );
-      case HomeCardId.sleepHrv:
-        return Row(
-          children: [
-            Expanded(
-              child: _MiniCard(
-                label: 'Sleep', value: _sleepDurationLabel(ble.todaySleepDuration),
-                sub: ble.todaySleepDuration > 0 ? _sleepStatus(ble.todaySleepScore) : '',
-                color: _kOrbSleep, icon: Icons.bedtime,
-                onTap: () => Navigator.pushNamed(context, '/sleep'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _MiniCard(
-                label: 'HRV', value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
-                sub: ble.todayAvgHrv > 0 ? 'ms' : '', color: _kOrbHrv, icon: Icons.favorite_border,
-                onTap: () => Navigator.pushNamed(context, '/hrv'),
-              ),
-            ),
+      case HomeCardId.sleep:
+        return _HomeCard(
+          label: 'Sleep',
+          value: _sleepDurationLabel(ble.todaySleepDuration),
+          unit: '',
+          status: ble.todaySleepDuration > 0
+              ? _sleepStatus(ble.todaySleepScore)
+              : 'No data',
+          statusColor: _sleepStatusColor(ble.todaySleepScore),
+          orbColor: _kOrbSleep,
+          sparkData: const [
+            0.5,
+            0.7,
+            0.9,
+            0.8,
+            0.6,
+            0.4,
+            0.3,
+            0.5,
+            0.7,
+            0.8,
+            0.6,
+            0.4,
           ],
+          connected: ble.isConnected,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/sleep'),
         );
-      case HomeCardId.bloodOxygenHeartRate:
-        return Row(
-          children: [
-            Expanded(
-              child: _MiniCard(
-                label: 'SpO₂', value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
-                sub: ble.todayAvgSpo2 > 0 ? '%' : '', color: _kOrbSpo2, icon: Icons.air,
-                onTap: () => Navigator.pushNamed(context, '/blood-oxygen'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _MiniCard(
-                label: 'Heart Rate', value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
-                sub: ble.todayAvgHr > 0 ? 'bpm' : '', color: _kOrbHr, icon: Icons.favorite,
-                onTap: () => Navigator.pushNamed(context, '/heart-rate'),
-              ),
-            ),
+      case HomeCardId.hrv:
+        return _HomeCard(
+          label: 'HRV',
+          value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
+          unit: ble.todayAvgHrv > 0 ? 'ms' : '',
+          status: _hrvStatus(ble.todayAvgHrv),
+          statusColor: ble.todayAvgHrv > 0 ? _kOrbHrv : _kSec2,
+          orbColor: _kOrbHrv,
+          sparkData: const [
+            0.5,
+            0.55,
+            0.6,
+            0.58,
+            0.62,
+            0.65,
+            0.6,
+            0.58,
+            0.55,
+            0.6,
+            0.63,
+            0.6,
           ],
+          connected: ble.isConnected,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/hrv'),
+        );
+      case HomeCardId.bloodOxygen:
+        return _HomeCard(
+          label: 'Blood Oxygen',
+          value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
+          unit: ble.todayAvgSpo2 > 0 ? '%' : '',
+          status: ble.todayAvgSpo2 > 0
+              ? (ble.todayMinSpo2 > 0 && ble.todayMaxSpo2 > 0
+                    ? 'Range: ${ble.todayMinSpo2}-${ble.todayMaxSpo2}%'
+                    : _spo2Status(ble.todayAvgSpo2))
+              : 'No data',
+          statusColor: ble.todayAvgSpo2 > 0 ? _kOrbSpo2 : _kSec2,
+          orbColor: _kOrbSpo2,
+          sparkData: const [
+            0.96,
+            0.97,
+            0.96,
+            0.98,
+            0.97,
+            0.99,
+            0.98,
+            0.97,
+            0.96,
+            0.98,
+            0.97,
+            0.99,
+          ],
+          connected: ble.isConnected,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/blood-oxygen'),
+        );
+      case HomeCardId.heartRate:
+        return _HomeCard(
+          label: 'Heart Rate',
+          value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
+          unit: ble.todayAvgHr > 0 ? 'bpm' : '',
+          status: ble.todayAvgHr > 0
+              ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
+                    ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
+                    : _hrStatus(ble.todayAvgHr))
+              : 'No data',
+          statusColor: ble.todayAvgHr > 0 ? _kOrbHr : _kSec2,
+          orbColor: _kOrbHr,
+          sparkData: const [
+            0.45,
+            0.5,
+            0.55,
+            0.5,
+            0.6,
+            0.55,
+            0.5,
+            0.48,
+            0.52,
+            0.58,
+            0.54,
+            0.5,
+          ],
+          connected: ble.isConnected,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/heart-rate'),
         );
       case HomeCardId.bloodPressure:
-        final hasBp = ble.latestBpSbp > 0 && ble.latestBpDbp > 0;
-        return _MiniCard(
-          label: 'Blood Pressure', value: hasBp ? '${ble.latestBpSbp}/${ble.latestBpDbp}' : '--',
-          color: const Color(0xFFD86560), icon: Icons.speed,
+        return _CompactBloodPressureCard(
+          expanded: expanded,
           onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
         );
       case HomeCardId.temperature:
-        return _MiniCard(
-          label: 'Temp', value: ble.latestTempC > 0 ? '${ble.latestTempC.toStringAsFixed(1)}°' : '--',
-          color: _kOrbTemp, icon: Icons.device_thermostat,
+        return _TemperatureCard(
+          tempC: ble.latestTempC,
+          connected: ble.isConnected,
+          expanded: expanded,
           onTap: () => Navigator.pushNamed(context, '/temperature'),
         );
     }
   }
 
-  Widget _buildReorderableList(
-    BuildContext context,
-    BleProvider ble,
-    List<HomeCardId> visibleCardIds,
-  ) {
-    if (_editMode) {
-      return SliverReorderableList(
-        itemCount: visibleCardIds.length,
-        onReorderItem: (int oldIndex, int newIndex) {
-          setState(() {
-            final HomeCardId item = visibleCardIds.removeAt(oldIndex);
-            visibleCardIds.insert(newIndex, item);
-
-            // Align the full preferences list _cardOrder with the new order of visible components
-            int visibleIdx = 0;
-            for (int i = 0; i < _cardOrder.length; i++) {
-              if (visibleCardIds.contains(_cardOrder[i])) {
-                _cardOrder[i] = visibleCardIds[visibleIdx++];
-              }
-            }
-          });
-        },
-        proxyDecorator: (Widget child, int index, Animation<double> animation) {
-          return AnimatedBuilder(
-            animation: animation,
-            builder: (context, child) {
-              final double animValue = Curves.easeInOut.transform(
-                animation.value,
-              );
-              final double scale = lerpDouble(1.0, 1.03, animValue)!;
-              return Transform.scale(
-                scale: scale,
-                child: Material(
-                  color: Colors.transparent,
-                  elevation: lerpDouble(0, 6, animValue)!,
-                  child: child,
-                ),
-              );
-            },
-            child: child,
-          );
-        },
-        itemBuilder: (context, index) {
-          final id = visibleCardIds[index];
-          final hidden = _hiddenCards.contains(id);
-          return Padding(
-            key: ValueKey(id),
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: IgnorePointer(
-                    child: AnimatedOpacity(
-                      opacity: hidden ? 0.35 : 1.0,
-                      duration: const Duration(milliseconds: 250),
-                       child: RepaintBoundary(child: _buildCardBlock(id, ble, compact: _compactMode)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Transform.scale(
-                  scale: 0.8,
-                  child: Switch(
-                    value: !hidden,
-                    onChanged: (v) {
-                      setState(() {
-                        if (v) {
-                          _hiddenCards.remove(id);
-                        } else {
-                          _hiddenCards.add(id);
-                        }
-                      });
-                    },
-                  ),
-                ),
-                ReorderableDragStartListener(
-                  index: index,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    child: const Icon(
-                      Icons.drag_indicator_rounded,
-                      color: Colors.white38,
-                      size: 24,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      );
-    } else {
-      return SliverList(
-        delegate: SliverChildBuilderDelegate((context, index) {
-          final id = visibleCardIds[index];
-          return Padding(
-            key: ValueKey(id),
-            padding: const EdgeInsets.only(bottom: 12),
-            // Isolate each card's layer so scrolling doesn't re-rasterize the
-            // whole list when a single card (or BLE update) invalidates paint.
-            child: RepaintBoundary(child: _buildCardBlock(id, ble)),
-          );
-        }, childCount: visibleCardIds.length),
-      );
+  /// Compact-mode variant of [_buildCard].
+  Widget _buildCompactCard(
+    HomeCardId id,
+    BleProvider ble, {
+    bool expanded = false,
+  }) {
+    switch (id) {
+      case HomeCardId.alarms:
+        return _MiniCard(
+          label: 'Alarms',
+          color: _kOrbSleep,
+          icon: Icons.notifications_outlined,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/alarms-notifications'),
+        );
+      case HomeCardId.activity:
+        final score = _computeActivityScore(
+          ble.todaySteps,
+          ble.todayDistanceM,
+          ble.todayCalories,
+        );
+        return _MiniCard(
+          label: 'Activity',
+          value: ble.todaySteps > 0 ? '$score' : '--',
+          sub: ble.todaySteps > 0 ? _activityScoreLabel(score) : '',
+          color: _kOrbActivity,
+          icon: Icons.directions_walk,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/steps'),
+        );
+      case HomeCardId.stress:
+        return _MiniCard(
+          label: 'Stress',
+          value: ble.latestStressValue > 0 ? '${ble.latestStressValue}' : '--',
+          sub: _stressStatus(ble.latestStressValue),
+          color: _kOrbStress,
+          icon: Icons.water_drop,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/pressure'),
+        );
+      case HomeCardId.womensHealth:
+        return _MiniCard(
+          label: "Women's Health",
+          color: const Color(0xFFD860C8),
+          icon: Icons.woman,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/womens-health'),
+        );
+      case HomeCardId.sleep:
+        return _MiniCard(
+          label: 'Sleep',
+          value: _sleepDurationLabel(ble.todaySleepDuration),
+          sub: ble.todaySleepDuration > 0
+              ? _sleepStatus(ble.todaySleepScore)
+              : '',
+          color: _kOrbSleep,
+          icon: Icons.bedtime,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/sleep'),
+        );
+      case HomeCardId.hrv:
+        return _MiniCard(
+          label: 'HRV',
+          value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
+          sub: ble.todayAvgHrv > 0 ? 'ms' : '',
+          color: _kOrbHrv,
+          icon: Icons.favorite_border,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/hrv'),
+        );
+      case HomeCardId.bloodOxygen:
+        return _MiniCard(
+          label: 'SpO₂',
+          value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
+          sub: ble.todayAvgSpo2 > 0 ? '%' : '',
+          color: _kOrbSpo2,
+          icon: Icons.air,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/blood-oxygen'),
+        );
+      case HomeCardId.heartRate:
+        return _MiniCard(
+          label: 'Heart Rate',
+          value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
+          sub: ble.todayAvgHr > 0 ? 'bpm' : '',
+          color: _kOrbHr,
+          icon: Icons.favorite,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/heart-rate'),
+        );
+      case HomeCardId.bloodPressure:
+        final hasBp = ble.latestBpSbp > 0 && ble.latestBpDbp > 0;
+        return _MiniCard(
+          label: 'Blood Pressure',
+          value: hasBp ? '${ble.latestBpSbp}/${ble.latestBpDbp}' : '--',
+          color: const Color(0xFFD86560),
+          icon: Icons.speed,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
+        );
+      case HomeCardId.temperature:
+        return _MiniCard(
+          label: 'Temp',
+          value: ble.latestTempC > 0
+              ? '${ble.latestTempC.toStringAsFixed(1)}°'
+              : '--',
+          color: _kOrbTemp,
+          icon: Icons.device_thermostat,
+          expanded: expanded,
+          onTap: () => Navigator.pushNamed(context, '/temperature'),
+        );
     }
+  }
+
+  /// Packs the visible cards into full-width rows: expanded cards take a row
+  /// on their own; normal cards pair up two per row.  A normal card whose
+  /// partner is expanded (or missing) stretches full width — matching the
+  /// single-card blocks of the original layout.
+  List<Widget> _packCardRows(
+    BleProvider ble,
+    List<HomeCardId> ids, {
+    required bool compact,
+  }) {
+    Widget build(HomeCardId id, {bool expanded = false}) => compact
+        ? _buildCompactCard(id, ble, expanded: expanded)
+        : _buildCard(id, ble, expanded: expanded);
+
+    // IntrinsicHeight bounds the auto-height cards (_AlarmCard,
+    // _ActivityScoreCard) which use Spacer in their columns — without it the
+    // Row's unbounded height from the sliver makes those flex children throw
+    // a RenderFlex layout error and abort every frame. It also keeps paired
+    // cards equal height so they grow together with content / text scale.
+    Widget row(List<Widget> children) => IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
+        );
+
+    final rows = <Widget>[];
+    for (int i = 0; i < ids.length;) {
+      final id = ids[i];
+      if (_expandedCards.contains(id)) {
+        rows.add(row([Expanded(child: build(id, expanded: true))]));
+        i += 1;
+        continue;
+      }
+      final next = i + 1 < ids.length ? ids[i + 1] : null;
+      if (next != null && !_expandedCards.contains(next)) {
+        rows.add(row([
+          Expanded(child: build(id)),
+          const SizedBox(width: 12),
+          Expanded(child: build(next)),
+        ]));
+        i += 2;
+      } else {
+        rows.add(row([Expanded(child: build(id))]));
+        i += 1;
+      }
+    }
+    return rows;
+  }
+
+  Widget _buildCardList(BleProvider ble, List<HomeCardId> visibleCardIds) {
+    final rows = _packCardRows(ble, visibleCardIds, compact: _compactMode);
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          // Isolate each card's layer so scrolling doesn't re-rasterize the
+          // whole list when a single card (or BLE update) invalidates paint.
+          child: RepaintBoundary(child: rows[index]),
+        );
+      }, childCount: rows.length),
+    );
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -753,31 +722,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
     // Cards eligible to appear at all (independent of the user's show/hide
-    // choice) — this is what edit mode lists, so a hidden card can still be
-    // found and switched back on.
+    // choice) — the Edit Cards page lists all of them, so a hidden card can
+    // still be found and switched back on.
     final editableCardIds = _cardOrder.where((id) {
       if (id == HomeCardId.womensHealth && !_isFemale) return false;
-      // Temperature now renders paired with Blood Pressure in a single
-      // square-card row (see _buildCardBlock) rather than as its own block.
-      if (id == HomeCardId.temperature) return false;
       return true;
     }).toList();
 
     // What's actually rendered day-to-day — editable cards minus anything
     // the user hid.
-    final visibleCardIds = _editMode
-        ? editableCardIds
-        : editableCardIds.where((id) => !_hiddenCards.contains(id)).toList();
+    final visibleCardIds = editableCardIds
+        .where((id) => !_hiddenCards.contains(id))
+        .toList();
 
     return RefreshIndicator(
       color: AppTheme.gold,
       backgroundColor: const Color(0xFF111111),
-      onRefresh: _editMode
-          ? () async {}
-          : () async {
-              await ble.checkConnection();
-              await _loadUserProfile();
-            },
+      onRefresh: () async {
+        await ble.checkConnection();
+        await _loadUserProfile();
+      },
       child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
@@ -826,45 +790,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
 
-          // 2. Reorderable / Sequenced list of metrics
+          // 2. Card rows (paired two-per-row, or full-width when expanded)
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: _buildReorderableList(context, ble, visibleCardIds),
+            sliver: _buildCardList(ble, visibleCardIds),
           ),
 
-          // 3. Edit Button & spacing at bottom
+          // 3. Edit Cards button & spacing at bottom
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (_editMode) ...[
-                      _CompactModeToggle(
-                        compact: _compactMode,
-                        onTap: () {
-                          setState(() => _compactMode = !_compactMode);
-                          HomeCardPrefs.saveCompactMode(_compactMode);
-                        },
-                      ),
-                      const SizedBox(width: 12),
-                    ],
-                    _EditCardsButton(
-                      editMode: _editMode,
-                      onTap: () {
-                        setState(() {
-                          _editMode = !_editMode;
-                        });
-                        if (!_editMode) {
-                          _saveCardOrder();
-                          HomeCardPrefs.saveHidden(_hiddenCards);
-                        }
-                      },
-                    ),
-                  ],
-                ),
+                _EditCardsButton(onTap: _openCardSettings),
                 const SizedBox(height: 20),
               ]),
             ),
@@ -1407,6 +1345,7 @@ class _MiniCard extends StatelessWidget {
   final Color color;
   final IconData icon;
   final VoidCallback? onTap;
+  final bool expanded;
 
   const _MiniCard({
     required this.label,
@@ -1415,13 +1354,14 @@ class _MiniCard extends StatelessWidget {
     required this.color,
     required this.icon,
     this.onTap,
+    this.expanded = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return _GlassCard(
       orbColor: color,
-      height: 130,
+      height: expanded ? 195 : 130,
       orbAlpha: 0.25,
       orbSize: 180,
       padding: const EdgeInsets.all(12),
@@ -1460,6 +1400,7 @@ class _MiniCard extends StatelessWidget {
                 style: _inter(10, color: _kSec2),
               ),
           ],
+          if (expanded) const Spacer(),
         ],
       ),
     );
@@ -1478,6 +1419,7 @@ class _HomeCard extends StatelessWidget {
   final List<double> sparkData;
   final bool connected;
   final VoidCallback? onTap;
+  final bool expanded;
 
   const _HomeCard({
     required this.label,
@@ -1489,13 +1431,14 @@ class _HomeCard extends StatelessWidget {
     required this.sparkData,
     required this.connected,
     this.onTap,
+    this.expanded = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return _GlassCard(
       orbColor: orbColor,
-      height: 160,
+      height: expanded ? 240 : 160,
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1590,6 +1533,7 @@ class _StressCard extends StatelessWidget {
   final int maxStress;
   final bool connected;
   final VoidCallback? onTap;
+  final bool expanded;
 
   static const _barData = [
     0.30,
@@ -1625,6 +1569,7 @@ class _StressCard extends StatelessWidget {
     required this.maxStress,
     required this.connected,
     this.onTap,
+    this.expanded = false,
   });
 
   @override
@@ -1633,11 +1578,13 @@ class _StressCard extends StatelessWidget {
     final color = _stressColor(value);
 
     // Auto-height: fixed pixel heights clip on denser fonts / text scale /
-    // narrow phones. Content defines the card height instead.
+    // narrow phones. Content defines the card height instead.  Expanded cards
+    // switch to the fixed 1.5× height (240 = 1.5 × the standard 160 card).
     return _GlassCard(
       orbColor: _kOrbStress,
       orbOnRight: false,
       orbOffset: -78,
+      height: expanded ? 240 : null,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       onTap: onTap,
       child: Column(
@@ -1731,6 +1678,7 @@ class _StressCard extends StatelessWidget {
               ),
             ],
           ),
+          if (expanded) const Spacer(),
         ],
       ),
     );
@@ -1804,21 +1752,25 @@ class _ActivityScoreCard extends StatelessWidget {
   final int score;
   final bool hasData;
   final VoidCallback? onTap;
+  final bool expanded;
 
   const _ActivityScoreCard({
     required this.score,
     required this.hasData,
     this.onTap,
+    this.expanded = false,
   });
 
   @override
   Widget build(BuildContext context) {
     // No fixed height — pairs with _AlarmCard via IntrinsicHeight so both
-    // grow together when text scale / font metrics need more room.
+    // grow together when text scale / font metrics need more room.  Expanded
+    // cards switch to the fixed 1.5× height (240 = 1.5 × the standard 160).
     return _GlassCard(
       orbColor: _kOrbActivity,
       orbOnRight: true,
       orbAlpha: 0.25,
+      height: expanded ? 240 : null,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       onTap: onTap,
       child: Column(
@@ -1921,7 +1873,9 @@ const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
 };
 
 class _AlarmCard extends StatelessWidget {
-  const _AlarmCard();
+  final bool expanded;
+
+  const _AlarmCard({this.expanded = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1929,13 +1883,15 @@ class _AlarmCard extends StatelessWidget {
     final mode = provider.mode;
     final info = _kAlarmModeInfo[mode]!;
     // No fixed height — content + text scale dictate size; IntrinsicHeight in
-    // the parent row keeps this paired with the Activity card.
+    // the parent row keeps this paired with the Activity card.  Expanded
+    // cards switch to the fixed 1.5× height (240 = 1.5 × the standard 160).
     return _GlassCard(
       orbColor: info.color,
       orbAtTop: true,
       orbSize: 260,
       orbOffset: -80,
       orbAlpha: 0.4,
+      height: expanded ? 240 : null,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2263,6 +2219,7 @@ class _CompactHealthCard extends StatelessWidget {
   final bool orbOnRight;
   final VoidCallback? onTap;
   final Widget child;
+  final bool expanded;
   // When set, replaces the default radial orb glow with this gradient — used
   // by cards (e.g. Temperature) that need a directional fade instead.
   final Gradient? overlayGradient;
@@ -2273,6 +2230,7 @@ class _CompactHealthCard extends StatelessWidget {
     required this.child,
     this.orbOnRight = true,
     this.onTap,
+    this.expanded = false,
     this.overlayGradient,
   });
 
@@ -2283,7 +2241,7 @@ class _CompactHealthCard extends StatelessWidget {
     return _ShrinkButton(
       onTap: onTap,
       child: Container(
-        height: 160,
+        height: expanded ? 240 : 160,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
@@ -2373,7 +2331,8 @@ class _CompactHealthCard extends StatelessWidget {
 
 class _CompactWomensHealthCard extends StatefulWidget {
   final VoidCallback? onTap;
-  const _CompactWomensHealthCard({this.onTap});
+  final bool expanded;
+  const _CompactWomensHealthCard({this.onTap, this.expanded = false});
 
   @override
   State<_CompactWomensHealthCard> createState() =>
@@ -2431,6 +2390,7 @@ class _CompactWomensHealthCardState extends State<_CompactWomensHealthCard> {
       title: 'Women\'s Health',
       orbColor: const Color.fromRGBO(216, 96, 200, 0.32),
       orbOnRight: true,
+      expanded: widget.expanded,
       onTap: widget.onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2463,7 +2423,8 @@ class _CompactWomensHealthCardState extends State<_CompactWomensHealthCard> {
 
 class _CompactBloodPressureCard extends StatelessWidget {
   final VoidCallback? onTap;
-  const _CompactBloodPressureCard({this.onTap});
+  final bool expanded;
+  const _CompactBloodPressureCard({this.onTap, this.expanded = false});
 
   String _bpCompactStatus(int sbp, int dbp) {
     if (sbp <= 0 || dbp <= 0) return 'No data';
@@ -2491,7 +2452,7 @@ class _CompactBloodPressureCard extends StatelessWidget {
     return _CompactHealthCard(
       title: 'Blood Pressure',
       orbColor: const Color.fromRGBO(216, 101, 96, 0.32),
-      orbOnRight: true,
+      expanded: expanded,
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2544,11 +2505,13 @@ class _TemperatureCard extends StatelessWidget {
   final double tempC;
   final bool connected;
   final VoidCallback? onTap;
+  final bool expanded;
 
   const _TemperatureCard({
     required this.tempC,
     required this.connected,
     this.onTap,
+    this.expanded = false,
   });
 
   @override
@@ -2558,6 +2521,7 @@ class _TemperatureCard extends StatelessWidget {
     return _CompactHealthCard(
       title: 'Temperature',
       orbColor: _kOrbTemp,
+      expanded: expanded,
       onTap: onTap,
       overlayGradient: const LinearGradient(
         begin: Alignment.topRight,
@@ -2730,62 +2694,12 @@ class _ConnectHint extends StatelessWidget {
   }
 }
 
-// ── Compact Mode Toggle ───────────────────────────────────────────────────────
-
-class _CompactModeToggle extends StatelessWidget {
-  final bool compact;
-  final VoidCallback onTap;
-
-  const _CompactModeToggle({required this.compact, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return _ShrinkButton(
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Container(
-            height: 29,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: compact ? _kBtnBg : _kBtnBg,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  compact ? Icons.grid_view_rounded : Icons.view_agenda_rounded,
-                  size: 14,
-                  color: compact ? AppTheme.gold : Colors.white.withValues(alpha: 0.5),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  compact ? 'Compact' : 'Expanded',
-                  style: _inter(
-                    11,
-                    weight: FontWeight.w500,
-                    color: compact ? AppTheme.gold : Colors.white.withValues(alpha: 0.5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ── Edit Cards button ─────────────────────────────────────────────────────────
 
 class _EditCardsButton extends StatelessWidget {
-  final bool editMode;
   final VoidCallback onTap;
 
-  const _EditCardsButton({required this.editMode, required this.onTap});
+  const _EditCardsButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -2805,13 +2719,11 @@ class _EditCardsButton extends StatelessWidget {
               ),
               child: Center(
                 child: Text(
-                  editMode ? 'Done' : 'Edit Cards',
+                  'Edit Cards',
                   style: _inter(
                     11,
                     weight: FontWeight.w500,
-                    color: editMode
-                        ? AppTheme.gold
-                        : Colors.white.withValues(alpha: 0.5),
+                    color: AppTheme.gold,
                   ),
                 ),
               ),

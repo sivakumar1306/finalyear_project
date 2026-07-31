@@ -19,8 +19,8 @@ import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import java.util.concurrent.atomic.AtomicBoolean
 
-// Continuously round-robins Steps -> HR -> SpO2 -> Stress -> BP (HRV/Temperature skipped
-// while disabled) with a configurable cooldown between full cycles (see
+// Continuously round-robins Steps -> HR -> SpO2 -> Stress -> BP -> HRV -> Temperature
+// with a configurable cooldown between full cycles (see
 // MeasurementConfig.getCycleCooldownMs/setCycleCooldownMs, default 3 min), persisting every
 // reading to Room and publishing a NewReadingEvent for future analyzer modules. Driven by
 // BleConnectionService.onCreate()/onDestroy() — never runs standalone.
@@ -39,6 +39,10 @@ object MeasurementLoopManager {
     // clocked at ~60.5s on-device via logcat (manualModeHrv callback trace), right past the
     // shared 60s timeout above. Mirrors the manual "Measure Now" path's 90s timeout.
     private const val HRV_MEASURE_TIMEOUT_MS = 90_000L
+    // Temperature gets the same headroom as HRV: the live single-temperature measurement
+    // (manualTemperature) streams intermediate callbacks and only settles on the final
+    // value, so cutting it off at the shared 60s timeout could abort real readings.
+    private const val TEMP_MEASURE_TIMEOUT_MS = 90_000L
     // Gap enforced after sending a "stop" command (success or timeout) before the next
     // vital's "start" command goes out. Without this, back-to-back start-stop-start
     // commands with no settle time can leave the ring's firmware stuck mid-measurement
@@ -181,13 +185,7 @@ object MeasurementLoopManager {
             Vital.BLOOD_PRESSURE -> measureBloodPressure(cycleId, onDone)
             Vital.STEPS -> measureSteps(cycleId, onDone)
             Vital.HRV -> measureHrv(cycleId, onDone)
-            Vital.TEMPERATURE -> {
-                // No reliable one-click SDK measurement exists yet (separate, out-of-scope
-                // fix) — this vital stays disabled via MeasurementConfig, so in practice this
-                // branch is never reached until that's fixed and the flag is flipped.
-                Log.w(TAG, "TEMPERATURE reached in sequence with no implementation — skipping")
-                onDone()
-            }
+            Vital.TEMPERATURE -> measureTemperature(cycleId, onDone)
         }
     }
 
@@ -428,6 +426,57 @@ object MeasurementLoopManager {
                 finishWithStop()
             }
         }, HRV_MEASURE_TIMEOUT_MS)
+    }
+
+    // Live single temperature measurement via the SDK's dedicated manualTemperature() API —
+    // the same call the manual "Measure Now" path (BlePlugin.syncManualTemperature) uses.
+    // The raw value is degrees Celsius × 10 (365 → 36.5 °C), matching the scaling the SDK's
+    // TemperatureOnceEntity uses. Like HRV, don't gate on status: intermediate callbacks
+    // don't all report RESULT_OK, so that would abort before a real reading arrives.
+    private fun measureTemperature(cycleId: Long, onDone: () -> Unit) {
+        if (!MeasurementCoordinator.tryAcquire(OWNER)) { onDone(); return }
+        val done = AtomicBoolean(false)
+        fun finishWithStop() {
+            try { BleOperateManager.getInstance().manualTemperature(null, true) } catch (_: Exception) {}
+            handler.postDelayed({
+                MeasurementCoordinator.release(OWNER)
+                onDone()
+            }, POST_STOP_SETTLE_MS)
+        }
+        fun finishNoStop() {
+            MeasurementCoordinator.release(OWNER)
+            onDone()
+        }
+        watchForPreempt(done) { finishWithStop() }
+        try {
+            BleOperateManager.getInstance().manualTemperature(
+                ICommandResponse<StartHeartRateRsp> { rsp ->
+                    if (done.get()) return@ICommandResponse
+                    // Temperature arrives through the dedicated getTemperature() field; fall
+                    // back to the generic getValue() like the manual path does.
+                    val raw = if (rsp.getTemperature() > 0) rsp.getTemperature() else rsp.getValue()
+                    if (raw > 0 && done.compareAndSet(false, true)) {
+                        val tempC = raw / 10.0
+                        Log.d(TAG, "measureTemperature: got raw=$raw tempC=$tempC")
+                        persist(Vital.TEMPERATURE, cycleId, tempC) {
+                            repository.insertTemperature(tempC, cycleId, "auto_cycle")
+                        }
+                        finishWithStop()
+                    }
+                },
+                false
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "measureTemperature failed", e)
+            if (done.compareAndSet(false, true)) finishNoStop()
+            return
+        }
+        handler.postDelayed({
+            if (done.compareAndSet(false, true)) {
+                Log.w(TAG, "measureTemperature: timed out after ${TEMP_MEASURE_TIMEOUT_MS}ms")
+                finishWithStop()
+            }
+        }, TEMP_MEASURE_TIMEOUT_MS)
     }
 
     // Passive fetch (not a blocking manual-mode measurement) of the ring's own cumulative
