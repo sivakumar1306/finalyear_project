@@ -33,3 +33,13 @@ plugins {
 }
 
 include(":app")
+
+val newBuildDir: java.io.File = rootDir.resolve("../build")
+gradle.beforeProject {
+    val projectBuildDir = newBuildDir.resolve(name)
+    projectBuildDir.mkdirs()
+    layout.buildDirectory.set(projectBuildDir)
+}
+
+
+

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/home_card_prefs.dart';
 import '../../theme/app_theme.dart';
+import 'home_screen.dart';
 
 class _CardItem {
   final HomeCardId id;
@@ -14,17 +15,13 @@ class _CardItem {
 }
 
 const _kCardItems = [
-  _CardItem(HomeCardId.alarms, 'Alarms', Color(0xFF6B82D9), Icons.notifications_outlined),
-  _CardItem(HomeCardId.activity, 'Activity', Color(0xFFE08A4A), Icons.directions_walk),
+  _CardItem(HomeCardId.alarmActivity, 'Alarms & Activity', Color(0xFF6B82D9), Icons.notifications_outlined),
   _CardItem(HomeCardId.stress, 'Stress', Color(0xFF6BC99B), Icons.water_drop),
-  _CardItem(HomeCardId.sleep, 'Sleep', Color(0xFF6B82D9), Icons.bedtime),
-  _CardItem(HomeCardId.hrv, 'HRV', Color(0xFFC9A86E), Icons.favorite_border),
-  _CardItem(HomeCardId.bloodOxygen, 'Blood Oxygen', Color(0xFF73D4F8), Icons.air),
-  _CardItem(HomeCardId.heartRate, 'Heart Rate', Color(0xFFC96B6B), Icons.favorite),
-  _CardItem(HomeCardId.sports, 'Sports', Color(0xFFE08A4A), Icons.fitness_center),
   _CardItem(HomeCardId.womensHealth, "Women's Health", Color(0xFFD860C8), Icons.woman),
-  _CardItem(HomeCardId.temperature, 'Temperature', Color(0xFFE3B76A), Icons.device_thermostat),
+  _CardItem(HomeCardId.sleepHrv, 'Sleep & HRV', Color(0xFF6B82D9), Icons.bedtime),
+  _CardItem(HomeCardId.bloodOxygenHeartRate, 'SpO₂ & Heart Rate', Color(0xFF73D4F8), Icons.air),
   _CardItem(HomeCardId.bloodPressure, 'Blood Pressure', Color(0xFFD86560), Icons.speed),
+  _CardItem(HomeCardId.temperature, 'Temperature', Color(0xFFE3B76A), Icons.device_thermostat),
 ];
 
 class CardSettingsScreen extends StatefulWidget {

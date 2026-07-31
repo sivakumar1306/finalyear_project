@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
@@ -37,8 +38,8 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       final profile = await SupabaseService.getProfile(user.id);
       if (!mounted) return;
-      final hasProfile = profile != null &&
-          (profile['full_name'] as String? ?? '').isNotEmpty;
+      final hasProfile =
+          profile != null && (profile['full_name'] as String? ?? '').isNotEmpty;
       if (hasProfile) {
         Navigator.pushReplacementNamed(context, '/home');
       } else {
@@ -68,7 +69,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   const Text(
                     'SUNDR',
                     style: TextStyle(
-                      color: Color(0xFFF0A030),
+                      color: Color(0xFFC7A56A),
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 6,
@@ -86,29 +87,41 @@ class _SplashScreenState extends State<SplashScreen> {
                   const Text(
                     'SUNDR',
                     style: TextStyle(
-                      color: Color(0xFFF0A030),
+                      color: Color(0xFFC7A56A),
                       fontSize: 26,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 6,
                     ),
                   ),
                   const Spacer(flex: 3),
-                  _GoldButton(
-                    label: 'Get Started',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SignUpScreen()),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    ),
-                    child: const Text(
-                      'Skip',
-                      style: TextStyle(color: Colors.white70, fontSize: 15),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: Column(
+                      children: [
+                        _GlassButton(
+                          label: 'Get Started',
+                          textColor: const Color(0xFFC9A86E),
+                          fillColor: const Color(0xFFC9A86E),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SignUpScreen(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _GlassButton(
+                          label: 'Skip',
+                          textColor: Colors.white,
+                          fillColor: Colors.white,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const LoginScreen(),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -119,43 +132,54 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-class _GoldButton extends StatelessWidget {
+/// Translucent "glass" pill button: subtle tinted fill, faint border,
+/// and a background blur — matches the frosted look in the design file.
+class _GlassButton extends StatelessWidget {
   final String label;
+  final Color textColor;
+  final Color fillColor;
   final VoidCallback onTap;
-  final bool outlined;
 
-  const _GoldButton({
+  const _GlassButton({
     required this.label,
+    required this.textColor,
+    required this.fillColor,
     required this.onTap,
-  }) : outlined = false;
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: SizedBox(
-        width: double.infinity,
-        height: 52,
-        child: outlined
-            ? OutlinedButton(
-                onPressed: onTap,
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.white38),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(30),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Container(
+              width: double.infinity,
+              height: 45,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: fillColor.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(
+                  color: fillColor.withValues(alpha: 0.15),
+                  width: 0.5,
                 ),
-                child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 15)),
-              )
-            : ElevatedButton(
-                onPressed: onTap,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF0A030),
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                  elevation: 0,
-                ),
-                child: Text(label,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

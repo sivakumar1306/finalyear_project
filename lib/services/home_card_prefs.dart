@@ -65,6 +65,7 @@ class HomeCardPrefs {
   // ── Compact mode ────────────────────────────────────────────────────────────
 
   static const _compactModeKey = 'home_card_compact_mode';
+  static const _compactKey = 'home_card_compact';
 
   /// Returns whether the user has enabled compact (small) card mode globally.
   static Future<bool> loadCompactMode() async {
@@ -76,4 +77,23 @@ class HomeCardPrefs {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_compactModeKey, compact);
   }
+
+  /// Returns the set of cards configured as compact.
+  static Future<Set<HomeCardId>> loadCompact() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_compactKey) ?? [];
+    final Set<HomeCardId> compact = {};
+    for (final name in list) {
+      try {
+        compact.add(HomeCardId.values.byName(name));
+      } catch (_) {}
+    }
+    return compact;
+  }
+
+  static Future<void> saveCompact(Set<HomeCardId> compact) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_compactKey, compact.map((e) => e.name).toList());
+  }
 }
+

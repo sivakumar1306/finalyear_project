@@ -21,13 +21,57 @@ class RulerPicker extends StatefulWidget {
 }
 
 class _RulerPickerState extends State<RulerPicker> {
+  // Continuous, unsnapped drag position. This is what actually tracks
+  // the finger 1:1 — every pixel of movement accumulates here, so the
+  // ruler never "eats" small drag deltas.
+  late double _raw;
+
+  // Snapped value that's shown in labels and reported via onChanged.
   late double _value;
+
   static const double _pixelsPerUnit = 14.0;
 
   @override
   void initState() {
     super.initState();
+    _raw = widget.value;
     _value = widget.value;
+  }
+
+  double _snap(double raw) {
+    final step = widget.isInteger ? 1.0 : 0.5;
+    return ((raw / step).round() * step).clamp(widget.min, widget.max);
+  }
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    // Accumulate every pixel of movement into the continuous position —
+    // nothing gets dropped between frames, so it tracks the finger
+    // exactly, independent of the step size used for the displayed value.
+    setState(() {
+      _raw = (_raw - d.delta.dx / _pixelsPerUnit).clamp(widget.min, widget.max);
+      final snapped = _snap(_raw);
+      if (snapped != _value) {
+        _value = snapped;
+        widget.onChanged(_value);
+      }
+    });
+  }
+
+  void _onDragEnd(DragEndDetails d) {
+    // Settle the raw position onto the snapped value so the ruler
+    // doesn't visually drift from the tick it landed on.
+    setState(() => _raw = _value);
+  }
+
+  @override
+  void didUpdateWidget(covariant RulerPicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Keep in sync if the parent changes value externally (e.g. typed
+    // in via the tap-to-edit sheet).
+    if (widget.value != oldWidget.value && widget.value != _value) {
+      _raw = widget.value;
+      _value = widget.value;
+    }
   }
 
   @override
@@ -36,45 +80,54 @@ class _RulerPickerState extends State<RulerPicker> {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Triangle indicator
-        const Icon(Icons.arrow_drop_down, color: Color(0xFFF0A030), size: 28),
+        const Icon(Icons.arrow_drop_down, color: Color(0xFFC9A86E), size: 28),
         const SizedBox(height: 2),
         GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onHorizontalDragUpdate: (d) {
-            final delta = -d.delta.dx / _pixelsPerUnit;
-            final step = widget.isInteger ? 1.0 : 0.5;
-            final newRaw = _value + delta;
-            final snapped = (newRaw / step).round() * step;
-            final clamped = snapped.clamp(widget.min, widget.max);
-            if (clamped != _value) {
-              setState(() => _value = clamped);
-              widget.onChanged(_value);
-            }
-          },
+          onHorizontalDragUpdate: _onDragUpdate,
+          onHorizontalDragEnd: _onDragEnd,
           child: SizedBox(
             height: 48,
             child: CustomPaint(
               size: const Size(double.infinity, 48),
-              painter: _RulerPainter(value: _value, pixelsPerUnit: _pixelsPerUnit),
+              painter: _RulerPainter(
+                value: _raw,
+                pixelsPerUnit: _pixelsPerUnit,
+              ),
             ),
           ),
         ),
         const SizedBox(height: 4),
         // Range labels
-        Builder(builder: (ctx) {
-          final w = MediaQuery.of(ctx).size.width;
-          final unitsVisible = (w / _pixelsPerUnit / 2).floor();
-          final leftVal = (_value - unitsVisible).clamp(widget.min, widget.max).round();
-          final rightVal = (_value + unitsVisible).clamp(widget.min, widget.max).round();
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('$leftVal', style: const TextStyle(color: Colors.white38, fontSize: 11)),
-              Text('${_value.round()}', style: const TextStyle(color: Colors.white38, fontSize: 11)),
-              Text('$rightVal', style: const TextStyle(color: Colors.white38, fontSize: 11)),
-            ],
-          );
-        }),
+        Builder(
+          builder: (ctx) {
+            final w = MediaQuery.of(ctx).size.width;
+            final unitsVisible = (w / _pixelsPerUnit / 2).floor();
+            final leftVal = (_value - unitsVisible)
+                .clamp(widget.min, widget.max)
+                .round();
+            final rightVal = (_value + unitsVisible)
+                .clamp(widget.min, widget.max)
+                .round();
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '$leftVal',
+                  style: const TextStyle(color: Colors.white38, fontSize: 11),
+                ),
+                Text(
+                  '${_value.round()}',
+                  style: const TextStyle(color: Colors.white38, fontSize: 11),
+                ),
+                Text(
+                  '$rightVal',
+                  style: const TextStyle(color: Colors.white38, fontSize: 11),
+                ),
+              ],
+            );
+          },
+        ),
       ],
     );
   }

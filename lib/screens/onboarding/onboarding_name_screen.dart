@@ -38,7 +38,8 @@ class _OnboardingNameScreenState extends State<OnboardingNameScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-              builder: (_) => OnboardingAgeScreen(data: widget.data)),
+            builder: (_) => OnboardingAgeScreen(data: widget.data),
+          ),
         );
       },
       body: Padding(
@@ -61,14 +62,17 @@ class _OnboardingNameScreenState extends State<OnboardingNameScreen> {
               autofocus: true,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600),
+                color: Colors.white,
+                fontSize: 28,
+                fontWeight: FontWeight.w600,
+              ),
               decoration: const InputDecoration(
                 enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: kGold)),
+                  borderSide: BorderSide(color: kGold),
+                ),
                 focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: kGold, width: 2)),
+                  borderSide: BorderSide(color: kGold, width: 2),
+                ),
                 hintText: 'Your name',
                 hintStyle: TextStyle(color: Colors.white24, fontSize: 28),
               ),

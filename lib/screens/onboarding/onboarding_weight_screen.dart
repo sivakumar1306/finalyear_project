@@ -28,6 +28,110 @@ class _OnboardingWeightScreenState extends State<OnboardingWeightScreen> {
     });
   }
 
+  void _setUnit(bool useLbs) {
+    if (useLbs == _useLbs) return;
+    setState(() => _useLbs = useLbs);
+    UnitPrefs.saveSystem(useLbs ? UnitSystem.us : UnitSystem.metric);
+  }
+
+  Future<void> _editWeight() async {
+    // Editing is always done in the unit currently on screen, then
+    // converted back to the canonical kg value.
+    final controller = TextEditingController(
+      text: (_useLbs ? UnitPrefs.kgToLbs(_weight) : _weight).toStringAsFixed(0),
+    );
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF121212),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Enter weight (${_useLbs ? 'lbs' : 'kg'})',
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 13,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 40,
+                  fontWeight: FontWeight.w300,
+                ),
+                decoration: const InputDecoration(
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white24),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: kGold, width: 2),
+                  ),
+                ),
+                onSubmitted: (v) => Navigator.pop(ctx, v),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, controller.text),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kGold,
+                    foregroundColor: const Color(0xFF16130E),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Done',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (result == null) return;
+    final entered = double.tryParse(result.trim());
+    if (entered == null) return;
+
+    setState(() {
+      if (_useLbs) {
+        final clampedLbs = entered.clamp(
+          UnitPrefs.kgToLbs(20),
+          UnitPrefs.kgToLbs(250),
+        );
+        _weight = UnitPrefs.lbsToKg(clampedLbs);
+      } else {
+        _weight = entered.clamp(20, 250);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return OnboardingShell(
@@ -59,36 +163,21 @@ class _OnboardingWeightScreenState extends State<OnboardingWeightScreen> {
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Text(
-                    (_useLbs ? UnitPrefs.kgToLbs(_weight) : _weight)
-                        .toStringAsFixed(0),
-                    style: const TextStyle(
+                  GestureDetector(
+                    onTap: _editWeight,
+                    behavior: HitTestBehavior.opaque,
+                    child: Text(
+                      (_useLbs ? UnitPrefs.kgToLbs(_weight) : _weight)
+                          .toStringAsFixed(0),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 72,
-                        fontWeight: FontWeight.w300),
-                  ),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: () {
-                      final next = !_useLbs;
-                      setState(() => _useLbs = next);
-                      UnitPrefs.saveSystem(
-                          next ? UnitSystem.us : UnitSystem.metric);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: kGold,
-                        borderRadius: BorderRadius.circular(6),
+                        fontWeight: FontWeight.w300,
                       ),
-                      child: Text(_useLbs ? 'lbs' : 'kg',
-                          style: const TextStyle(
-                              color: Colors.black,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600)),
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  _UnitToggle(useLbs: _useLbs, onChanged: _setUnit),
                 ],
               ),
             ),
@@ -102,7 +191,8 @@ class _OnboardingWeightScreenState extends State<OnboardingWeightScreen> {
                 max: _useLbs ? UnitPrefs.kgToLbs(250) : 250,
                 isInteger: false,
                 onChanged: (v) => setState(
-                    () => _weight = _useLbs ? UnitPrefs.lbsToKg(v) : v),
+                  () => _weight = _useLbs ? UnitPrefs.lbsToKg(v) : v,
+                ),
               ),
             ),
             const Spacer(),
@@ -119,6 +209,76 @@ class _OnboardingWeightScreenState extends State<OnboardingWeightScreen> {
       context,
       MaterialPageRoute(builder: (_) => PairRingScreen(data: widget.data)),
       (_) => false,
+    );
+  }
+}
+
+/// Two-way segmented toggle (kg / lbs), matching the Figma pill spec:
+/// outer track hug W, H33, radius 100, padding 2, gap 3, fill white@4%,
+/// stroke white@6% (0.5 inside). Active segment gets a solid gold pill.
+class _UnitToggle extends StatelessWidget {
+  final bool useLbs;
+  final ValueChanged<bool> onChanged;
+
+  const _UnitToggle({required this.useLbs, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 33,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.06),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _Segment(label: 'kg', active: !useLbs, onTap: () => onChanged(false)),
+          const SizedBox(width: 3),
+          _Segment(label: 'lbs', active: useLbs, onTap: () => onChanged(true)),
+        ],
+      ),
+    );
+  }
+}
+
+class _Segment extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _Segment({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: active ? kGold : Colors.transparent,
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: active ? const Color(0xFF16130E) : Colors.white54,
+            fontSize: 14,
+            fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ),
     );
   }
 }

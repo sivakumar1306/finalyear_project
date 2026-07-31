@@ -149,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               TextSpan(
                                 text: 'Sign up',
                                 style: TextStyle(
-                                    color: Color(0xFFF0A030),
+                                    color: Color(0xFFC9A86E),
                                     fontWeight: FontWeight.w600),
                               ),
                             ],
@@ -170,7 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: ElevatedButton(
                   onPressed: _loading ? null : _login,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF0A030),
+                    backgroundColor: const Color(0xFFC9A86E),
                     foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30)),
@@ -241,7 +241,7 @@ class _DarkField extends StatelessWidget {
               borderSide: BorderSide(color: Colors.white24),
             ),
             focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFFF0A030)),
+              borderSide: BorderSide(color: Color(0xFFC9A86E)),
             ),
             contentPadding: const EdgeInsets.symmetric(vertical: 8),
           ),
