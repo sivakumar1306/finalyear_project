@@ -20,8 +20,6 @@ class _OnboardingGenderScreenState extends State<OnboardingGenderScreen> {
     _selected = widget.data.gender;
   }
 
-  final _options = const ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
-
   @override
   Widget build(BuildContext context) {
     return OnboardingShell(
@@ -34,7 +32,8 @@ class _OnboardingGenderScreenState extends State<OnboardingGenderScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-              builder: (_) => OnboardingHeightScreen(data: widget.data)),
+            builder: (_) => OnboardingHeightScreen(data: widget.data),
+          ),
         );
       },
       body: Padding(
@@ -51,60 +50,169 @@ class _OnboardingGenderScreenState extends State<OnboardingGenderScreen> {
               'Affects how some of your health metrics are interpreted.',
             ),
             const SizedBox(height: 32),
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.4,
-              children: _options.map((opt) {
-                final active = opt == _selected;
-                return GestureDetector(
-                  onTap: () => setState(() => _selected = opt),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    decoration: BoxDecoration(
-                      color: active
-                          ? const Color(0xFF2A2000)
-                          : const Color(0xFF181818),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: active ? kGold : Colors.transparent,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: active ? kGold : Colors.white12,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          opt,
-                          style: TextStyle(
-                            color: active ? Colors.white : Colors.white70,
-                            fontSize: 14,
-                            fontWeight: active
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
+            // Male / Female — square icon cards
+            Row(
+              children: [
+                Expanded(
+                  child: _IconGenderCard(
+                    label: 'Male',
+                    icon: Icons.male_rounded,
+                    active: _selected == 'Male',
+                    onTap: () => setState(() => _selected = 'Male'),
                   ),
-                );
-              }).toList(),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: _IconGenderCard(
+                    label: 'Female',
+                    icon: Icons.female_rounded,
+                    active: _selected == 'Female',
+                    onTap: () => setState(() => _selected = 'Female'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            // Non-binary / Prefer not to say — short pill rows
+            Row(
+              children: [
+                Expanded(
+                  child: _PillGenderCard(
+                    label: 'Non-binary',
+                    active: _selected == 'Non-binary',
+                    onTap: () => setState(() => _selected = 'Non-binary'),
+                  ),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: _PillGenderCard(
+                    label: 'Prefer not to say',
+                    active: _selected == 'Prefer not to say',
+                    onTap: () =>
+                        setState(() => _selected = 'Prefer not to say'),
+                  ),
+                ),
+              ],
             ),
             const Spacer(),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Square-ish card used for Male / Female, with an icon avatar in the
+/// top-left and the label anchored to the bottom-left.
+class _IconGenderCard extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _IconGenderCard({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 155,
+        padding: const EdgeInsets.fromLTRB(14, 18, 14, 16),
+        decoration: BoxDecoration(
+          color: active
+              ? kGold.withValues(alpha: 0.08)
+              : Colors.white.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: active
+                ? kGold.withValues(alpha: 0.25)
+                : Colors.white.withValues(alpha: 0.08),
+            width: active ? 1 : 0.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: active ? kGold : Colors.white.withValues(alpha: 0.05),
+              ),
+              child: Icon(
+                icon,
+                size: 24,
+                color: active
+                    ? const Color(0xFF16130E)
+                    : Colors.white.withValues(alpha: 0.92),
+              ),
+            ),
+            const Spacer(),
+            Text(
+              label,
+              style: TextStyle(
+                color: active ? kGold : Colors.white,
+                fontSize: 14,
+                fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Short full-width pill row used for Non-binary / Prefer not to say.
+class _PillGenderCard extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _PillGenderCard({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 51,
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: active
+              ? kGold.withValues(alpha: 0.08)
+              : Colors.white.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: active
+                ? kGold.withValues(alpha: 0.25)
+                : Colors.white.withValues(alpha: 0.08),
+            width: active ? 1 : 0.5,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: active ? kGold : Colors.white,
+            fontSize: 14,
+            fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+          ),
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     );

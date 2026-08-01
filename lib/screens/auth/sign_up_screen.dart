@@ -1,7 +1,9 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../services/supabase_service.dart';
 import '../../models/onboarding_data.dart';
 import '../onboarding/onboarding_name_screen.dart';
+import '../settings/faq_screen.dart';
 import 'login_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -46,7 +48,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final res = await SupabaseService.signUp(email, pass);
       if (!mounted) return;
@@ -85,7 +90,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.help_outline, color: Colors.white54),
-                    onPressed: () {},
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const FaqScreen()),
+                    ),
                   ),
                 ],
               ),
@@ -125,11 +133,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       obscure: _obscurePass,
                       suffix: IconButton(
                         icon: Icon(
-                          _obscurePass ? Icons.visibility_off : Icons.visibility,
+                          _obscurePass
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                           color: Colors.white38,
                           size: 20,
                         ),
-                        onPressed: () => setState(() => _obscurePass = !_obscurePass),
+                        onPressed: () =>
+                            setState(() => _obscurePass = !_obscurePass),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -140,32 +151,49 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       obscure: _obscureConfirm,
                       suffix: IconButton(
                         icon: Icon(
-                          _obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                          _obscureConfirm
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                           color: Colors.white38,
                           size: 20,
                         ),
-                        onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                        onPressed: () =>
+                            setState(() => _obscureConfirm = !_obscureConfirm),
                       ),
                     ),
                     if (_error != null) ...[
                       const SizedBox(height: 16),
-                      Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
+                      Text(
+                        _error!,
+                        style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 13,
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 28),
                     Center(
                       child: GestureDetector(
                         onTap: () => Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(builder: (_) => const LoginScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const LoginScreen(),
+                          ),
                         ),
                         child: RichText(
                           text: const TextSpan(
-                            style: TextStyle(color: Colors.white54, fontSize: 14),
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 14,
+                            ),
                             children: [
                               TextSpan(text: 'Already have an account? '),
                               TextSpan(
                                 text: 'Log in instead',
-                                style: TextStyle(color: Color(0xFFF0A030), fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                  color: Color(0xFFC9A86E),
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           ),
@@ -179,25 +207,46 @@ class _SignUpScreenState extends State<SignUpScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(28, 0, 28, 24),
-              child: SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _signUp,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF0A030),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    elevation: 0,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(30),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _loading ? null : _signUp,
+                      child: Container(
+                        width: double.infinity,
+                        height: 52,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.03),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            width: 0.5,
+                          ),
+                        ),
+                        child: _loading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Create an account',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                      ),
+                    ),
                   ),
-                  child: _loading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                        )
-                      : const Text('Create an account',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                 ),
               ),
             ),
@@ -253,7 +302,7 @@ class _DarkField extends StatelessWidget {
               borderSide: BorderSide(color: Colors.white24),
             ),
             focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFFF0A030)),
+              borderSide: BorderSide(color: Color(0xFFC9A86E)),
             ),
             contentPadding: const EdgeInsets.symmetric(vertical: 8),
           ),

@@ -28,6 +28,12 @@ class _OnboardingHeightScreenState extends State<OnboardingHeightScreen> {
     });
   }
 
+  void _setUnit(bool useInches) {
+    if (useInches == _useInches) return;
+    setState(() => _useInches = useInches);
+    UnitPrefs.saveSystem(useInches ? UnitSystem.us : UnitSystem.metric);
+  }
+
   @override
   Widget build(BuildContext context) {
     return OnboardingShell(
@@ -39,7 +45,8 @@ class _OnboardingHeightScreenState extends State<OnboardingHeightScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-              builder: (_) => OnboardingWeightScreen(data: widget.data)),
+            builder: (_) => OnboardingWeightScreen(data: widget.data),
+          ),
         );
       },
       body: Padding(
@@ -67,32 +74,13 @@ class _OnboardingHeightScreenState extends State<OnboardingHeightScreen> {
                         ? UnitPrefs.formatHeightCm(_height, UnitSystem.us)
                         : '$_height',
                     style: TextStyle(
-                        color: Colors.white,
-                        fontSize: _useInches ? 56 : 72,
-                        fontWeight: FontWeight.w300),
-                  ),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: () {
-                      final next = !_useInches;
-                      setState(() => _useInches = next);
-                      UnitPrefs.saveSystem(
-                          next ? UnitSystem.us : UnitSystem.metric);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: kGold,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(_useInches ? 'ft/in' : 'cm',
-                          style: const TextStyle(
-                              color: Colors.black,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600)),
+                      color: Colors.white,
+                      fontSize: _useInches ? 56 : 72,
+                      fontWeight: FontWeight.w300,
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  _UnitToggle(useInches: _useInches, onChanged: _setUnit),
                 ],
               ),
             ),
@@ -106,13 +94,93 @@ class _OnboardingHeightScreenState extends State<OnboardingHeightScreen> {
                     : _height.toDouble(),
                 min: _useInches ? UnitPrefs.cmToInches(100) : 100,
                 max: _useInches ? UnitPrefs.cmToInches(250) : 250,
-                onChanged: (v) => setState(() => _height = _useInches
-                    ? UnitPrefs.inchesToCm(v).round()
-                    : v.round()),
+                onChanged: (v) => setState(
+                  () => _height = _useInches
+                      ? UnitPrefs.inchesToCm(v).round()
+                      : v.round(),
+                ),
               ),
             ),
             const Spacer(),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Two-way segmented toggle (cm / ft), matching the Figma pill spec:
+/// outer track W72 H33, radius 100, padding 2, gap 3, fill white@4%,
+/// stroke white@6% (0.5 inside). Active segment gets a solid gold pill.
+class _UnitToggle extends StatelessWidget {
+  final bool useInches;
+  final ValueChanged<bool> onChanged;
+
+  const _UnitToggle({required this.useInches, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 33,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.06),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _Segment(
+            label: 'cm',
+            active: !useInches,
+            onTap: () => onChanged(false),
+          ),
+          const SizedBox(width: 3),
+          _Segment(
+            label: 'ft',
+            active: useInches,
+            onTap: () => onChanged(true),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Segment extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _Segment({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: active ? kGold : Colors.transparent,
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: active ? const Color(0xFF16130E) : Colors.white54,
+            fontSize: 14,
+            fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+          ),
         ),
       ),
     );

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../onboarding/pair_ring_screen.dart';
 import '../../models/onboarding_data.dart';
 
-const kGold = Color(0xFFF0A030);
+const kGold = Color(0xFFC9A86E);
 const kBg = Colors.black;
 
 class OnboardingShell extends StatelessWidget {
@@ -42,17 +42,26 @@ class OnboardingShell extends StatelessWidget {
                     onPressed: () => Navigator.pop(context),
                   ),
                   Expanded(
-                    child: Center(child: _StepDots(current: step, total: totalSteps)),
+                    child: Center(
+                      child: _StepDots(current: step, total: totalSteps),
+                    ),
                   ),
                   TextButton(
                     onPressed: () => Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => PairRingScreen(data: data)),
+                        builder: (_) => PairRingScreen(data: data),
+                      ),
                       (_) => false,
                     ),
-                    child: const Text('SKIP',
-                        style: TextStyle(color: Colors.white54, fontSize: 13, letterSpacing: 1)),
+                    child: const Text(
+                      'SKIP',
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 13,
+                        letterSpacing: 1,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -71,12 +80,17 @@ class OnboardingShell extends StatelessWidget {
                     disabledBackgroundColor: kGold.withValues(alpha: 0.4),
                     foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30)),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
                     elevation: 0,
                   ),
-                  child: Text(buttonLabel,
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w600)),
+                  child: Text(
+                    buttonLabel,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -113,30 +127,48 @@ class _StepDots extends StatelessWidget {
   }
 }
 
-Widget onboardingHeader(String stepLabel, String titleStart, String titleHighlight, String titleEnd, String subtitle) {
+Widget onboardingHeader(
+  String stepLabel,
+  String titleStart,
+  String titleHighlight,
+  String titleEnd,
+  String subtitle,
+) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(stepLabel,
-          style: const TextStyle(
-              color: Colors.white38, fontSize: 12, letterSpacing: 1.5)),
+      Text(
+        stepLabel,
+        style: const TextStyle(
+          color: Color(0xFFC9A86E),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 1.5,
+        ),
+      ),
       const SizedBox(height: 10),
       RichText(
         text: TextSpan(
           style: const TextStyle(
-              color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+            color: Colors.white,
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+          ),
           children: [
             if (titleStart.isNotEmpty) TextSpan(text: titleStart),
             TextSpan(
-                text: titleHighlight,
-                style: const TextStyle(color: kGold)),
+              text: titleHighlight,
+              style: const TextStyle(color: kGold),
+            ),
             if (titleEnd.isNotEmpty) TextSpan(text: titleEnd),
           ],
         ),
       ),
       const SizedBox(height: 8),
-      Text(subtitle,
-          style: const TextStyle(color: Colors.white38, fontSize: 13)),
+      Text(
+        subtitle,
+        style: const TextStyle(color: Colors.white38, fontSize: 13),
+      ),
     ],
   );
 }

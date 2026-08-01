@@ -69,7 +69,7 @@ class _PairRingScreenState extends State<PairRingScreen> {
                           height: 6,
                           decoration: BoxDecoration(
                             color: i == 4
-                                ? const Color(0xFFF0A030)
+                                ? const Color(0xFFC9A86E)
                                 : Colors.white24,
                             borderRadius: BorderRadius.circular(3),
                           ),
@@ -109,7 +109,7 @@ class _PairRingScreenState extends State<PairRingScreen> {
                           TextSpan(text: 'Time to meet your '),
                           TextSpan(
                               text: 'ring',
-                              style: TextStyle(color: Color(0xFFF0A030))),
+                              style: TextStyle(color: Color(0xFFC9A86E))),
                         ],
                       ),
                     ),
@@ -131,7 +131,7 @@ class _PairRingScreenState extends State<PairRingScreen> {
             if (_saving)
               const Padding(
                 padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(color: Color(0xFFF0A030)),
+                child: CircularProgressIndicator(color: Color(0xFFC9A86E)),
               )
             else ...[
               Padding(
@@ -142,7 +142,7 @@ class _PairRingScreenState extends State<PairRingScreen> {
                   child: ElevatedButton(
                     onPressed: _pairNow,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF0A030),
+                      backgroundColor: const Color(0xFFC9A86E),
                       foregroundColor: Colors.black,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30)),
