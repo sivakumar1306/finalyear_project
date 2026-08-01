@@ -34,9 +34,16 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - ring.webp
+    - ring.png
     - sundr_logo.png
-    - ring_charge.webp
+    - ring_bluetooth_indicator.png
+    - charging_port_cotton_swab.png
+    - charging_port_toothpick.png
+    - charging_port_detergent.png
+    - charging_indicator_states.png
+    - sleep_stages_chart.png
+    - ring_wearing_direction.png
+    - sundr_welcome.png
   fonts:
     - family: Inter
       fonts:
