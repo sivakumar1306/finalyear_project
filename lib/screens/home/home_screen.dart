@@ -10,6 +10,7 @@ import '../../services/chat_api_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/home_card_prefs.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_icon_button.dart';
 import '../settings/fall_detection_screen.dart';
 import 'ring_scan_sheet.dart';
 import 'side_panel.dart';
@@ -908,9 +909,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 22),
-            onPressed: () => showSidePanel(
+          // Keep the same 48px tap target as before, but render the menu
+          // button with the frosted-glass look used across the app.
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: Center(
+              child: GlassIconButton(
+                icon: Icons.menu_rounded,
+                iconSize: 20,
+                onTap: () => showSidePanel(
               context: context,
               fromRight: false,
               child: SidePanelShell(
@@ -952,6 +960,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
             ),
+          ),
+          ),
           ),
           Expanded(
             child: Center(

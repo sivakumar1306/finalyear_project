@@ -1,6 +1,9 @@
+import 'dart:ui';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../../services/home_card_prefs.dart';
 import '../../theme/app_theme.dart';
 import 'home_screen.dart';
@@ -136,87 +139,121 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
                 child: Row(
                   children: [
                     _GlassCircleButton(
-                      icon: Icons.chevron_left,
+                      icon: Icons.arrow_back_ios_new_rounded,
                       onTap: _finish,
                     ),
                     const Spacer(),
                     Text(
                       'Edit Cards',
-                      style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w600, color: Colors.white),
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withValues(alpha: 0.88),
+                        letterSpacing: -0.065,
+                      ),
                     ),
                     const Spacer(),
                     _GlassCircleButton(
-                      icon: Icons.check,
+                      icon: Icons.check_rounded,
                       onTap: _finish,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
+                padding: const EdgeInsets.fromLTRB(28, 18, 28, 12),
+                child: Stack(
                   children: [
-                    Text(
-                      'SELECT CARDS TO DISPLAY',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.gold,
-                        letterSpacing: 1.2,
+                    Center(
+                      child: Text(
+                        'SELECT CARDS TO DISPLAY',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white.withValues(alpha: 0.42),
+                          letterSpacing: 2,
+                        ),
                       ),
                     ),
-                    const Spacer(),
-                    Text(
-                      'Compact',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: _compactMode ? AppTheme.gold : Colors.white.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Transform.scale(
-                      scale: 0.75,
-                      child: CupertinoSwitch(
-                        value: _compactMode,
-                        activeTrackColor: AppTheme.gold,
-                        inactiveTrackColor: Colors.white.withValues(alpha: 0.12),
-                        onChanged: (v) {
+                    Positioned(
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: () {
                           setState(() {
-                            _compactMode = v;
+                            _compactMode = !_compactMode;
                             _changed = true;
                           });
                         },
+                        child: Row(
+                          children: [
+                            Text(
+                              'Compact',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: _compactMode ? AppTheme.gold : Colors.white.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Transform.scale(
+                              scale: 0.55,
+                              child: CupertinoSwitch(
+                                value: _compactMode,
+                                activeTrackColor: AppTheme.gold,
+                                inactiveTrackColor: Colors.white.withValues(alpha: 0.12),
+                                onChanged: (v) {
+                                  setState(() {
+                                    _compactMode = v;
+                                    _changed = true;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
               Expanded(
-                child: ReorderableListView.builder(
-                  itemCount: visibleItems.length,
-                  onReorderItem: (int oldIndex, int newIndex) {
-                    setState(() {
-                      final item = _order.removeAt(oldIndex);
-                      _order.insert(newIndex, item);
-                      _changed = true;
-                    });
-                  },
-                  padding: EdgeInsets.zero,
-                  itemBuilder: (context, index) {
-                    final item = visibleItems[index];
-                    return _CardSettingsRow(
-                      key: ValueKey(item.id),
-                      item: item,
-                      visible: _isVisible(item.id),
-                      expanded: _isExpanded(item.id),
-                      index: index,
-                      onToggleVisibility: () => _toggleVisibility(item.id),
-                      onToggleExpanded: () => _toggleExpanded(item.id),
-                    );
-                  },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.03),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+                        ),
+                        child: ReorderableListView.builder(
+                          itemCount: visibleItems.length,
+                          onReorderItem: (int oldIndex, int newIndex) {
+                            setState(() {
+                              final item = _order.removeAt(oldIndex);
+                              _order.insert(newIndex, item);
+                              _changed = true;
+                            });
+                          },
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+                          itemBuilder: (context, index) {
+                            final item = visibleItems[index];
+                            return _CardSettingsRow(
+                              key: ValueKey(item.id),
+                              item: item,
+                              visible: _isVisible(item.id),
+                              expanded: _isExpanded(item.id),
+                              onToggleVisibility: () => _toggleVisibility(item.id),
+                              onToggleExpanded: () => _toggleExpanded(item.id),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -231,7 +268,6 @@ class _CardSettingsRow extends StatelessWidget {
   final _CardItem item;
   final bool visible;
   final bool expanded;
-  final int index;
   final VoidCallback onToggleVisibility;
   final VoidCallback onToggleExpanded;
 
@@ -240,7 +276,6 @@ class _CardSettingsRow extends StatelessWidget {
     required this.item,
     required this.visible,
     required this.expanded,
-    required this.index,
     required this.onToggleVisibility,
     required this.onToggleExpanded,
   });
@@ -249,40 +284,27 @@ class _CardSettingsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final dimmed = !visible;
     return Container(
-      height: 48,
-      padding: const EdgeInsets.only(right: 6),
-
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF1A1A1A), width: 0.5)),
+        border: Border(bottom: BorderSide(color: Color(0x0AFFFFFF), width: 0.5)),
       ),
       child: Row(
         children: [
-          ReorderableDragStartListener(
-            index: index,
-            child: Container(
-              width: 40,
-              height: 48,
-              alignment: Alignment.center,
-              child: Icon(Icons.drag_handle, color: Colors.white.withValues(alpha: dimmed ? 0.1 : 0.25), size: 20),
-            ),
+          Icon(
+            Icons.format_list_bulleted_rounded,
+            size: 24,
+            color: Colors.white.withValues(alpha: dimmed ? 0.25 : 0.7),
           ),
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: visible ? item.color.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(7),
-            ),
-            child: Icon(item.icon, size: 14, color: visible ? item.color : const Color(0xFF666666)),
-          ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Text(
               item.name,
               style: GoogleFonts.inter(
-                fontSize: 14,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w500,
-                color: dimmed ? Colors.white.withValues(alpha: 0.35) : Colors.white,
+                color: dimmed
+                    ? Colors.white.withValues(alpha: 0.35)
+                    : Colors.white.withValues(alpha: 0.92),
               ),
             ),
           ),
@@ -301,7 +323,7 @@ class _CardSettingsRow extends StatelessWidget {
               ),
             ),
           Transform.scale(
-            scale: 0.65,
+            scale: 0.7,
             child: CupertinoSwitch(
               value: visible,
               activeTrackColor: item.color,
@@ -329,9 +351,9 @@ class _GlassCircleButton extends StatelessWidget {
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: Colors.white.withValues(alpha: 0.04),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 0.5),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
         ),
         child: Icon(icon, color: Colors.white, size: 20),
       ),

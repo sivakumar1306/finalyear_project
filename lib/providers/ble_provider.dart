@@ -804,6 +804,8 @@ class BleProvider extends ChangeNotifier {
           .then((ok) => ok ? null : _loadLatestBpFromSupabase()),
       _refreshStepsFromLocal()
           .then((ok) => ok ? null : _loadTodayFromSupabase()),
+      _refreshTempFromLocal()
+          .then((ok) => ok ? null : _loadLatestTempFromSupabase()),
     ]);
   }
 
@@ -977,6 +979,21 @@ class BleProvider extends ChangeNotifier {
           message: 'Your skin temperature just read ${v.toStringAsFixed(1)}°C.',
           vital: 'temperature',
         );
+        // Push to Supabase on every reading (mirrors _parseAndSaveTemp) so the
+        // continuous loop path keeps user_temp in sync, not just the manual
+        // "Measure Now" / background-sync paths.
+        final user = SupabaseService.currentUser;
+        if (user != null) {
+          SupabaseService.insertTemp(
+            userId: user.id,
+            measuredAt: DateTime.fromMillisecondsSinceEpoch(
+              (m['measuredAt'] as num?)?.toInt() ??
+                  DateTime.now().millisecondsSinceEpoch,
+            ),
+            valueC: v,
+            source: 'auto',
+          ).catchError((_) {});
+        }
       }
       return true;
     } catch (_) {
@@ -1391,6 +1408,21 @@ class BleProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> _loadLatestTempFromSupabase() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      final data = await SupabaseService.getLatestTemp(user.id);
+      if (data != null) {
+        final v = (data['value_c'] as num? ?? 0).toDouble();
+        if (v > 0) {
+          _latestTempC = v;
+          notifyListeners();
+        }
+      }
+    } catch (_) {}
+  }
+
   Future<void> _loadTodayHrvFromSupabase() async {
     try {
       final user = SupabaseService.currentUser;
@@ -1418,21 +1450,6 @@ class BleProvider extends ChangeNotifier {
         _todaySleepLightSecs = (data['light_duration'] as num? ?? 0).toInt();
         _todaySleepRemSecs = (data['rem_duration'] as num? ?? 0).toInt();
         notifyListeners();
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _loadLatestTempFromSupabase() async {
-    try {
-      final user = SupabaseService.currentUser;
-      if (user == null) return;
-      final data = await SupabaseService.getLatestTemp(user.id);
-      if (data != null) {
-        final v = (data['value_c'] as num? ?? 0).toDouble();
-        if (v > 0) {
-          _latestTempC = v;
-          notifyListeners();
-        }
       }
     } catch (_) {}
   }
