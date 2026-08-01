@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
+import '../../widgets/glass_back_button.dart';
+import '../../widgets/glass_icon_button.dart';
 import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
@@ -49,24 +51,6 @@ BoxDecoration _glass({double r = 20}) => BoxDecoration(
   borderRadius: BorderRadius.circular(r),
   border: Border.all(color: Colors.white.withValues(alpha: 0.09), width: 0.5),
 );
-
-Widget _circleIconButton({required Widget icon, required VoidCallback onTap}) =>
-    GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.03),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.08),
-            width: 0.5,
-          ),
-        ),
-        child: Center(child: icon),
-      ),
-    );
 
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -559,14 +543,7 @@ class _StepsScreenState extends State<StepsScreen> {
             padding: const EdgeInsets.only(left: 16),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: _circleIconButton(
-                icon: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white,
-                  size: 16,
-                ),
-                onTap: () => Navigator.pop(context),
-              ),
+              child: GlassBackButton(),
             ),
           ),
           title: Text('Activity', style: _t(17, w: FontWeight.w600)),
@@ -575,12 +552,9 @@ class _StepsScreenState extends State<StepsScreen> {
               padding: const EdgeInsets.only(right: 16),
               child: KeyedSubtree(
                 key: _moreButtonKey,
-                child: _circleIconButton(
-                  icon: const Icon(
-                    Icons.more_vert_rounded,
-                    color: Colors.white,
-                    size: 18,
-                  ),
+                child: GlassIconButton(
+                  icon: Icons.more_vert_rounded,
+                  iconSize: 18,
                   onTap: _openMenu,
                 ),
               ),

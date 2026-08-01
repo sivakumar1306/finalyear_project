@@ -8,6 +8,7 @@ import '../../providers/main_tab_provider.dart';
 import '../../services/chat_api_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_back_button.dart';
 import 'voice_listening_sheet.dart';
 import 'insights_header.dart';
 import 'sleep_highlights_card.dart';
@@ -280,27 +281,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: Row(
                   children: [
-                    GestureDetector(
-                      onTap: _goBackToHome,
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: const Color(0x0AFFFFFF),
-                          border: Border.all(
-                            color: const Color(0x14FFFFFF),
-                            width: 0.5,
-                          ),
-                          borderRadius: BorderRadius.circular(100),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                      ),
-                    ),
+                    GlassBackButton(onTap: _goBackToHome),
                   ],
                 ),
               ),

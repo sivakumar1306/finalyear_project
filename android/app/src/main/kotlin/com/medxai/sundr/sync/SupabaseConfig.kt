@@ -40,4 +40,10 @@ object SupabaseConfig {
 
     val isConfigured: Boolean
         get() = !url.isNullOrEmpty() && !anonKey.isNullOrEmpty() && !userId.isNullOrEmpty()
+
+    // Logout wipe: drop the cached URL/anon key/user_id/JWT so the native sync manager
+    // stops pushing (it no-ops while !isConfigured) and no stale credentials survive.
+    fun clear() {
+        prefs?.edit()?.clear()?.apply()
+    }
 }

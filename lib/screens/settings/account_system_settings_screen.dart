@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_back_button.dart';
 import 'profile_edit_screen.dart';
 
 class AccountSystemSettingsScreen extends StatelessWidget {
@@ -15,10 +16,7 @@ class AccountSystemSettingsScreen extends StatelessWidget {
       backgroundColor: AppTheme.bg,
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: const GlassBackButton(),
         title: Text(
           'Account & System settings',
           style: GoogleFonts.inter(
@@ -145,7 +143,8 @@ class AccountSystemSettingsScreen extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Log out',
             style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
-        content: Text('Are you sure you want to log out?',
+        content: Text(
+            'Logging out clears your session and all personal data stored on this device (health history, emergency contacts, ring pairing). Are you sure?',
             style: GoogleFonts.inter(color: AppTheme.textSec)),
         actions: [
           TextButton(
@@ -162,7 +161,7 @@ class AccountSystemSettingsScreen extends StatelessWidget {
       ),
     );
     if (ok == true && context.mounted) {
-      await SupabaseService.signOut();
+      await SupabaseService.logoutAndClearLocalData();
       if (context.mounted) {
         Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
       }

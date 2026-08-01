@@ -53,5 +53,14 @@ abstract class QRingDatabase : RoomDatabase() {
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build().also { INSTANCE = it }
             }
+
+        // Used by logout's full data wipe (BlePlugin.clearPersonalData): close the open
+        // handle and drop the singleton so the next getInstance() rebuilds from a fresh DB.
+        fun destroy() {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+            }
+        }
     }
 }

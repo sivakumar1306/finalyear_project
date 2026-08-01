@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_back_button.dart';
 
 class TermsOfServiceScreen extends StatelessWidget {
   const TermsOfServiceScreen({super.key});
@@ -11,10 +12,7 @@ class TermsOfServiceScreen extends StatelessWidget {
       backgroundColor: AppTheme.bg,
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: const GlassBackButton(),
         title: Text(
           'Terms of Service',
           style: GoogleFonts.inter(

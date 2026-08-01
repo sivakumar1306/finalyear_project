@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_back_button.dart';
 
 // Local-only (SharedPreferences), same pattern as device_name/device_address in
 // BleProvider — no backend table for these two fields yet, just a single local user.
@@ -341,14 +342,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
       backgroundColor: AppTheme.bg,
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_rounded,
-            color: Colors.white,
-            size: 20,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: const GlassBackButton(),
         title: Text(
           'Fall Prediction',
           style: GoogleFonts.inter(

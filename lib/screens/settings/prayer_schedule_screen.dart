@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../services/prayer_schedule_prefs.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/analog_clock_picker.dart';
+import '../../widgets/glass_header.dart';
 import '../../widgets/glass_icon_button.dart';
 
 /// Prayer Mode's quiet-hours scheduler — a clean drag-to-set analog clock
@@ -94,30 +95,9 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              GlassIconButton(
-                icon: Icons.arrow_back_rounded,
-                onTap: () => Navigator.pop(context),
-              ),
-              Text(
-                'Prayer Mode Schedule',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: -0.005,
-                  color: Colors.white.withValues(alpha: 0.88),
-                ),
-              ),
-              GlassIconButton(
-                icon: Icons.check_rounded,
-                onTap: _confirm,
-              ),
-            ],
-          ),
+        GlassHeader(
+          title: 'Prayer Mode Schedule',
+          trailing: GlassIconButton(icon: Icons.check_rounded, onTap: _confirm),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 18, 28, 12),

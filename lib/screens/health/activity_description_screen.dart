@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_back_button.dart';
 
 // ── Design tokens (mirrors steps_screen.dart) ──────────────────────────────
 const _kBg = Color(0xFF050505);
@@ -36,16 +37,7 @@ class ActivityDescriptionScreen extends StatelessWidget {
         backgroundColor: _kBg,
         elevation: 0,
         centerTitle: true,
-        leading: Center(
-          child: _circleIconButton(
-            icon: const Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: Colors.white,
-              size: 16,
-            ),
-            onTap: () => Navigator.pop(context),
-          ),
-        ),
+        leading: const Center(child: GlassBackButton()),
         title: Text('Activity Description', style: _t(17, w: FontWeight.w600)),
       ),
       body: SingleChildScrollView(
@@ -176,24 +168,6 @@ class ActivityDescriptionScreen extends StatelessWidget {
     );
   }
 }
-
-Widget _circleIconButton({required Widget icon, required VoidCallback onTap}) =>
-    GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.03),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.08),
-            width: 0.5,
-          ),
-        ),
-        child: Center(child: icon),
-      ),
-    );
 
 class _WeightChip extends StatelessWidget {
   final String label;

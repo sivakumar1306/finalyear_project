@@ -64,4 +64,11 @@ object MeasurementConfig {
         val clamped = ms.coerceIn(MIN_CYCLE_COOLDOWN_MS, MAX_CYCLE_COOLDOWN_MS)
         prefs?.edit()?.putLong(KEY_CYCLE_COOLDOWN_MS, clamped)?.apply()
     }
+
+    // Logout wipe: resets every flag (master loop, sync, per-vital toggles) to its
+    // default. Dart re-enables them on the next login via setMasterLoopEnabled /
+    // setSyncEnabled, so the loop stays idle while logged out.
+    fun clear() {
+        prefs?.edit()?.clear()?.apply()
+    }
 }

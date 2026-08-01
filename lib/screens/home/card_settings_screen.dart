@@ -6,6 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../services/home_card_prefs.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_header.dart';
+import '../../widgets/glass_icon_button.dart';
 import 'home_screen.dart';
 
 class _CardItem {
@@ -134,30 +136,12 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: Row(
-                  children: [
-                    _GlassCircleButton(
-                      icon: Icons.arrow_back_ios_new_rounded,
-                      onTap: _finish,
-                    ),
-                    const Spacer(),
-                    Text(
-                      'Edit Cards',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white.withValues(alpha: 0.88),
-                        letterSpacing: -0.065,
-                      ),
-                    ),
-                    const Spacer(),
-                    _GlassCircleButton(
-                      icon: Icons.check_rounded,
-                      onTap: _finish,
-                    ),
-                  ],
+              GlassHeader(
+                title: 'Edit Cards',
+                onBack: _finish,
+                trailing: GlassIconButton(
+                  icon: Icons.check_rounded,
+                  onTap: _finish,
                 ),
               ),
               Padding(
@@ -332,30 +316,6 @@ class _CardSettingsRow extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _GlassCircleButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _GlassCircleButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.04),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
-        ),
-        child: Icon(icon, color: Colors.white, size: 20),
       ),
     );
   }

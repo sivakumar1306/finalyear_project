@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/goal_prefs.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_header.dart';
 import '../../widgets/glass_icon_button.dart';
 
 /// Goal setting screen — Figma spec.
@@ -271,7 +272,10 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _Header(onBack: () => Navigator.pop(context)),
+        GlassHeader(
+          title: 'Goal setting',
+          trailing: GlassIconButton(icon: Icons.check_rounded, onTap: () => Navigator.pop(context)),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 18, 28, 12),
           child: Text(
@@ -339,35 +343,6 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
 }
 
 // ── Header ───────────────────────────────────────────────────────────────
-
-class _Header extends StatelessWidget {
-  final VoidCallback onBack;
-
-  const _Header({required this.onBack});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          GlassIconButton(icon: Icons.arrow_back_rounded, onTap: onBack),
-          Text(
-            'Goal setting',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              letterSpacing: -0.005,
-              color: Colors.white.withValues(alpha: 0.88),
-            ),
-          ),
-          GlassIconButton(icon: Icons.check_rounded, onTap: onBack),
-        ],
-      ),
-    );
-  }
-}
 
 class _GlowBlob extends StatelessWidget {
   final double width;

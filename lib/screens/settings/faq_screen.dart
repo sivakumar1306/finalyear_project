@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../widgets/glass_back_button.dart';
 
 class FaqScreen extends StatelessWidget {
   const FaqScreen({super.key});
@@ -114,27 +115,8 @@ class FaqScreen extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      InkWell(
-                        onTap: () => Navigator.pop(context),
-                        borderRadius: BorderRadius.circular(100),
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.04),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.08),
-                              width: 0.5,
-                            ),
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                          child: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            color: Color(0xFFD9D9D9),
-                            size: 16,
-                          ),
-                        ),
+                      GlassBackButton(
+                        iconColor: const Color(0xFFD9D9D9),
                       ),
                       Text(
                         "FAQ's",

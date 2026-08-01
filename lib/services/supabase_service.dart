@@ -1,3 +1,6 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config.dart';
 import '../models/health_data.dart';
@@ -29,6 +32,38 @@ class SupabaseService {
   }
 
   static Future<void> signOut() => client.auth.signOut();
+
+  static const _bleChannel = MethodChannel('com.medxai.qring/ble');
+
+  /// Signs out and wipes every piece of locally stored personal data:
+  ///
+  /// * the Supabase session (removed by [client.auth.signOut] itself),
+  /// * the native Room database `qring_local.db` — vitals history, fall events,
+  ///   emergency contacts, phone-mode sessions — plus the native SharedPreferences
+  ///   that mirror the session JWT and measurement/emergency state,
+  /// * every Dart-side SharedPreferences key (ring pairing, chat conversation ids,
+  ///   fall emergency info, goals, card layout, alert toggles, workouts, units, …),
+  /// * all outstanding notifications (fall alerts, anomaly alerts, live updates).
+  ///
+  /// Runs each step defensively so a failure in one can't prevent the others.
+  static Future<void> logoutAndClearLocalData() async {
+    try {
+      await client.auth.signOut();
+    } catch (e) {
+      debugPrint('logoutAndClearLocalData: signOut failed: $e');
+    }
+    try {
+      await _bleChannel.invokeMethod('clearPersonalData');
+    } catch (e) {
+      debugPrint('logoutAndClearLocalData: clearPersonalData failed: $e');
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+    } catch (e) {
+      debugPrint('logoutAndClearLocalData: prefs.clear failed: $e');
+    }
+  }
 
   static Future<Map<String, dynamic>?> getProfile(String userId) async {
     return client.from('user_profiles').select().eq('id', userId).maybeSingle();

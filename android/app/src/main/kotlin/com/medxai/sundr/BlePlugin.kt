@@ -73,6 +73,7 @@ import com.oudmon.ble.base.scan.ScanWrapperCallback
 import com.medxai.qring_flutter.analysis.EmergencyAutoCaller
 import com.medxai.qring_flutter.analysis.EmergencySmsSender
 import com.medxai.qring_flutter.analysis.FallAlertNotifier
+import com.medxai.qring_flutter.analysis.FallMotionDetector
 import com.medxai.qring_flutter.analysis.FallPredictionNotifier
 import com.medxai.qring_flutter.analysis.SafetyLiveUpdate
 import com.medxai.qring_flutter.data.FallEventEntity
@@ -96,6 +97,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.core.content.ContextCompat
+import androidx.core.app.NotificationManagerCompat
 
 class BlePlugin(private val context: Context) {
 
@@ -362,6 +364,7 @@ class BlePlugin(private val context: Context) {
             "getSyncEnabled"             -> result.success(MeasurementConfig.isSyncEnabled())
             "configureSync"              -> configureSync(call, result)
             "forceSyncNow"               -> result.success(SupabaseSyncManager.forceSyncNow())
+            "clearPersonalData"          -> clearPersonalData(result)
             "seedDemoData"               -> seedDemoData(call, result)
             "getFallRiskScore"           -> getFallRiskScore(result)
             "getFallRiskLog"             -> getFallRiskLog(call, result)
@@ -2416,6 +2419,56 @@ class BlePlugin(private val context: Context) {
         EmergencySmsSender.cancel(context)
         FallPredictionNotifier.clearPending(context)
         result.success(true)
+    }
+
+    /**
+     * Full logout wipe, called from Dart's SupabaseService.logoutAndClearLocalData().
+     * Stops every background loop, drops the Room database (vitals, fall events,
+     * emergency contacts, phone-mode sessions), clears the native SharedPreferences
+     * that carry session/credential/personal data (Dart's own prefs.clear() covers the
+     * FlutterSharedPreferences keys), and dismisses all outstanding notifications.
+     */
+    private fun clearPersonalData(result: MethodChannel.Result) {
+        try {
+            val app = context.applicationContext
+
+            // 1. Stop everything that could write mid-wipe.
+            MeasurementLoopManager.stop()
+            SupabaseSyncManager.stop()
+            WorkoutService.stop(app)
+            FallMotionDetector.stop()
+            EmergencySmsSender.cancel(app)
+            FallPredictionNotifier.clearPending(app)
+            SafetyLiveUpdate.clear(app)
+            try { BleOperateManager.getInstance().disconnect() } catch (_: Exception) {}
+            BleConnectionService.stop(app)
+
+            // 2. Drop the Room database; next getInstance() rebuilds an empty one.
+            ReadingRepository.destroy()
+            app.deleteDatabase("qring_local.db")
+
+            // 3. Wipe native SharedPreferences that hold personal/session data.
+            //    qring_supabase_sync_config holds the JWT copy — clearing it also makes
+            //    SupabaseSyncManager no-op (isConfigured=false) until the next login.
+            SupabaseConfig.clear()
+            MeasurementConfig.clear()
+            listOf(
+                "qring_supabase_sync_state",
+                "qring_emergency_sms",
+                "qring_fall_settings",
+                "qring_fall_prediction"
+            ).forEach { name ->
+                app.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().apply()
+            }
+
+            // 4. Dismiss any residual notifications (fall alerts, anomaly alerts, …).
+            NotificationManagerCompat.from(app).cancelAll()
+
+            result.success(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "clearPersonalData failed", e)
+            result.error("CLEAR_FAILED", e.message, null)
+        }
     }
 
     private fun sendEmergencySms(call: MethodCall, result: MethodChannel.Result) {

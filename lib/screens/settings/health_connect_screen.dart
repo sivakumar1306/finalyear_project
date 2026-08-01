@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../services/health_connect_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/glass_icon_button.dart';
+import '../../widgets/glass_back_button.dart';
 
 /// Health Connect — connects Google Health Connect to the app.
 ///
@@ -146,15 +146,9 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
       backgroundColor: AppTheme.bg,
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: Center(
-            child: GlassIconButton(
-              icon: Icons.arrow_back_ios_rounded,
-              iconSize: 15,
-              onTap: () => Navigator.pop(context),
-            ),
-          ),
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 16),
+          child: Center(child: GlassBackButton(icon: Icons.arrow_back_ios_rounded, iconSize: 15)),
         ),
         title: Text(
           'Health Connect',

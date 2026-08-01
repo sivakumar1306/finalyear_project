@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_back_button.dart';
 
 /// Basic ring details + a "Coming Soon" notice — the real "make my ring
 /// buzz/flash to find it" feature isn't implemented yet, so this just
@@ -19,10 +20,7 @@ class FindDeviceScreen extends StatelessWidget {
       backgroundColor: AppTheme.bg,
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: const GlassBackButton(),
         title: Text(
           'Find Device',
           style: GoogleFonts.inter(

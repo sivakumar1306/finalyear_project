@@ -7,6 +7,7 @@ import '../../providers/main_tab_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../services/unit_prefs.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_back_button.dart';
 import '../../widgets/glass_icon_button.dart';
 import '../auth/login_screen.dart';
 import '../auth/sign_up_screen.dart';
@@ -364,14 +365,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         backgroundColor: AppTheme.bg,
         automaticallyImplyLeading: false,
         leading: widget.showBackButton
-            ? Padding(
-                padding: const EdgeInsets.only(left: 16),
+            ? const Padding(
+                padding: EdgeInsets.only(left: 16),
                 child: Center(
-                  child: GlassIconButton(
-                    icon: Icons.arrow_back_ios_rounded,
-                    iconSize: 15,
-                    onTap: () => Navigator.pop(context),
-                  ),
+                  child: GlassBackButton(icon: Icons.arrow_back_ios_rounded, iconSize: 15),
                 ),
               )
             : null,
@@ -659,7 +656,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           ),
         ),
         content: Text(
-          'Are you sure you want to log out?',
+          'Logging out clears your session and all personal data stored on this device (health history, emergency contacts, ring pairing). Are you sure?',
           style: GoogleFonts.inter(color: AppTheme.textSec),
         ),
         actions: [
@@ -684,7 +681,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       ),
     );
     if (ok == true && context.mounted) {
-      await SupabaseService.signOut();
+      await SupabaseService.logoutAndClearLocalData();
       if (context.mounted) {
         Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
       }

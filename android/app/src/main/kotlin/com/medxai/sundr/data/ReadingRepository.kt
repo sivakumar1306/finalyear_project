@@ -231,5 +231,14 @@ class ReadingRepository private constructor(context: Context) {
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: ReadingRepository(context.applicationContext).also { INSTANCE = it }
             }
+
+        // Logout wipe (BlePlugin.clearPersonalData): close the underlying Room DB and drop
+        // the cached facade so callers rebuild against a fresh, empty database.
+        fun destroy() {
+            synchronized(this) {
+                QRingDatabase.destroy()
+                INSTANCE = null
+            }
+        }
     }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_back_button.dart';
 import '../../widgets/glass_menu.dart';
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
@@ -399,11 +400,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white, size: 18),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: const GlassBackButton(),
         title: Text('Women\'s Health',
             style: _inter(16, weight: FontWeight.w600)),
         actions: [

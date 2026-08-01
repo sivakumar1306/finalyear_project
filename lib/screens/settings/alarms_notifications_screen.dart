@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/alarm_mode_provider.dart';
 import '../../services/prayer_schedule_prefs.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_back_button.dart';
 import 'prayer_schedule_screen.dart';
 import 'select_notifications_screen.dart';
 import 'sleep_schedule_screen.dart';
@@ -95,14 +96,7 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
       backgroundColor: AppTheme.bg,
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_rounded,
-            color: Colors.white,
-            size: 20,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: const GlassBackButton(),
         title: Text(
           'Alarms & Notifications',
           style: GoogleFonts.inter(
