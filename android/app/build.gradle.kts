@@ -1,13 +1,13 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android") version "2.1.21" apply true
+    id("org.jetbrains.kotlin.android") version "2.2.20" apply true
     id("com.google.devtools.ksp")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
     namespace = "com.medxai.qring_flutter"
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = "28.2.13676358"
 
     compileOptions {

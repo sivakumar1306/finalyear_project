@@ -504,21 +504,38 @@ class _ChatScreenState extends State<ChatScreen> {
                                           card['type'] == 'sleep_highlights'
                                               ? SleepHighlightsCard(
                                                   data: card['data'],
+                                                  onTap: () =>
+                                                      Navigator.pushNamed(
+                                                          context, '/sleep'),
                                                 )
                                               : card['type'] ==
                                                       'heart_rate_trend'
                                                   ? HeartRateChatCard(
                                                       data: card['data'],
+                                                      onTap: () =>
+                                                          Navigator.pushNamed(
+                                                              context,
+                                                              '/heart-rate'),
                                                     )
                                                   : card['type'] == 'spo2_trend'
                                                       ? BloodOxygenChatCard(
                                                           data: card['data'],
+                                                          onTap: () =>
+                                                              Navigator
+                                                                  .pushNamed(
+                                                                      context,
+                                                                      '/blood-oxygen'),
                                                         )
                                                       : card['type'] ==
                                                               'hrv_trend'
                                                           ? HrvChatCard(
                                                               data:
                                                                   card['data'],
+                                                              onTap: () =>
+                                                                  Navigator
+                                                                      .pushNamed(
+                                                                          context,
+                                                                          '/hrv'),
                                                             )
                                                           : card['type'] ==
                                                                   'bp_trend'
@@ -526,11 +543,19 @@ class _ChatScreenState extends State<ChatScreen> {
                                                                   data:
                                                                       card[
                                                                           'data'],
+                                                                  onTap: () =>
+                                                                      Navigator.pushNamed(
+                                                                          context,
+                                                                          '/blood-pressure'),
                                                                 )
                                                               : StepsChatCard(
                                                                   data:
                                                                       card[
                                                                           'data'],
+                                                                  onTap: () =>
+                                                                      Navigator.pushNamed(
+                                                                          context,
+                                                                          '/steps'),
                                                                 ),
                                     ),
                                   ],

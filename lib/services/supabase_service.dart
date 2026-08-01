@@ -86,9 +86,8 @@ class SupabaseService {
       'gender': gender,
       'height_cm': heightCm,
       'weight_kg': weightKg,
-      if (address != null) 'address': address,
-      if (additionalInstructions != null)
-        'additional_instructions': additionalInstructions,
+      'address': ?address,
+      'additional_instructions': ?additionalInstructions,
     });
   }
 

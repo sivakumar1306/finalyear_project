@@ -4,7 +4,8 @@ import 'chat_vital_shell.dart';
 
 class HrvChatCard extends StatelessWidget {
   final Map<String, dynamic> data;
-  const HrvChatCard({super.key, required this.data});
+  final VoidCallback? onTap;
+  const HrvChatCard({super.key, required this.data, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +34,7 @@ class HrvChatCard extends StatelessWidget {
         yLines: const [100, 80, 60, 40, 20],
         color: AppTheme.hrvColor,
       ),
+      onTap: onTap,
     );
   }
 }

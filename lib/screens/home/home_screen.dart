@@ -6,9 +6,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../providers/alarm_mode_provider.dart';
+import '../../providers/home_card_provider.dart';
 import '../../services/chat_api_service.dart';
 import '../../services/supabase_service.dart';
-import '../../services/home_card_prefs.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_icon_button.dart';
 import '../settings/fall_detection_screen.dart';
@@ -148,22 +148,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _firstName = '';
   String _gender = '';
-  bool _compactMode = false;
-  Set<HomeCardId> _hiddenCards = {};
-  Set<HomeCardId> _expandedCards = {};
-  List<HomeCardId> _cardOrder = [
-    HomeCardId.alarms,
-    HomeCardId.activity,
-    HomeCardId.stress,
-    HomeCardId.womensHealth,
-    HomeCardId.sleep,
-    HomeCardId.hrv,
-    HomeCardId.bloodOxygen,
-    HomeCardId.heartRate,
-    HomeCardId.bloodPressure,
-    HomeCardId.temperature,
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -178,10 +162,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ble.refreshEmergencySmsStatus();
     });
     _loadUserProfile();
-    _loadCardOrder();
-    _loadHiddenCards();
-    _loadExpandedCards();
-    _loadCompactMode();
   }
 
   @override
@@ -216,8 +196,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           setState(() {
             _firstName = fullName.split(' ').first;
             _gender = profile['gender'] as String? ?? '';
-            _verifyWomensHealthCardVisibility();
           });
+          if (mounted) {
+            context.read<HomeCardProvider>().ensureWomensHealthVisible(_isFemale);
+          }
           if (kDebugMode) {
             debugPrint('DEBUG profile: $profile, parsed _gender: $_gender');
           }
@@ -228,62 +210,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _loadCardOrder() async {
-    try {
-      final order = await HomeCardPrefs.loadOrder();
-      setState(() => _cardOrder = order);
-    } catch (_) {}
-    _verifyWomensHealthCardVisibility();
+  Future<void> _navigateTo(String route) async {
+    await Navigator.pushNamed(context, route);
+    if (!mounted) return;
+    await _loadUserProfile();
+    setState(() {});
   }
 
-  Future<void> _loadHiddenCards() async {
-    try {
-      final hidden = await HomeCardPrefs.loadHidden();
-      if (mounted) setState(() => _hiddenCards = hidden);
-    } catch (_) {}
-  }
-
-  Future<void> _loadExpandedCards() async {
-    try {
-      final expanded = await HomeCardPrefs.loadExpanded();
-      if (mounted) setState(() => _expandedCards = expanded);
-    } catch (_) {}
-  }
-
-  Future<void> _loadCompactMode() async {
-    try {
-      final compact = await HomeCardPrefs.loadCompactMode();
-      if (mounted) setState(() => _compactMode = compact);
-    } catch (_) {}
-  }
-
-  void _verifyWomensHealthCardVisibility() {
-    if (_isFemale) {
-      if (!_cardOrder.contains(HomeCardId.womensHealth)) {
-        setState(() {
-          if (_cardOrder.length >= 2) {
-            _cardOrder.insert(2, HomeCardId.womensHealth);
-          } else {
-            _cardOrder.add(HomeCardId.womensHealth);
-          }
-        });
-      }
-    }
-  }
-
-  /// Opens the full-screen Edit Cards page; on return, re-reads every
-  /// preference the page may have changed so the grid matches immediately.
   Future<void> _openCardSettings() async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const CardSettingsScreen()),
     );
-    if (!mounted) return;
-    await _loadCardOrder();
-    await _loadHiddenCards();
-    await _loadExpandedCards();
-    await _loadCompactMode();
-    _verifyWomensHealthCardVisibility();
   }
 
   String get _greeting {
@@ -396,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           steps: ble.todaySteps,
           calories: ble.todayCalories,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/steps'),
+          onTap: () => _navigateTo('/steps'),
         );
       case HomeCardId.stress:
         return _StressCard(
@@ -407,12 +345,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           hrv: ble.todayAvgHrv,
           connected: ble.isConnected,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/pressure'),
+          onTap: () => _navigateTo('/pressure'),
         );
       case HomeCardId.womensHealth:
         return _CompactWomensHealthCard(
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/womens-health'),
+          onTap: () => _navigateTo('/womens-health'),
         );
       case HomeCardId.sleep:
         if (expanded) {
@@ -455,7 +393,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             footnoteRest: dur > 0
                 ? ' · REM ${pct(ble.todaySleepRemSecs)}% · Light ${pct(ble.todaySleepLightSecs)}% · ${ble.todaySleepScore} score'
                 : '',
-            onTap: () => Navigator.pushNamed(context, '/sleep'),
+            onTap: () => _navigateTo('/sleep'),
           );
         }
         return _HomeCard(
@@ -483,7 +421,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
           connected: ble.isConnected,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/sleep'),
+          onTap: () => _navigateTo('/sleep'),
         );
       case HomeCardId.hrv:
         return _HomeCard(
@@ -509,7 +447,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
           connected: ble.isConnected,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/hrv'),
+          onTap: () => _navigateTo('/hrv'),
         );
       case HomeCardId.bloodOxygen:
         return _HomeCard(
@@ -539,7 +477,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
           connected: ble.isConnected,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/blood-oxygen'),
+          onTap: () => _navigateTo('/blood-oxygen'),
         );
       case HomeCardId.heartRate:
         if (expanded) {
@@ -582,7 +520,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             footnoteRest: hr > 0
                 ? ' · ${_hrStatus(hr)} zones today.'
                 : ' · connect ring to track',
-            onTap: () => Navigator.pushNamed(context, '/heart-rate'),
+            onTap: () => _navigateTo('/heart-rate'),
           );
         }
         return _HomeCard(
@@ -612,19 +550,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
           connected: ble.isConnected,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/heart-rate'),
+          onTap: () => _navigateTo('/heart-rate'),
         );
       case HomeCardId.bloodPressure:
         return _CompactBloodPressureCard(
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
+          onTap: () => _navigateTo('/blood-pressure'),
         );
       case HomeCardId.temperature:
         return _TemperatureCard(
           tempC: ble.latestTempC,
           connected: ble.isConnected,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/temperature'),
+          onTap: () => _navigateTo('/temperature'),
         );
     }
   }
@@ -642,7 +580,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: _kOrbSleep,
           icon: Icons.notifications_outlined,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/alarms-notifications'),
+          onTap: () => _navigateTo('/alarms-notifications'),
         );
       case HomeCardId.activity:
         final score = _computeActivityScore(
@@ -657,7 +595,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: _kOrbActivity,
           icon: Icons.directions_walk,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/steps'),
+          onTap: () => _navigateTo('/steps'),
         );
       case HomeCardId.stress:
         return _MiniCard(
@@ -667,7 +605,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: _kOrbStress,
           icon: Icons.water_drop,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/pressure'),
+          onTap: () => _navigateTo('/pressure'),
         );
       case HomeCardId.womensHealth:
         return _MiniCard(
@@ -675,7 +613,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: const Color(0xFFD860C8),
           icon: Icons.woman,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/womens-health'),
+          onTap: () => _navigateTo('/womens-health'),
         );
       case HomeCardId.sleep:
         return _MiniCard(
@@ -687,7 +625,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: _kOrbSleep,
           icon: Icons.bedtime,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/sleep'),
+          onTap: () => _navigateTo('/sleep'),
         );
       case HomeCardId.hrv:
         return _MiniCard(
@@ -697,7 +635,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: _kOrbHrv,
           icon: Icons.favorite_border,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/hrv'),
+          onTap: () => _navigateTo('/hrv'),
         );
       case HomeCardId.bloodOxygen:
         return _MiniCard(
@@ -707,7 +645,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: _kOrbSpo2,
           icon: Icons.air,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/blood-oxygen'),
+          onTap: () => _navigateTo('/blood-oxygen'),
         );
       case HomeCardId.heartRate:
         return _MiniCard(
@@ -717,7 +655,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: _kOrbHr,
           icon: Icons.favorite,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/heart-rate'),
+          onTap: () => _navigateTo('/heart-rate'),
         );
       case HomeCardId.bloodPressure:
         final hasBp = ble.latestBpSbp > 0 && ble.latestBpDbp > 0;
@@ -727,7 +665,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: const Color(0xFFD86560),
           icon: Icons.speed,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
+          onTap: () => _navigateTo('/blood-pressure'),
         );
       case HomeCardId.temperature:
         return _MiniCard(
@@ -738,7 +676,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: _kOrbTemp,
           icon: Icons.device_thermostat,
           expanded: expanded,
-          onTap: () => Navigator.pushNamed(context, '/temperature'),
+          onTap: () => _navigateTo('/temperature'),
         );
     }
   }
@@ -751,6 +689,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     BleProvider ble,
     List<HomeCardId> ids, {
     required bool compact,
+    required Set<HomeCardId> expandedCards,
   }) {
     Widget build(HomeCardId id, {bool expanded = false}) => compact
         ? _buildCompactCard(id, ble, expanded: expanded)
@@ -771,13 +710,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final rows = <Widget>[];
     for (int i = 0; i < ids.length;) {
       final id = ids[i];
-      if (_expandedCards.contains(id)) {
+      if (expandedCards.contains(id)) {
         rows.add(row([Expanded(child: build(id, expanded: true))]));
         i += 1;
         continue;
       }
       final next = i + 1 < ids.length ? ids[i + 1] : null;
-      if (next != null && !_expandedCards.contains(next)) {
+      if (next != null && !expandedCards.contains(next)) {
         rows.add(row([
           Expanded(child: build(id)),
           const SizedBox(width: 12),
@@ -792,8 +731,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return rows;
   }
 
-  Widget _buildCardList(BleProvider ble, List<HomeCardId> visibleCardIds) {
-    final rows = _packCardRows(ble, visibleCardIds, compact: _compactMode);
+  Widget _buildCardList(
+    BleProvider ble,
+    List<HomeCardId> visibleCardIds, {
+    required bool compact,
+    required Set<HomeCardId> expandedCards,
+  }) {
+    final rows = _packCardRows(ble, visibleCardIds, compact: compact, expandedCards: expandedCards);
     return SliverList(
       delegate: SliverChildBuilderDelegate((context, index) {
         return Padding(
@@ -811,10 +755,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
+    final homeCards = context.watch<HomeCardProvider>();
+    final cardOrder = homeCards.order;
+    final hiddenCards = homeCards.hiddenCards;
+    final expandedCards = homeCards.expandedCards;
+    final compactMode = homeCards.compactMode;
+
     // Cards eligible to appear at all (independent of the user's show/hide
     // choice) — the Edit Cards page lists all of them, so a hidden card can
     // still be found and switched back on.
-    final editableCardIds = _cardOrder.where((id) {
+    final editableCardIds = cardOrder.where((id) {
       if (id == HomeCardId.womensHealth && !_isFemale) return false;
       return true;
     }).toList();
@@ -822,7 +772,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // What's actually rendered day-to-day — editable cards minus anything
     // the user hid.
     final visibleCardIds = editableCardIds
-        .where((id) => !_hiddenCards.contains(id))
+        .where((id) => !hiddenCards.contains(id))
         .toList();
 
     return RefreshIndicator(
@@ -883,7 +833,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           // 2. Card rows (paired two-per-row, or full-width when expanded)
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: _buildCardList(ble, visibleCardIds),
+            sliver: _buildCardList(
+              ble,
+              visibleCardIds,
+              compact: compactMode,
+              expandedCards: expandedCards,
+            ),
           ),
 
           // 3. Edit Cards button & spacing at bottom
