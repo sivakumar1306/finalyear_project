@@ -730,15 +730,31 @@ class _HRChartCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          // X-axis labels (offset to align with chart area, not Y-axis)
+          // Day labels: equal-width slots centered under each bar.
+          // Time-of-day labels (with an empty end tick): spaceBetween ticks.
           Padding(
             padding: const EdgeInsets.only(left: _yAxisW),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: xLabels
-                  .map((l) => Text(l, style: _inter(10, color: _kSec)))
-                  .toList(),
-            ),
+            child: xLabels.length == values.length &&
+                    xLabels.isNotEmpty &&
+                    xLabels.every((l) => l.isNotEmpty)
+                ? Row(
+                    children: [
+                      for (final label in xLabels)
+                        Expanded(
+                          child: Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            style: _inter(10, color: _kSec),
+                          ),
+                        ),
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: xLabels
+                        .map((l) => Text(l, style: _inter(10, color: _kSec)))
+                        .toList(),
+                  ),
           ),
         ],
       ),
