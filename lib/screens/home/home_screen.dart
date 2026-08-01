@@ -11,6 +11,7 @@ import '../../services/chat_api_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_icon_button.dart';
+import '../../widgets/footer_spacer.dart';
 import '../settings/fall_detection_screen.dart';
 import 'ring_scan_sheet.dart';
 import 'side_panel.dart';
@@ -848,7 +849,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               delegate: SliverChildListDelegate([
                 const SizedBox(height: 8),
                 _EditCardsButton(onTap: _openCardSettings),
-                const SizedBox(height: 20),
+                const FooterSpacer(),
               ]),
             ),
           ),

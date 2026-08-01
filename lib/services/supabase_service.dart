@@ -33,6 +33,28 @@ class SupabaseService {
 
   static Future<void> signOut() => client.auth.signOut();
 
+  /// Sends a password-recovery email for [email] (the recovery code that
+  /// appears in the email must be submitted via [verifyRecoveryCode]).
+  static Future<void> resetPassword(String email) {
+    return client.auth.resetPasswordForEmail(email);
+  }
+
+  /// Verifies the 6-digit recovery code from the recovery email. On success
+  /// a session is established, so [updatePassword] can be called next.
+  static Future<void> verifyRecoveryCode(String email, String code) async {
+    await client.auth.verifyOTP(
+      email: email,
+      token: code,
+      type: OtpType.recovery,
+    );
+  }
+
+  static Future<void> updatePassword(String newPassword) {
+    return client.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
+  }
+
   static const _bleChannel = MethodChannel('com.medxai.qring/ble');
 
   /// Signs out and wipes every piece of locally stored personal data:

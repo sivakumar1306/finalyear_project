@@ -8,6 +8,7 @@ import '../../providers/main_tab_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../services/unit_prefs.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/footer_spacer.dart';
 import '../ota/ota_screen.dart';
 import 'background_protection_screen.dart';
 import 'find_device_screen.dart';
@@ -224,7 +225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return SafeArea(
       bottom: false,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -310,7 +311,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   Image.asset(
-                    'ring.webp',
+                    'ring.png',
                     width: 72,
                     height: 72,
                     fit: BoxFit.contain,
@@ -552,6 +553,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
+            const FooterSpacer(),
           ],
         ),
       ),
