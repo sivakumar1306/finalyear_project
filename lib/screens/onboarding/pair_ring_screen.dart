@@ -120,7 +120,7 @@ class _PairRingScreenState extends State<PairRingScreen> {
                     ),
                     const Spacer(),
                     Center(
-                      child: Image.asset('ring.png', height: 220),
+                      child: Image.asset('ring.webp', height: 220),
                     ),
                     const Spacer(),
                   ],

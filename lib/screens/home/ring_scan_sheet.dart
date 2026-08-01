@@ -342,7 +342,7 @@ class _SearchingBody extends StatelessWidget {
                 ),
               ],
             ),
-            child: Image.asset('ring.png', fit: BoxFit.contain),
+            child: Image.asset('ring.webp', fit: BoxFit.contain),
           ),
         ),
         const SizedBox(height: 40),
@@ -534,7 +534,7 @@ class _RingTile extends StatelessWidget {
           SizedBox(
             width: 48,
             height: 48,
-            child: Image.asset('ring.png', fit: BoxFit.contain),
+            child: Image.asset('ring.webp', fit: BoxFit.contain),
           ),
           const SizedBox(width: 14),
           Expanded(

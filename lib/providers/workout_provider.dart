@@ -30,6 +30,7 @@ class WorkoutProvider extends ChangeNotifier {
 
   // Heart rate collected during workout
   final List<int> _hrReadings = [];
+  int _hrSum = 0;
   int _latestHr = 0;
 
   int _todayWorkoutDurationS = 0;
@@ -43,9 +44,8 @@ class WorkoutProvider extends ChangeNotifier {
   int get workoutCalories => _workoutCalories;
   double get workoutDistanceM => _workoutDistanceM;
   int get latestHr => _latestHr;
-  int get avgHr => _hrReadings.isEmpty
-      ? 0
-      : (_hrReadings.reduce((a, b) => a + b) / _hrReadings.length).round();
+  int get avgHr =>
+      _hrReadings.isEmpty ? 0 : (_hrSum / _hrReadings.length).round();
   int get todayWorkoutDurationS => _todayWorkoutDurationS;
 
   // Completes after the initial SharedPreferences check; used by MainShell
@@ -99,6 +99,7 @@ class WorkoutProvider extends ChangeNotifier {
     _initialCalories = prefs.getInt('workout_start_calories') ?? 0;
     _initialDistance = prefs.getDouble('workout_start_distance') ?? 0.0;
     _hrReadings.clear();
+    _hrSum = 0;
     _latestHr = 0;
     _isWorkoutActive = true;
 
@@ -119,6 +120,7 @@ class WorkoutProvider extends ChangeNotifier {
     _workoutCalories = 0;
     _workoutDistanceM = 0.0;
     _hrReadings.clear();
+    _hrSum = 0;
     _latestHr = 0;
 
     // Fetch current ring values as the workout baseline before the user
@@ -228,6 +230,7 @@ class WorkoutProvider extends ChangeNotifier {
     _startTime = null;
     _elapsedSeconds = 0;
     _hrReadings.clear();
+    _hrSum = 0;
     _latestHr = 0;
     notifyListeners();
     loadTodayWorkoutDuration();
@@ -252,6 +255,7 @@ class WorkoutProvider extends ChangeNotifier {
         if (!_isWorkoutActive) break;
         if (hr != null && hr > 0) {
           _hrReadings.add(hr);
+          _hrSum += hr;
           _latestHr = hr;
           notifyListeners();
         }

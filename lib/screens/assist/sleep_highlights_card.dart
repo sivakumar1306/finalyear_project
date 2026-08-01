@@ -30,7 +30,10 @@ class SleepHighlightsCard extends StatelessWidget {
     int totalMinutes = awake + light + deep;
     if (totalMinutes == 0) totalMinutes = 1;
 
-    return Center(
+    // RepaintBoundary caches the blurred layer so scrolling the chat list
+    // doesn't re-blur the backdrop every frame.
+    return RepaintBoundary(
+      child: Center(
       child: Container(
         constraints: const BoxConstraints(maxWidth: 335),
         child: ClipRRect(
@@ -91,6 +94,7 @@ class SleepHighlightsCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

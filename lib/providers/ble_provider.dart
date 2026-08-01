@@ -793,11 +793,34 @@ class BleProvider extends ChangeNotifier {
   }
 
   Future<void> _loadTodayVitalsFromLocal() async {
-    if (!await _refreshHrFromLocal()) await _loadTodayHrFromSupabase();
-    if (!await _refreshSpo2FromLocal()) await _loadTodaySpo2FromSupabase();
-    if (!await _refreshStressFromLocal()) await _loadLatestStressFromSupabase();
-    if (!await _refreshBpFromLocal()) await _loadLatestBpFromSupabase();
-    if (!await _refreshStepsFromLocal()) await _loadTodayFromSupabase();
+    await Future.wait([
+      _refreshHrFromLocal()
+          .then((ok) => ok ? null : _loadTodayHrFromSupabase()),
+      _refreshSpo2FromLocal()
+          .then((ok) => ok ? null : _loadTodaySpo2FromSupabase()),
+      _refreshStressFromLocal()
+          .then((ok) => ok ? null : _loadLatestStressFromSupabase()),
+      _refreshBpFromLocal()
+          .then((ok) => ok ? null : _loadLatestBpFromSupabase()),
+      _refreshStepsFromLocal()
+          .then((ok) => ok ? null : _loadTodayFromSupabase()),
+    ]);
+  }
+
+  static const _goalCacheTtl = Duration(seconds: 30);
+  GoalTargets? _cachedGoalTargets;
+  DateTime? _cachedGoalAt;
+
+  /// Steps/calories goal with a short TTL — avoids a SharedPreferences disk
+  /// read inside the steps measurement handler (hot path).
+  Future<GoalTargets> _loadCachedGoal() async {
+    final now = DateTime.now();
+    if (_cachedGoalTargets == null ||
+        now.difference(_cachedGoalAt!) > _goalCacheTtl) {
+      _cachedGoalTargets = await GoalPrefs.load();
+      _cachedGoalAt = now;
+    }
+    return _cachedGoalTargets!;
   }
 
   Future<bool> _refreshHrFromLocal() async {
@@ -925,7 +948,7 @@ class BleProvider extends ChangeNotifier {
       _todayCalories = (m['caloriesKcal'] as num?)?.toInt() ?? 0;
       _todayDistanceM = (m['distanceM'] as num?)?.toDouble() ?? 0.0;
       notifyListeners();
-      final goal = await GoalPrefs.load();
+      final goal = await _loadCachedGoal();
       _maybeAlert(
         'Step count achieved',
         _todaySteps >= goal.steps,

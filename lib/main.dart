@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -61,9 +62,12 @@ StreamSubscription? _authSub;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await _requestPermissionsAndStartService();
-  await SupabaseService.initialize();
-  await _syncLoggedInFlag();
+  // All four families are bundled in pubspec (fonts/) — never fetch at runtime.
+  GoogleFonts.config.allowRuntimeFetching = false;
+  await Future.wait([
+    SupabaseService.initialize(),
+    _syncLoggedInFlag(),
+  ]);
   await _configureNativeSync();
   _authSub?.cancel();
   _authSub = SupabaseService.client.auth.onAuthStateChange.listen((_) {
@@ -81,4 +85,5 @@ void main() async {
       child: const QRingApp(),
     ),
   );
+  unawaited(_requestPermissionsAndStartService());
 }

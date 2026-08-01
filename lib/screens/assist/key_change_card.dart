@@ -27,10 +27,13 @@ class KeyChangeCard extends StatelessWidget {
         ? const Color(0xFFE07A5F)
         : const Color(0xFFC9A86E);
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+    // RepaintBoundary caches the blurred layer so scrolling the chat list
+    // doesn't re-blur the backdrop every frame.
+    return RepaintBoundary(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: GestureDetector(
           onTap: onTap,
           behavior: HitTestBehavior.opaque,
@@ -110,6 +113,7 @@ class KeyChangeCard extends StatelessWidget {
               ],
             ),
           ),
+        ),
         ),
       ),
     );

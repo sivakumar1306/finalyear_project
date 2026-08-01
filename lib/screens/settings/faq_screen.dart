@@ -21,7 +21,7 @@ class FaqScreen extends StatelessWidget {
           'AI chat. Nothing about you is tied to the ring itself, so your '
           'data stays with you, not the device.',
     ),
-    _FaqImage(assetPath: 'ring_charge.png'),
+    _FaqImage(assetPath: 'ring_charge.webp'),
     _FaqItem(
       question: 'How to charge a ring?',
       answer:

@@ -466,18 +466,42 @@ class _ChatScreenState extends State<ChatScreen> {
                                     _buildAssistantBubble(context, content),
                                   if (card != null) ...[
                                     const SizedBox(height: 8),
-                                    if (card['type'] == 'sleep_highlights')
-                                      SleepHighlightsCard(data: card['data'])
-                                    else if (card['type'] == 'heart_rate_trend')
-                                      HeartRateChatCard(data: card['data'])
-                                    else if (card['type'] == 'spo2_trend')
-                                      BloodOxygenChatCard(data: card['data'])
-                                    else if (card['type'] == 'hrv_trend')
-                                      HrvChatCard(data: card['data'])
-                                    else if (card['type'] == 'bp_trend')
-                                      BloodPressureChatCard(data: card['data'])
-                                    else if (card['type'] == 'steps_trend')
-                                      StepsChatCard(data: card['data']),
+                                    // Cache the blurred card layer so scrolling
+                                    // doesn't re-blur the backdrop each frame.
+                                    RepaintBoundary(
+                                      child:
+                                          card['type'] == 'sleep_highlights'
+                                              ? SleepHighlightsCard(
+                                                  data: card['data'],
+                                                )
+                                              : card['type'] ==
+                                                      'heart_rate_trend'
+                                                  ? HeartRateChatCard(
+                                                      data: card['data'],
+                                                    )
+                                                  : card['type'] == 'spo2_trend'
+                                                      ? BloodOxygenChatCard(
+                                                          data: card['data'],
+                                                        )
+                                                      : card['type'] ==
+                                                              'hrv_trend'
+                                                          ? HrvChatCard(
+                                                              data:
+                                                                  card['data'],
+                                                            )
+                                                          : card['type'] ==
+                                                                  'bp_trend'
+                                                              ? BloodPressureChatCard(
+                                                                  data:
+                                                                      card[
+                                                                          'data'],
+                                                                )
+                                                              : StepsChatCard(
+                                                                  data:
+                                                                      card[
+                                                                          'data'],
+                                                                ),
+                                    ),
                                   ],
                                 ],
                               ),

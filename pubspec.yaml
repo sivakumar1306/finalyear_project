@@ -34,9 +34,22 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - ring.png
+    - ring.webp
     - sundr_logo.png
-    - ring_charge.png
+    - ring_charge.webp
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: fonts/Inter.ttf
+    - family: Instrument Sans
+      fonts:
+        - asset: fonts/InstrumentSans.ttf
+    - family: JetBrains Mono
+      fonts:
+        - asset: fonts/JetBrainsMono.ttf
+    - family: Fraunces
+      fonts:
+        - asset: fonts/Fraunces.ttf
 
 flutter_launcher_icons:
   android: true

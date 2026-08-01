@@ -309,7 +309,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   Image.asset(
-                    'ring.png',
+                    'ring.webp',
                     width: 72,
                     height: 72,
                     fit: BoxFit.contain,

@@ -15,6 +15,8 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  static const _minSplashDuration = Duration(milliseconds: 350);
+
   bool _checking = true;
 
   @override
@@ -23,20 +25,33 @@ class _SplashScreenState extends State<SplashScreen> {
     _checkSession();
   }
 
+  /// Keeps the splash visible for at least a short beat so it doesn't flash,
+  /// while the profile fetch (the real work) runs concurrently.
+  Future<void> _holdSplash(DateTime started) async {
+    final elapsed = DateTime.now().difference(started);
+    if (elapsed < _minSplashDuration) {
+      await Future.delayed(_minSplashDuration - elapsed);
+    }
+  }
+
   Future<void> _checkSession() async {
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
+    final started = DateTime.now();
     final user = SupabaseService.currentUser;
     if (user != null) {
-      await _routeLoggedInUser(user);
+      await _routeLoggedInUser(user, started);
     } else {
+      await _holdSplash(started);
+      if (!mounted) return;
       setState(() => _checking = false);
     }
   }
 
-  Future<void> _routeLoggedInUser(User user) async {
+  Future<void> _routeLoggedInUser(User user, DateTime started) async {
     try {
-      final profile = await SupabaseService.getProfile(user.id);
+      final profile = await SupabaseService.getProfile(
+        user.id,
+      ).timeout(const Duration(seconds: 8));
+      await _holdSplash(started);
       if (!mounted) return;
       final hasProfile =
           profile != null && (profile['full_name'] as String? ?? '').isNotEmpty;
@@ -51,6 +66,7 @@ class _SplashScreenState extends State<SplashScreen> {
         );
       }
     } catch (_) {
+      await _holdSplash(started);
       if (mounted) setState(() => _checking = false);
     }
   }
@@ -82,7 +98,7 @@ class _SplashScreenState extends State<SplashScreen> {
               child: Column(
                 children: [
                   const Spacer(flex: 2),
-                  Image.asset('ring.png', height: 200),
+                  Image.asset('ring.webp', height: 200),
                   const SizedBox(height: 28),
                   const Text(
                     'SUNDR',
