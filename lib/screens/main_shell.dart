@@ -11,6 +11,47 @@ import 'settings/settings_screen.dart';
 import 'workouts/active_workout_screen.dart';
 import 'assist/chat_screen.dart';
 
+// ── Apple-style transitions ───────────────────────────────────────────────────
+//
+// Home ↔ Settings: horizontal slide with easeOutCubic (iOS tab-like).
+// AI Assist: fade + slight lift/scale present (iOS fullScreenCover feel).
+
+const _kTabAnimDuration = Duration(milliseconds: 380);
+const _kTabAnimCurve = Curves.easeOutCubic;
+
+/// Shared route used by the bottom-nav FAB and Settings → AI Analysis.
+/// iOS fullScreenCover-style: fade + slight lift + scale spring-in.
+Route<void> buildAiAssistRoute() {
+  return PageRouteBuilder<void>(
+    transitionDuration: const Duration(milliseconds: 420),
+    reverseTransitionDuration: const Duration(milliseconds: 340),
+    opaque: true,
+    pageBuilder: (context, animation, secondaryAnimation) {
+      return const ChatScreen();
+    },
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.06),
+            end: Offset.zero,
+          ).animate(curved),
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.94, end: 1.0).animate(curved),
+            child: child,
+          ),
+        ),
+      );
+    },
+  );
+}
+
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -19,9 +60,19 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
+  late final PageController _pageController;
+  MainTabProvider? _tabProvider;
+  bool _animatingFromTap = false;
+
+  static int _pageForTab(int tab) => tab == 2 ? 1 : 0;
+  static int _tabForPage(int page) => page == 1 ? 2 : 0;
+
   @override
   void initState() {
     super.initState();
+    final initialTab = context.read<MainTabProvider>().tab;
+    _pageController = PageController(initialPage: _pageForTab(initialTab));
+
     context.read<WorkoutProvider>().initialized.then((_) {
       if (!mounted) return;
       final workout = context.read<WorkoutProvider>();
@@ -33,29 +84,78 @@ class _MainShellState extends State<MainShell> {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = context.read<MainTabProvider>();
+    if (!identical(_tabProvider, provider)) {
+      _tabProvider?.removeListener(_onTabProviderChanged);
+      _tabProvider = provider;
+      _tabProvider!.addListener(_onTabProviderChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabProvider?.removeListener(_onTabProviderChanged);
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  /// Syncs PageView when something outside the shell changes the tab
+  /// (e.g. profile edit → Settings).
+  void _onTabProviderChanged() {
+    if (!mounted || !_pageController.hasClients || _animatingFromTap) return;
+    final target = _pageForTab(_tabProvider!.tab);
+    final current = _pageController.page?.round() ?? _pageController.initialPage;
+    if (current == target) return;
+    _pageController.animateToPage(
+      target,
+      duration: _kTabAnimDuration,
+      curve: _kTabAnimCurve,
+    );
+  }
+
   void _onTabTap(int index) {
     final workout = context.read<WorkoutProvider>();
     if (workout.isWorkoutActive) {
       _showWorkoutLockSheet();
       return;
     }
+    final targetPage = _pageForTab(index);
+    final currentPage =
+        _pageController.hasClients
+            ? (_pageController.page?.round() ?? 0)
+            : 0;
+    if (currentPage == targetPage &&
+        context.read<MainTabProvider>().tab == index) {
+      return;
+    }
+
+    HapticFeedback.selectionClick();
+    _animatingFromTap = true;
     context.read<MainTabProvider>().setTab(index);
+    _pageController
+        .animateToPage(
+          targetPage,
+          duration: _kTabAnimDuration,
+          curve: _kTabAnimCurve,
+        )
+        .whenComplete(() {
+          if (mounted) _animatingFromTap = false;
+        });
   }
 
-  // AI Assist is no longer a tab in the IndexedStack — it's pushed as its
-  // own full-screen route. That means the bottom nav (which only lives in
-  // this shell's build method) is structurally absent while chat is open,
-  // and reappears automatically the moment Navigator.pop brings the user
-  // back here — no manual show/hide state needed.
+  // AI Assist is pushed as its own full-screen route so the bottom nav
+  // disappears while chat is open and returns on pop.
   void _openAiAssist() {
     final workout = context.read<WorkoutProvider>();
     if (workout.isWorkoutActive) {
       _showWorkoutLockSheet();
       return;
     }
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const ChatScreen()));
+    HapticFeedback.lightImpact();
+    Navigator.of(context).push(buildAiAssistRoute());
   }
 
   void _showWorkoutLockSheet() {
@@ -133,10 +233,7 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    // tab is still 0 (Home) or 2 (Settings) from MainTabProvider — the
-    // IndexedStack below only has two children now, so we map tab 2 -> 1.
     final tab = context.watch<MainTabProvider>().tab;
-    final stackIndex = tab == 2 ? 1 : 0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
@@ -147,14 +244,23 @@ class _MainShellState extends State<MainShell> {
         backgroundColor: const Color.fromRGBO(8, 8, 8, 1),
         // Without this, Scaffold reserves space and stops `body` short of
         // bottomNavigationBar — so the BackdropFilter behind the pill only
-        // ever blurs empty black Scaffold background, not your actual
-        // scrolled content, which is what was reading as a solid black box.
+        // ever blurs empty black Scaffold background, not scrolled content.
         extendBody: true,
-        // Home and Settings only — AI Assist is pushed separately, so the
-        // bottom nav (built right below) never renders while it's open.
-        body: IndexedStack(
-          index: stackIndex,
-          children: const [HomeScreen(), SettingsScreen()],
+        body: PageView(
+          controller: _pageController,
+          // Swipe disabled — tab switches are driven by the pill so motion
+          // always matches the tapped destination (Apple tab-bar style).
+          physics: const NeverScrollableScrollPhysics(),
+          onPageChanged: (page) {
+            final nextTab = _tabForPage(page);
+            if (context.read<MainTabProvider>().tab != nextTab) {
+              context.read<MainTabProvider>().setTab(nextTab);
+            }
+          },
+          children: const [
+            _KeepAlivePage(child: HomeScreen()),
+            _KeepAlivePage(child: SettingsScreen()),
+          ],
         ),
         bottomNavigationBar: _BottomNav(
           selected: tab,
@@ -163,6 +269,28 @@ class _MainShellState extends State<MainShell> {
         ),
       ),
     );
+  }
+}
+
+/// Keeps each tab's state alive across animated page switches (IndexedStack
+/// equivalent for a PageView).
+class _KeepAlivePage extends StatefulWidget {
+  final Widget child;
+  const _KeepAlivePage({required this.child});
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
 
@@ -182,27 +310,19 @@ class _BottomNav extends StatelessWidget {
     // Scaffold wraps bottomNavigationBar in an opaque Material by default
     // (theme's canvas/bottom-app-bar color) — that was the solid black
     // rounded box showing behind the glass pill. Material(transparency)
-    // removes that fill so only the pill itself (with its own translucent
-    // background + blur) is visible, letting it truly float over content.
+    // removes that fill so only the pill itself is visible.
     return Material(
       type: MaterialType.transparency,
       child: SafeArea(
         top: false,
-        // Lock text scaling for just the nav bar. A user's accessibility
-        // font-size setting (or a phone with a different default scale) is
-        // exactly what caused the "works on my phone, not yours" overflow —
-        // this makes the nav's own layout independent of that setting while
-        // leaving the rest of the app scaling normally.
+        // Lock text scaling for just the nav bar so layout stays stable
+        // across accessibility font sizes.
         child: MediaQuery(
           data: MediaQuery.of(
             context,
           ).copyWith(textScaler: const TextScaler.linear(1.0)),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-            // Row(mainAxisAlignment: center) centers horizontally without
-            // expanding to fill available height — unlike Center()/Align(),
-            // which grab all loose vertical space and end up centering the
-            // pill in the middle of the whole screen while squashing the body.
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -216,14 +336,8 @@ class _BottomNav extends StatelessWidget {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(
-                          0x08FFFFFF,
-                        ), // rgba(255,255,255,0.03)
-                        border: Border.all(
-                          color: const Color(
-                            0x17FFFFFF,
-                          ), // rgba(255,255,255,0.09)
-                        ),
+                        color: const Color(0x08FFFFFF),
+                        border: Border.all(color: const Color(0x17FFFFFF)),
                         borderRadius: BorderRadius.circular(32),
                       ),
                       child: Row(
@@ -258,7 +372,7 @@ class _BottomNav extends StatelessWidget {
   }
 }
 
-class _NavTab extends StatelessWidget {
+class _NavTab extends StatefulWidget {
   final IconData icon;
   final String label;
   final bool active;
@@ -271,77 +385,132 @@ class _NavTab extends StatelessWidget {
     required this.onTap,
   });
 
+  @override
+  State<_NavTab> createState() => _NavTabState();
+}
+
+class _NavTabState extends State<_NavTab> {
   static const _kGold = Color(0xFFC9A86E);
-  static const _kInactive = Color(0x52FFFFFF); // rgba(255,255,255,0.32)
+  static const _kInactive = Color(0x52FFFFFF);
+
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? _kGold : _kInactive;
+    final color = widget.active ? _kGold : _kInactive;
     return GestureDetector(
-      onTap: onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
       behavior: HitTestBehavior.opaque,
-      child: Container(
-        // No fixed height — the Column hugs its own content (icon + gap +
-        // label) via MainAxisSize.min, so it can never be shorter than what
-        // it needs to render, on any device/font-scale combination.
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? const Color(0x0DFFFFFF) : Colors.transparent,
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w400,
-                color: color,
-                height: 1.1,
+      child: AnimatedScale(
+        scale: _pressed ? 0.92 : 1.0,
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOutCubic,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: widget.active
+                ? const Color(0x0DFFFFFF)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, anim) =>
+                    ScaleTransition(scale: anim, child: child),
+                child: Icon(
+                  widget.icon,
+                  key: ValueKey(widget.active),
+                  color: color,
+                  size: 18,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 3),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutCubic,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w400,
+                  color: color,
+                  height: 1.1,
+                ),
+                child: Text(widget.label),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _NavFab extends StatelessWidget {
+class _NavFab extends StatefulWidget {
   final VoidCallback onTap;
 
   const _NavFab({required this.onTap});
 
   @override
+  State<_NavFab> createState() => _NavFabState();
+}
+
+class _NavFabState extends State<_NavFab> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
       behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: 48,
-        height: 48,
-        // No fill/color here beyond the gradient below — the circle itself
-        // is the only background; the icon sits directly on it with
-        // nothing else behind it.
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            center: Alignment(0, 0),
-            radius: 0.9,
-            colors: [Color(0xFFE0BC85), Color(0xFFC9A86E), Color(0xFF8E7A55)],
-            stops: [0.0, 0.5, 1.0],
+      child: AnimatedScale(
+        scale: _pressed ? 0.88 : 1.0,
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOutCubic,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const RadialGradient(
+              center: Alignment(0, 0),
+              radius: 0.9,
+              colors: [
+                Color(0xFFE0BC85),
+                Color(0xFFC9A86E),
+                Color(0xFF8E7A55),
+              ],
+              stops: [0.0, 0.5, 1.0],
+            ),
+            boxShadow: _pressed
+                ? []
+                : [
+                    BoxShadow(
+                      color: const Color(0xFFC9A86E).withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
           ),
-        ),
-        child: const Icon(
-          // Spec: star vector fill is rgba(5,5,5,0.85) — a dark icon sitting
-          // on the gold gradient, not white.
-          Icons.auto_awesome,
-          color: Color(0xD9050505),
-          size: 24,
+          child: const Icon(
+            Icons.auto_awesome,
+            color: Color(0xD9050505),
+            size: 24,
+          ),
         ),
       ),
     );
