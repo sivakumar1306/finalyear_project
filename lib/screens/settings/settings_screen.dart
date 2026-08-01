@@ -222,8 +222,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final firmware = ble.firmwareVersion['firmware'] ?? '--';
 
     return SafeArea(
+      bottom: false,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -551,8 +552,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-
-            const SizedBox(height: 40),
           ],
         ),
       ),

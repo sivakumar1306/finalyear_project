@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import '../../providers/main_tab_provider.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/glass_icon_button.dart';
 import '../../services/chat_api_service.dart';
 import 'key_change_card.dart';
 
@@ -83,30 +80,21 @@ class InsightsHeaderState extends State<InsightsHeader>
         children: [
           const SizedBox(height: 18),
 
-          // Just the centered title, with a back button (per Figma spec) on
-          // the left. Since this screen is a bottom-nav tab (IndexedStack),
-          // not a pushed route, the back button switches to the Home tab
-          // instead of calling Navigator.pop().
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              Text(
-                'AI Assist',
-                style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.02 * 20,
-                  color: const Color(0xF2FFFFFF),
-                ),
+          // Back button + title removed from here — chat_screen.dart now
+          // owns the single back button (it's a pushed route, not a
+          // bottom-nav tab anymore, so it pops + resets to Home itself).
+          // Having a second back button here was a leftover from when this
+          // screen used to live inside the tab bar.
+          Center(
+            child: Text(
+              'AI Assist',
+              style: GoogleFonts.inter(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.02 * 20,
+                color: const Color(0xF2FFFFFF),
               ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: GlassIconButton(
-                  icon: Icons.arrow_back_rounded,
-                  onTap: () => context.read<MainTabProvider>().setTab(0),
-                ),
-              ),
-            ],
+            ),
           ),
 
           const SizedBox(height: 24),

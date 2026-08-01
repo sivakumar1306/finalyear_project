@@ -42,6 +42,22 @@ class _MainShellState extends State<MainShell> {
     context.read<MainTabProvider>().setTab(index);
   }
 
+  // AI Assist is no longer a tab in the IndexedStack — it's pushed as its
+  // own full-screen route. That means the bottom nav (which only lives in
+  // this shell's build method) is structurally absent while chat is open,
+  // and reappears automatically the moment Navigator.pop brings the user
+  // back here — no manual show/hide state needed.
+  void _openAiAssist() {
+    final workout = context.read<WorkoutProvider>();
+    if (workout.isWorkoutActive) {
+      _showWorkoutLockSheet();
+      return;
+    }
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ChatScreen()));
+  }
+
   void _showWorkoutLockSheet() {
     showModalBottomSheet(
       context: context,
@@ -117,7 +133,11 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    // tab is still 0 (Home) or 2 (Settings) from MainTabProvider — the
+    // IndexedStack below only has two children now, so we map tab 2 -> 1.
     final tab = context.watch<MainTabProvider>().tab;
+    final stackIndex = tab == 2 ? 1 : 0;
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
@@ -125,11 +145,22 @@ class _MainShellState extends State<MainShell> {
       ),
       child: Scaffold(
         backgroundColor: const Color.fromRGBO(8, 8, 8, 1),
+        // Without this, Scaffold reserves space and stops `body` short of
+        // bottomNavigationBar — so the BackdropFilter behind the pill only
+        // ever blurs empty black Scaffold background, not your actual
+        // scrolled content, which is what was reading as a solid black box.
+        extendBody: true,
+        // Home and Settings only — AI Assist is pushed separately, so the
+        // bottom nav (built right below) never renders while it's open.
         body: IndexedStack(
-          index: tab,
-          children: const [HomeScreen(), ChatScreen(), SettingsScreen()],
+          index: stackIndex,
+          children: const [HomeScreen(), SettingsScreen()],
         ),
-        bottomNavigationBar: _BottomNav(selected: tab, onTap: _onTabTap),
+        bottomNavigationBar: _BottomNav(
+          selected: tab,
+          onTap: _onTabTap,
+          onAssistTap: _openAiAssist,
+        ),
       ),
     );
   }
@@ -138,51 +169,87 @@ class _MainShellState extends State<MainShell> {
 class _BottomNav extends StatelessWidget {
   final int selected;
   final ValueChanged<int> onTap;
+  final VoidCallback onAssistTap;
 
-  const _BottomNav({required this.selected, required this.onTap});
+  const _BottomNav({
+    required this.selected,
+    required this.onTap,
+    required this.onAssistTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(32),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0x08FFFFFF), // rgba(255,255,255,0.03)
-                border: Border.all(
-                  color: const Color(0x17FFFFFF), // rgba(255,255,255,0.09)
+    // Scaffold wraps bottomNavigationBar in an opaque Material by default
+    // (theme's canvas/bottom-app-bar color) — that was the solid black
+    // rounded box showing behind the glass pill. Material(transparency)
+    // removes that fill so only the pill itself (with its own translucent
+    // background + blur) is visible, letting it truly float over content.
+    return Material(
+      type: MaterialType.transparency,
+      child: SafeArea(
+        top: false,
+        // Lock text scaling for just the nav bar. A user's accessibility
+        // font-size setting (or a phone with a different default scale) is
+        // exactly what caused the "works on my phone, not yours" overflow —
+        // this makes the nav's own layout independent of that setting while
+        // leaving the rest of the app scaling normally.
+        child: MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(1.0)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+            // Row(mainAxisAlignment: center) centers horizontally without
+            // expanding to fill available height — unlike Center()/Align(),
+            // which grab all loose vertical space and end up centering the
+            // pill in the middle of the whole screen while squashing the body.
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(32),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(
+                          0x08FFFFFF,
+                        ), // rgba(255,255,255,0.03)
+                        border: Border.all(
+                          color: const Color(
+                            0x17FFFFFF,
+                          ), // rgba(255,255,255,0.09)
+                        ),
+                        borderRadius: BorderRadius.circular(32),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _NavTab(
+                            icon: Icons.home_outlined,
+                            label: 'Home',
+                            active: selected == 0,
+                            onTap: () => onTap(0),
+                          ),
+                          const SizedBox(width: 24),
+                          _NavFab(onTap: onAssistTap),
+                          const SizedBox(width: 24),
+                          _NavTab(
+                            icon: Icons.settings_outlined,
+                            label: 'Settings',
+                            active: selected == 2,
+                            onTap: () => onTap(2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(32),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _NavTab(
-                    icon: Icons.home_outlined,
-                    label: 'Home',
-                    active: selected == 0,
-                    onTap: () => onTap(0),
-                  ),
-                  const SizedBox(width: 24),
-                  _NavFab(
-                    active: selected == 1,
-                    onTap: () => onTap(1),
-                  ),
-                  const SizedBox(width: 24),
-                  _NavTab(
-                    icon: Icons.settings_outlined,
-                    label: 'Settings',
-                    active: selected == 2,
-                    onTap: () => onTap(2),
-                  ),
-                ],
-              ),
+              ],
             ),
           ),
         ),
@@ -214,8 +281,10 @@ class _NavTab extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.all(12),
+        // No fixed height — the Column hugs its own content (icon + gap +
+        // label) via MainAxisSize.min, so it can never be shorter than what
+        // it needs to render, on any device/font-scale combination.
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: active ? const Color(0x0DFFFFFF) : Colors.transparent,
           borderRadius: BorderRadius.circular(24),
@@ -243,10 +312,9 @@ class _NavTab extends StatelessWidget {
 }
 
 class _NavFab extends StatelessWidget {
-  final bool active;
   final VoidCallback onTap;
 
-  const _NavFab({required this.active, required this.onTap});
+  const _NavFab({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -256,22 +324,23 @@ class _NavFab extends StatelessWidget {
       child: Container(
         width: 48,
         height: 48,
-        decoration: BoxDecoration(
+        // No fill/color here beyond the gradient below — the circle itself
+        // is the only background; the icon sits directly on it with
+        // nothing else behind it.
+        decoration: const BoxDecoration(
           shape: BoxShape.circle,
-          gradient: const RadialGradient(
+          gradient: RadialGradient(
             center: Alignment(0, 0),
             radius: 0.9,
-            colors: [
-              Color(0xFFEBD4A0),
-              Color(0xFFC9A86E),
-              Color(0xFFB08F52),
-            ],
-            stops: [0.0, 0.6, 1.0],
+            colors: [Color(0xFFE0BC85), Color(0xFFC9A86E), Color(0xFF8E7A55)],
+            stops: [0.0, 0.5, 1.0],
           ),
         ),
-        child: Icon(
+        child: const Icon(
+          // Spec: star vector fill is rgba(5,5,5,0.85) — a dark icon sitting
+          // on the gold gradient, not white.
           Icons.auto_awesome,
-          color: active ? Colors.white : const Color(0x99FFFFFF),
+          color: Color(0xD9050505),
           size: 24,
         ),
       ),
