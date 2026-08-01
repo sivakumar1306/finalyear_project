@@ -1429,7 +1429,7 @@ TextStyle _figmaMono(
   FontWeight weight = FontWeight.w500,
   double tracking = 1.32,
 }) =>
-    GoogleFonts.jetBrainsMono(
+    GoogleFonts.inter(
       fontSize: size,
       fontWeight: weight,
       color: color,
@@ -1437,7 +1437,7 @@ TextStyle _figmaMono(
       height: 1,
     );
 
-TextStyle _figmaFraunces(double size) => GoogleFonts.fraunces(
+TextStyle _figmaFraunces(double size) => GoogleFonts.inter(
       fontSize: size,
       fontWeight: FontWeight.w300,
       color: Colors.white.withValues(alpha: 0.95),
@@ -1445,7 +1445,7 @@ TextStyle _figmaFraunces(double size) => GoogleFonts.fraunces(
       height: 1,
     );
 
-TextStyle _figmaStatusStyle() => GoogleFonts.instrumentSans(
+TextStyle _figmaStatusStyle() => GoogleFonts.inter(
       fontSize: 14,
       fontWeight: FontWeight.w500,
       color: Colors.white.withValues(alpha: 0.95),
