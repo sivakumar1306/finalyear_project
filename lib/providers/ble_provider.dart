@@ -65,6 +65,9 @@ class BleProvider extends ChangeNotifier {
   // Sleep state
   int _todaySleepDuration = 0; // seconds
   int _todaySleepScore = 0;
+  int _todaySleepDeepSecs = 0;
+  int _todaySleepLightSecs = 0;
+  int _todaySleepRemSecs = 0;
 
   // Temperature state
   double _latestTempC = 0.0;
@@ -171,6 +174,9 @@ class BleProvider extends ChangeNotifier {
 
   int get todaySleepDuration => _todaySleepDuration;
   int get todaySleepScore => _todaySleepScore;
+  int get todaySleepDeepSecs => _todaySleepDeepSecs;
+  int get todaySleepLightSecs => _todaySleepLightSecs;
+  int get todaySleepRemSecs => _todaySleepRemSecs;
 
   double get latestTempC => _latestTempC;
 
@@ -1149,6 +1155,9 @@ class BleProvider extends ChangeNotifier {
           .clamp(0, 100);
       _todaySleepDuration = total;
       _todaySleepScore = score;
+      _todaySleepDeepSecs = deep;
+      _todaySleepLightSecs = light;
+      _todaySleepRemSecs = rem;
       notifyListeners();
       _saveSleepToDb(total, deep, light, rem, awake, score, st, et);
       // Two-way sync: push last night's sleep into Health Connect.
@@ -1382,6 +1391,9 @@ class BleProvider extends ChangeNotifier {
       if (data != null) {
         _todaySleepDuration = (data['total_duration'] as num? ?? 0).toInt();
         _todaySleepScore = (data['sleep_score'] as num? ?? 0).toInt();
+        _todaySleepDeepSecs = (data['deep_duration'] as num? ?? 0).toInt();
+        _todaySleepLightSecs = (data['light_duration'] as num? ?? 0).toInt();
+        _todaySleepRemSecs = (data['rem_duration'] as num? ?? 0).toInt();
         notifyListeners();
       }
     } catch (_) {}

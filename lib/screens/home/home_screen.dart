@@ -392,6 +392,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ble.todayCalories,
           ),
           hasData: ble.todaySteps > 0,
+          steps: ble.todaySteps,
+          calories: ble.todayCalories,
           expanded: expanded,
           onTap: () => Navigator.pushNamed(context, '/steps'),
         );
@@ -401,6 +403,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           avgStress: ble.todayAvgStress,
           minStress: ble.todayMinStress,
           maxStress: ble.todayMaxStress,
+          hrv: ble.todayAvgHrv,
           connected: ble.isConnected,
           expanded: expanded,
           onTap: () => Navigator.pushNamed(context, '/pressure'),
@@ -411,6 +414,49 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onTap: () => Navigator.pushNamed(context, '/womens-health'),
         );
       case HomeCardId.sleep:
+        if (expanded) {
+          final dur = ble.todaySleepDuration;
+          final h = dur ~/ 3600;
+          final m = (dur % 3600) ~/ 60;
+          final stageTotal = ble.todaySleepDeepSecs +
+              ble.todaySleepLightSecs +
+              ble.todaySleepRemSecs;
+          int pct(int s) =>
+              stageTotal > 0 ? (s * 100 / stageTotal).round() : 0;
+          return _FigmaExpandedCard(
+            orbColor: _kOrbSleep,
+            height: 175,
+            icon: Icons.bedtime_outlined,
+            title: 'SLEEP',
+            status: dur > 0 ? _sleepStatus(ble.todaySleepScore) : 'No data',
+            value: dur > 0
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      _figmaValue('$h'),
+                      const SizedBox(width: 3),
+                      _figmaUnit('h'),
+                      const SizedBox(width: 3),
+                      _figmaValue('$m'),
+                      const SizedBox(width: 3),
+                      _figmaUnit('m'),
+                    ],
+                  )
+                : _figmaValue('--'),
+            chart: _SleepStageBar(
+              deepSecs: ble.todaySleepDeepSecs,
+              lightSecs: ble.todaySleepLightSecs,
+              remSecs: ble.todaySleepRemSecs,
+            ),
+            footnoteLead: dur > 0 ? 'Deep ${pct(ble.todaySleepDeepSecs)}%' : 'No data',
+            footnoteRest: dur > 0
+                ? ' · REM ${pct(ble.todaySleepRemSecs)}% · Light ${pct(ble.todaySleepLightSecs)}% · ${ble.todaySleepScore} score'
+                : '',
+            onTap: () => Navigator.pushNamed(context, '/sleep'),
+          );
+        }
         return _HomeCard(
           label: 'Sleep',
           value: _sleepDurationLabel(ble.todaySleepDuration),
@@ -495,6 +541,49 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onTap: () => Navigator.pushNamed(context, '/blood-oxygen'),
         );
       case HomeCardId.heartRate:
+        if (expanded) {
+          final hr = ble.todayAvgHr;
+          final hrv = ble.todayAvgHrv;
+          return _FigmaExpandedCard(
+            orbColor: _kOrbHr,
+            height: 152,
+            icon: Icons.favorite,
+            title: 'HEART RATE',
+            status: hr > 0 ? _hrStatus(hr) : 'No data',
+            value: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                _figmaValue(hr > 0 ? '$hr' : '--'),
+                const SizedBox(width: 3),
+                _figmaUnit('BPM'),
+              ],
+            ),
+            chart: CustomPaint(
+              painter: const _AreaChartPainter([
+                0.45,
+                0.5,
+                0.55,
+                0.5,
+                0.6,
+                0.55,
+                0.5,
+                0.48,
+                0.52,
+                0.58,
+                0.54,
+                0.5,
+              ]),
+              child: const SizedBox.expand(),
+            ),
+            footnoteLead: hrv > 0 ? 'HRV $hrv' : 'No data',
+            footnoteRest: hr > 0
+                ? ' · ${_hrStatus(hr)} zones today.'
+                : ' · connect ring to track',
+            onTap: () => Navigator.pushNamed(context, '/heart-rate'),
+          );
+        }
         return _HomeCard(
           label: 'Heart Rate',
           value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
@@ -1255,6 +1344,7 @@ class _GlassCard extends StatelessWidget {
   final double orbAlpha;
   final double orbSize;
   final EdgeInsetsGeometry? padding;
+  final Color? borderColor;
 
   const _GlassCard({
     required this.orbColor,
@@ -1267,6 +1357,7 @@ class _GlassCard extends StatelessWidget {
     this.orbAlpha = 0.34,
     this.orbSize = 240,
     this.padding,
+    this.borderColor,
   });
 
   @override
@@ -1289,7 +1380,7 @@ class _GlassCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           color: _kCardBg,
-          border: Border.all(color: _kCardBorder, width: 0.5),
+          border: Border.all(color: borderColor ?? _kCardBorder, width: 0.5),
         ),
         child: Stack(
           fit: height != null ? StackFit.expand : StackFit.loose,
@@ -1315,6 +1406,321 @@ class _GlassCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Figma-style expanded card (new app page frames 478–484) ───────────────────
+// Expanded cards follow the new app page anatomy: icon + mono title + chevron,
+// status/value row, 36px chart area, divider, footnote.
+
+const _kFigmaBorder = Color(0x1FFFFFFF); // rgba(255,255,255,0.12)
+const _kFigmaLabel = Color(0x73FFFFFF); // rgba(255,255,255,0.45)
+const _kFigmaLabelStrong = Color(0x99FFFFFF); // rgba(255,255,255,0.6)
+const _kFigmaStageDeep = Color(0xFF5B7BB3);
+const _kFigmaStageRem = Color(0xFFA088E0);
+const _kFigmaLightBar = Color(0x59FFFFFF); // rgba(255,255,255,0.35)
+const _kFigmaStressLow = Color(0xFF8FE5B5);
+const _kFigmaStressHigh = Color(0xFFE88FA0);
+
+TextStyle _figmaMono(
+  double size, {
+  Color color = _kFigmaLabel,
+  FontWeight weight = FontWeight.w500,
+  double tracking = 1.32,
+}) =>
+    GoogleFonts.jetBrainsMono(
+      fontSize: size,
+      fontWeight: weight,
+      color: color,
+      letterSpacing: tracking,
+      height: 1,
+    );
+
+TextStyle _figmaFraunces(double size) => GoogleFonts.fraunces(
+      fontSize: size,
+      fontWeight: FontWeight.w300,
+      color: Colors.white.withValues(alpha: 0.95),
+      letterSpacing: 1.44,
+      height: 1,
+    );
+
+TextStyle _figmaStatusStyle() => GoogleFonts.instrumentSans(
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+      color: Colors.white.withValues(alpha: 0.95),
+      height: 1,
+    );
+
+Text _figmaValue(String s) => Text(s, style: _figmaFraunces(24));
+
+Text _figmaUnit(String s) => Text(s, style: _figmaMono(11, tracking: 0.66));
+
+/// Shared expanded-card layout from the new app page: header row (13px icon,
+/// uppercase mono title, 16px chevron), 24px status/value row, 36px chart,
+/// 1px divider and a two-tone mono footnote.
+class _FigmaExpandedCard extends StatelessWidget {
+  final Color orbColor;
+  final double height;
+  final IconData icon;
+  final String title;
+  final String status;
+  final Widget value;
+  final Widget chart;
+  final String footnoteLead;
+  final String footnoteRest;
+  final VoidCallback? onTap;
+
+  const _FigmaExpandedCard({
+    required this.orbColor,
+    required this.height,
+    required this.icon,
+    required this.title,
+    required this.status,
+    required this.value,
+    required this.chart,
+    required this.footnoteLead,
+    required this.footnoteRest,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      orbColor: orbColor,
+      height: height,
+      orbAlpha: 0.25,
+      orbSize: 220,
+      borderColor: _kFigmaBorder,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 13, color: Colors.white.withValues(alpha: 0.6)),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  title,
+                  style: _figmaMono(11),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 16,
+                color: _kFigmaLabel,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Expanded(
+                child: Text(
+                  status,
+                  style: _figmaStatusStyle(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              value,
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(height: 36, width: double.infinity, child: chart),
+          const SizedBox(height: 10),
+          Container(height: 1, width: double.infinity, color: _kFigmaBorder),
+          const SizedBox(height: 10),
+          Text.rich(
+            TextSpan(
+              style: _figmaMono(11, tracking: 0.44),
+              children: [
+                TextSpan(
+                  text: footnoteLead,
+                  style: const TextStyle(
+                    color: _kFigmaLabelStrong,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                TextSpan(text: footnoteRest),
+              ],
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Sleep stage bar — deep / REM / light segments with the design's 4px gap
+/// and rounded leading/trailing corners.  Falls back to equal thirds when no
+/// stage data has arrived yet.
+class _SleepStageBar extends StatelessWidget {
+  final int deepSecs;
+  final int lightSecs;
+  final int remSecs;
+
+  const _SleepStageBar({
+    required this.deepSecs,
+    required this.lightSecs,
+    required this.remSecs,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final total = deepSecs + lightSecs + remSecs;
+    int flex(int v) => total <= 0
+        ? 1
+        : (v / total * 1000).round().clamp(1, 1000).toInt();
+    return Row(
+      children: [
+        Expanded(
+          flex: flex(deepSecs),
+          child: Container(
+            height: 8,
+            decoration: BoxDecoration(
+              color: _kFigmaStageDeep,
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(4),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          flex: flex(remSecs),
+          child: Container(height: 8, color: _kFigmaStageRem),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          flex: flex(lightSecs),
+          child: Container(
+            height: 8,
+            decoration: BoxDecoration(
+              color: _kFigmaLightBar,
+              borderRadius: const BorderRadius.horizontal(
+                right: Radius.circular(4),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Activity progress bar — 8px track with a rounded 35%-white fill.
+class _ActivityProgressBar extends StatelessWidget {
+  final double fraction;
+  const _ActivityProgressBar({required this.fraction});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 8,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: FractionallySizedBox(
+        alignment: Alignment.centerLeft,
+        widthFactor: fraction.clamp(0.0, 1.0),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _kFigmaLightBar,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Cycle phase bar — menstrual / follicular / ovulating / luteal segments
+/// with a day marker above the bar.
+class _CyclePhaseBar extends StatelessWidget {
+  final int cycleDay;
+  final int cycleLength;
+  final int periodLen;
+
+  const _CyclePhaseBar({
+    required this.cycleDay,
+    required this.cycleLength,
+    required this.periodLen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final len = cycleLength > 0 ? cycleLength : 28;
+    final pLen = periodLen > 0 ? periodLen : 5;
+    final day = cycleDay.clamp(1, len).toInt();
+    int flex(int v) => v.clamp(1, len).toInt();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  flex: flex(pLen),
+                  child: Container(
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: _kFigmaStressHigh,
+                      borderRadius: const BorderRadius.horizontal(
+                        left: Radius.circular(4),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  flex: flex(13 - pLen),
+                  child: Container(height: 8, color: _kFigmaLightBar),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  flex: flex(3),
+                  child: Container(height: 8, color: _kFigmaStressLow),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  flex: flex(len - 16),
+                  child: Container(
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: _kFigmaStageDeep,
+                      borderRadius: const BorderRadius.horizontal(
+                        right: Radius.circular(4),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Positioned(
+              left: (constraints.maxWidth * ((day - 0.5) / len)) - 5,
+              top: -4,
+              child: Icon(
+                Icons.arrow_drop_down,
+                size: 12,
+                color: Colors.white.withValues(alpha: 0.9),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1531,6 +1937,7 @@ class _StressCard extends StatelessWidget {
   final int avgStress;
   final int minStress;
   final int maxStress;
+  final int hrv;
   final bool connected;
   final VoidCallback? onTap;
   final bool expanded;
@@ -1562,12 +1969,15 @@ class _StressCard extends StatelessWidget {
     0.32,
   ];
 
+  static final _bars40 = _interpolate(_barData, 40);
+
   const _StressCard({
     required this.value,
     required this.avgStress,
     required this.minStress,
     required this.maxStress,
     required this.connected,
+    this.hrv = 0,
     this.onTap,
     this.expanded = false,
   });
@@ -1576,6 +1986,24 @@ class _StressCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = _stressStatus(value);
     final color = _stressColor(value);
+
+    if (expanded) {
+      return _FigmaExpandedCard(
+        orbColor: _kOrbStress,
+        height: 158,
+        icon: Icons.monitor_heart,
+        title: 'STRESS',
+        status: value > 0 ? status : 'No data',
+        value: _figmaValue(hrv > 0 ? 'HRV $hrv' : '--'),
+        chart: CustomPaint(
+          painter: _StressMiniBarsPainter(_bars40),
+          child: const SizedBox.expand(),
+        ),
+        footnoteLead: avgStress > 0 ? 'Avg $avgStress' : 'No data',
+        footnoteRest: maxStress > 0 ? ' · Range $minStress-$maxStress' : '',
+        onTap: onTap,
+      );
+    }
 
     // Auto-height: fixed pixel heights clip on denser fonts / text scale /
     // narrow phones. Content defines the card height instead.  Expanded cards
@@ -1751,18 +2179,51 @@ class _StressStatColumn extends StatelessWidget {
 class _ActivityScoreCard extends StatelessWidget {
   final int score;
   final bool hasData;
+  final int steps;
+  final int calories;
   final VoidCallback? onTap;
   final bool expanded;
 
   const _ActivityScoreCard({
     required this.score,
     required this.hasData,
+    this.steps = 0,
+    this.calories = 0,
     this.onTap,
     this.expanded = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (expanded) {
+      final activeMin = steps ~/ 100;
+      final remaining = (10000 - steps).clamp(0, 10000).toInt();
+      return _FigmaExpandedCard(
+        orbColor: _kOrbActivity,
+        height: 158,
+        icon: Icons.directions_walk,
+        title: 'ACTIVITY',
+        status: steps > 0
+            ? (steps >= 10000 ? 'On Target' : 'Below Target')
+            : 'No data',
+        value: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            _figmaValue(steps > 0 ? _formatInt(steps) : '--'),
+            const SizedBox(width: 3),
+            _figmaUnit('/ 10K'),
+          ],
+        ),
+        chart: _ActivityProgressBar(fraction: steps / 10000.0),
+        footnoteLead: calories > 0 ? '${_formatInt(calories)} cal' : 'No data',
+        footnoteRest: steps > 0
+            ? ' · $activeMin min active · ${_formatInt(remaining)} to go'
+            : '',
+        onTap: onTap,
+      );
+    }
     // No fixed height — pairs with _AlarmCard via IntrinsicHeight so both
     // grow together when text scale / font metrics need more room.  Expanded
     // cards switch to the fixed 1.5× height (240 = 1.5 × the standard 160).
@@ -2386,6 +2847,27 @@ class _CompactWomensHealthCardState extends State<_CompactWomensHealthCard> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.expanded) {
+      final daysLeft = (_cycleLength - _cycleDay + 1).clamp(1, _cycleLength);
+      return _FigmaExpandedCard(
+        orbColor: const Color(0xFFD860C8),
+        height: 158,
+        icon: Icons.woman,
+        title: 'CYCLE',
+        status: _cycleDay > 0 ? _phaseName : 'No data',
+        value: _figmaValue(_cycleDay > 0 ? 'Day $_cycleDay' : 'Day --'),
+        chart: _CyclePhaseBar(
+          cycleDay: _cycleDay,
+          cycleLength: _cycleLength,
+          periodLen: _periodLen,
+        ),
+        footnoteLead: _cycleDay > 0 ? 'Next period in $daysLeft days' : 'No data',
+        footnoteRest: _cycleDay > 0
+            ? ' · ${_phaseName.toLowerCase()} phase'
+            : '',
+        onTap: widget.onTap,
+      );
+    }
     return _CompactHealthCard(
       title: 'Women\'s Health',
       orbColor: const Color.fromRGBO(216, 96, 200, 0.32),
@@ -2448,6 +2930,33 @@ class _CompactBloodPressureCard extends StatelessWidget {
     final sbp = ble.latestBpSbp;
     final dbp = ble.latestBpDbp;
     final hasData = sbp > 0 && dbp > 0;
+
+    if (expanded) {
+      return _FigmaExpandedCard(
+        orbColor: const Color(0xFFD86560),
+        height: 161,
+        icon: Icons.water_drop,
+        title: 'BLOOD PRESSURE',
+        status: hasData ? _bpCompactStatus(sbp, dbp) : 'No data',
+        value: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            _figmaValue(hasData ? '$sbp' : '--'),
+            const SizedBox(width: 3),
+            _figmaUnit(hasData ? '/$dbp' : '/--'),
+          ],
+        ),
+        chart: CustomPaint(
+          painter: _BpChartPainter(sbp: sbp, dbp: dbp),
+          child: const SizedBox.expand(),
+        ),
+        footnoteLead: hasData ? '$sbp/$dbp mmHg' : 'No data',
+        footnoteRest: hasData ? ' · latest reading' : '',
+        onTap: onTap,
+      );
+    }
 
     return _CompactHealthCard(
       title: 'Blood Pressure',
@@ -2736,6 +3245,183 @@ class _EditCardsButton extends StatelessWidget {
 }
 
 // ── Painters ──────────────────────────────────────────────────────────────────
+
+/// Resamples [src] into [count] points via linear interpolation.
+List<double> _interpolate(List<double> src, int count) {
+  if (src.length == count) return List.of(src);
+  final out = <double>[];
+  for (int i = 0; i < count; i++) {
+    final t = i / (count - 1) * (src.length - 1);
+    final lo = t.floor();
+    final hi = (lo + 1).clamp(0, src.length - 1);
+    final f = t - lo;
+    out.add(src[lo] * (1 - f) + src[hi] * f);
+  }
+  return out;
+}
+
+String _formatInt(int v) => v.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+$)'),
+      (m) => '${m[1]},',
+    );
+
+/// Heart Rate area chart — faint 7% fill under a 0.7-white curve with an
+/// end-point dot (Frame 478: Rectangle 1 + Line 15 + Ellipse 6).
+class _AreaChartPainter extends CustomPainter {
+  final List<double> data;
+  const _AreaChartPainter(this.data);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.length < 2 || size.width <= 0 || size.height <= 0) return;
+    const pad = 6.0;
+    final step = size.width / (data.length - 1);
+    final ys = <double>[];
+    final path = Path();
+    for (int i = 0; i < data.length; i++) {
+      final x = i * step;
+      final y = pad + (1 - data[i]) * (size.height - pad * 2);
+      ys.add(y);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        final px = (i - 1) * step;
+        final py = ys[i - 1];
+        final cpx = (px + x) / 2;
+        path.cubicTo(cpx, py, cpx, y, x, y);
+      }
+    }
+    final fill = Path.from(path)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(fill, Paint()..color = Colors.white.withValues(alpha: 0.07));
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.7)
+        ..strokeWidth = 1.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawCircle(
+      Offset(size.width, ys.last),
+      2,
+      Paint()..color = Colors.white.withValues(alpha: 0.9),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_AreaChartPainter old) => old.data != data;
+}
+
+/// Blood Pressure chart — systolic (0.7-white) and diastolic (0.35-white)
+/// lines over a common 70–140 mmHg scale, with an end-point dot.
+class _BpChartPainter extends CustomPainter {
+  final int sbp;
+  final int dbp;
+  const _BpChartPainter({required this.sbp, required this.dbp});
+
+  static const _sysPattern = [
+    114.0, 119.0, 122.0, 118.0, 125.0, 129.0, 126.0, 121.0, 128.0, 132.0,
+    128.0, 125.0, 124.0,
+  ];
+  static const _diaPattern = [
+    76.0, 78.0, 79.0, 77.0, 81.0, 83.0, 80.0, 78.0, 82.0, 85.0, 82.0, 80.0,
+    79.0,
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+    final sysScale = sbp > 0 ? sbp / 128.0 : 1.0;
+    final diaScale = dbp > 0 ? dbp / 82.0 : 1.0;
+    Path line(List<double> pattern, double scale) {
+      final p = Path();
+      final step = size.width / (pattern.length - 1);
+      for (int i = 0; i < pattern.length; i++) {
+        final x = i * step;
+        final v = pattern[i] * scale;
+        final y = size.height * (1 - (v - 70) / 70);
+        if (i == 0) {
+          p.moveTo(x, y);
+        } else {
+          final px = (i - 1) * step;
+          final py = size.height * (1 - (pattern[i - 1] * scale - 70) / 70);
+          final cpx = (px + x) / 2;
+          p.cubicTo(cpx, py, cpx, y, x, y);
+        }
+      }
+      return p;
+    }
+
+    final sys = line(_sysPattern, sysScale);
+    final dia = line(_diaPattern, diaScale);
+    canvas.drawPath(
+      dia,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.35)
+        ..strokeWidth = 1.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawPath(
+      sys,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.7)
+        ..strokeWidth = 1.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round,
+    );
+    final last = size.height * (1 - (_sysPattern.last * sysScale - 70) / 70);
+    canvas.drawCircle(
+      Offset(size.width, last),
+      2,
+      Paint()..color = Colors.white.withValues(alpha: 0.9),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_BpChartPainter old) => old.sbp != sbp || old.dbp != dbp;
+}
+
+/// Stress mini-bar chart — 6px bars, 2px gap, rounded 2px: low = soft green,
+/// mid = 80% white, high = soft rose (Frame 481 colours).
+class _StressMiniBarsPainter extends CustomPainter {
+  final List<double> data;
+  const _StressMiniBarsPainter(this.data);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.isEmpty || size.width <= 0 || size.height <= 0) return;
+    const barW = 6.0;
+    final maxH = size.height * 0.67;
+    final pitch = size.width / data.length;
+    for (int i = 0; i < data.length; i++) {
+      final x = i * pitch + (pitch - barW) / 2;
+      final h = (data[i] * maxH).clamp(2.0, maxH);
+      final y = size.height - h;
+      final Color barColor;
+      if (data[i] < 0.4) {
+        barColor = _kFigmaStressLow;
+      } else if (data[i] < 0.65) {
+        barColor = Colors.white.withValues(alpha: 0.8);
+      } else {
+        barColor = _kFigmaStressHigh;
+      }
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, y, barW, h),
+          const Radius.circular(2),
+        ),
+        Paint()..color = barColor,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StressMiniBarsPainter old) => old.data != data;
+}
 
 class _SparkPainter extends CustomPainter {
   final Color color;
