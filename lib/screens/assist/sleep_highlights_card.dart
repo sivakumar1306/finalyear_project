@@ -5,10 +5,12 @@ import '../../theme/app_theme.dart';
 
 class SleepHighlightsCard extends StatelessWidget {
   final Map<String, dynamic> data;
+  final VoidCallback? onTap;
 
   const SleepHighlightsCard({
     super.key,
     required this.data,
+    this.onTap,
   });
 
   String _formatMinutes(int totalMins) {
@@ -34,67 +36,75 @@ class SleepHighlightsCard extends StatelessWidget {
     // doesn't re-blur the backdrop every frame.
     return RepaintBoundary(
       child: Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 335),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              decoration: BoxDecoration(
-                color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.03)
-                border: Border.all(
-                  color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
-                  width: 0.5,
-                ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 335),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onTap,
+              child: ClipRRect(
                 borderRadius: BorderRadius.circular(18),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'SLEEP HIGHLIGHTS',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.14 * 10, // 0.14em
-                      color: const Color(0x6BFFFFFF), // rgba(255,255,255,0.42)
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                    decoration: BoxDecoration(
+                      color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.03)
+                      border: Border.all(
+                        color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
+                        width: 0.5,
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'SLEEP HIGHLIGHTS',
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0.14 * 10, // 0.14em
+                            color: const Color(0x6BFFFFFF), // rgba(255,255,255,0.42)
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          height: 0.5,
+                          color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
+                        ),
+                        const SizedBox(height: 14),
+                        _buildRow(
+                          color: AppTheme.sleepAwake,
+                          label: 'Time Awake',
+                          mins: awake,
+                          totalMins: totalMinutes,
+                        ),
+                        _buildDivider(),
+                        _buildRow(
+                          color: AppTheme.sleepLight,
+                          label: 'Light Sleep',
+                          mins: light,
+                          totalMins: totalMinutes,
+                        ),
+                        _buildDivider(),
+                        _buildRow(
+                          color: AppTheme.sleepDeep,
+                          label: 'Deep Sleep',
+                          mins: deep,
+                          totalMins: totalMinutes,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Container(
-                    height: 0.5,
-                    color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
-                  ),
-                  const SizedBox(height: 14),
-                  _buildRow(
-                    color: AppTheme.sleepAwake,
-                    label: 'Time Awake',
-                    mins: awake,
-                    totalMins: totalMinutes,
-                  ),
-                  _buildDivider(),
-                  _buildRow(
-                    color: AppTheme.sleepLight,
-                    label: 'Light Sleep',
-                    mins: light,
-                    totalMins: totalMinutes,
-                  ),
-                  _buildDivider(),
-                  _buildRow(
-                    color: AppTheme.sleepDeep,
-                    label: 'Deep Sleep',
-                    mins: deep,
-                    totalMins: totalMinutes,
-                  ),
-                ],
+                ),
               ),
             ),
           ),
         ),
-      ),
       ),
     );
   }

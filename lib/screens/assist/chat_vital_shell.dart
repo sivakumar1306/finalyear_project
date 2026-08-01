@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 /// Shared glass-card shell for single-metric vital cards shown in chat
 /// (heart rate, SpO2, HRV, steps). Matches the Figma sleep-highlights style.
+/// Responsive: max 335 wide, stat chips scale down so long values never
+/// overflow narrow screens. Tappable via [onTap] (ripple under the glass).
 class ChatVitalCardShell extends StatelessWidget {
   final String title;
   final Color accent;
@@ -11,6 +13,7 @@ class ChatVitalCardShell extends StatelessWidget {
   final String unit;
   final Widget chart;
   final bool showMinMax;
+  final VoidCallback? onTap;
 
   const ChatVitalCardShell({
     super.key,
@@ -22,63 +25,91 @@ class ChatVitalCardShell extends StatelessWidget {
     required this.unit,
     required this.chart,
     this.showMinMax = true,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Container(
+      child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 335),
-        child: ClipRRect(
+        child: Material(
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(18),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              decoration: BoxDecoration(
-                color: const Color(0x0AFFFFFF),
-                border: Border.all(color: const Color(0x14FFFFFF), width: 0.5),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.14 * 10,
-                      color: const Color(0x6BFFFFFF),
-                    ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  decoration: BoxDecoration(
+                    color: const Color(0x0AFFFFFF),
+                    border: Border.all(color: const Color(0x14FFFFFF), width: 0.5),
+                    borderRadius: BorderRadius.circular(18),
                   ),
-                  const SizedBox(height: 10),
-                  Container(height: 0.5, color: const Color(0x0AFFFFFF)),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      statChip('AVG', avg > 0 ? '$avg' : '--', unit, accent),
-                      if (showMinMax) ...[
-                        statChip(
-                          'MIN',
-                          min > 0 ? '$min' : '--',
-                          unit,
-                          const Color(0x99FFFFFF),
+                      Text(
+                        title,
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.14 * 10,
+                          color: const Color(0x6BFFFFFF),
                         ),
-                        statChip(
-                          'MAX',
-                          max > 0 ? '$max' : '--',
-                          unit,
-                          const Color(0x99FFFFFF),
-                        ),
-                      ],
+                      ),
+                      const SizedBox(height: 10),
+                      Container(height: 0.5, color: const Color(0x0AFFFFFF)),
+                      const SizedBox(height: 14),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: statChip('AVG', avg > 0 ? '$avg' : '--', unit, accent),
+                            ),
+                          ),
+                          if (showMinMax) ...[
+                            const SizedBox(width: 10),
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: statChip(
+                                  'MIN',
+                                  min > 0 ? '$min' : '--',
+                                  unit,
+                                  const Color(0x99FFFFFF),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerRight,
+                                child: statChip(
+                                  'MAX',
+                                  max > 0 ? '$max' : '--',
+                                  unit,
+                                  const Color(0x99FFFFFF),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(height: 80, child: chart),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  SizedBox(height: 80, child: chart),
-                ],
+                ),
               ),
             ),
           ),

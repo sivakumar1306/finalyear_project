@@ -4,16 +4,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
-import '../../providers/main_tab_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../services/unit_prefs.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/footer_spacer.dart';
 import '../ota/ota_screen.dart';
 import 'background_protection_screen.dart';
 import 'find_device_screen.dart';
 import 'health_connect_screen.dart';
 import 'profile_edit_screen.dart';
 import 'ring_camera_screen.dart';
+import '../main_shell.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -224,7 +225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return SafeArea(
       bottom: false,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -310,7 +311,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   Image.asset(
-                    'ring.webp',
+                    'ring.png',
                     width: 72,
                     height: 72,
                     fit: BoxFit.contain,
@@ -414,7 +415,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _SettingsRow.arrow(
                     icon: Icons.auto_awesome_rounded,
                     title: 'AI Analysis',
-                    onTap: () => context.read<MainTabProvider>().setTab(1),
+                    onTap: () =>
+                        Navigator.of(context).push(buildAiAssistRoute()),
                   ),
                   _divider(),
                   // Ring photo control — puts the ring into its camera UI so its
@@ -552,6 +554,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
+            const FooterSpacer(),
           ],
         ),
       ),

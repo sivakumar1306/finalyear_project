@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/supabase_service.dart';
 import '../../models/onboarding_data.dart';
 import '../onboarding/onboarding_name_screen.dart';
+import 'forgot_password_screen.dart';
 import 'sign_up_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -127,6 +128,23 @@ class _LoginScreenState extends State<LoginScreen> {
                           size: 20,
                         ),
                         onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ForgotPasswordScreen(),
+                        ),
+                      ),
+                      child: const Text(
+                        'Forgot password?',
+                        style: TextStyle(
+                          color: Color(0xFFC9A86E),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                     if (_error != null) ...[

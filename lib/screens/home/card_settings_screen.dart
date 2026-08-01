@@ -3,8 +3,9 @@ import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
-import '../../services/home_card_prefs.dart';
+import '../../providers/home_card_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_header.dart';
 import '../../widgets/glass_icon_button.dart';
@@ -32,104 +33,41 @@ const _kCardItems = [
   _CardItem(HomeCardId.temperature, 'Temperature', Color(0xFFE3B76A), Icons.device_thermostat),
 ];
 
-class CardSettingsScreen extends StatefulWidget {
+class CardSettingsScreen extends StatelessWidget {
   final VoidCallback? onClose;
   const CardSettingsScreen({super.key, this.onClose});
 
-  @override
-  State<CardSettingsScreen> createState() => _CardSettingsScreenState();
-}
-
-class _CardSettingsScreenState extends State<CardSettingsScreen> {
-  late List<HomeCardId> _order;
-  late Set<HomeCardId> _hidden;
-  late Set<HomeCardId> _expanded;
-  bool _compactMode = false;
-  bool _loaded = false;
-  bool _changed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final order = await HomeCardPrefs.loadOrder();
-    final hidden = await HomeCardPrefs.loadHidden();
-    final expanded = await HomeCardPrefs.loadExpanded();
-    final compactMode = await HomeCardPrefs.loadCompactMode();
-    if (mounted) {
-      setState(() {
-        _order = order;
-        _hidden = hidden;
-        _expanded = expanded;
-        _compactMode = compactMode;
-        _loaded = true;
-      });
-    }
-  }
-
-  Future<void> _save() async {
-    await HomeCardPrefs.saveOrder(_order);
-    await HomeCardPrefs.saveHidden(_hidden);
-    await HomeCardPrefs.saveExpanded(_expanded);
-    await HomeCardPrefs.saveCompactMode(_compactMode);
-  }
-
-  /// Saves pending changes (if any) and leaves the screen — either via the
-  /// optional [onClose] callback (embedded use) or by popping the route.
-  void _finish() {
-    if (_changed) _save();
-    if (widget.onClose != null) {
-      widget.onClose!();
+  void _finish(BuildContext context) {
+    if (onClose != null) {
+      onClose!();
     } else {
       Navigator.pop(context);
     }
   }
 
-  bool _isVisible(HomeCardId id) => !_hidden.contains(id);
-  bool _isExpanded(HomeCardId id) => _expanded.contains(id);
-
-  void _toggleVisibility(HomeCardId id) {
-    setState(() {
-      if (_hidden.contains(id)) {
-        _hidden.remove(id);
-      } else {
-        _hidden.add(id);
-      }
-      _changed = true;
-    });
-  }
-
-  void _toggleExpanded(HomeCardId id) {
-    setState(() {
-      if (_expanded.contains(id)) {
-        _expanded.remove(id);
-      } else {
-        _expanded.add(id);
-      }
-      _changed = true;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (!_loaded) {
+    final provider = context.watch<HomeCardProvider>();
+    if (!provider.isLoaded) {
       return const Scaffold(
         backgroundColor: Color(0xFF050505),
         body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
 
-    final visibleItems = _kCardItems.where((item) => _order.contains(item.id)).toList()
-      ..sort((a, b) => _order.indexOf(a.id).compareTo(_order.indexOf(b.id)));
+    final order = provider.order;
+    final hidden = provider.hiddenCards;
+    final expanded = provider.expandedCards;
+    final compactMode = provider.compactMode;
+
+    final visibleItems = _kCardItems.where((item) => order.contains(item.id)).toList()
+      ..sort((a, b) => order.indexOf(a.id).compareTo(order.indexOf(b.id)));
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        _finish();
+        _finish(context);
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF050505),
@@ -138,10 +76,10 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
             children: [
               GlassHeader(
                 title: 'Edit Cards',
-                onBack: _finish,
+                onBack: () => _finish(context),
                 trailing: GlassIconButton(
                   icon: Icons.check_rounded,
-                  onTap: _finish,
+                  onTap: () => _finish(context),
                 ),
               ),
               Padding(
@@ -163,10 +101,7 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
                       right: 0,
                       child: GestureDetector(
                         onTap: () {
-                          setState(() {
-                            _compactMode = !_compactMode;
-                            _changed = true;
-                          });
+                          provider.setCompactMode(!compactMode);
                         },
                         child: Row(
                           children: [
@@ -175,21 +110,18 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
                               style: GoogleFonts.inter(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
-                                color: _compactMode ? AppTheme.gold : Colors.white.withValues(alpha: 0.5),
+                                color: compactMode ? AppTheme.gold : Colors.white.withValues(alpha: 0.5),
                               ),
                             ),
                             const SizedBox(width: 4),
                             Transform.scale(
                               scale: 0.55,
                               child: CupertinoSwitch(
-                                value: _compactMode,
+                                value: compactMode,
                                 activeTrackColor: AppTheme.gold,
                                 inactiveTrackColor: Colors.white.withValues(alpha: 0.12),
                                 onChanged: (v) {
-                                  setState(() {
-                                    _compactMode = v;
-                                    _changed = true;
-                                  });
+                                  provider.setCompactMode(v);
                                 },
                               ),
                             ),
@@ -216,11 +148,7 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
                         child: ReorderableListView.builder(
                           itemCount: visibleItems.length,
                           onReorderItem: (int oldIndex, int newIndex) {
-                            setState(() {
-                              final item = _order.removeAt(oldIndex);
-                              _order.insert(newIndex, item);
-                              _changed = true;
-                            });
+                            provider.reorder(oldIndex, newIndex);
                           },
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
                           itemBuilder: (context, index) {
@@ -228,10 +156,10 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
                             return _CardSettingsRow(
                               key: ValueKey(item.id),
                               item: item,
-                              visible: _isVisible(item.id),
-                              expanded: _isExpanded(item.id),
-                              onToggleVisibility: () => _toggleVisibility(item.id),
-                              onToggleExpanded: () => _toggleExpanded(item.id),
+                              visible: !hidden.contains(item.id),
+                              expanded: expanded.contains(item.id),
+                              onToggleVisibility: () => provider.toggleVisibility(item.id),
+                              onToggleExpanded: () => provider.toggleExpanded(item.id),
                             );
                           },
                         ),

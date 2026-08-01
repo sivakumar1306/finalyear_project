@@ -9,6 +9,7 @@ import 'providers/ble_provider.dart';
 import 'providers/workout_provider.dart';
 import 'providers/alarm_mode_provider.dart';
 import 'providers/main_tab_provider.dart';
+import 'providers/home_card_provider.dart';
 import 'services/supabase_service.dart';
 import 'app.dart';
 
@@ -81,6 +82,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => WorkoutProvider()),
         ChangeNotifierProvider(create: (_) => AlarmModeProvider()),
         ChangeNotifierProvider(create: (_) => MainTabProvider()),
+        ChangeNotifierProvider(create: (_) => HomeCardProvider()..load()),
       ],
       child: const QRingApp(),
     ),

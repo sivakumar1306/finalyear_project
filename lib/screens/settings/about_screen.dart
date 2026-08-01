@@ -33,7 +33,7 @@ class AboutScreen extends StatelessWidget {
           children: [
             const SizedBox(height: 20),
             // App Icon Placeholder / Ring Image
-            Image.asset('ring.webp', width: 90, height: 90, fit: BoxFit.contain),
+            Image.asset('ring.png', width: 90, height: 90, fit: BoxFit.contain),
             const SizedBox(height: 16),
             Text(
               'SUNDR',

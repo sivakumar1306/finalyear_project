@@ -4,7 +4,8 @@ import 'chat_vital_shell.dart';
 
 class StepsChatCard extends StatelessWidget {
   final Map<String, dynamic> data;
-  const StepsChatCard({super.key, required this.data});
+  final VoidCallback? onTap;
+  const StepsChatCard({super.key, required this.data, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +38,7 @@ class StepsChatCard extends StatelessWidget {
         yLines: [maxVal.toInt(), (maxVal / 2).toInt(), 0],
         color: AppTheme.stepsColor,
       ),
+      onTap: onTap,
     );
   }
 }

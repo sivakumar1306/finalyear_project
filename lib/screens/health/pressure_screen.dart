@@ -566,6 +566,7 @@ class _PressureScreenState extends State<PressureScreen> {
                 values: _trendValues,
                 xLabels: _trendXLabels(),
                 loading: _loadingTrend,
+                showLegend: true,
               ),
               if (_trendOffline) ...[
                 const SizedBox(height: 8),
@@ -573,20 +574,6 @@ class _PressureScreenState extends State<PressureScreen> {
                   message: 'Connect to WiFi to load your 7-day trend',
                 ),
               ],
-              const SizedBox(height: 12),
-
-              // ── 8. Legend ──────────────────────────────────────────────────
-              Row(
-                children: [
-                  _LegendDot(color: AppTheme.success, label: 'Relaxed'),
-                  const SizedBox(width: 10),
-                  _LegendDot(color: const Color(0xFFFBBF24), label: 'Normal'),
-                  const SizedBox(width: 10),
-                  _LegendDot(color: AppTheme.stressColor, label: 'Elevated'),
-                  const SizedBox(width: 10),
-                  _LegendDot(color: AppTheme.danger, label: 'High'),
-                ],
-              ),
 
               const SizedBox(height: 80),
             ],
@@ -692,6 +679,7 @@ class _StressChartCard extends StatelessWidget {
   final List<int> values;
   final List<String> xLabels;
   final bool loading;
+  final bool showLegend;
 
   const _StressChartCard({
     required this.headerLabel,
@@ -699,6 +687,7 @@ class _StressChartCard extends StatelessWidget {
     required this.values,
     required this.xLabels,
     required this.loading,
+    this.showLegend = false,
   });
 
   static const _yAxisW = 30.0;
@@ -777,16 +766,44 @@ class _StressChartCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          // X-axis labels (offset to align with chart area)
+          // Day labels: equal-width slots centered under each bar.
+          // Time-of-day labels: spaceBetween axis ticks.
           Padding(
             padding: const EdgeInsets.only(left: _yAxisW),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: xLabels
-                  .map((l) => Text(l, style: _inter(10, color: _kSec)))
-                  .toList(),
-            ),
+            child: xLabels.length == values.length &&
+                    xLabels.isNotEmpty &&
+                    xLabels.every((l) => l.isNotEmpty)
+                ? Row(
+                    children: [
+                      for (final label in xLabels)
+                        Expanded(
+                          child: Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            style: _inter(10, color: _kSec),
+                          ),
+                        ),
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: xLabels
+                        .map((l) => Text(l, style: _inter(10, color: _kSec)))
+                        .toList(),
+                  ),
           ),
+          if (showLegend) ...[
+            const SizedBox(height: 12),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _LegendDot(color: AppTheme.success, label: 'Relaxed'),
+                _LegendDot(color: Color(0xFFFBBF24), label: 'Normal'),
+                _LegendDot(color: AppTheme.stressColor, label: 'Elevated'),
+                _LegendDot(color: AppTheme.danger, label: 'High'),
+              ],
+            ),
+          ],
         ],
       ),
     );

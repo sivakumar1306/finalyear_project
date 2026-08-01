@@ -10,9 +10,9 @@ class GlassMenuItem {
 }
 
 const double _kMenuWidth = 166.5;
-// Shifts the menu left of the anchor button's right edge so it doesn't hug
-// the screen edge / overhang past it.
-const double _kMenuLeftShift = 40.0;
+// Shifts the menu left of the anchor button so the panel sits under the "..."
+// control without hugging / overhanging the screen edge.
+const double _kMenuLeftShift = 18.0;
 
 /// Anchored glassmorphic dropdown menu — per DESIGN.md's soft-glassmorphism
 /// card spec (blur, translucent surface, hairline border), used for

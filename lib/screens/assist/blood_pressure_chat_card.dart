@@ -8,7 +8,8 @@ const _dbpColor = Color(0xFFC084FC);
 
 class BloodPressureChatCard extends StatelessWidget {
   final Map<String, dynamic> data;
-  const BloodPressureChatCard({super.key, required this.data});
+  final VoidCallback? onTap;
+  const BloodPressureChatCard({super.key, required this.data, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +41,7 @@ class BloodPressureChatCard extends StatelessWidget {
         sbpColor: AppTheme.bpColor,
         dbpColor: _dbpColor,
       ),
+      onTap: onTap,
     );
   }
 }

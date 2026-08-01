@@ -4,7 +4,8 @@ import 'chat_vital_shell.dart';
 
 class HeartRateChatCard extends StatelessWidget {
   final Map<String, dynamic> data;
-  const HeartRateChatCard({super.key, required this.data});
+  final VoidCallback? onTap;
+  const HeartRateChatCard({super.key, required this.data, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +34,7 @@ class HeartRateChatCard extends StatelessWidget {
         yLines: const [120, 100, 80, 60],
         color: AppTheme.hrColor,
       ),
+      onTap: onTap,
     );
   }
 }

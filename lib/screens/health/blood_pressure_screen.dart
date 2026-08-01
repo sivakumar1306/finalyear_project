@@ -678,6 +678,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
                 dbpValues: _trendDbp,
                 xLabels: _trendXLabels(),
                 loading: _loadingTrend,
+                showLegend: true,
               ),
               if (_trendOffline) ...[
                 const SizedBox(height: 8),
@@ -685,16 +686,6 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
                   message: 'Connect to WiFi to load your 7-day trend',
                 ),
               ],
-              const SizedBox(height: 10),
-
-              // ── 8. Legend ──────────────────────────────────────────────────
-              Row(
-                children: [
-                  _LegendDot(color: AppTheme.bpColor, label: 'Systolic'),
-                  const SizedBox(width: 14),
-                  _LegendDot(color: _dbpColor, label: 'Diastolic'),
-                ],
-              ),
 
               const SizedBox(height: 80),
             ],
@@ -798,6 +789,7 @@ class _BPChartCard extends StatelessWidget {
   final List<int> dbpValues;
   final List<String> xLabels;
   final bool loading;
+  final bool showLegend;
 
   const _BPChartCard({
     required this.headerLabel,
@@ -806,6 +798,7 @@ class _BPChartCard extends StatelessWidget {
     required this.dbpValues,
     required this.xLabels,
     required this.loading,
+    this.showLegend = false,
   });
 
   static const _yAxisW = 30.0;
@@ -910,6 +903,16 @@ class _BPChartCard extends StatelessWidget {
                         .toList(),
                   ),
           ),
+          if (showLegend) ...[
+            const SizedBox(height: 12),
+            const Row(
+              children: [
+                _LegendDot(color: AppTheme.bpColor, label: 'Systolic'),
+                SizedBox(width: 14),
+                _LegendDot(color: _dbpColor, label: 'Diastolic'),
+              ],
+            ),
+          ],
         ],
       ),
     );
