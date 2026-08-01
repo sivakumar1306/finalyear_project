@@ -143,48 +143,45 @@ class _BottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Color(0x8C050505), // rgba(5,5,5,0.55)
-            border: Border(
-              top: BorderSide(
-                color: Color(0x0DFFFFFF),
-                width: 0.5,
-              ), // rgba(255,255,255,0.05)
-            ),
-          ),
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(36, 12, 36, 14),
-              child: SizedBox(
-                height: 44,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _NavTab(
-                      icon: Icons.home_outlined,
-                      label: 'Home',
-                      active: selected == 0,
-                      onTap: () => onTap(0),
-                    ),
-                    _NavTab(
-                      icon: Icons.auto_awesome,
-                      label: 'AI assist',
-                      active: selected == 1,
-                      onTap: () => onTap(1),
-                    ),
-                    _NavTab(
-                      icon: Icons.settings_outlined,
-                      label: 'Settings',
-                      active: selected == 2,
-                      onTap: () => onTap(2),
-                    ),
-                  ],
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(32),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0x08FFFFFF), // rgba(255,255,255,0.03)
+                border: Border.all(
+                  color: const Color(0x17FFFFFF), // rgba(255,255,255,0.09)
                 ),
+                borderRadius: BorderRadius.circular(32),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _NavTab(
+                    icon: Icons.home_outlined,
+                    label: 'Home',
+                    active: selected == 0,
+                    onTap: () => onTap(0),
+                  ),
+                  const SizedBox(width: 24),
+                  _NavFab(
+                    active: selected == 1,
+                    onTap: () => onTap(1),
+                  ),
+                  const SizedBox(width: 24),
+                  _NavTab(
+                    icon: Icons.settings_outlined,
+                    label: 'Settings',
+                    active: selected == 2,
+                    onTap: () => onTap(2),
+                  ),
+                ],
               ),
             ),
           ),
@@ -216,22 +213,67 @@ class _NavTab extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 21),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.instrumentSans(
-              fontSize: 11,
-              fontWeight: FontWeight.w400,
-              color: color,
-              height: 1.1,
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: active ? const Color(0x0DFFFFFF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: GoogleFonts.instrumentSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w400,
+                color: color,
+                height: 1.1,
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NavFab extends StatelessWidget {
+  final bool active;
+  final VoidCallback onTap;
+
+  const _NavFab({required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const RadialGradient(
+            center: Alignment(0, 0),
+            radius: 0.9,
+            colors: [
+              Color(0xFFEBD4A0),
+              Color(0xFFC9A86E),
+              Color(0xFFB08F52),
+            ],
+            stops: [0.0, 0.6, 1.0],
           ),
-        ],
+        ),
+        child: Icon(
+          Icons.auto_awesome,
+          color: active ? Colors.white : const Color(0x99FFFFFF),
+          size: 24,
+        ),
       ),
     );
   }
