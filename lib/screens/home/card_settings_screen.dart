@@ -326,7 +326,7 @@ class _CardSettingsRow extends StatelessWidget {
             scale: 0.7,
             child: CupertinoSwitch(
               value: visible,
-              activeTrackColor: item.color,
+              activeTrackColor: AppTheme.gold,
               inactiveTrackColor: Colors.white.withValues(alpha: 0.12),
               onChanged: (_) => onToggleVisibility(),
             ),

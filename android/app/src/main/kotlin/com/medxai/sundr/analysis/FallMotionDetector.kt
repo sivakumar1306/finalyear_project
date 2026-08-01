@@ -232,6 +232,15 @@ object FallMotionDetector : SensorEventListener {
             if (corroborated) {
                 appContext?.let {
                     FallAlertNotifier.notifyFall(it, confidence, source)
+                    // Android 16 promoted live update — the algorithm itself pins the
+                    // emergency to the lock screen / status-bar chip for the duration.
+                    // EmergencySmsSender ticks the countdown on it every second.
+                    SafetyLiveUpdate.showFall(
+                        it,
+                        (confidence * 100).toInt(),
+                        EmergencySmsSender.COUNTDOWN_SECONDS,
+                        EmergencyAutoCaller.isEnabled(it),
+                    )
                     // Auto-SMS to all emergency contacts after a cancelable countdown.
                     EmergencySmsSender.schedule(it, reason = "fall")
                     // Immediate phone call to primary emergency contact — only if the

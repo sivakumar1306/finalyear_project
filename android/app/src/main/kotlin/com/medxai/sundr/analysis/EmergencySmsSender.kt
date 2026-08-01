@@ -111,6 +111,7 @@ object EmergencySmsSender {
             .putLong(KEY_LAST_CANCELED_AT, System.currentTimeMillis())
             .apply()
         NotificationManagerCompat.from(app).cancel(NOTIFICATION_ID)
+        SafetyLiveUpdate.clear(app)
         Log.i(TAG, "Emergency SMS countdown canceled")
     }
 
@@ -279,6 +280,7 @@ object EmergencySmsSender {
                 errSummary ?: "Failed to send SMS"
             },
         )
+        SafetyLiveUpdate.showSent(context, sent)
 
         Log.i(TAG, "SMS send complete: sent=$sent failed=$failed")
         return mapOf(
@@ -336,6 +338,8 @@ object EmergencySmsSender {
         } catch (_: SecurityException) {
             // POST_NOTIFICATIONS denied — countdown still runs; Flutter UI can still cancel.
         }
+        // Mirror the remaining countdown onto the Android 16 live update.
+        SafetyLiveUpdate.updateCountdown(context, reason, remaining)
     }
 
     private fun notifySendResult(context: Context, success: Boolean, count: Int, detail: String) {

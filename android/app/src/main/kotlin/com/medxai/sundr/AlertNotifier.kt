@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import androidx.core.app.NotificationCompat
+import com.medxai.qring_flutter.analysis.SafetyLiveUpdate
 import com.medxai.qring_flutter.data.Vital
 
 // Scaffolding for a future analyzer module (e.g. fall detection) to surface an alert to the
@@ -46,5 +47,6 @@ object AlertNotifier {
             .build()
         context.getSystemService(NotificationManager::class.java)
             .notify(nextNotificationId++, notification)
+        SafetyLiveUpdate.showAnomaly(context, title, message)
     }
 }

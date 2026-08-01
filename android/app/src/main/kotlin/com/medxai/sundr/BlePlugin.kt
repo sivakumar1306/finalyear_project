@@ -74,6 +74,7 @@ import com.medxai.qring_flutter.analysis.EmergencyAutoCaller
 import com.medxai.qring_flutter.analysis.EmergencySmsSender
 import com.medxai.qring_flutter.analysis.FallAlertNotifier
 import com.medxai.qring_flutter.analysis.FallPredictionNotifier
+import com.medxai.qring_flutter.analysis.SafetyLiveUpdate
 import com.medxai.qring_flutter.data.FallEventEntity
 import com.medxai.qring_flutter.data.MeasurementConfig
 import com.medxai.qring_flutter.data.ReadingRepository
@@ -2325,6 +2326,12 @@ class BlePlugin(private val context: Context) {
                     )
                 )
                 FallAlertNotifier.notifyFall(context, confidence, source)
+                SafetyLiveUpdate.showFall(
+                    context,
+                    (confidence * 100).toInt(),
+                    EmergencySmsSender.COUNTDOWN_SECONDS,
+                    EmergencyAutoCaller.isEnabled(context),
+                )
                 EmergencySmsSender.schedule(context, reason = "fall")
                 EmergencyAutoCaller.placeIfEnabled(context)
                 mainHandler.post { result.success(true) }

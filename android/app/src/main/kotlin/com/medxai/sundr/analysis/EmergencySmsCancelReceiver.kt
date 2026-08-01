@@ -15,5 +15,6 @@ class EmergencySmsCancelReceiver : BroadcastReceiver() {
         // Also drop the original fall / prediction notifications so the tray is clean.
         NotificationManagerCompat.from(context).cancel(FallAlertNotifier.NOTIFICATION_ID)
         NotificationManagerCompat.from(context).cancel(FallPredictionNotifier.NOTIFICATION_ID)
+        SafetyLiveUpdate.clear(context)
     }
 }

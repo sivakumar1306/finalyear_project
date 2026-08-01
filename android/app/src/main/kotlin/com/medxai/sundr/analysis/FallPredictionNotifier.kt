@@ -79,6 +79,7 @@ object FallPredictionNotifier {
             .build()
 
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+        SafetyLiveUpdate.showPrediction(context, countdown)
     }
 
     /** Write pending prediction so any subsequent app open can surface the alert. */
