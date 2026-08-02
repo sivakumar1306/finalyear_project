@@ -7,6 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/fall_prediction/fall_risk_score_card.dart';
+import '../../widgets/fall_prediction/explainable_ai_dashboard.dart';
 
 // Local-only (SharedPreferences), same pattern as device_name/device_address in
 // BleProvider — no backend table for these two fields yet, just a single local user.
@@ -52,7 +54,6 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   // Real score from the native FallRiskAnalyzer — null until it has logged at
   // least one computation (i.e. a vital reading has actually been saved).
   Map<String, dynamic>? _realRisk;
-  bool _loadingRisk = true;
 
   @override
   void initState() {
@@ -81,7 +82,6 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     if (!mounted) return;
     setState(() {
       _realRisk = risk;
-      _loadingRisk = false;
     });
   }
 
@@ -327,7 +327,6 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
     final realScore = (_realRisk?['score'] as num?)?.toInt() ?? 0;
-    final hasLiveData = _realRisk != null;
     final tier = _debugTier ?? _tierFromScore(realScore);
     final isDemo = _debugTier != null && _debugTier != _FallTier.low;
 
@@ -335,7 +334,6 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
         ? (tier == _FallTier.high ? 122 : 118)
         : ble.todayMaxHr;
     final double temp = isDemo ? 36.0 : ble.latestTempC;
-    final int score = isDemo ? (tier == _FallTier.high ? 43 : 38) : realScore;
     final showAlert = tier != _FallTier.low && _ignoredForTier != tier;
 
     return Scaffold(
@@ -494,13 +492,11 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
               ),
             const SizedBox(height: 20),
           ],
-          const _SectionLabel('FALL RISK SCORE'),
+          const _SectionLabel('FALL RISK SCORE (LIVE)'),
           const SizedBox(height: 8),
-          _RiskScoreCard(
-            score: score,
-            hasLiveData: isDemo || hasLiveData,
-            loading: !isDemo && _loadingRisk,
-          ),
+          const FallRiskScoreCard(),
+          const SizedBox(height: 16),
+          const ExplainableAIDashboard(),
           const SizedBox(height: 16),
           if (tier == _FallTier.high)
             IntrinsicHeight(
@@ -718,50 +714,6 @@ class _HeroCard extends StatelessWidget {
   }
 }
 
-class _RiskScoreCard extends StatelessWidget {
-  final int score;
-  final bool hasLiveData;
-  final bool loading;
-  const _RiskScoreCard({
-    required this.score,
-    required this.hasLiveData,
-    required this.loading,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final label = !hasLiveData
-        ? (loading
-              ? 'Loading…'
-              : 'No live data yet — waiting for a vital reading')
-        : score >= 55
-        ? 'High chance of falling'
-        : score >= 25
-        ? 'Moderate chance of falling'
-        : 'Low chance of falling';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            hasLiveData ? '$score' : '—',
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 40,
-              fontWeight: FontWeight.w300,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _HeartRateCard extends StatelessWidget {
   final int hr;

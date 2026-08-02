@@ -9,6 +9,8 @@ import '../../providers/alarm_mode_provider.dart';
 import '../../providers/home_card_provider.dart';
 import '../../services/chat_api_service.dart';
 import '../../services/supabase_service.dart';
+import '../../models/womens_health_models.dart';
+import '../../services/womens_health_prediction_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_icon_button.dart';
 import '../../widgets/footer_spacer.dart';
@@ -614,10 +616,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onTap: () => _navigateTo('/pressure'),
         );
       case HomeCardId.womensHealth:
-        return _MiniCard(
-          label: "Women's Health",
-          color: const Color(0xFFD860C8),
-          icon: Icons.woman,
+        return _WomensHealthMiniCard(
+          ble: ble,
           expanded: expanded,
           onTap: () => _navigateTo('/womens-health'),
         );
@@ -1820,6 +1820,113 @@ class _MiniCard extends StatelessWidget {
           if (expanded) const Spacer(),
         ],
       ),
+    );
+  }
+}
+
+class _WomensHealthMiniCard extends StatefulWidget {
+  final BleProvider ble;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  const _WomensHealthMiniCard({
+    required this.ble,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  @override
+  State<_WomensHealthMiniCard> createState() => _WomensHealthMiniCardState();
+}
+
+class _WomensHealthMiniCardState extends State<_WomensHealthMiniCard> {
+  String _value = 'Day --';
+  String _sub = '---';
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final user = SupabaseService.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    try {
+      final cycles = await SupabaseService.getCycles(user.id);
+      if (cycles.isNotEmpty) {
+        final latest = cycles.first;
+        final startStr = latest['period_start'] as String;
+        final start = DateTime.parse(startStr);
+        final now = DateTime.now();
+        // Calculate day based on difference in calendar dates
+        final startDt = DateTime(start.year, start.month, start.day);
+        final nowDt = DateTime(now.year, now.month, now.day);
+        final day = nowDt.difference(startDt).inDays + 1;
+        
+        final cycleLen = latest['cycle_length'] as int;
+        final periodLen = latest['period_length'] as int;
+        
+        // Build HealthMetrics using BleProvider values
+        // Normalized roughly 0-100
+        final metrics = HealthMetrics(
+          temperature: (widget.ble.todayAvgSpo2 > 0 ? widget.ble.todayAvgSpo2.toDouble() : 50.0).clamp(0, 100),
+          hrv: (widget.ble.todayAvgHrv.toDouble()).clamp(0, 100),
+          heartRate: (widget.ble.todayAvgHr.toDouble()).clamp(0, 100),
+          sleepQuality: (widget.ble.todaySleepScore.toDouble()).clamp(0, 100),
+          stress: (widget.ble.todayAvgStress.toDouble()).clamp(0, 100),
+          activityLevel: ((widget.ble.todaySteps / 10000.0) * 100.0).clamp(0, 100),
+        );
+
+        final service = WomenHealthPredictionService();
+        final result = service.predictCycle(
+          lastMenstrualPeriod: startDt,
+          averageCycleLength: cycleLen,
+          metrics: metrics,
+        );
+        
+        String phase = 'Luteal';
+        if (day <= 0) {
+          phase = 'Luteal';
+        } else if (day <= periodLen) {
+          phase = 'Menstrual';
+        } else {
+          final ovDt = DateTime(result.ovulationDate.year, result.ovulationDate.month, result.ovulationDate.day);
+          final ovDay = ovDt.difference(startDt).inDays + 1;
+          if (day < ovDay - 5) {
+            phase = 'Follicular';
+          } else if (day <= ovDay + 1) {
+            phase = 'Ovulation';
+          }
+        }
+        
+        if (mounted) {
+          setState(() {
+            _value = 'Day $day';
+            _sub = '$phase • ${result.confidenceLevel}';
+          });
+        }
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _MiniCard(
+      label: "Women's Health",
+      value: _value,
+      sub: _sub,
+      color: const Color(0xFFD860C8),
+      icon: Icons.woman,
+      expanded: widget.expanded,
+      onTap: widget.onTap,
     );
   }
 }

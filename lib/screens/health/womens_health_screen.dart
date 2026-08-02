@@ -10,6 +10,8 @@ import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
+import '../../models/womens_health_models.dart';
+import '../../services/womens_health_prediction_service.dart';
 
 // ── Design tokens (glass card system per DESIGN.md) ────────────────────────
 
@@ -181,6 +183,37 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       final cycles = cycleRows.map(CycleData.fromMap).toList();
 
       if (!mounted) return;
+      
+      if (cycles.isNotEmpty) {
+        final l = cycles.first;
+        final ble = context.read<BleProvider>();
+        final metrics = HealthMetrics(
+          temperature: (ble.todayAvgSpo2 > 0 ? ble.todayAvgSpo2.toDouble() : 50.0).clamp(0, 100),
+          hrv: ble.todayAvgHrv.toDouble().clamp(0, 100),
+          heartRate: ble.todayAvgHr.toDouble().clamp(0, 100),
+          sleepQuality: ble.todaySleepScore.toDouble().clamp(0, 100),
+          stress: ble.todayAvgStress.toDouble().clamp(0, 100),
+          activityLevel: ((ble.todaySteps / 10000.0) * 100.0).clamp(0, 100),
+        );
+        
+        final service = WomenHealthPredictionService();
+        final result = service.predictCycle(
+          lastMenstrualPeriod: l.periodStart,
+          averageCycleLength: l.cycleLength,
+          metrics: metrics,
+        );
+
+        final adjustedCycleLen = result.finalPrediction.difference(l.periodStart).inDays;
+        
+        cycles[0] = CycleData(
+          id: l.id,
+          periodStart: l.periodStart,
+          cycleLength: adjustedCycleLen,
+          periodLength: l.periodLength,
+          notes: l.notes,
+        );
+      }
+
       setState(() {
         _gender = profile?['gender'] as String? ?? '';
         _cycles = cycles;

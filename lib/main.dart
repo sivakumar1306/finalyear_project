@@ -11,6 +11,7 @@ import 'providers/alarm_mode_provider.dart';
 import 'providers/prayer_session_provider.dart';
 import 'providers/main_tab_provider.dart';
 import 'providers/home_card_provider.dart';
+import 'providers/fall_prediction/fall_prediction_provider.dart';
 import 'services/supabase_service.dart';
 import 'app.dart';
 
@@ -85,6 +86,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => PrayerSessionProvider()),
         ChangeNotifierProvider(create: (_) => MainTabProvider()),
         ChangeNotifierProvider(create: (_) => HomeCardProvider()..load()),
+        ChangeNotifierProvider(create: (_) => FallPredictionProvider()),
       ],
       child: const QRingApp(),
     ),
