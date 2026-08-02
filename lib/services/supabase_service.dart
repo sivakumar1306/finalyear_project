@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config.dart';
@@ -842,5 +845,57 @@ class SupabaseService {
   static Future<SymptomRecord?> getSymptomsForDateTyped(String userId, DateTime date) async {
     final m = await getSymptomsForDate(userId, date);
     return m != null ? SymptomRecord.fromMap(m) : null;
+  }
+
+  // ── Firmware OTA Updates ──────────────────────────────────────────
+
+  static Future<List<Map<String, dynamic>>> getFirmwareUpdates() async {
+    try {
+      final data = await client
+          .from('firmware_updates')
+          .select()
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(data);
+    } catch (e) {
+      debugPrint('getFirmwareUpdates error: $e');
+      return [];
+    }
+  }
+
+  static Future<String?> downloadFirmwareFile(
+    String fileUrl, {
+    void Function(int received, int total)? onProgress,
+  }) async {
+    try {
+      final client = http.Client();
+      final request = http.Request('GET', Uri.parse(fileUrl));
+      final response = await client.send(request);
+
+      if (response.statusCode != 200) {
+        throw Exception('Download failed with status: ${response.statusCode}');
+      }
+
+      final contentLength = response.contentLength ?? 0;
+      final tempDir = await getTemporaryDirectory();
+      final fileName = 'ota_firmware_${DateTime.now().millisecondsSinceEpoch}.bin';
+      final file = File('${tempDir.path}/$fileName');
+      final sink = file.openWrite();
+
+      int bytesReceived = 0;
+      await response.stream.listen((chunk) {
+        sink.add(chunk);
+        bytesReceived += chunk.length;
+        if (onProgress != null && contentLength > 0) {
+          onProgress(bytesReceived, contentLength);
+        }
+      }).asFuture();
+
+      await sink.close();
+      client.close();
+      return file.path;
+    } catch (e) {
+      debugPrint('downloadFirmwareFile error: $e');
+      return null;
+    }
   }
 }

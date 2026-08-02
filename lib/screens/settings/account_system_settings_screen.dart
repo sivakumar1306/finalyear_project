@@ -394,10 +394,16 @@ class _AccountRow extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(width: 8),
             if (value != null)
-              Text(
-                value!,
-                style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+              Flexible(
+                child: Text(
+                  value!,
+                  style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  textAlign: TextAlign.end,
+                ),
               )
             else if (onTap != null)
               const Icon(Icons.chevron_right_rounded, color: AppTheme.textSec, size: 20),

@@ -334,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ble.todayDistanceM,
             ble.todayCalories,
           ),
-          hasData: ble.todaySteps > 0,
+          hasData: true,
           steps: ble.todaySteps,
           calories: ble.todayCalories,
           expanded: expanded,
@@ -596,8 +596,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         );
         return _MiniCard(
           label: 'Activity',
-          value: ble.todaySteps > 0 ? '$score' : '--',
-          sub: ble.todaySteps > 0 ? _activityScoreLabel(score) : '',
+          value: '$score',
+          sub: _activityScoreLabel(score),
           color: _kOrbActivity,
           icon: Icons.directions_walk,
           expanded: expanded,

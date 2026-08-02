@@ -559,6 +559,9 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
+  /// Refreshes latest vitals readings from local Room DB on demand.
+  Future<void> refreshVitalsFromLocal() => _loadTodayVitalsFromLocal();
+
   /// Dev/testing only — seeds the local DB with [hoursBack] hours of plausible
   /// readings (no ring connection needed) and refreshes the vitals shown in the
   /// app, so data survives a reinstall's data wipe without needing to re-pair.
