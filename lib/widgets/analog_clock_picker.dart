@@ -51,7 +51,9 @@ class _AnalogClockPickerState extends State<AnalogClockPicker> {
     }
   }
 
-  void _togglePeriod() {
+  void _setPeriod(bool isPM) {
+    final currentlyPM = _time.hour >= 12;
+    if (isPM == currentlyPM) return;
     final next = TimeOfDay(hour: (_time.hour + 12) % 24, minute: _time.minute);
     setState(() => _time = next);
     widget.onChanged(next);
@@ -83,27 +85,82 @@ class _AnalogClockPickerState extends State<AnalogClockPicker> {
           ),
         ),
         const SizedBox(height: 18),
-        GestureDetector(
-          onTap: _togglePeriod,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.04),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-            ),
-            child: Text(
-              _time.hour >= 12 ? 'PM' : 'AM',
-              style: GoogleFonts.inter(
-                color: AppTheme.gold,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1,
-              ),
-            ),
-          ),
+        _AmPmToggle(
+          isPM: _time.hour >= 12,
+          onChanged: _setPeriod,
         ),
       ],
+    );
+  }
+}
+
+/// Two-segment AM/PM toggle — tap either side to select that period
+/// directly, rather than cycling through a single pill.
+class _AmPmToggle extends StatelessWidget {
+  final bool isPM;
+  final ValueChanged<bool> onChanged;
+
+  const _AmPmToggle({required this.isPM, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _AmPmSegment(label: 'AM', selected: !isPM, onTap: () => onChanged(false)),
+          _AmPmSegment(label: 'PM', selected: isPM, onTap: () => onChanged(true)),
+        ],
+      ),
+    );
+  }
+}
+
+class _AmPmSegment extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _AmPmSegment({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppTheme.gold.withValues(alpha: 0.16)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          border: selected
+              ? Border.all(color: AppTheme.gold.withValues(alpha: 0.4))
+              : null,
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            color: selected ? AppTheme.gold : Colors.white.withValues(alpha: 0.4),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1,
+          ),
+        ),
+      ),
     );
   }
 }

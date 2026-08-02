@@ -17,6 +17,7 @@ import 'ring_scan_sheet.dart';
 import 'side_panel.dart';
 import '../settings/about_screen.dart';
 import 'card_settings_screen.dart';
+import '../settings/goal_setting_screen.dart';
 import 'package:share_plus/share_plus.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -199,7 +200,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             _gender = profile['gender'] as String? ?? '';
           });
           if (mounted) {
-            context.read<HomeCardProvider>().ensureWomensHealthVisible(_isFemale);
+            context.read<HomeCardProvider>().ensureWomensHealthVisible(
+              _isFemale,
+            );
           }
           if (kDebugMode) {
             debugPrint('DEBUG profile: $profile, parsed _gender: $_gender');
@@ -358,11 +361,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           final dur = ble.todaySleepDuration;
           final h = dur ~/ 3600;
           final m = (dur % 3600) ~/ 60;
-          final stageTotal = ble.todaySleepDeepSecs +
+          final stageTotal =
+              ble.todaySleepDeepSecs +
               ble.todaySleepLightSecs +
               ble.todaySleepRemSecs;
-          int pct(int s) =>
-              stageTotal > 0 ? (s * 100 / stageTotal).round() : 0;
+          int pct(int s) => stageTotal > 0 ? (s * 100 / stageTotal).round() : 0;
           return _FigmaExpandedCard(
             orbColor: _kOrbSleep,
             height: 175,
@@ -390,7 +393,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               lightSecs: ble.todaySleepLightSecs,
               remSecs: ble.todaySleepRemSecs,
             ),
-            footnoteLead: dur > 0 ? 'Deep ${pct(ble.todaySleepDeepSecs)}%' : 'No data',
+            footnoteLead: dur > 0
+                ? 'Deep ${pct(ble.todaySleepDeepSecs)}%'
+                : 'No data',
             footnoteRest: dur > 0
                 ? ' · REM ${pct(ble.todaySleepRemSecs)}% · Light ${pct(ble.todaySleepLightSecs)}% · ${ble.todaySleepScore} score'
                 : '',
@@ -702,11 +707,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // a RenderFlex layout error and abort every frame. It also keeps paired
     // cards equal height so they grow together with content / text scale.
     Widget row(List<Widget> children) => IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: children,
-          ),
-        );
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
+    );
 
     final rows = <Widget>[];
     for (int i = 0; i < ids.length;) {
@@ -718,11 +723,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
       final next = i + 1 < ids.length ? ids[i + 1] : null;
       if (next != null && !expandedCards.contains(next)) {
-        rows.add(row([
-          Expanded(child: build(id)),
-          const SizedBox(width: 12),
-          Expanded(child: build(next)),
-        ]));
+        rows.add(
+          row([
+            Expanded(child: build(id)),
+            const SizedBox(width: 12),
+            Expanded(child: build(next)),
+          ]),
+        );
         i += 2;
       } else {
         rows.add(row([Expanded(child: build(id))]));
@@ -738,7 +745,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     required bool compact,
     required Set<HomeCardId> expandedCards,
   }) {
-    final rows = _packCardRows(ble, visibleCardIds, compact: compact, expandedCards: expandedCards);
+    final rows = _packCardRows(
+      ble,
+      visibleCardIds,
+      compact: compact,
+      expandedCards: expandedCards,
+    );
     return SliverList(
       delegate: SliverChildBuilderDelegate((context, index) {
         return Padding(
@@ -875,49 +887,61 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 icon: Icons.menu_rounded,
                 iconSize: 20,
                 onTap: () => showSidePanel(
-              context: context,
-              fromRight: false,
-              child: SidePanelShell(
-                fromRight: false,
-                icon: GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const Icon(
-                    Icons.menu_rounded,
-                    color: Colors.white70,
-                    size: 22,
-                  ),
-                ),
-                items: [
-                  SidePanelGroup(
-                    items: [
-                      SidePanelItem(
-                        label: 'About',
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const AboutScreen(),
-                            ),
-                          );
-                        },
+                  context: context,
+                  fromRight: false,
+                  child: SidePanelShell(
+                    fromRight: false,
+                    icon: GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Icon(
+                        Icons.menu_rounded,
+                        color: Colors.white70,
+                        size: 22,
                       ),
-                      SidePanelItem(
-                        label: 'Share',
-                        onTap: () {
-                          Navigator.pop(context);
-                          Share.share(
-                            'Check out SUNDR — the AI health ring app I use to track my sleep, heart rate, and more.',
-                          );
-                        },
+                    ),
+                    items: [
+                      SidePanelGroup(
+                        items: [
+                          SidePanelItem(
+                            label: 'About',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const AboutScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          SidePanelItem(
+                            label: 'Goal Setting',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const GoalSettingScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          SidePanelItem(
+                            label: 'Share',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Share.share(
+                                'Check out SUNDR — the AI health ring app I use to track my sleep, heart rate, and more.',
+                              );
+                            },
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
-          ),
-          ),
           ),
           Expanded(
             child: Center(
@@ -1055,8 +1079,11 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
 
   @override
   Widget build(BuildContext context) {
+    final headlineParts = _data?['headline_parts'] as List?;
     final subtext = _data?['subtext'] as String?;
-    if (_loading && subtext == null) {
+    final hasHeadline = headlineParts != null && headlineParts.isNotEmpty;
+
+    if (_loading && !hasHeadline) {
       return const Padding(
         padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: SizedBox(
@@ -1069,48 +1096,74 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
         ),
       );
     }
-    if (subtext == null || subtext.isEmpty || _data?['error'] != null) {
+    if (!hasHeadline || _data?['error'] != null) {
       return const SizedBox.shrink();
     }
 
+    final headline = headlineParts
+        .map((p) => (p as Map)['text'] as String? ?? '')
+        .join();
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppTheme.gold.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: AppTheme.gold.withValues(alpha: 0.18),
-            width: 0.5,
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 2),
-              child: Icon(
-                Icons.auto_awesome_rounded,
-                size: 13,
-                color: AppTheme.goldAccent,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0x0DC9A86E), // rgba(201,168,110,0.05)
+              border: Border.all(
+                color: const Color(0x26C9A86E), // rgba(201,168,110,0.15)
+                width: 0.5,
               ),
+              borderRadius: BorderRadius.circular(18),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                subtext,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: _inter(
-                  12.5,
-                  color: Colors.white.withValues(alpha: 0.7),
-                  height: 1.4,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'AI SUMMARY',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.18 * 10,
+                    color: AppTheme.goldAccent,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 8),
+                Text(
+                  headline,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w400,
+                    height: 1.30,
+                    letterSpacing: -0.02 * 19,
+                    color: Colors.white,
+                  ),
+                ),
+                if (subtext != null && subtext.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    subtext,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w400,
+                      height: 1.50,
+                      letterSpacing: 0.02 * 12.5,
+                      color: Colors.white.withValues(alpha: 0.52),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1356,19 +1409,12 @@ class _GlassCard extends StatelessWidget {
               bottom: orbAtTop ? null : resolvedOrbOffset,
               right: orbOnRight ? resolvedOrbOffset : null,
               left: orbOnRight ? null : resolvedOrbOffset,
-              child: _BlurOrb(
-                color: orbColor,
-                size: orbSize,
-                alpha: orbAlpha,
-              ),
+              child: _BlurOrb(color: orbColor, size: orbSize, alpha: orbAlpha),
             ),
             // Fixed height: Positioned.fill gives Column tight constraints so Spacer works.
             // Auto height: plain Padding lets Stack size to content (and still
             // expands when the parent imposes a tight height via stretch).
-            if (height != null)
-              Positioned.fill(child: content)
-            else
-              content,
+            if (height != null) Positioned.fill(child: content) else content,
           ],
         ),
       ),
@@ -1394,29 +1440,28 @@ TextStyle _figmaMono(
   Color color = _kFigmaLabel,
   FontWeight weight = FontWeight.w500,
   double tracking = 1.32,
-}) =>
-    GoogleFonts.inter(
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-      letterSpacing: tracking,
-      height: 1,
-    );
+}) => GoogleFonts.inter(
+  fontSize: size,
+  fontWeight: weight,
+  color: color,
+  letterSpacing: tracking,
+  height: 1,
+);
 
 TextStyle _figmaFraunces(double size) => GoogleFonts.inter(
-      fontSize: size,
-      fontWeight: FontWeight.w300,
-      color: Colors.white.withValues(alpha: 0.95),
-      letterSpacing: 1.44,
-      height: 1,
-    );
+  fontSize: size,
+  fontWeight: FontWeight.w300,
+  color: Colors.white.withValues(alpha: 0.95),
+  letterSpacing: 1.44,
+  height: 1,
+);
 
 TextStyle _figmaStatusStyle() => GoogleFonts.inter(
-      fontSize: 14,
-      fontWeight: FontWeight.w500,
-      color: Colors.white.withValues(alpha: 0.95),
-      height: 1,
-    );
+  fontSize: 14,
+  fontWeight: FontWeight.w500,
+  color: Colors.white.withValues(alpha: 0.95),
+  height: 1,
+);
 
 Text _figmaValue(String s) => Text(s, style: _figmaFraunces(24));
 
@@ -1475,11 +1520,7 @@ class _FigmaExpandedCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 16,
-                color: _kFigmaLabel,
-              ),
+              Icon(Icons.chevron_right_rounded, size: 16, color: _kFigmaLabel),
             ],
           ),
           const SizedBox(height: 10),
@@ -1544,9 +1585,8 @@ class _SleepStageBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final total = deepSecs + lightSecs + remSecs;
-    int flex(int v) => total <= 0
-        ? 1
-        : (v / total * 1000).round().clamp(1, 1000).toInt();
+    int flex(int v) =>
+        total <= 0 ? 1 : (v / total * 1000).round().clamp(1, 1000).toInt();
     return Row(
       children: [
         Expanded(
@@ -1746,31 +1786,36 @@ class _MiniCard extends StatelessWidget {
             children: [
               Icon(icon, size: 14, color: color),
               Container(
-                width: 22, height: 22,
+                width: 22,
+                height: 22,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withValues(alpha: 0.06),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    width: 0.5,
+                  ),
                 ),
-                child: const Icon(Icons.chevron_right_rounded, color: Colors.white54, size: 13),
+                child: const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.white54,
+                  size: 13,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             label,
-            style: _inter(10, weight: FontWeight.w500, color: Colors.white.withValues(alpha: 0.5)),
+            style: _inter(
+              10,
+              weight: FontWeight.w500,
+              color: Colors.white.withValues(alpha: 0.5),
+            ),
           ),
           if (value != null) ...[
-            Text(
-              value!,
-              style: _inter(20, weight: FontWeight.w600),
-            ),
-            if (sub != null)
-              Text(
-                sub!,
-                style: _inter(10, color: _kSec2),
-              ),
+            Text(value!, style: _inter(20, weight: FontWeight.w600)),
+            if (sub != null) Text(sub!, style: _inter(10, color: _kSec2)),
           ],
           if (expanded) const Spacer(),
         ],
@@ -2327,8 +2372,7 @@ class _AlarmCard extends StatelessWidget {
           // measurement includes this content — critical for IntrinsicHeight).
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () =>
-                Navigator.pushNamed(context, '/alarms-notifications'),
+            onTap: () => Navigator.pushNamed(context, '/alarms-notifications'),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -2361,10 +2405,7 @@ class _AlarmCard extends StatelessWidget {
                   layoutBuilder: (currentChild, previousChildren) {
                     return Stack(
                       alignment: Alignment.centerLeft,
-                      children: <Widget>[
-                        ...previousChildren,
-                        ?currentChild,
-                      ],
+                      children: <Widget>[...previousChildren, ?currentChild],
                     );
                   },
                   transitionBuilder: (child, anim) {
@@ -2374,10 +2415,7 @@ class _AlarmCard extends StatelessWidget {
                     ).animate(anim);
                     return FadeTransition(
                       opacity: anim,
-                      child: SlideTransition(
-                        position: offset,
-                        child: child,
-                      ),
+                      child: SlideTransition(position: offset, child: child),
                     );
                   },
                   child: Column(
@@ -2550,10 +2588,7 @@ class _LiquidGlassThumb extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.center,
-              colors: [
-                Color(0x28FFFFFF),
-                Color(0x00FFFFFF),
-              ],
+              colors: [Color(0x28FFFFFF), Color(0x00FFFFFF)],
             ),
           ),
         ),
@@ -2827,7 +2862,9 @@ class _CompactWomensHealthCardState extends State<_CompactWomensHealthCard> {
           cycleLength: _cycleLength,
           periodLen: _periodLen,
         ),
-        footnoteLead: _cycleDay > 0 ? 'Next period in $daysLeft days' : 'No data',
+        footnoteLead: _cycleDay > 0
+            ? 'Next period in $daysLeft days'
+            : 'No data',
         footnoteRest: _cycleDay > 0
             ? ' · ${_phaseName.toLowerCase()} phase'
             : '',
@@ -3118,10 +3155,7 @@ class _DevicePill extends StatelessWidget {
               ),
               Text(
                 '$battery%',
-                style: _inter(
-                  11,
-                  color: Colors.white.withValues(alpha: 0.5),
-                ),
+                style: _inter(11, color: Colors.white.withValues(alpha: 0.5)),
               ),
             ],
           ],
@@ -3227,9 +3261,9 @@ List<double> _interpolate(List<double> src, int count) {
 }
 
 String _formatInt(int v) => v.toString().replaceAllMapped(
-      RegExp(r'(\d)(?=(\d{3})+$)'),
-      (m) => '${m[1]},',
-    );
+  RegExp(r'(\d)(?=(\d{3})+$)'),
+  (m) => '${m[1]},',
+);
 
 /// Heart Rate area chart — faint 7% fill under a 0.7-white curve with an
 /// end-point dot (Frame 478: Rectangle 1 + Line 15 + Ellipse 6).
@@ -3261,7 +3295,10 @@ class _AreaChartPainter extends CustomPainter {
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();
-    canvas.drawPath(fill, Paint()..color = Colors.white.withValues(alpha: 0.07));
+    canvas.drawPath(
+      fill,
+      Paint()..color = Colors.white.withValues(alpha: 0.07),
+    );
     canvas.drawPath(
       path,
       Paint()
@@ -3289,11 +3326,33 @@ class _BpChartPainter extends CustomPainter {
   const _BpChartPainter({required this.sbp, required this.dbp});
 
   static const _sysPattern = [
-    114.0, 119.0, 122.0, 118.0, 125.0, 129.0, 126.0, 121.0, 128.0, 132.0,
-    128.0, 125.0, 124.0,
+    114.0,
+    119.0,
+    122.0,
+    118.0,
+    125.0,
+    129.0,
+    126.0,
+    121.0,
+    128.0,
+    132.0,
+    128.0,
+    125.0,
+    124.0,
   ];
   static const _diaPattern = [
-    76.0, 78.0, 79.0, 77.0, 81.0, 83.0, 80.0, 78.0, 82.0, 85.0, 82.0, 80.0,
+    76.0,
+    78.0,
+    79.0,
+    77.0,
+    81.0,
+    83.0,
+    80.0,
+    78.0,
+    82.0,
+    85.0,
+    82.0,
+    80.0,
     79.0,
   ];
 
