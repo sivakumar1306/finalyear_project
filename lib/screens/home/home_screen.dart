@@ -1842,6 +1842,7 @@ class _WomensHealthMiniCard extends StatefulWidget {
 class _WomensHealthMiniCardState extends State<_WomensHealthMiniCard> {
   String _value = 'Day --';
   String _sub = '---';
+  // ignore: unused_field
   bool _loading = true;
 
   @override
