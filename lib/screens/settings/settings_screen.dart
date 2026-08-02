@@ -401,9 +401,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         context.read<BleProvider>().setGestureEnabled(v),
                   ),
                   _divider(),
-                  _SettingsRow.arrow(
+                  _SettingsRow.value(
                     icon: Icons.gps_fixed_rounded,
                     title: 'Find Device',
+                    value: ble.isConnected
+                        ? (ble.battery >= 0 ? '${ble.battery}%' : 'Connected')
+                        : 'Disconnected',
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(

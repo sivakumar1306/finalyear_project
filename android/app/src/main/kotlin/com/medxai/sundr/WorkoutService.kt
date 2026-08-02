@@ -21,6 +21,10 @@ import com.oudmon.ble.base.communication.ICommandResponse
 import com.oudmon.ble.base.communication.rsp.StartHeartRateRsp
 import com.oudmon.ble.base.communication.entity.BleStepDetails
 import com.oudmon.ble.base.communication.rsp.ReadHeartRateRsp
+import com.oudmon.ble.base.communication.CommandHandle
+import com.oudmon.ble.base.communication.Constants
+import com.oudmon.ble.base.communication.req.SimpleKeyReq
+import com.oudmon.ble.base.communication.rsp.BaseRspCmd
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -190,32 +194,37 @@ class WorkoutService : Service() {
 
     private fun syncSteps() {
         try {
-            BleOperateManager.getInstance().getTodayStepDetail(
-                object : BleOperateManager.HealthDataCallback<List<BleStepDetails>> {
-                    override fun onSuccess(data: List<BleStepDetails>) {
-                        val json = gson.toJson(data)
-                        val arr = gson.fromJson(json, JsonArray::class.java) ?: return
-                        var totalSteps = 0
-                        var totalCalRaw = 0
-                        var totalDist = 0.0
-                        for (el in arr) {
-                            val obj = el.asJsonObject
-                            totalSteps += obj.get("f")?.asInt ?: 0  // walkSteps
-                            totalCalRaw += obj.get("e")?.asInt ?: 0  // calories raw (小卡)
-                            totalDist += obj.get("g")?.asDouble ?: 0.0
+            CommandHandle.getInstance().executeReqCmd(
+                SimpleKeyReq(Constants.CMD_GET_STEP_TODAY),
+                ICommandResponse<BaseRspCmd> { _ ->
+                    BleOperateManager.getInstance().getTodayStepDetail(
+                        object : BleOperateManager.HealthDataCallback<List<BleStepDetails>> {
+                            override fun onSuccess(data: List<BleStepDetails>) {
+                                val json = gson.toJson(data)
+                                val arr = gson.fromJson(json, JsonArray::class.java) ?: return
+                                var totalSteps = 0
+                                var totalCalRaw = 0
+                                var totalDist = 0.0
+                                for (el in arr) {
+                                    val obj = el.asJsonObject
+                                    totalSteps += obj.get("f")?.asInt ?: 0  // walkSteps
+                                    totalCalRaw += obj.get("e")?.asInt ?: 0  // calories raw (小卡)
+                                    totalDist += obj.get("g")?.asDouble ?: 0.0
+                                }
+                                val totalCal = totalCalRaw / 1000
+                                val baseSteps = prefs.getLong("flutter.workout_start_steps", 0L).toInt()
+                                val baseCal = prefs.getLong("flutter.workout_start_calories", 0L).toInt()
+                                val baseDistStr = prefs.getString("flutter.workout_start_distance", "0.0") ?: "0.0"
+                                val baseDist = baseDistStr.toDoubleOrNull() ?: 0.0
+                                prefs.edit()
+                                    .putLong("flutter.workout_current_steps", maxOf(0, totalSteps - baseSteps).toLong())
+                                    .putLong("flutter.workout_current_calories", maxOf(0, totalCal - baseCal).toLong())
+                                    .putString("flutter.workout_current_distance", maxOf(0.0, totalDist - baseDist).toString())
+                                    .apply()
+                            }
+                            override fun onError(code: Int, message: String?) {}
                         }
-                        val totalCal = totalCalRaw / 1000
-                        // Flutter stores int as Long, double as Float in SharedPreferences
-                        val baseSteps = prefs.getLong("flutter.workout_start_steps", 0L).toInt()
-                        val baseCal = prefs.getLong("flutter.workout_start_calories", 0L).toInt()
-                        val baseDist = prefs.getFloat("flutter.workout_start_distance", 0f).toDouble()
-                        prefs.edit()
-                            .putLong("flutter.workout_current_steps", maxOf(0, totalSteps - baseSteps).toLong())
-                            .putLong("flutter.workout_current_calories", maxOf(0, totalCal - baseCal).toLong())
-                            .putFloat("flutter.workout_current_distance", maxOf(0.0, totalDist - baseDist).toFloat())
-                            .apply()
-                    }
-                    override fun onError(code: Int, message: String?) {}
+                    )
                 }
             )
         } catch (_: Exception) {}

@@ -35,6 +35,7 @@ import com.oudmon.ble.base.communication.req.BpSettingReq
 import com.oudmon.ble.base.communication.req.CameraReq
 import com.oudmon.ble.base.communication.req.DeviceSupportReq
 import com.oudmon.ble.base.communication.req.DndReq
+import com.oudmon.ble.base.communication.req.FindDeviceReq
 import com.oudmon.ble.base.communication.req.HRVReq
 import com.oudmon.ble.base.communication.req.HeartRateSettingReq
 import com.oudmon.ble.base.communication.req.HrvSettingReq
@@ -244,6 +245,7 @@ class BlePlugin(private val context: Context) {
             "disconnect"                 -> disconnect(result)
             "isConnected"                -> result.success(_isConnected)
             "getBattery"                 -> getBattery(result)
+            "findDevice"                 -> findDevice(call, result)
             "getFirmwareVersion"         -> getFirmwareVersion(result)
             "setTime"                    -> setTime(result)
             "getDeviceSupport"           -> getDeviceSupport(result)
@@ -691,6 +693,21 @@ class BlePlugin(private val context: Context) {
                 mainHandler.post {
                     if (rsp.status == BaseRspCmd.RESULT_OK) {
                         result.success(rsp.batteryValue)
+                    } else {
+                        result.error("CMD_FAILED", "status=${rsp.status}", null)
+                    }
+                }
+            }
+        )
+    }
+
+    private fun findDevice(call: MethodCall, result: MethodChannel.Result) {
+        CommandHandle.getInstance().executeReqCmd(
+            FindDeviceReq(),
+            ICommandResponse<BaseRspCmd> { rsp ->
+                mainHandler.post {
+                    if (rsp.status == BaseRspCmd.RESULT_OK) {
+                        result.success(true)
                     } else {
                         result.error("CMD_FAILED", "status=${rsp.status}", null)
                     }

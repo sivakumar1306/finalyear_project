@@ -46,6 +46,13 @@ class BleService {
     return result ?? -1;
   }
 
+  Future<bool> findDevice({bool enable = true}) async {
+    final result = await _methodChannel.invokeMethod<bool>('findDevice', {
+      'enable': enable,
+    });
+    return result ?? false;
+  }
+
   Future<Map<String, dynamic>> getFirmwareVersion() async {
     final result = await _methodChannel.invokeMethod<Map>('getFirmwareVersion');
     return result != null ? Map<String, dynamic>.from(result) : {};

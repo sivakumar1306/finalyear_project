@@ -1511,6 +1511,15 @@ class BleProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<bool> findDevice({bool enable = true}) async {
+    try {
+      return await _ble.findDevice(enable: enable);
+    } catch (e) {
+      debugPrint('BleProvider.findDevice error: $e');
+      return false;
+    }
+  }
+
   Future<void> refreshFirmwareVersion() async {
     try {
       final v = await _ble.getFirmwareVersion();

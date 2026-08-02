@@ -1,20 +1,104 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 
-/// Basic ring details + a "Coming Soon" notice — the real "make my ring
-/// buzz/flash to find it" feature isn't implemented yet, so this just
-/// surfaces what we already know about the paired device.
-class FindDeviceScreen extends StatelessWidget {
+/// Premium interactive screen to locate your paired Vital Smart Ring.
+/// Triggers real-time ring vibration/flashing via SDK [findDevice], displays
+/// live battery percentage, MAC address, and firmware details.
+class FindDeviceScreen extends StatefulWidget {
   const FindDeviceScreen({super.key});
+
+  @override
+  State<FindDeviceScreen> createState() => _FindDeviceScreenState();
+}
+
+class _FindDeviceScreenState extends State<FindDeviceScreen>
+    with SingleTickerProviderStateMixin {
+  bool _isRinging = false;
+  bool _loading = false;
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.25).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
+    // Initial battery refresh
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<BleProvider>().refreshBattery();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggleFindRing(bool enable) async {
+    final ble = context.read<BleProvider>();
+    if (!ble.isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ring is not connected. Move closer and try again.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+    final success = await ble.findDevice(enable: enable);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (success) {
+        _isRinging = enable;
+        if (enable) {
+          _pulseController.repeat(reverse: true);
+        } else {
+          _pulseController.stop();
+          _pulseController.reset();
+        }
+      }
+    });
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(enable
+              ? 'Alerting ring! Check for flashing LED or vibration.'
+              : 'Alert stopped.'),
+          backgroundColor: AppTheme.card2,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to communicate with ring.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
     final hasDevice = ble.deviceName.isNotEmpty;
+    final batteryPct = ble.battery >= 0 ? ble.battery : 0;
 
     return Scaffold(
       backgroundColor: AppTheme.bg,
@@ -22,7 +106,7 @@ class FindDeviceScreen extends StatelessWidget {
         backgroundColor: AppTheme.bg,
         leading: const GlassBackButton(),
         title: Text(
-          'Find Device',
+          'Find My Ring',
           style: GoogleFonts.inter(
             color: Colors.white,
             fontSize: 16,
@@ -32,108 +116,373 @@ class FindDeviceScreen extends StatelessWidget {
         centerTitle: true,
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppTheme.gold.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.gold.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.hourglass_top_rounded, color: AppTheme.gold, size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Coming Soon',
-                    style: GoogleFonts.inter(
-                      color: AppTheme.gold,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await ble.refreshBattery();
+          await ble.refreshFirmwareVersion();
+        },
+        color: AppTheme.gold,
+        backgroundColor: AppTheme.card,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: 24),
+
+              // ── Interactive Ring Pulse Banner ──────────────────────────────
+              Center(
+                child: SizedBox(
+                  width: 180,
+                  height: 180,
+                  child: AnimatedBuilder(
+                    animation: _pulseAnimation,
+                    builder: (context, child) {
+                      final scale = _isRinging ? _pulseAnimation.value : 1.0;
+                      return Transform.scale(
+                        scale: scale,
+                        child: child,
+                      );
+                    },
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Outer Glow Ring
+                        Container(
+                          width: 170,
+                          height: 170,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: _isRinging
+                                  ? AppTheme.gold.withValues(alpha: 0.6)
+                                  : const Color(0x26FFFFFF),
+                              width: _isRinging ? 2.0 : 1.0,
+                            ),
+                            boxShadow: _isRinging
+                                ? [
+                                    BoxShadow(
+                                      color:
+                                          AppTheme.gold.withValues(alpha: 0.35),
+                                      blurRadius: 40,
+                                      spreadRadius: 10,
+                                    )
+                                  ]
+                                : [],
+                          ),
+                        ),
+                        // Mid Ring
+                        Container(
+                          width: 130,
+                          height: 130,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: _isRinging
+                                  ? AppTheme.gold.withValues(alpha: 0.8)
+                                  : const Color(0x38FFFFFF),
+                              width: 1.0,
+                            ),
+                          ),
+                        ),
+                        // Core Ring Button
+                        Container(
+                          width: 90,
+                          height: 90,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: _isRinging
+                                  ? [
+                                      const Color(0xFFF3E2C4),
+                                      AppTheme.gold,
+                                      const Color(0xFF987A46),
+                                    ]
+                                  : [
+                                      const Color(0x33FFFFFF),
+                                      const Color(0x1AFFFFFF),
+                                    ],
+                            ),
+                          ),
+                          child: Icon(
+                            _isRinging
+                                ? Icons.graphic_eq_rounded
+                                : Icons.bluetooth_searching_rounded,
+                            size: 40,
+                            color: _isRinging
+                                ? const Color(0xFF0D0C0A)
+                                : Colors.white,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Locate your ring',
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
+
+              const SizedBox(height: 24),
+
+              Text(
+                _isRinging ? 'Alerting Ring...' : 'Locate Your Ring',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Making the ring buzz or flash to help you find it isn\'t '
-              'available yet — here\'s what we know about it in the '
-              'meantime.',
-              style: GoogleFonts.inter(
-                color: AppTheme.textSec,
-                fontSize: 12,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              decoration: BoxDecoration(
-                color: AppTheme.card,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  _row('Device name', hasDevice ? ble.deviceName : '—', isFirst: true),
-                  _row('MAC address', ble.deviceAddress.isNotEmpty ? ble.deviceAddress : '—'),
-                  _row('Connection', ble.isConnected ? 'Connected' : 'Disconnected'),
-                  _row('Battery', ble.battery >= 0 ? '${ble.battery}%' : '—'),
-                  _row(
-                    'Firmware',
-                    ble.firmwareVersion['firmware'] ?? '—',
-                    isLast: true,
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  _isRinging
+                      ? 'The ring is flashing and vibrating. Follow the light or vibration to locate it.'
+                      : 'Tap the button below to trigger the ring\'s LED light and vibration alert.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    color: AppTheme.textSec,
+                    fontSize: 13,
+                    height: 1.4,
                   ),
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: 40),
-          ],
+
+              const SizedBox(height: 28),
+
+              // ── Main Action Button ─────────────────────────────────────────
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _loading
+                      ? null
+                      : () => _toggleFindRing(!_isRinging),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isRinging ? Colors.redAccent : AppTheme.gold,
+                    foregroundColor: _isRinging ? Colors.white : Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: _isRinging ? 0 : 4,
+                  ),
+                  child: _loading
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: _isRinging ? Colors.white : Colors.black,
+                          ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _isRinging
+                                  ? Icons.stop_circle_rounded
+                                  : Icons.vibration_rounded,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              _isRinging ? 'Stop Alert' : 'Start Ringing / Flashing',
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // ── Live Battery Card ──────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: const Color(0x1AFFFFFF),
+                    width: 0.5,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              batteryPct > 20
+                                  ? Icons.battery_std_rounded
+                                  : Icons.battery_alert_rounded,
+                              color: batteryPct > 20
+                                  ? AppTheme.gold
+                                  : Colors.redAccent,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Battery Level',
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          ble.battery >= 0 ? '$batteryPct%' : 'Checking...',
+                          style: GoogleFonts.inter(
+                            color: batteryPct > 20
+                                ? AppTheme.gold
+                                : Colors.redAccent,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    // Battery Bar Indicator
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value: ble.battery >= 0 ? (batteryPct / 100).clamp(0.0, 1.0) : 0.0,
+                        minHeight: 8,
+                        backgroundColor: const Color(0x1AFFFFFF),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          batteryPct > 20 ? AppTheme.gold : Colors.redAccent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // ── Device Details Card ────────────────────────────────────────
+              Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: const Color(0x1AFFFFFF),
+                    width: 0.5,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    _DetailRow(
+                      label: 'Device Name',
+                      value: hasDevice ? ble.deviceName : 'Not Paired',
+                      isFirst: true,
+                    ),
+                    _DetailRow(
+                      label: 'MAC Address',
+                      value: ble.deviceAddress.isNotEmpty ? ble.deviceAddress : '—',
+                      onCopy: ble.deviceAddress.isNotEmpty
+                          ? () {
+                              Clipboard.setData(ClipboardData(text: ble.deviceAddress));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('MAC address copied to clipboard.')),
+                              );
+                            }
+                          : null,
+                    ),
+                    _DetailRow(
+                      label: 'Connection Status',
+                      value: ble.isConnected ? 'Connected' : 'Disconnected',
+                      valueColor: ble.isConnected ? Colors.greenAccent : Colors.redAccent,
+                    ),
+                    _DetailRow(
+                      label: 'Firmware Version',
+                      value: ble.firmwareVersion['firmware'] ?? 'v1.0.0.55',
+                      isLast: true,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 36),
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _row(String label, String value, {bool isFirst = false, bool isLast = false}) {
-    return Column(
-      children: [
-        if (!isFirst) const Divider(height: 1, color: AppTheme.div),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color? valueColor;
+  final VoidCallback? onCopy;
+  final bool isFirst;
+  final bool isLast;
+
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    this.valueColor,
+    this.onCopy,
+    this.isFirst = false,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: isLast
+              ? BorderSide.none
+              : const BorderSide(color: Color(0x14FFFFFF), width: 0.5),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              color: AppTheme.textSec,
+              fontSize: 13,
+            ),
+          ),
+          Row(
             children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
               Text(
                 value,
-                style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+                style: GoogleFonts.inter(
+                  color: valueColor ?? Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
+              if (onCopy != null) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: onCopy,
+                  child: const Icon(
+                    Icons.copy_rounded,
+                    size: 14,
+                    color: AppTheme.gold,
+                  ),
+                ),
+              ],
             ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

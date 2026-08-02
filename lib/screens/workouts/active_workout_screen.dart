@@ -303,11 +303,14 @@ class _FinishButtonState extends State<_FinishButton> {
 
   Future<void> _finish() async {
     setState(() => _finishing = true);
+    final nav = Navigator.of(context);
     final session = await widget.workout.stopWorkout();
     if (!mounted) return;
     setState(() => _finishing = false);
-    Navigator.of(context).pop();
-    if (session != null) _showSummaryDialog(context, session);
+    nav.pop();
+    if (session != null && nav.context.mounted) {
+      _showSummaryDialog(nav.context, session);
+    }
   }
 
   void _showSummaryDialog(BuildContext context, WorkoutSession session) {

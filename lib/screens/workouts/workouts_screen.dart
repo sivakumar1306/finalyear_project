@@ -7,7 +7,9 @@ import '../../models/workout_model.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/offline_notice.dart';
+import '../../widgets/glass_back_button.dart';
 import 'active_workout_screen.dart';
+import 'workout_detail_screen.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _kBg     = Color(0xFF080808);
@@ -52,21 +54,51 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
   }
 
   Future<void> _loadHistory() async {
-    final userId = SupabaseService.currentUser?.id;
-    if (userId == null) return;
     setState(() { _loadingHistory = true; _historyOffline = false; });
     try {
-      final now = DateTime.now();
-      final data = await SupabaseService.getWorkoutHistory(
-        userId: userId,
-        from: now.subtract(const Duration(days: 90)),
-        to: now,
-      );
-      if (mounted) setState(() { _history = data; _loadingHistory = false; });
-    } catch (e) {
-      if (mounted) {
-        setState(() { _loadingHistory = false; _historyOffline = isNetworkError(e); });
+      final workoutProvider = context.read<WorkoutProvider>();
+      final localData = await workoutProvider.getLocalWorkouts();
+      List<Map<String, dynamic>> supabaseData = [];
+
+      final userId = SupabaseService.currentUser?.id;
+      if (userId != null) {
+        try {
+          final now = DateTime.now();
+          supabaseData = await SupabaseService.getWorkoutHistory(
+            userId: userId,
+            from: now.subtract(const Duration(days: 90)),
+            to: now,
+          );
+        } catch (e) {
+          if (mounted) {
+            setState(() { _historyOffline = isNetworkError(e); });
+          }
+        }
       }
+
+      final Map<String, Map<String, dynamic>> merged = {};
+      for (final item in [...localData, ...supabaseData]) {
+        final key = item['id']?.toString() ?? item['started_at']?.toString() ?? '';
+        if (key.isNotEmpty) {
+          merged[key] = item;
+        }
+      }
+
+      final result = merged.values.toList();
+      result.sort((a, b) {
+        final tA = a['started_at']?.toString() ?? '';
+        final tB = b['started_at']?.toString() ?? '';
+        return tB.compareTo(tA);
+      });
+
+      if (mounted) {
+        setState(() {
+          _history = result;
+          _loadingHistory = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingHistory = false);
     }
   }
 
@@ -137,15 +169,25 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                   // ── Header ─────────────────────────────────────────────────
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 22, 16, 0),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Workouts',
-                              style: _inter(28, weight: FontWeight.w700)),
-                          const SizedBox(height: 4),
-                          Text('Track your fitness journey',
-                              style: _inter(13, color: _kSec2)),
+                          Row(
+                            children: [
+                              const GlassBackButton(),
+                              const SizedBox(width: 14),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Workouts',
+                                      style: _inter(28, weight: FontWeight.w700)),
+                                  Text('Track your fitness journey',
+                                      style: _inter(13, color: _kSec2)),
+                                ],
+                              ),
+                            ],
+                          ),
                           const SizedBox(height: 24),
                         ],
                       ),
@@ -516,86 +558,89 @@ class _SpotlightCard extends StatelessWidget {
         ? '${type[0].toUpperCase()}${type.substring(1)}'
         : 'Workout';
 
-    return Container(
-      width: 152,
-      margin: const EdgeInsets.only(right: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Icon
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppTheme.goldBorder,
-              borderRadius: BorderRadius.circular(10),
+    return GestureDetector(
+      onTap: () => _showWorkoutDetailSheet(context, row),
+      child: Container(
+        width: 152,
+        margin: const EdgeInsets.only(right: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _kCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _kBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Icon
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppTheme.goldBorder,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: AppTheme.gold, size: 18),
             ),
-            child: Icon(icon, color: AppTheme.gold, size: 18),
-          ),
-          const SizedBox(height: 10),
-          // Name
-          Text(
-            label,
-            style: _inter(12, weight: FontWeight.w600),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          // Date
-          Text(
-            startedAt.isNotEmpty ? _fmtDate(startedAt) : '',
-            style: _inter(9.5, color: _kSec2),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const Spacer(),
-          // Duration — prominent
-          Text(
-            _fmtDuration(durationS),
-            style: _inter(22, weight: FontWeight.w700, color: AppTheme.gold),
-          ),
-          const SizedBox(height: 6),
-          // Mini stats row
-          Row(
-            children: [
-              if (avgHr > 0) ...[
-                Icon(Icons.monitor_heart_rounded,
-                    color: AppTheme.hrColor, size: 11),
-                const SizedBox(width: 2),
-                Text('$avgHr',
+            const SizedBox(height: 10),
+            // Name
+            Text(
+              label,
+              style: _inter(12, weight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            // Date
+            Text(
+              startedAt.isNotEmpty ? _fmtDate(startedAt) : '',
+              style: _inter(9.5, color: _kSec2),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const Spacer(),
+            // Duration — prominent
+            Text(
+              _fmtDuration(durationS),
+              style: _inter(22, weight: FontWeight.w700, color: AppTheme.gold),
+            ),
+            const SizedBox(height: 6),
+            // Mini stats row
+            Row(
+              children: [
+                if (avgHr > 0) ...[
+                  Icon(Icons.monitor_heart_rounded,
+                      color: AppTheme.hrColor, size: 11),
+                  const SizedBox(width: 2),
+                  Text('$avgHr',
+                      style: _inter(10,
+                          weight: FontWeight.w600, color: _kSec2)),
+                  const SizedBox(width: 6),
+                ],
+                if (calories > 0) ...[
+                  const Icon(Icons.local_fire_department_rounded,
+                      color: Color(0xFFFF6B35), size: 11),
+                  const SizedBox(width: 2),
+                  Text('$calories',
+                      style: _inter(10,
+                          weight: FontWeight.w600, color: _kSec2)),
+                  const SizedBox(width: 6),
+                ],
+                if (distanceM > 0) ...[
+                  Icon(Icons.straighten_rounded,
+                      color: AppTheme.success, size: 11),
+                  const SizedBox(width: 2),
+                  Text(
+                    distanceM >= 1000
+                        ? '${(distanceM / 1000).toStringAsFixed(1)}k'
+                        : '${distanceM.toStringAsFixed(0)}m',
                     style: _inter(10,
-                        weight: FontWeight.w600, color: _kSec2)),
-                const SizedBox(width: 6),
+                        weight: FontWeight.w600, color: _kSec2),
+                  ),
+                ],
               ],
-              if (calories > 0) ...[
-                const Icon(Icons.local_fire_department_rounded,
-                    color: Color(0xFFFF6B35), size: 11),
-                const SizedBox(width: 2),
-                Text('$calories',
-                    style: _inter(10,
-                        weight: FontWeight.w600, color: _kSec2)),
-                const SizedBox(width: 6),
-              ],
-              if (distanceM > 0) ...[
-                Icon(Icons.straighten_rounded,
-                    color: AppTheme.success, size: 11),
-                const SizedBox(width: 2),
-                Text(
-                  distanceM >= 1000
-                      ? '${(distanceM / 1000).toStringAsFixed(1)}k'
-                      : '${distanceM.toStringAsFixed(0)}m',
-                  style: _inter(10,
-                      weight: FontWeight.w600, color: _kSec2),
-                ),
-              ],
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -667,67 +712,80 @@ class _HistoryRow extends StatelessWidget {
           const Color(0xFFFF6B35), '$calories kcal'));
     }
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AppTheme.goldBorder,
-                  borderRadius: BorderRadius.circular(10),
+    return GestureDetector(
+      onTap: () => _showWorkoutDetailSheet(context, row),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _kCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _kBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppTheme.goldBorder,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: AppTheme.gold, size: 19),
                 ),
-                child: Icon(icon, color: AppTheme.gold, size: 19),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label, style: _inter(14, weight: FontWeight.w600)),
-                    if (startedAt.isNotEmpty)
-                      Text(_fmtTime(startedAt),
-                          style: _inter(11, color: _kSec2)),
-                  ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label, style: _inter(14, weight: FontWeight.w600)),
+                      if (startedAt.isNotEmpty)
+                        Text(_fmtTime(startedAt),
+                            style: _inter(11, color: _kSec2)),
+                    ],
+                  ),
                 ),
-              ),
-              Text(
-                _fmtDuration(durationS),
-                style: _inter(14,
-                    weight: FontWeight.w700, color: AppTheme.gold),
+                Text(
+                  _fmtDuration(durationS),
+                  style: _inter(14,
+                      weight: FontWeight.w700, color: AppTheme.gold),
+                ),
+              ],
+            ),
+            if (stats.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                children: stats
+                    .map((s) => Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(s.$1, color: s.$2, size: 12),
+                            const SizedBox(width: 3),
+                            Text(s.$3, style: _inter(11, color: _kSec2)),
+                          ],
+                        ))
+                    .toList(),
               ),
             ],
-          ),
-          if (stats.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 12,
-              runSpacing: 4,
-              children: stats
-                  .map((s) => Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(s.$1, color: s.$2, size: 12),
-                          const SizedBox(width: 3),
-                          Text(s.$3, style: _inter(11, color: _kSec2)),
-                        ],
-                      ))
-                  .toList(),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }
+}
+
+// ── Detail Sheet ─────────────────────────────────────────────────────────────
+
+void _showWorkoutDetailSheet(BuildContext context, Map<String, dynamic> row) {
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => WorkoutDetailScreen(row: row),
+    ),
+  );
 }
 
 // ── Empty state ───────────────────────────────────────────────────────────────

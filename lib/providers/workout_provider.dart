@@ -178,6 +178,19 @@ class WorkoutProvider extends ChangeNotifier {
 
     WorkoutSession? session;
     final userId = SupabaseService.currentUser?.id;
+    final workoutMap = <String, dynamic>{
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+      'workout_type': sport,
+      'started_at': _startTime!.toIso8601String(),
+      'ended_at': endTime.toIso8601String(),
+      'duration_s': duration,
+      'steps': _workoutSteps,
+      'calories': _workoutCalories,
+      'distance_m': _workoutDistanceM,
+      'avg_hr': computedAvgHr,
+      'created_at': endTime.toIso8601String(),
+    };
+
     if (userId != null && _startTime != null) {
       try {
         final id = await SupabaseService.insertWorkout(
@@ -194,22 +207,26 @@ class WorkoutProvider extends ChangeNotifier {
           avgBpSbp: 0,
           avgBpDbp: 0,
         );
-        session = WorkoutSession(
-          id: id ?? '',
-          category: category,
-          sport: sport,
-          startTime: _startTime!,
-          endTime: endTime,
-          durationSeconds: duration,
-          steps: _workoutSteps,
-          calories: _workoutCalories,
-          distanceM: _workoutDistanceM,
-          avgHr: computedAvgHr,
-        );
+        if (id != null) workoutMap['id'] = id;
       } catch (e) {
         debugPrint('WorkoutProvider: insertWorkout failed: $e');
       }
     }
+
+    await _saveLocalWorkout(workoutMap);
+
+    session = WorkoutSession(
+      id: workoutMap['id']?.toString() ?? '',
+      category: category,
+      sport: sport,
+      startTime: _startTime!,
+      endTime: endTime,
+      durationSeconds: duration,
+      steps: _workoutSteps,
+      calories: _workoutCalories,
+      distanceM: _workoutDistanceM,
+      avgHr: computedAvgHr,
+    );
 
     final prefs = await _getPrefs();
     for (final key in [
@@ -238,36 +255,58 @@ class WorkoutProvider extends ChangeNotifier {
     return session;
   }
 
+  // ── Local Workout Persistence ─────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getLocalWorkouts() async {
+    final prefs = await _getPrefs();
+    final raw = prefs.getString('local_workout_history');
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final List<dynamic> list = jsonDecode(raw);
+      return list.cast<Map<String, dynamic>>();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _saveLocalWorkout(Map<String, dynamic> workoutMap) async {
+    final prefs = await _getPrefs();
+    final existing = await getLocalWorkouts();
+    existing.insert(0, workoutMap);
+    if (existing.length > 100) {
+      existing.removeLast();
+    }
+    await prefs.setString('local_workout_history', jsonEncode(existing));
+  }
+
   // ── Measurement loop ─────────────────────────────────────────────────────────
   //
-  // Alternates between:
-  //   1. HR reading  — blocks until the ring returns a valid beat (~15-30 s)
-  //   2. Steps poll  — fetch accumulated steps/cal/dist and compute delta
-  //
-  // Polling always runs regardless of category. The active workout screen
-  // decides which values to display based on the category metrics.
-
+  // Runs HR reading and Steps/Calories/Distance polling concurrently while active.
   Future<void> _runMeasurementLoop() async {
-    while (_isWorkoutActive) {
-      // ── 1. Heart rate ─────────────────────────────────────────────────────
-      try {
-        final hr = await _ble.readHeartRate();
-        if (!_isWorkoutActive) break;
-        if (hr != null && hr > 0) {
-          _hrReadings.add(hr);
-          _hrSum += hr;
-          _latestHr = hr;
-          notifyListeners();
-        }
-      } catch (_) {
-        if (!_isWorkoutActive) break;
+    Future<void> hrLoop() async {
+      while (_isWorkoutActive) {
+        try {
+          final hr = await _ble.readHeartRate();
+          if (!_isWorkoutActive) break;
+          if (hr != null && hr > 0) {
+            _hrReadings.add(hr);
+            _hrSum += hr;
+            _latestHr = hr;
+            notifyListeners();
+          }
+        } catch (_) {}
+        await Future.delayed(const Duration(seconds: 4));
       }
-
-      if (!_isWorkoutActive) break;
-
-      // ── 2. Steps / calories / distance ────────────────────────────────────
-      await _pollRing();
     }
+
+    Future<void> stepsLoop() async {
+      while (_isWorkoutActive) {
+        await _pollRing();
+        await Future.delayed(const Duration(seconds: 2));
+      }
+    }
+
+    await Future.wait([hrLoop(), stepsLoop()]);
   }
 
   // ── Timer & ring helpers ──────────────────────────────────────────────────
@@ -285,12 +324,13 @@ class WorkoutProvider extends ChangeNotifier {
 
   Future<void> _pollRing() async {
     try {
+      await _ble.syncTodaySteps();
       final raw = await _ble.getTodaySteps();
       final (steps, cal, dist) = _parseSteps(raw);
 
       if (steps > 0 || cal > 0 || dist > 0) {
-        _workoutSteps    = (steps - _initialSteps).clamp(0, 9999999);
-        _workoutCalories = (cal   - _initialCalories).clamp(0, 9999999);
+        _workoutSteps = (steps - _initialSteps).clamp(0, 9999999);
+        _workoutCalories = (cal - _initialCalories).clamp(0, 9999999);
         _workoutDistanceM = (dist - _initialDistance).clamp(0.0, 9999999.0);
         notifyListeners();
       }
