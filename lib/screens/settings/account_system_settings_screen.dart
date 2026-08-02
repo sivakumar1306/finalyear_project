@@ -92,6 +92,7 @@ class AccountSystemSettingsScreen extends StatelessWidget {
                     title: 'Delete account',
                     titleColor: AppTheme.danger,
                     iconColor: AppTheme.danger,
+                    onTap: () => _confirmDeleteAccount(context),
                   ),
                 ],
               ),
@@ -174,6 +175,88 @@ class AccountSystemSettingsScreen extends StatelessWidget {
         Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
       }
     }
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final passwordController = TextEditingController();
+    bool isLoading = false;
+    
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            backgroundColor: AppTheme.card2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text('Delete Account',
+                style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'This action is permanent and cannot be undone. All your health data and settings will be permanently erased. Please enter your password to confirm.',
+                  style: GoogleFonts.inter(color: AppTheme.textSec),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  style: GoogleFonts.inter(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Password',
+                    hintStyle: GoogleFonts.inter(color: AppTheme.textSec),
+                    filled: true,
+                    fillColor: AppTheme.card,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              if (!isLoading)
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+                ),
+              TextButton(
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        final password = passwordController.text.trim();
+                        if (password.isEmpty) return;
+                        
+                        setState(() => isLoading = true);
+                        try {
+                          await SupabaseService.deleteAccount(password);
+                          if (context.mounted) {
+                            Navigator.pop(context); // close dialog
+                            Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
+                          }
+                        } catch (e) {
+                          debugPrint('Error deleting account: $e');
+                          setState(() => isLoading = false);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: ${e.toString()}')),
+                            );
+                          }
+                        }
+                      },
+                child: isLoading
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.danger))
+                    : Text('Delete Permanently',
+                        style: GoogleFonts.inter(color: AppTheme.danger, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _confirmFactoryReset(BuildContext context) async {

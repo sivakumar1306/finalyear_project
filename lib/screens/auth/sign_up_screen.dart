@@ -5,6 +5,8 @@ import '../../models/onboarding_data.dart';
 import '../onboarding/onboarding_name_screen.dart';
 import '../settings/faq_screen.dart';
 import 'login_screen.dart';
+import '../../widgets/glass_back_button.dart';
+
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -83,10 +85,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
-                  ),
+                  const GlassBackButton(),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.help_outline, color: Colors.white54),

@@ -32,7 +32,7 @@ class _OnboardingAgeScreenState extends State<OnboardingAgeScreen> {
   Widget build(BuildContext context) {
     return OnboardingShell(
       step: 2,
-      totalSteps: 5,
+      totalSteps: 6,
       data: widget.data,
       onContinue: () {
         widget.data.age = _age;
@@ -49,7 +49,7 @@ class _OnboardingAgeScreenState extends State<OnboardingAgeScreen> {
           children: [
             const SizedBox(height: 8),
             onboardingHeader(
-              'STEP 2 OF 5',
+              'STEP 2 OF 6',
               'How ',
               'old',
               ' are you?',

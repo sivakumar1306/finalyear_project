@@ -30,7 +30,7 @@ class _OnboardingNameScreenState extends State<OnboardingNameScreen> {
   Widget build(BuildContext context) {
     return OnboardingShell(
       step: 1,
-      totalSteps: 5,
+      totalSteps: 6,
       data: widget.data,
       canContinue: true,
       onContinue: () {
@@ -49,7 +49,7 @@ class _OnboardingNameScreenState extends State<OnboardingNameScreen> {
           children: [
             const SizedBox(height: 8),
             onboardingHeader(
-              'STEP 1 OF 5',
+              'STEP 1 OF 6',
               'What should we ',
               'call you?',
               '',

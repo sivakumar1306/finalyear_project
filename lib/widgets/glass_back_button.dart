@@ -6,27 +6,18 @@ import 'glass_icon_button.dart';
 /// a default [Navigator.pop]. Pass [onTap] to override (e.g. `_goBackToHome`).
 class GlassBackButton extends StatelessWidget {
   final VoidCallback? onTap;
-  final IconData icon;
-  final double size;
-  final double iconSize;
-  final Color? iconColor;
 
   const GlassBackButton({
     super.key,
     this.onTap,
-    this.icon = Icons.arrow_back_ios_new_rounded,
-    this.size = 36,
-    this.iconSize = 16,
-    this.iconColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return GlassIconButton(
-      icon: icon,
-      size: size,
-      iconSize: iconSize,
-      iconColor: iconColor,
+      icon: Icons.arrow_back_ios_new_rounded,
+      size: 36,
+      iconSize: 16,
       onTap: onTap ?? () => Navigator.pop(context),
     );
   }
