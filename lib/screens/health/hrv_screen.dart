@@ -643,6 +643,7 @@ class _HrvScreenState extends State<HrvScreen> {
                   values: _trendValues,
                   xLabels: _trendXLabels(),
                   loading: _loadingTrend,
+                  showLegend: true,
                 ),
                 if (_trendOffline) ...[
                   const SizedBox(height: 8),
@@ -652,30 +653,7 @@ class _HrvScreenState extends State<HrvScreen> {
                 ],
                 const SizedBox(height: 10),
 
-                // ── 6. Color legend ────────────────────────────────────────
-                Container(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                  decoration: BoxDecoration(
-                    color: _kCard,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _kBorder),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _LegendDot(color: AppTheme.danger, label: 'Very Low'),
-                      _LegendDot(color: AppTheme.stressColor, label: 'Low'),
-                      _LegendDot(
-                        color: const Color(0xFFFBBF24),
-                        label: 'Moderate',
-                      ),
-                      _LegendDot(color: AppTheme.success, label: 'Good'),
-                      _LegendDot(color: AppTheme.hrvColor, label: 'Excellent'),
-                    ],
-                  ),
-                ),
-
-                // ── 7. Slot readings (today only) ──────────────────────────
+                // ── 6. Slot readings (today only) ──────────────────────────
                 if (hasData) ...[
                   const SizedBox(height: 10),
                   _slotReadingsList(_chartValues),
@@ -902,6 +880,7 @@ class _HRVChartCard extends StatelessWidget {
   final List<int> values;
   final List<String> xLabels;
   final bool loading;
+  final bool showLegend;
 
   const _HRVChartCard({
     required this.headerLabel,
@@ -909,6 +888,7 @@ class _HRVChartCard extends StatelessWidget {
     required this.values,
     required this.xLabels,
     required this.loading,
+    this.showLegend = false,
   });
 
   static const _yAxisW = 30.0;
@@ -990,6 +970,7 @@ class _HRVChartCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(left: _yAxisW),
             child: xLabels.length == values.length &&
+                    xLabels.isNotEmpty &&
                     xLabels.every((l) => l.isNotEmpty)
                 ? Row(
                     children: [
@@ -1010,6 +991,19 @@ class _HRVChartCard extends StatelessWidget {
                         .toList(),
                   ),
           ),
+          if (showLegend) ...[
+            const SizedBox(height: 12),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _LegendDot(color: AppTheme.danger, label: 'Very Low'),
+                _LegendDot(color: AppTheme.stressColor, label: 'Low'),
+                _LegendDot(color: Color(0xFFFBBF24), label: 'Moderate'),
+                _LegendDot(color: AppTheme.success, label: 'Good'),
+                _LegendDot(color: AppTheme.hrvColor, label: 'Excellent'),
+              ],
+            ),
+          ],
         ],
       ),
     );

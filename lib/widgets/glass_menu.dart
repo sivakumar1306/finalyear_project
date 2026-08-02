@@ -10,6 +10,9 @@ class GlassMenuItem {
 }
 
 const double _kMenuWidth = 166.5;
+// Shifts the menu left of the anchor button so the panel sits under the "..."
+// control without hugging / overhanging the screen edge.
+const double _kMenuLeftShift = 18.0;
 
 /// Anchored glassmorphic dropdown menu — per DESIGN.md's soft-glassmorphism
 /// card spec (blur, translucent surface, hairline border), used for
@@ -24,19 +27,19 @@ Future<void> showGlassMenu({
       Navigator.of(context).overlay?.context.findRenderObject() as RenderBox?;
   if (anchorBox == null || overlayBox == null) return;
 
-  final anchorRect =
-      anchorBox.localToGlobal(Offset.zero, ancestor: overlayBox) &
-          anchorBox.size;
-  final overlayRect = Offset.zero & overlayBox.size;
-
-  final menuAnchorRect = Rect.fromLTWH(
-    anchorRect.left,
-    anchorRect.bottom + 8.0,
-    anchorRect.width,
-    0,
+  final position = RelativeRect.fromRect(
+    Rect.fromPoints(
+      anchorBox.localToGlobal(
+        Offset(-_kMenuLeftShift, anchorBox.size.height + 8),
+        ancestor: overlayBox,
+      ),
+      anchorBox.localToGlobal(
+        anchorBox.size.bottomRight(Offset(-_kMenuLeftShift, 0)),
+        ancestor: overlayBox,
+      ),
+    ),
+    Offset.zero & overlayBox.size,
   );
-
-  final position = RelativeRect.fromRect(menuAnchorRect, overlayRect);
 
   await showMenu<void>(
     context: context,
