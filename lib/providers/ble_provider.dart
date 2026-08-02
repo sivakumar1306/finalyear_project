@@ -381,6 +381,32 @@ class BleProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Sends factory reset command to the ring and disconnects upon success.
+  Future<bool> factoryReset() async {
+    try {
+      final ok = await _ble.factoryReset();
+      if (ok) {
+        await disconnect();
+      }
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Sends power off command to shut down the ring and disconnects upon success.
+  Future<bool> shutDownRing() async {
+    try {
+      final ok = await _ble.shutDownRing();
+      if (ok) {
+        await disconnect();
+      }
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ── Low battery prompt (phone-side notification) ──────────────────────────
   //
   // Purely local — no ring-side command involved. Driven by the ring's own

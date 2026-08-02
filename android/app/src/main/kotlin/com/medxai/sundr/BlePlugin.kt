@@ -45,8 +45,10 @@ import com.oudmon.ble.base.communication.req.PressureSettingReq
 import com.oudmon.ble.base.communication.req.ReadDetailSportDataReq
 import com.oudmon.ble.base.communication.req.ReadDrinkAlarmReq
 import com.oudmon.ble.base.communication.req.ReadHeartRateReq
+import com.oudmon.ble.base.communication.req.RestoreKeyReq
 import com.oudmon.ble.base.communication.req.SetANCSReq
 import com.oudmon.ble.base.communication.req.SetTimeReq
+import com.oudmon.ble.base.communication.req.SimpleKeyPowerOffReq
 import com.oudmon.ble.base.communication.req.SimpleKeyReq
 import com.oudmon.ble.base.communication.req.SugarLipidsSettingReq
 import com.oudmon.ble.base.communication.req.TouchControlReq
@@ -322,6 +324,8 @@ class BlePlugin(private val context: Context) {
             "sendNotification"           -> result.success(true)
             "takePicture"                -> takePicture(result)
             "exitCameraMode"             -> exitCameraMode(result)
+            "factoryReset"               -> factoryReset(result)
+            "shutDownRing"               -> shutDownRing(result)
             "startForegroundService"     -> {
                 try {
                     BleOperateManager.getInstance(context.applicationContext as Application)
@@ -612,8 +616,14 @@ class BlePlugin(private val context: Context) {
         fallback?.let { mainHandler.post(it) }
     }
 
+    private val prefs by lazy {
+        context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+    }
+
     private fun isAlreadyBonded(): Boolean {
-        val address = deviceAddress ?: return false
+        val address = deviceAddress
+            ?: prefs.getString("flutter.device_address", "")?.takeIf { it.isNotEmpty() }
+            ?: return false
         return try {
             BluetoothAdapter.getDefaultAdapter()?.getRemoteDevice(address)?.bondState == BluetoothDevice.BOND_BONDED
         } catch (_: Exception) {
@@ -2638,6 +2648,64 @@ class BlePlugin(private val context: Context) {
     private fun sendEvent(type: String, data: Map<String, Any>) {
         mainHandler.post {
             eventSink?.success(mapOf("type" to type, "data" to data))
+        }
+    }
+
+    private fun factoryReset(result: MethodChannel.Result) {
+        if (!_isConnected) {
+            result.success(false)
+            return
+        }
+        try {
+            var handled = false
+            CommandHandle.getInstance().executeReqCmd(
+                RestoreKeyReq(Constants.CMD_RE_STORE),
+                ICommandResponse<BaseRspCmd> { _ ->
+                    if (!handled) {
+                        handled = true
+                        mainHandler.post { result.success(true) }
+                    }
+                }
+            )
+            // Fallback response in case device resets immediately without ACK
+            mainHandler.postDelayed({
+                if (!handled) {
+                    handled = true
+                    result.success(true)
+                }
+            }, 1200)
+        } catch (e: Exception) {
+            Log.e(TAG, "factoryReset failed", e)
+            result.success(false)
+        }
+    }
+
+    private fun shutDownRing(result: MethodChannel.Result) {
+        if (!_isConnected) {
+            result.success(false)
+            return
+        }
+        try {
+            var handled = false
+            CommandHandle.getInstance().executeReqCmd(
+                SimpleKeyPowerOffReq(),
+                ICommandResponse<BaseRspCmd> { _ ->
+                    if (!handled) {
+                        handled = true
+                        mainHandler.post { result.success(true) }
+                    }
+                }
+            )
+            // Fallback response in case device shuts down immediately without ACK
+            mainHandler.postDelayed({
+                if (!handled) {
+                    handled = true
+                    result.success(true)
+                }
+            }, 1200)
+        } catch (e: Exception) {
+            Log.e(TAG, "shutDownRing failed", e)
+            result.success(false)
         }
     }
 

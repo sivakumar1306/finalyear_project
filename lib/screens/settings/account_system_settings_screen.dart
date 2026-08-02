@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../../providers/ble_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
@@ -107,11 +109,17 @@ class AccountSystemSettingsScreen extends StatelessWidget {
                   _AccountRow(
                     icon: Icons.settings_backup_restore_rounded,
                     title: 'Factory reset',
+                    titleColor: AppTheme.danger,
+                    iconColor: AppTheme.danger,
+                    onTap: () => _confirmFactoryReset(context),
                   ),
                   _divider(),
                   _AccountRow(
                     icon: Icons.power_settings_new_rounded,
                     title: 'Shut down ring',
+                    titleColor: AppTheme.danger,
+                    iconColor: AppTheme.danger,
+                    onTap: () => _confirmShutDownRing(context),
                   ),
                 ],
               ),
@@ -164,6 +172,94 @@ class AccountSystemSettingsScreen extends StatelessWidget {
       await SupabaseService.logoutAndClearLocalData();
       if (context.mounted) {
         Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
+      }
+    }
+  }
+
+  Future<void> _confirmFactoryReset(BuildContext context) async {
+    final ble = Provider.of<BleProvider>(context, listen: false);
+    if (!ble.isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ring is not connected.')),
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.card2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Factory Reset Ring',
+            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+        content: Text(
+            'This will restore the ring to factory default settings and erase stored ring metrics. Are you sure?',
+            style: GoogleFonts.inter(color: AppTheme.textSec)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Reset',
+                style: GoogleFonts.inter(
+                    color: AppTheme.danger, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) {
+      final success = await ble.factoryReset();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? 'Ring factory reset completed.' : 'Failed to factory reset ring.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmShutDownRing(BuildContext context) async {
+    final ble = Provider.of<BleProvider>(context, listen: false);
+    if (!ble.isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ring is not connected.')),
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.card2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Shut Down Ring',
+            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+        content: Text(
+            'This will power off the ring. You will need to place it on its charger to turn it back on. Continue?',
+            style: GoogleFonts.inter(color: AppTheme.textSec)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Shut Down',
+                style: GoogleFonts.inter(
+                    color: AppTheme.danger, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) {
+      final success = await ble.shutDownRing();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? 'Shut down command sent to ring.' : 'Failed to shut down ring.'),
+          ),
+        );
       }
     }
   }
