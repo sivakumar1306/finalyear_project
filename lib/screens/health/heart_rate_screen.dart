@@ -10,6 +10,8 @@ import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
+import '../../widgets/glass_back_button.dart';
+
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
@@ -77,9 +79,23 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         _selectedDate.day == n.day;
   }
 
-  int get _displayAvg => _isToday ? _avgHr : _dayAvg;
-  int get _displayMin => _isToday ? _minHr : _dayMin;
-  int get _displayMax => _isToday ? _maxHr : _dayMax;
+  int get _displayAvg {
+    if (!_isToday) return _dayAvg;
+    if (_avgHr > 0) return _avgHr;
+    try { return context.read<BleProvider>().todayAvgHr; } catch(_) { return 0; }
+  }
+
+  int get _displayMin {
+    if (!_isToday) return _dayMin;
+    if (_minHr > 0) return _minHr;
+    try { return context.read<BleProvider>().todayMinHr; } catch(_) { return 0; }
+  }
+
+  int get _displayMax {
+    if (!_isToday) return _dayMax;
+    if (_maxHr > 0) return _maxHr;
+    try { return context.read<BleProvider>().todayMaxHr; } catch(_) { return 0; }
+  }
 
   String _fmt(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -106,11 +122,16 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     setState(() {
       _selectedDate = date;
       _manualHr = 0;
+      _chartValues = []; // clear while loading
       if (isToday) {
         _dayAvg = _dayMin = _dayMax = 0;
       }
     });
-    if (!isToday) _loadDayFromSupabase(date);
+    if (!isToday) {
+      _loadDayFromSupabase(date);
+    } else {
+      _fetchTodayFromLocalDb();
+    }
   }
 
   // ── Local DB fetch (today) ──────────────────────────────────────────────────
@@ -182,7 +203,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         _maxHr = maxVal;
         _selectedDate = DateTime.now();
       });
-      context.read<BleProvider>().updateHrData(avg, minVal, maxVal);
+      if (avg > 0 && mounted) {
+        context.read<BleProvider>().updateHrData(avg, minVal, maxVal);
+      }
     } catch (_) {
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -215,6 +238,29 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     });
     try {
       final row = await SupabaseService.getHrForDate(user.id, date);
+      
+      final dayStart = DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
+      final dayEnd = DateTime(date.year, date.month, date.day, 23, 59, 59, 999).millisecondsSinceEpoch;
+      final readingsJson = await _ble.getReadings('heart_rate', fromMs: dayStart, toMs: dayEnd, limit: 1000);
+      final decoded = jsonDecode(readingsJson);
+      final list = decoded is List ? decoded : <dynamic>[];
+      
+      final hourly = List<int>.filled(24, 0);
+      final sums = List<int>.filled(24, 0);
+      final counts = List<int>.filled(24, 0);
+      for (final item in list) {
+        final m = item as Map<String, dynamic>;
+        final bpm = (m['valueBpm'] as num? ?? 0).toInt();
+        final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
+        if (bpm <= 0 || measuredAt <= 0) continue;
+        final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
+        sums[h] += bpm;
+        counts[h] += 1;
+      }
+      for (int h = 0; h < 24; h++) {
+        if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
+      }
+
       if (!mounted) return;
       if (row != null) {
         setState(() {
@@ -223,6 +269,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           _dayMax = (row['max_hr'] as num? ?? 0).toInt();
         });
       }
+      setState(() {
+        if (_selectedDate == date) _chartValues = hourly;
+      });
     } catch (e) {
       if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
     } finally {
@@ -399,7 +448,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         ? '$_displayAvg'
         : '--';
 
-    final hasData = _isToday && _chartValues.any((v) => v > 0);
+    final hasData = _chartValues.any((v) => v > 0);
 
     final dailyRangeLabel = hasData ? '$_displayMin - $_displayMax' : '-- --';
 
@@ -417,10 +466,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           centerTitle: true,
           elevation: 0,
           scrolledUnderElevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
+          leading: const GlassBackButton(),
           title: Text('Heart Rate', style: _inter(17, weight: FontWeight.w600)),
           actions: [
             IconButton(
@@ -475,7 +521,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
               _HRChartCard(
                 headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
                 rangeLabel: dailyRangeLabel,
-                values: _isToday ? _chartValues : [],
+                values: _chartValues,
                 xLabels: const ['12am', '6am', '12pm', '6pm', ''],
                 loading: _loading || _loadingDay,
               ),

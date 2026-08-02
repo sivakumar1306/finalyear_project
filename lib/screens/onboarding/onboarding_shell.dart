@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../onboarding/pair_ring_screen.dart';
 import '../../models/onboarding_data.dart';
+import '../../widgets/glass_back_button.dart';
+
 
 const kGold = Color(0xFFC9A86E);
 const kBg = Colors.black;
@@ -37,10 +39,7 @@ class OnboardingShell extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
-                  ),
+                  const GlassBackButton(),
                   Expanded(
                     child: Center(
                       child: _StepDots(current: step, total: totalSteps),

@@ -3,7 +3,7 @@ import '../../models/onboarding_data.dart';
 import '../../services/unit_prefs.dart';
 import '../../widgets/ruler_picker.dart';
 import 'onboarding_shell.dart';
-import 'pair_ring_screen.dart';
+import 'onboarding_emergency_contact_screen.dart';
 
 class OnboardingWeightScreen extends StatefulWidget {
   final OnboardingData data;
@@ -136,9 +136,9 @@ class _OnboardingWeightScreenState extends State<OnboardingWeightScreen> {
   Widget build(BuildContext context) {
     return OnboardingShell(
       step: 5,
-      totalSteps: 5,
+      totalSteps: 6,
       data: widget.data,
-      buttonLabel: 'Finish',
+      buttonLabel: 'Continue',
       onContinue: () {
         widget.data.weightKg = _weight;
         _saveAndNext();
@@ -150,7 +150,7 @@ class _OnboardingWeightScreenState extends State<OnboardingWeightScreen> {
           children: [
             const SizedBox(height: 8),
             onboardingHeader(
-              'STEP 5 OF 5',
+              'STEP 5 OF 6',
               'And your ',
               'weight?',
               '',
@@ -205,10 +205,9 @@ class _OnboardingWeightScreenState extends State<OnboardingWeightScreen> {
   Future<void> _saveAndNext() async {
     widget.data.weightKg = _weight;
     if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
+    Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => PairRingScreen(data: widget.data)),
-      (_) => false,
+      MaterialPageRoute(builder: (_) => OnboardingEmergencyContactScreen(data: widget.data)),
     );
   }
 }

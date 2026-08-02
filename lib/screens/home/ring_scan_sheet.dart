@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_back_button.dart';
 
 // ── Alphahuman ring detection ─────────────────────────────────────────────────
 // Widened from a narrow allowlist of just 'R08_'/'R02_' (which only matched the
@@ -231,14 +232,7 @@ class _RingScanSheetState extends State<_RingScanSheet>
                     children: [
                       Align(
                         alignment: Alignment.centerLeft,
-                        child: GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            color: Colors.white60,
-                            size: 18,
-                          ),
-                        ),
+                        child: const GlassBackButton(),
                       ),
                       Text(
                         'Pair Ring',

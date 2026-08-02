@@ -4,6 +4,8 @@ class OnboardingData {
   String gender;
   int heightCm;
   double weightKg;
+  String? emergencyContactName;
+  String? emergencyContactPhone;
 
   OnboardingData({
     this.name = '',
@@ -11,5 +13,7 @@ class OnboardingData {
     this.gender = '',
     this.heightCm = 170,
     this.weightKg = 70.0,
+    this.emergencyContactName,
+    this.emergencyContactPhone,
   });
 }

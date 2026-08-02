@@ -4,6 +4,8 @@ import '../../models/onboarding_data.dart';
 import '../onboarding/onboarding_name_screen.dart';
 import 'forgot_password_screen.dart';
 import 'sign_up_screen.dart';
+import '../../widgets/glass_back_button.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -81,10 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
-                  ),
+                  const GlassBackButton(),
                 ],
               ),
             ),

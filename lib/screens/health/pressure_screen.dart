@@ -10,6 +10,8 @@ import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
+import '../../widgets/glass_back_button.dart';
+
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
@@ -102,9 +104,23 @@ class _PressureScreenState extends State<PressureScreen> {
         _selectedDate.day == n.day;
   }
 
-  int get _displayAvg => _isToday ? _avgStress : _dayAvg;
-  int get _displayMin => _isToday ? _minStress : _dayMin;
-  int get _displayMax => _isToday ? _maxStress : _dayMax;
+  int get _displayAvg {
+    if (!_isToday) return _dayAvg;
+    if (_avgStress > 0) return _avgStress;
+    try { return context.read<BleProvider>().todayAvgStress; } catch(_) { return 0; }
+  }
+
+  int get _displayMin {
+    if (!_isToday) return _dayMin;
+    if (_minStress > 0) return _minStress;
+    try { return context.read<BleProvider>().todayMinStress; } catch(_) { return 0; }
+  }
+
+  int get _displayMax {
+    if (!_isToday) return _dayMax;
+    if (_maxStress > 0) return _maxStress;
+    try { return context.read<BleProvider>().todayMaxStress; } catch(_) { return 0; }
+  }
 
   String _fmt(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -129,12 +145,17 @@ class _PressureScreenState extends State<PressureScreen> {
         date.year == n.year && date.month == n.month && date.day == n.day;
     setState(() {
       _selectedDate = date;
+      _chartValues = [];
       _manualStress = 0;
       if (isToday) {
         _dayAvg = _dayMin = _dayMax = 0;
       }
     });
-    if (!isToday) _loadDayFromSupabase(date);
+    if (!isToday) {
+      _loadDayFromSupabase(date);
+    } else {
+      _fetchTodayFromLocalDb();
+    }
   }
 
   // ── Local DB fetch (today) ──────────────────────────────────────────────────
@@ -206,7 +227,9 @@ class _PressureScreenState extends State<PressureScreen> {
         _maxStress = maxVal;
         _selectedDate = DateTime.now();
       });
-      context.read<BleProvider>().updateStressLatest(avg);
+      if (avg > 0 && mounted) {
+        context.read<BleProvider>().updateStressLatest(avg);
+      }
     } catch (_) {
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -434,7 +457,7 @@ class _PressureScreenState extends State<PressureScreen> {
       _manualStress > 0 ? _manualStress : _displayAvg,
     );
 
-    final hasData = _isToday && _chartValues.any((v) => v > 0);
+    final hasData = _chartValues.any((v) => v > 0);
 
     final trendRangeLabel = _trendMin > 0 && _trendMax > 0
         ? '$_trendMin - $_trendMax'
@@ -450,10 +473,7 @@ class _PressureScreenState extends State<PressureScreen> {
           centerTitle: true,
           elevation: 0,
           scrolledUnderElevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
+          leading: const GlassBackButton(),
           title: Text('Stress', style: _inter(17, weight: FontWeight.w600)),
           actions: [
             IconButton(
@@ -508,7 +528,7 @@ class _PressureScreenState extends State<PressureScreen> {
               _StressChartCard(
                 headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
                 rangeLabel: hasData ? '$_displayMin - $_displayMax' : '-- --',
-                values: _isToday ? _chartValues : [],
+                values: _chartValues,
                 xLabels: const ['12am', '6am', '12pm', '6pm'],
                 loading: _loading || _loadingDay,
               ),

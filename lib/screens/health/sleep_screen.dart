@@ -14,6 +14,8 @@ import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import '../settings/card_settings_screen.dart';
 import 'vital_note_screen.dart';
+import '../../widgets/glass_back_button.dart';
+
 
 // Oudmon SDK sleep stage constants: 0=deep, 1=light, 2=awake, 3=REM
 const _kDeep = 0;
@@ -500,10 +502,7 @@ class _SleepScreenState extends State<SleepScreen> {
           centerTitle: true,
           elevation: 0,
           scrolledUnderElevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
+          leading: const GlassBackButton(),
           title: Text('Sleep', style: _inter(17, weight: FontWeight.w600)),
           actions: [
             IconButton(
