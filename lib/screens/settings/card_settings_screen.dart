@@ -274,7 +274,10 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
       children: [
         GlassHeader(
           title: 'Goal setting',
-          trailing: GlassIconButton(icon: Icons.check_rounded, onTap: () => Navigator.pop(context)),
+          trailing: GlassIconButton(
+            icon: Icons.check_rounded,
+            onTap: () => Navigator.pop(context),
+          ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 18, 28, 12),

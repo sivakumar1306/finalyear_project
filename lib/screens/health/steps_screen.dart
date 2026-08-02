@@ -84,13 +84,13 @@ class _DaySnapshot {
       distSlots.any((v) => v > 0);
 
   static _DaySnapshot empty() => _DaySnapshot(
-        steps: 0,
-        cal: 0,
-        distM: 0,
-        stepSlots: List.filled(96, 0),
-        calSlots: List.filled(96, 0),
-        distSlots: List.filled(96, 0.0),
-      );
+    steps: 0,
+    cal: 0,
+    distM: 0,
+    stepSlots: List.filled(96, 0),
+    calSlots: List.filled(96, 0),
+    distSlots: List.filled(96, 0.0),
+  );
 }
 
 class _StepsScreenState extends State<StepsScreen> {
@@ -213,19 +213,19 @@ class _StepsScreenState extends State<StepsScreen> {
         final m = Map<String, dynamic>.from(item);
 
         // ProGuard-obfuscated keys (production AAR) and clear SDK field names.
-        final slot = (m['d'] as num?)?.toInt() ??
+        final slot =
+            (m['d'] as num?)?.toInt() ??
             (m['timeIndex'] as num?)?.toInt() ??
             -1;
-        final steps = (m['f'] as num?)?.toInt() ??
-            (m['walkSteps'] as num?)?.toInt() ??
-            0;
+        final steps =
+            (m['f'] as num?)?.toInt() ?? (m['walkSteps'] as num?)?.toInt() ?? 0;
         final runSteps = (m['runSteps'] as num?)?.toInt() ?? 0;
         final stepTotal = steps + runSteps;
-        final calRaw = (m['e'] as num?)?.toInt() ??
-            (m['calorie'] as num?)?.toInt() ??
-            0;
+        final calRaw =
+            (m['e'] as num?)?.toInt() ?? (m['calorie'] as num?)?.toInt() ?? 0;
         final cal = calRaw >= 1000 ? calRaw ~/ 1000 : calRaw;
-        final dist = (m['g'] as num?)?.toDouble() ??
+        final dist =
+            (m['g'] as num?)?.toDouble() ??
             (m['distance'] as num?)?.toDouble() ??
             0.0;
 
@@ -372,11 +372,11 @@ class _StepsScreenState extends State<StepsScreen> {
         snap = ring;
         _applySnapshot(ring, isToday: true);
         context.read<BleProvider>().updateStepsData(
-              ring.steps,
-              ring.cal,
-              ring.distM,
-              ring.stepSlots,
-            );
+          ring.steps,
+          ring.cal,
+          ring.distM,
+          ring.stepSlots,
+        );
         await _saveToDb(day, ring.steps, ring.cal, ring.distM);
       }
     } else {
@@ -618,7 +618,9 @@ class _StepsScreenState extends State<StepsScreen> {
                             height: 34,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE08A4A).withValues(alpha: 0.15),
+                              color: const Color(
+                                0xFFE08A4A,
+                              ).withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Icon(
@@ -755,10 +757,7 @@ class _DateStrip extends StatefulWidget {
   final DateTime selectedDate;
   final ValueChanged<DateTime> onDateSelected;
 
-  const _DateStrip({
-    required this.selectedDate,
-    required this.onDateSelected,
-  });
+  const _DateStrip({required this.selectedDate, required this.onDateSelected});
 
   @override
   State<_DateStrip> createState() => _DateStripState();
@@ -799,24 +798,26 @@ class _DateStripState extends State<_DateStrip> {
     return DateTime(n.year, n.month, n.day);
   }
 
-  DateTime _dateAt(int index) =>
-      _today.add(Duration(days: index - _pastDays));
+  DateTime _dateAt(int index) => _today.add(Duration(days: index - _pastDays));
 
   int get _selectedIndex {
-    final diff = _today.difference(
-      DateTime(
-        widget.selectedDate.year,
-        widget.selectedDate.month,
-        widget.selectedDate.day,
-      ),
-    ).inDays;
+    final diff = _today
+        .difference(
+          DateTime(
+            widget.selectedDate.year,
+            widget.selectedDate.month,
+            widget.selectedDate.day,
+          ),
+        )
+        .inDays;
     return (_pastDays - diff).clamp(0, _itemCount - 1);
   }
 
   void _scrollToSelected() {
     if (!_scrollController.hasClients) return;
     const approxItemWidth = 56.0;
-    final target = (_selectedIndex * approxItemWidth) -
+    final target =
+        (_selectedIndex * approxItemWidth) -
         (_scrollController.position.viewportDimension / 2) +
         (approxItemWidth / 2);
     _scrollController.animateTo(
@@ -874,8 +875,8 @@ class _DateStripState extends State<_DateStrip> {
                   child: Text(
                     isSelected
                         ? (isToday
-                            ? 'Today, ${date.day} ${_monthAbbr[date.month - 1]}'
-                            : '${date.day} ${_monthAbbr[date.month - 1]}')
+                              ? 'Today, ${date.day} ${_monthAbbr[date.month - 1]}'
+                              : '${date.day} ${_monthAbbr[date.month - 1]}')
                         : '${date.day}',
                     style: _t(
                       isSelected ? 13 : 14,
@@ -883,8 +884,8 @@ class _DateStripState extends State<_DateStrip> {
                       c: isFuture
                           ? Colors.white.withValues(alpha: 0.18)
                           : isSelected
-                              ? Colors.white.withValues(alpha: 0.95)
-                              : Colors.white.withValues(alpha: 0.45),
+                          ? Colors.white.withValues(alpha: 0.95)
+                          : Colors.white.withValues(alpha: 0.45),
                     ),
                   ),
                 ),

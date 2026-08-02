@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.medxai.qring_flutter"
-    compileSdk = 37
+    compileSdk = 36
     ndkVersion = "28.2.13676358"
 
     compileOptions {
