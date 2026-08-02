@@ -53,6 +53,19 @@ class BleService {
     return result ?? false;
   }
 
+  Future<bool> saveStepsSnapshot({
+    required int steps,
+    required int calories,
+    required double distanceM,
+  }) async {
+    final result = await _methodChannel.invokeMethod<bool>('saveStepsSnapshot', {
+      'steps': steps,
+      'calories': calories,
+      'distanceM': distanceM,
+    });
+    return result ?? false;
+  }
+
   Future<Map<String, dynamic>> getFirmwareVersion() async {
     final result = await _methodChannel.invokeMethod<Map>('getFirmwareVersion');
     return result != null ? Map<String, dynamic>.from(result) : {};

@@ -24,6 +24,8 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
+  Timer? _ringTimer;
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +45,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
 
   @override
   void dispose() {
+    _ringTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
   }
@@ -59,28 +62,52 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
       return;
     }
 
+    _ringTimer?.cancel();
+
+    if (!enable) {
+      setState(() {
+        _isRinging = false;
+        _pulseController.stop();
+        _pulseController.reset();
+      });
+      await ble.findDevice(enable: false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Alert stopped.'),
+            backgroundColor: AppTheme.card2,
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _loading = true);
-    final success = await ble.findDevice(enable: enable);
+    final success = await ble.findDevice(enable: true);
     if (!mounted) return;
+
     setState(() {
       _loading = false;
       if (success) {
-        _isRinging = enable;
-        if (enable) {
-          _pulseController.repeat(reverse: true);
-        } else {
-          _pulseController.stop();
-          _pulseController.reset();
-        }
+        _isRinging = true;
+        _pulseController.repeat(reverse: true);
+
+        // Ring hardware alert auto-expires after ~5 seconds.
+        // Keep re-issuing findDevice every 4 seconds to maintain continuous flashing/vibration.
+        _ringTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
+          if (_isRinging && ble.isConnected) {
+            await ble.findDevice(enable: true);
+          } else {
+            _ringTimer?.cancel();
+          }
+        });
       }
     });
 
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(enable
-              ? 'Alerting ring! Check for flashing LED or vibration.'
-              : 'Alert stopped.'),
+        const SnackBar(
+          content: Text('Alerting ring continuously! Check for flashing LED or vibration.'),
           backgroundColor: AppTheme.card2,
         ),
       );

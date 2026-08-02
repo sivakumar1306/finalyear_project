@@ -422,9 +422,21 @@ class BleProvider extends ChangeNotifier {
 
   Future<void> setLowBatteryPromptEnabled(bool enabled) async {
     _lowBatteryPromptEnabled = enabled;
-    notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kLowBatteryPromptKey, enabled);
+
+    if (enabled && _battery > 0 && _battery <= _kLowBatteryThreshold) {
+      _maybeAlert(
+        'Low Battery Prompt',
+        true,
+        title: 'Ring Battery Low',
+        message: 'Your ring is at $_battery% battery.',
+        vital: 'heart_rate',
+      );
+    } else if (!enabled) {
+      _activeAlerts.remove('Low Battery Prompt');
+    }
+    notifyListeners();
   }
 
   void _onBatteryPushEvent(Map<String, dynamic> data) {
@@ -976,6 +988,7 @@ class BleProvider extends ChangeNotifier {
       _todayCalories = (m['caloriesKcal'] as num?)?.toInt() ?? 0;
       _todayDistanceM = (m['distanceM'] as num?)?.toDouble() ?? 0.0;
       notifyListeners();
+      _saveStepsToDb(_todaySteps, _todayCalories, _todayDistanceM);
       final goal = await _loadCachedGoal();
       _maybeAlert(
         'Step count achieved',
@@ -1357,6 +1370,37 @@ class BleProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> _saveStepsToDb(int steps, int calories, double distanceM) async {
+    if (steps <= 0 && calories <= 0) return;
+
+    // 1. Direct Supabase upsert
+    final user = SupabaseService.currentUser;
+    if (user != null) {
+      try {
+        await SupabaseService.upsertSteps(
+          userId: user.id,
+          date: DateTime.now(),
+          steps: steps,
+          calories: calories,
+          distanceM: distanceM,
+        );
+      } catch (e) {
+        debugPrint('_saveStepsToDb Supabase error: $e');
+      }
+    }
+
+    // 2. Room DB insert + native SupabaseSyncManager trigger
+    try {
+      await _ble.saveStepsSnapshot(
+        steps: steps,
+        calories: calories,
+        distanceM: distanceM,
+      );
+    } catch (e) {
+      debugPrint('_saveStepsToDb native error: $e');
+    }
+  }
+
   // ── Supabase load-on-startup ──────────────────────────────────────────────
 
   Future<void> _loadTodayFromSupabase() async {
@@ -1501,8 +1545,8 @@ class BleProvider extends ChangeNotifier {
       notifyListeners();
       if (_battery > 0) {
         _maybeAlert(
-          'Low Battery',
-          _battery <= 15,
+          'Low Battery Prompt',
+          _lowBatteryPromptEnabled && _battery <= _kLowBatteryThreshold,
           title: 'Ring Battery Low',
           message: 'Your ring is at $_battery% battery.',
           vital: 'heart_rate',

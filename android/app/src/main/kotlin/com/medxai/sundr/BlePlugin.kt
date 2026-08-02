@@ -348,6 +348,7 @@ class BlePlugin(private val context: Context) {
             "getTodaySummary"            -> getTodaySummary(call, result)
             "getLatestReading"           -> getLatestReading(call, result)
             "getStepsToday"              -> getStepsToday(result)
+            "saveStepsSnapshot"          -> saveStepsSnapshot(call, result)
             "getSyncStatus"              -> getSyncStatus(result)
             "getMeasurementCycleHistory" -> getMeasurementCycleHistory(call, result)
             "setVitalEnabled"            -> setVitalEnabled(call, result)
@@ -2614,6 +2615,23 @@ class BlePlugin(private val context: Context) {
             }
             mainHandler.post { result.success(json) }
         }
+    }
+
+    private fun saveStepsSnapshot(call: MethodCall, result: MethodChannel.Result) {
+        val steps = call.argument<Int>("steps") ?: 0
+        val calories = call.argument<Int>("calories") ?: 0
+        val distanceM = (call.argument<Number>("distanceM") ?: 0.0).toDouble()
+        if (steps > 0 || calories > 0) {
+            repo().ioScope.launch {
+                try {
+                    repo().insertStepsSnapshot(steps, calories, distanceM, 0, "flutter_push")
+                    SupabaseSyncManager.forceSyncNow()
+                } catch (e: Exception) {
+                    Log.e(TAG, "saveStepsSnapshot failed", e)
+                }
+            }
+        }
+        mainHandler.post { result.success(true) }
     }
 
     private fun getSyncStatus(result: MethodChannel.Result) {
