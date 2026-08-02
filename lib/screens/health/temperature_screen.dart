@@ -11,6 +11,8 @@ import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
+import '../../widgets/glass_back_button.dart';
+
 
 // ── Local design tokens — same system as heart_rate_screen.dart / blood_oxygen_screen.dart ──
 
@@ -80,9 +82,23 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         _selectedDate.day == n.day;
   }
 
-  double get _displayAvg => _isToday ? _avgTemp : _dayAvg;
-  double get _displayMin => _isToday ? _minTemp : _dayMin;
-  double get _displayMax => _isToday ? _maxTemp : _dayMax;
+  double get _displayAvg {
+    if (!_isToday) return _dayAvg;
+    if (_avgTemp > 0) return _avgTemp;
+    try { return context.read<BleProvider>().latestTempC; } catch(_) { return 0.0; }
+  }
+
+  double get _displayMin {
+    if (!_isToday) return _dayMin;
+    if (_minTemp > 0) return _minTemp;
+    return 0.0;
+  }
+
+  double get _displayMax {
+    if (!_isToday) return _dayMax;
+    if (_maxTemp > 0) return _maxTemp;
+    return 0.0;
+  }
 
   String _fmt(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -139,12 +155,17 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         date.year == n.year && date.month == n.month && date.day == n.day;
     setState(() {
       _selectedDate = date;
+      _chartValues = []; // clear while loading
       _manualTemp = 0;
       if (isToday) {
         _dayAvg = _dayMin = _dayMax = 0;
       }
     });
-    if (!isToday) _loadDayFromSupabase(date);
+    if (!isToday) {
+      _loadDayFromSupabase(date);
+    } else {
+      _fetchTodayFromLocalDb();
+    }
   }
 
   // ── Local DB fetch (today) ──────────────────────────────────────────────────
@@ -233,6 +254,29 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         from: DateTime(date.year, date.month, date.day),
         to: DateTime(date.year, date.month, date.day, 23, 59, 59),
       );
+
+      final dayStart = DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
+      final dayEnd = DateTime(date.year, date.month, date.day, 23, 59, 59, 999).millisecondsSinceEpoch;
+      final readingsJson = await _ble.getReadings('temperature', fromMs: dayStart, toMs: dayEnd, limit: 1000);
+      final decoded = jsonDecode(readingsJson);
+      final list = decoded is List ? decoded : <dynamic>[];
+      
+      final hourly = List<double>.filled(24, 0);
+      final sums = List<double>.filled(24, 0);
+      final counts = List<int>.filled(24, 0);
+      for (final item in list) {
+        final m = item as Map<String, dynamic>;
+        final v = (m['valueC'] as num? ?? 0).toDouble();
+        final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
+        if (v <= 0 || measuredAt <= 0) continue;
+        final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
+        sums[h] += v;
+        counts[h] += 1;
+      }
+      for (int h = 0; h < 24; h++) {
+        if (counts[h] > 0) hourly[h] = sums[h] / counts[h];
+      }
+
       final vals = rows
           .map((r) => (r['value_c'] as num? ?? 0).toDouble())
           .where((v) => v > 0)
@@ -242,6 +286,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         _dayAvg = vals.isEmpty ? 0 : vals.reduce((a, b) => a + b) / vals.length;
         _dayMin = vals.isEmpty ? 0 : vals.reduce((a, b) => a < b ? a : b);
         _dayMax = vals.isEmpty ? 0 : vals.reduce((a, b) => a > b ? a : b);
+        if (_selectedDate == date) _chartValues = hourly;
       });
     } catch (e) {
       if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
@@ -498,7 +543,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         ? _disp(_displayAvg).toStringAsFixed(1)
         : '--';
 
-    final hasData = _isToday && _chartValues.any((v) => v > 0);
+    final hasData = _chartValues.any((v) => v > 0);
 
     final dailyRangeLabel = hasData
         ? '${_disp(_displayMin).toStringAsFixed(1)} - ${_disp(_displayMax).toStringAsFixed(1)}'
@@ -518,10 +563,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
           centerTitle: true,
           elevation: 0,
           scrolledUnderElevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
+          leading: const GlassBackButton(),
           title: Text(
             'Temperature',
             style: _inter(17, weight: FontWeight.w600),
@@ -600,7 +642,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
               _TempChartCard(
                 headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
                 rangeLabel: dailyRangeLabel,
-                values: _isToday ? _chartValues : [],
+                values: _chartValues,
                 xLabels: const ['12am', '6am', '12pm', '6pm', ''],
                 loading: _loading || _loadingDay,
               ),

@@ -344,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           minStress: ble.todayMinStress,
           maxStress: ble.todayMaxStress,
           hrv: ble.todayAvgHrv,
-          connected: ble.isConnected,
+          connected: ble.isConnected || ble.latestStressValue > 0,
           expanded: expanded,
           onTap: () => _navigateTo('/pressure'),
         );
@@ -420,7 +420,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             0.6,
             0.4,
           ],
-          connected: ble.isConnected,
+          connected: ble.isConnected || ble.todaySleepDuration > 0,
           expanded: expanded,
           onTap: () => _navigateTo('/sleep'),
         );
@@ -446,7 +446,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             0.63,
             0.6,
           ],
-          connected: ble.isConnected,
+          connected: ble.isConnected || ble.todayAvgHrv > 0,
           expanded: expanded,
           onTap: () => _navigateTo('/hrv'),
         );
@@ -476,7 +476,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             0.97,
             0.99,
           ],
-          connected: ble.isConnected,
+          connected: ble.isConnected || ble.todayAvgSpo2 > 0,
           expanded: expanded,
           onTap: () => _navigateTo('/blood-oxygen'),
         );
@@ -549,7 +549,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             0.54,
             0.5,
           ],
-          connected: ble.isConnected,
+          connected: ble.isConnected || ble.todayAvgHr > 0,
           expanded: expanded,
           onTap: () => _navigateTo('/heart-rate'),
         );
@@ -561,7 +561,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       case HomeCardId.temperature:
         return _TemperatureCard(
           tempC: ble.latestTempC,
-          connected: ble.isConnected,
+          connected: ble.isConnected || ble.latestTempC > 0,
           expanded: expanded,
           onTap: () => _navigateTo('/temperature'),
         );

@@ -148,7 +148,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
         backgroundColor: AppTheme.bg,
         leading: const Padding(
           padding: EdgeInsets.only(left: 16),
-          child: Center(child: GlassBackButton(icon: Icons.arrow_back_ios_rounded, iconSize: 15)),
+          child: GlassBackButton(),
         ),
         title: Text(
           'Health Connect',

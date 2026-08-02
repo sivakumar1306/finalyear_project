@@ -24,7 +24,7 @@ class _OnboardingGenderScreenState extends State<OnboardingGenderScreen> {
   Widget build(BuildContext context) {
     return OnboardingShell(
       step: 3,
-      totalSteps: 5,
+      totalSteps: 6,
       data: widget.data,
       canContinue: _selected.isNotEmpty,
       onContinue: () {
@@ -43,7 +43,7 @@ class _OnboardingGenderScreenState extends State<OnboardingGenderScreen> {
           children: [
             const SizedBox(height: 8),
             onboardingHeader(
-              'STEP 3 OF 5',
+              'STEP 3 OF 6',
               'Tell us your ',
               'gender?',
               '',

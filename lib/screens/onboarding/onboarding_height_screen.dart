@@ -38,7 +38,7 @@ class _OnboardingHeightScreenState extends State<OnboardingHeightScreen> {
   Widget build(BuildContext context) {
     return OnboardingShell(
       step: 4,
-      totalSteps: 5,
+      totalSteps: 6,
       data: widget.data,
       onContinue: () {
         widget.data.heightCm = _height;
@@ -56,7 +56,7 @@ class _OnboardingHeightScreenState extends State<OnboardingHeightScreen> {
           children: [
             const SizedBox(height: 8),
             onboardingHeader(
-              'STEP 4 OF 5',
+              'STEP 4 OF 6',
               'How ',
               'tall',
               ' are you?',

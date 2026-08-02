@@ -10,6 +10,8 @@ import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
+import '../../widgets/glass_back_button.dart';
+
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
@@ -98,12 +100,41 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
         _selectedDate.day == n.day;
   }
 
-  int get _displaySbpAvg => _isToday ? _avgSbp : _daySbpAvg;
-  int get _displaySbpMin => _isToday ? _minSbp : _daySbpMin;
-  int get _displaySbpMax => _isToday ? _maxSbp : _daySbpMax;
-  int get _displayDbpAvg => _isToday ? _avgDbp : _dayDbpAvg;
-  int get _displayDbpMin => _isToday ? _minDbp : _dayDbpMin;
-  int get _displayDbpMax => _isToday ? _maxDbp : _dayDbpMax;
+  int get _displaySbpAvg {
+    if (!_isToday) return _daySbpAvg;
+    if (_avgSbp > 0) return _avgSbp;
+    try { return context.read<BleProvider>().latestBpSbp; } catch(_) { return 0; }
+  }
+
+  int get _displaySbpMin {
+    if (!_isToday) return _daySbpMin;
+    if (_minSbp > 0) return _minSbp;
+    return 0;
+  }
+
+  int get _displaySbpMax {
+    if (!_isToday) return _daySbpMax;
+    if (_maxSbp > 0) return _maxSbp;
+    return 0;
+  }
+
+  int get _displayDbpAvg {
+    if (!_isToday) return _dayDbpAvg;
+    if (_avgDbp > 0) return _avgDbp;
+    try { return context.read<BleProvider>().latestBpDbp; } catch(_) { return 0; }
+  }
+
+  int get _displayDbpMin {
+    if (!_isToday) return _dayDbpMin;
+    if (_minDbp > 0) return _minDbp;
+    return 0;
+  }
+
+  int get _displayDbpMax {
+    if (!_isToday) return _dayDbpMax;
+    if (_maxDbp > 0) return _maxDbp;
+    return 0;
+  }
 
   String _fmt(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -129,13 +160,18 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     setState(() {
       _selectedDate = date;
       _manualSbp = 0;
-      _manualDbp = 0;
+      _chartSbp = []; // clear while loading
+      _chartDbp = []; // clear while loading
       if (isToday) {
         _daySbpAvg = _daySbpMin = _daySbpMax = 0;
         _dayDbpAvg = _dayDbpMin = _dayDbpMax = 0;
       }
     });
-    if (!isToday) _loadDayFromSupabase(date);
+    if (!isToday) {
+      _loadDayFromSupabase(date);
+    } else {
+      _fetchTodayFromLocalDb();
+    }
   }
 
   // ── Local DB fetch (today) ──────────────────────────────────────────────────
@@ -250,6 +286,29 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
         from: from,
         to: to,
       );
+
+      final sbpHourly = List<int>.filled(24, 0);
+      final dbpHourly = List<int>.filled(24, 0);
+      final sbpSums = List<int>.filled(24, 0);
+      final dbpSums = List<int>.filled(24, 0);
+      final counts = List<int>.filled(24, 0);
+      for (final r in rows) {
+        final dt = DateTime.parse(r['measured_at'] as String).toLocal();
+        final h = dt.hour;
+        final sbp = (r['systolic'] as num? ?? 0).toInt();
+        final dbp = (r['diastolic'] as num? ?? 0).toInt();
+        if (sbp <= 0 || dbp <= 0) continue;
+        sbpSums[h] += sbp;
+        dbpSums[h] += dbp;
+        counts[h] += 1;
+      }
+      for (int h = 0; h < 24; h++) {
+        if (counts[h] > 0) {
+          sbpHourly[h] = (sbpSums[h] / counts[h]).round();
+          dbpHourly[h] = (dbpSums[h] / counts[h]).round();
+        }
+      }
+
       if (!mounted) return;
       final sbps = rows
           .map((r) => (r['systolic'] as num? ?? 0).toInt())
@@ -269,6 +328,10 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
           _dayDbpAvg = (dbps.reduce((a, b) => a + b) / dbps.length).round();
           _dayDbpMin = dbps.reduce((a, b) => a < b ? a : b);
           _dayDbpMax = dbps.reduce((a, b) => a > b ? a : b);
+        }
+        if (_selectedDate == date) {
+          _chartSbp = sbpHourly;
+          _chartDbp = dbpHourly;
         }
       });
     } catch (e) {
@@ -485,9 +548,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
         : _bpStatus(currentSbp, currentDbp);
     final currentLabelColor = _bpStatusColor(currentSbp, currentDbp);
 
-    final hasData =
-        _isToday &&
-        (_chartSbp.any((v) => v > 0) || _chartDbp.any((v) => v > 0));
+    final hasData = _chartSbp.any((v) => v > 0) || _chartDbp.any((v) => v > 0);
 
     final dailyRangeLabel = hasData
         ? '$_displaySbpMin-$_displaySbpMax / $_displayDbpMin-$_displayDbpMax'
@@ -508,10 +569,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
           centerTitle: true,
           elevation: 0,
           scrolledUnderElevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
+          leading: const GlassBackButton(),
           title: Text(
             'Blood Pressure',
             style: _inter(17, weight: FontWeight.w600),
@@ -614,8 +672,8 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               _BPChartCard(
                 headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
                 rangeLabel: dailyRangeLabel,
-                sbpValues: _isToday ? _chartSbp : [],
-                dbpValues: _isToday ? _chartDbp : [],
+                sbpValues: _chartSbp,
+                dbpValues: _chartDbp,
                 xLabels: const ['12am', '6am', '12pm', '6pm', ''],
                 loading: _loading || _loadingDay,
               ),

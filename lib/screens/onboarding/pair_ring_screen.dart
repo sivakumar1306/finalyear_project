@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/onboarding_data.dart';
+import '../../providers/ble_provider.dart';
 import '../../services/supabase_service.dart';
+import '../../widgets/glass_back_button.dart';
+
 
 class PairRingScreen extends StatefulWidget {
   final OnboardingData data;
@@ -26,8 +30,15 @@ class _PairRingScreenState extends State<PairRingScreen> {
         heightCm: widget.data.heightCm,
         weightKg: widget.data.weightKg,
       );
+      
+      final contactName = widget.data.emergencyContactName;
+      final contactPhone = widget.data.emergencyContactPhone;
+      if (contactName != null && contactName.isNotEmpty && mounted) {
+        final ble = context.read<BleProvider>();
+        await ble.addEmergencyContact(contactName, contactPhone ?? '');
+      }
     } catch (_) {}
-    setState(() => _saving = false);
+    if (mounted) setState(() => _saving = false);
   }
 
   Future<void> _pairNow() async {
@@ -55,20 +66,17 @@ class _PairRingScreenState extends State<PairRingScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
-                  ),
+                  const GlassBackButton(),
                   Expanded(
                     child: Center(
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
-                        children: List.generate(5, (i) => Container(
+                        children: List.generate(7, (i) => Container(
                           margin: const EdgeInsets.symmetric(horizontal: 3),
-                          width: i == 4 ? 20 : 6,
+                          width: i == 6 ? 20 : 6,
                           height: 6,
                           decoration: BoxDecoration(
-                            color: i == 4
+                            color: i == 6
                                 ? const Color(0xFFC9A86E)
                                 : Colors.white24,
                             borderRadius: BorderRadius.circular(3),
@@ -93,7 +101,7 @@ class _PairRingScreenState extends State<PairRingScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 8),
-                    const Text('STEP 6 OF 6',
+                    const Text('STEP 7 OF 7',
                         style: TextStyle(
                             color: Colors.white38,
                             fontSize: 12,

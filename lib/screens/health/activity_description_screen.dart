@@ -37,7 +37,7 @@ class ActivityDescriptionScreen extends StatelessWidget {
         backgroundColor: _kBg,
         elevation: 0,
         centerTitle: true,
-        leading: const Center(child: GlassBackButton()),
+        leading: const GlassBackButton(),
         title: Text('Activity Description', style: _t(17, w: FontWeight.w600)),
       ),
       body: SingleChildScrollView(

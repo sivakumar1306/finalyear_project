@@ -368,7 +368,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             ? const Padding(
                 padding: EdgeInsets.only(left: 16),
                 child: Center(
-                  child: GlassBackButton(icon: Icons.arrow_back_ios_rounded, iconSize: 15),
+                  child: const GlassBackButton(),
                 ),
               )
             : null,

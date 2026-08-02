@@ -10,6 +10,8 @@ import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
+import '../../widgets/glass_back_button.dart';
+
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
@@ -77,9 +79,23 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         _selectedDate.day == n.day;
   }
 
-  int get _displayAvg => _isToday ? _avgSpo2 : _dayAvg;
-  int get _displayMin => _isToday ? _minSpo2 : _dayMin;
-  int get _displayMax => _isToday ? _maxSpo2 : _dayMax;
+  int get _displayAvg {
+    if (!_isToday) return _dayAvg;
+    if (_avgSpo2 > 0) return _avgSpo2;
+    try { return context.read<BleProvider>().todayAvgSpo2; } catch(_) { return 0; }
+  }
+
+  int get _displayMin {
+    if (!_isToday) return _dayMin;
+    if (_minSpo2 > 0) return _minSpo2;
+    try { return context.read<BleProvider>().todayMinSpo2; } catch(_) { return 0; }
+  }
+
+  int get _displayMax {
+    if (!_isToday) return _dayMax;
+    if (_maxSpo2 > 0) return _maxSpo2;
+    try { return context.read<BleProvider>().todayMaxSpo2; } catch(_) { return 0; }
+  }
 
   String _fmt(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -105,11 +121,16 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     setState(() {
       _selectedDate = date;
       _manualSpo2 = 0;
+      _chartValues = []; // clear while loading
       if (isToday) {
         _dayAvg = _dayMin = _dayMax = 0;
       }
     });
-    if (!isToday) _loadDayFromSupabase(date);
+    if (!isToday) {
+      _loadDayFromSupabase(date);
+    } else {
+      _fetchToday();
+    }
   }
 
   // ── Local DB fetch (today) ───────────────────────────────────────────────
@@ -210,6 +231,32 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     });
     try {
       final row = await SupabaseService.getSpo2ForDate(user.id, date);
+      
+      final dayStart = DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
+      final dayEnd = DateTime(date.year, date.month, date.day, 23, 59, 59, 999).millisecondsSinceEpoch;
+      final readingsJson = await _ble.getReadings('spo2', fromMs: dayStart, toMs: dayEnd, limit: 1000);
+      final decoded = jsonDecode(readingsJson);
+      final list = decoded is List ? decoded : <dynamic>[];
+
+      const totalSlots = 24;
+      final slots = List<int>.filled(totalSlots, 0);
+      final slotSums = List<int>.filled(totalSlots, 0);
+      final slotCounts = List<int>.filled(totalSlots, 0);
+      for (final item in list) {
+        final m = item as Map<String, dynamic>;
+        final value = (m['valuePct'] as num? ?? 0).toInt();
+        final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
+        if (value <= 0 || measuredAt <= 0) continue;
+        final hour = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
+        slotSums[hour] += value;
+        slotCounts[hour] += 1;
+      }
+      for (int i = 0; i < totalSlots; i++) {
+        if (slotCounts[i] > 0) {
+          slots[i] = (slotSums[i] / slotCounts[i]).round();
+        }
+      }
+
       if (!mounted) return;
       if (row != null) {
         setState(() {
@@ -218,6 +265,9 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
           _dayMax = (row['max_spo2'] as num? ?? 0).toInt();
         });
       }
+      setState(() {
+        if (_selectedDate == date) _chartValues = slots;
+      });
     } catch (e) {
       if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
     } finally {
@@ -429,7 +479,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         ? '$_displayAvg'
         : '--';
 
-    final hasData = _isToday && _chartValues.any((v) => v > 0);
+    final hasData = _chartValues.any((v) => v > 0);
 
     final dailyRangeLabel = hasData ? '$_displayMin – $_displayMax' : '-- --';
 
@@ -447,10 +497,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
           centerTitle: true,
           elevation: 0,
           scrolledUnderElevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
+          leading: const GlassBackButton(),
           title: Text(
             'Blood Oxygen',
             style: _inter(17, weight: FontWeight.w600),
@@ -508,7 +555,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
               _Spo2ChartCard(
                 headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
                 rangeLabel: dailyRangeLabel,
-                values: _isToday ? _chartValues : [],
+                values: _chartValues,
                 xLabels: const ['12am', '6am', '12pm', '6pm', ''],
                 loading: _loading || _loadingDay,
               ),

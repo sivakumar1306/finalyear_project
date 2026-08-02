@@ -87,6 +87,22 @@ class SupabaseService {
     }
   }
 
+  static Future<void> deleteAccount(String password) async {
+    final user = currentUser;
+    if (user == null || user.email == null) {
+      throw Exception('Not authenticated');
+    }
+    
+    // Verify password by attempting to sign in
+    await signIn(user.email!, password);
+    
+    // Call the RPC to delete the account and all associated data
+    await client.rpc('delete_user_account');
+    
+    // Clear local state
+    await logoutAndClearLocalData();
+  }
+
   static Future<Map<String, dynamic>?> getProfile(String userId) async {
     return client.from('user_profiles').select().eq('id', userId).maybeSingle();
   }

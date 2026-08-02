@@ -12,6 +12,8 @@ import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
+import '../../widgets/glass_back_button.dart';
+
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
@@ -78,11 +80,25 @@ class _HrvScreenState extends State<HrvScreen> {
         _selectedDate.day == n.day;
   }
 
-  bool get _hasRingData => _isToday && _chartValues.any((v) => v > 0);
+  bool get _hasRingData => _chartValues.any((v) => v > 0);
 
-  int get _displayAvg => _hasRingData ? _avgHrv : _dayAvg;
-  int get _displayMin => _hasRingData ? _minHrv : _dayMin;
-  int get _displayMax => _hasRingData ? _maxHrv : _dayMax;
+  int get _displayAvg {
+    if (!_isToday) return _dayAvg;
+    if (_avgHrv > 0) return _avgHrv;
+    try { return context.read<BleProvider>().todayAvgHrv; } catch(_) { return 0; }
+  }
+
+  int get _displayMin {
+    if (!_isToday) return _dayMin;
+    if (_minHrv > 0) return _minHrv;
+    return 0; // BleProvider doesn't track min/max HRV for today yet
+  }
+
+  int get _displayMax {
+    if (!_isToday) return _dayMax;
+    if (_maxHrv > 0) return _maxHrv;
+    return 0; // BleProvider doesn't track min/max HRV for today yet
+  }
 
   String _fmt(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -133,11 +149,16 @@ class _HrvScreenState extends State<HrvScreen> {
         date.year == n.year && date.month == n.month && date.day == n.day;
     setState(() {
       _selectedDate = date;
+      _chartValues = []; // clear while loading
       if (isToday) {
         _dayAvg = _dayMin = _dayMax = 0;
       }
     });
-    if (!isToday) _loadDayFromSupabase(date);
+    if (!isToday) {
+      _loadDayFromSupabase(date);
+    } else {
+      _fetchTodayFromLocalDb();
+    }
   }
 
   // ── Local DB fetch (today) ───────────────────────────────────────────────
@@ -313,6 +334,33 @@ class _HrvScreenState extends State<HrvScreen> {
     });
     try {
       final row = await SupabaseService.getHrvForDate(user.id, date);
+      
+      final dayStart = DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
+      final dayEnd = DateTime(date.year, date.month, date.day, 23, 59, 59, 999).millisecondsSinceEpoch;
+      final readingsJson = await _ble.getReadings('hrv', fromMs: dayStart, toMs: dayEnd, limit: 1000);
+      final decoded = jsonDecode(readingsJson);
+      final list = decoded is List ? decoded : <dynamic>[];
+      
+      const totalSlots = 48;
+      final slots = List<int>.filled(totalSlots, 0);
+      final slotSums = List<int>.filled(totalSlots, 0);
+      final slotCounts = List<int>.filled(totalSlots, 0);
+      for (final item in list) {
+        final m = item as Map<String, dynamic>;
+        final value = (m['valueMs'] as num? ?? 0).toInt();
+        final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
+        if (value <= 0 || measuredAt <= 0) continue;
+        final dt = DateTime.fromMillisecondsSinceEpoch(measuredAt);
+        final slot = (dt.hour * 60 + dt.minute) ~/ 30;
+        if (slot >= 0 && slot < totalSlots) {
+          slotSums[slot] += value;
+          slotCounts[slot] += 1;
+        }
+      }
+      for (int i = 0; i < totalSlots; i++) {
+        if (slotCounts[i] > 0) slots[i] = (slotSums[i] / slotCounts[i]).round();
+      }
+
       if (!mounted) return;
       if (row != null) {
         setState(() {
@@ -321,6 +369,9 @@ class _HrvScreenState extends State<HrvScreen> {
           _dayMax = (row['max_hrv'] as num? ?? 0).toInt();
         });
       }
+      setState(() {
+        if (_selectedDate == date) _chartValues = slots;
+      });
     } catch (e) {
       if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
     } finally {
@@ -497,10 +548,7 @@ class _HrvScreenState extends State<HrvScreen> {
           centerTitle: true,
           elevation: 0,
           scrolledUnderElevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
+          leading: const GlassBackButton(),
           title: Text('HRV', style: _inter(17, weight: FontWeight.w600)),
           actions: [
             IconButton(
@@ -585,7 +633,7 @@ class _HrvScreenState extends State<HrvScreen> {
                       ? 'TODAY'
                       : (_isToday ? 'NO DATA YET' : _dateLabel()),
                   rangeLabel: dailyRangeLabel,
-                  values: _isToday ? _chartValues : [],
+                  values: _chartValues,
                   xLabels: const ['12am', '6am', '12pm', '6pm', ''],
                   loading: _loading || _loadingDay,
                 ),
