@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class BleService {
@@ -418,7 +419,28 @@ class BleService {
       }) ??
       '{}';
 
-  // ── Reminders ──────────────────────────────────────────────────────
+  // ── Ring System Control ──────────────────────────────────────────────
+  /// Sends factory reset command (RestoreKeyReq) to the ring.
+  Future<bool> factoryReset() async {
+    try {
+      final res = await _methodChannel.invokeMethod<bool>('factoryReset');
+      return res ?? false;
+    } catch (e) {
+      debugPrint('factoryReset error: $e');
+      return false;
+    }
+  }
+
+  /// Sends power off command (SimpleKeyPowerOffReq) to shut down the ring.
+  Future<bool> shutDownRing() async {
+    try {
+      final res = await _methodChannel.invokeMethod<bool>('shutDownRing');
+      return res ?? false;
+    } catch (e) {
+      debugPrint('shutDownRing error: $e');
+      return false;
+    }
+  }
   Future<String> getDrinkReminder() async =>
       await _methodChannel.invokeMethod<String>('getDrinkReminder') ?? '{}';
 
