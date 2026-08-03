@@ -289,6 +289,9 @@ class WorkoutProvider extends ChangeNotifier {
           final hr = await _ble.readHeartRate();
           if (!_isWorkoutActive) break;
           if (hr != null && hr > 0) {
+            if (_hrReadings.length >= 500) {
+              _hrSum -= _hrReadings.removeAt(0);
+            }
             _hrReadings.add(hr);
             _hrSum += hr;
             _latestHr = hr;

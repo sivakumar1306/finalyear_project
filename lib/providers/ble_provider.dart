@@ -833,21 +833,67 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
+  bool _notifyBatching = false;
+  bool _notifyQueued = false;
+
+  bool _microtaskNotifyScheduled = false;
+
+  @override
+  void notifyListeners() {
+    if (_notifyBatching) {
+      _notifyQueued = true;
+      return;
+    }
+    if (_microtaskNotifyScheduled) return;
+    _microtaskNotifyScheduled = true;
+    scheduleMicrotask(() {
+      _microtaskNotifyScheduled = false;
+      if (_notifyBatching) {
+          _notifyQueued = true;
+        return;
+      }
+      super.notifyListeners();
+    });
+  }
+
+  void _beginNotifyBatch() {
+    _notifyBatching = true;
+    _notifyQueued = false;
+  }
+
+  void _endNotifyBatch() {
+    _notifyBatching = false;
+    if (_notifyQueued) {
+      _notifyQueued = false;
+      if (_microtaskNotifyScheduled) return;
+      _microtaskNotifyScheduled = true;
+      scheduleMicrotask(() {
+        _microtaskNotifyScheduled = false;
+        super.notifyListeners();
+      });
+    }
+  }
+
   Future<void> _loadTodayVitalsFromLocal() async {
-    await Future.wait([
-      _refreshHrFromLocal()
-          .then((ok) => ok ? null : _loadTodayHrFromSupabase()),
-      _refreshSpo2FromLocal()
-          .then((ok) => ok ? null : _loadTodaySpo2FromSupabase()),
-      _refreshStressFromLocal()
-          .then((ok) => ok ? null : _loadLatestStressFromSupabase()),
-      _refreshBpFromLocal()
-          .then((ok) => ok ? null : _loadLatestBpFromSupabase()),
-      _refreshStepsFromLocal()
-          .then((ok) => ok ? null : _loadTodayFromSupabase()),
-      _refreshTempFromLocal()
-          .then((ok) => ok ? null : _loadLatestTempFromSupabase()),
-    ]);
+    _beginNotifyBatch();
+    try {
+      await Future.wait([
+        _refreshHrFromLocal()
+            .then((ok) => ok ? null : _loadTodayHrFromSupabase()),
+        _refreshSpo2FromLocal()
+            .then((ok) => ok ? null : _loadTodaySpo2FromSupabase()),
+        _refreshStressFromLocal()
+            .then((ok) => ok ? null : _loadLatestStressFromSupabase()),
+        _refreshBpFromLocal()
+            .then((ok) => ok ? null : _loadLatestBpFromSupabase()),
+        _refreshStepsFromLocal()
+            .then((ok) => ok ? null : _loadTodayFromSupabase()),
+        _refreshTempFromLocal()
+            .then((ok) => ok ? null : _loadLatestTempFromSupabase()),
+      ]);
+    } finally {
+      _endNotifyBatch();
+    }
   }
 
   static const _goalCacheTtl = Duration(seconds: 30);
