@@ -909,6 +909,8 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     final hasData = tempC > 0;
     const baseline = 36.5;
     final delta = hasData ? tempC - baseline : 0.0;
+    final double deltaC = delta;
+    final double deltaF = delta * (9 / 5);
 
     String status;
     String caption;
@@ -931,15 +933,29 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.water_drop_rounded,
-                  color: AppTheme.tempColor, size: 14),
+              const Padding(
+                padding: EdgeInsets.only(top: 1),
+                child: Icon(Icons.water_drop_rounded,
+                    color: AppTheme.tempColor, size: 14),
+              ),
               const SizedBox(width: 6),
-              Text('TEMPERATURE',
-                  style: _inter(11,
-                      weight: FontWeight.w700,
-                      color: AppTheme.textSec,
-                      letterSpacing: 1.0)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('BASAL BODY TEMPERATURE',
+                        style: _inter(11,
+                            weight: FontWeight.w700,
+                            color: AppTheme.textSec,
+                            letterSpacing: 1.0)),
+                    const SizedBox(height: 2),
+                    Text('Tracks tiny temperature shifts to detect ovulation.',
+                        style: _inter(9, color: AppTheme.textSec.withValues(alpha: 0.7))),
+                  ],
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -950,7 +966,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
               Text(status, style: _inter(16, weight: FontWeight.w600)),
               Text(
                 hasData
-                    ? '${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(1)} Deg v/s Baseline'
+                    ? '${deltaC >= 0 ? '+' : ''}${deltaC.toStringAsFixed(1)}°C / ${deltaF >= 0 ? '+' : ''}${deltaF.toStringAsFixed(1)}°F v/s Baseline'
                     : '--',
                 style: _inter(12, color: AppTheme.textSec),
               ),
@@ -965,10 +981,23 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
               ),
             )
           else
-            SizedBox(
-              height: 40,
-              width: double.infinity,
-              child: CustomPaint(painter: _TempGaugePainter(delta: delta)),
+            Column(
+              children: [
+                SizedBox(
+                  height: 20,
+                  width: double.infinity,
+                  child: CustomPaint(painter: _TempGaugePainter(delta: delta)),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('-1.0°C', style: _inter(10, color: AppTheme.textSec)),
+                    Text('Baseline (${baseline.toStringAsFixed(1)}°C / ${((baseline * 9 / 5) + 32).toStringAsFixed(1)}°F)', style: _inter(10, color: AppTheme.textSec)),
+                    Text('+1.0°C', style: _inter(10, color: AppTheme.textSec)),
+                  ],
+                ),
+              ],
             ),
           const SizedBox(height: 10),
           Container(height: 0.5, color: Colors.white.withValues(alpha: 0.08)),
@@ -1045,20 +1074,36 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
               ),
             )
           else
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: SizedBox(
-                height: 8,
-                width: double.infinity,
-                child: Row(
+            Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: SizedBox(
+                    height: 8,
+                    width: double.infinity,
+                    child: Row(
+                      children: [
+                        if (awakeSecs > 0) Expanded(flex: awakeSecs, child: Container(color: AppTheme.sleepAwake.withValues(alpha: 0.55))),
+                        if (remSecs > 0) Expanded(flex: remSecs, child: Container(color: const Color(0xFF38BDF8))),
+                        if (lightSecs > 0) Expanded(flex: lightSecs, child: Container(color: AppTheme.sleepLight)),
+                        if (deepSecs > 0) Expanded(flex: deepSecs, child: Container(color: AppTheme.sleepDeep)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 12,
+                  runSpacing: 6,
                   children: [
-                    if (awakeSecs > 0) Expanded(flex: awakeSecs, child: Container(color: AppTheme.sleepAwake.withValues(alpha: 0.55))),
-                    if (remSecs > 0) Expanded(flex: remSecs, child: Container(color: const Color(0xFF38BDF8))),
-                    if (lightSecs > 0) Expanded(flex: lightSecs, child: Container(color: AppTheme.sleepLight)),
-                    if (deepSecs > 0) Expanded(flex: deepSecs, child: Container(color: AppTheme.sleepDeep)),
+                    _LegDot(AppTheme.sleepAwake, 'Awake'),
+                    _LegDot(const Color(0xFF38BDF8), 'REM'),
+                    _LegDot(AppTheme.sleepLight, 'Light'),
+                    _LegDot(AppTheme.sleepDeep, 'Deep'),
                   ],
                 ),
-              ),
+              ],
             ),
           const SizedBox(height: 10),
           Container(height: 0.5, color: Colors.white.withValues(alpha: 0.08)),
@@ -1081,13 +1126,13 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     if (!hasData) {
       status = 'No data';
     } else if (stress < 40) {
-      status = 'Low Load';
+      status = 'Low Stress';
     } else if (stress < 60) {
-      status = 'Normal Load';
+      status = 'Normal Stress';
     } else if (stress < 80) {
-      status = 'Elevated Load';
+      status = 'Elevated Stress';
     } else {
-      status = 'High Load';
+      status = 'High Stress';
     }
 
     final hrvLabel = hrv > 0 ? 'HRV $hrv' : '--';
@@ -1099,15 +1144,29 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.monitor_heart_rounded,
-                  color: AppTheme.stressColor, size: 14),
+              const Padding(
+                padding: EdgeInsets.only(top: 1),
+                child: Icon(Icons.monitor_heart_rounded,
+                    color: AppTheme.stressColor, size: 14),
+              ),
               const SizedBox(width: 6),
-              Text('STRESS',
-                  style: _inter(11,
-                      weight: FontWeight.w700,
-                      color: AppTheme.textSec,
-                      letterSpacing: 1.0)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('HRV & STRESS',
+                        style: _inter(11,
+                            weight: FontWeight.w700,
+                            color: AppTheme.textSec,
+                            letterSpacing: 1.0)),
+                    const SizedBox(height: 2),
+                    Text('How physical stress impacts your cycle timing.',
+                        style: _inter(9, color: AppTheme.textSec.withValues(alpha: 0.7))),
+                  ],
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -1128,16 +1187,29 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
               ),
             )
           else
-            SizedBox(
-              height: 36,
-              width: double.infinity,
-              child: CustomPaint(
-                painter: _StressGaugePainter(
-                  min: ble.todayMinStress,
-                  max: ble.todayMaxStress,
-                  latest: stress,
+            Column(
+              children: [
+                SizedBox(
+                  height: 20,
+                  width: double.infinity,
+                  child: CustomPaint(
+                    painter: _StressGaugePainter(
+                      min: ble.todayMinStress,
+                      max: ble.todayMaxStress,
+                      latest: stress,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('0 (Low)', style: _inter(10, color: AppTheme.textSec)),
+                    Text('50 (Med)', style: _inter(10, color: AppTheme.textSec)),
+                    Text('100 (High)', style: _inter(10, color: AppTheme.textSec)),
+                  ],
+                ),
+              ],
             ),
           const SizedBox(height: 10),
           Container(height: 0.5, color: Colors.white.withValues(alpha: 0.08)),
