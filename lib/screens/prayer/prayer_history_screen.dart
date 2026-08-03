@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/app_typography.dart';
 
 /// Screen displaying Prayer Session History with interactive trend charts and session details
 /// fetched from Supabase `workouts` table (workout_type = 'Prayer').
@@ -87,7 +87,7 @@ class _PrayerHistoryScreenState extends State<PrayerHistoryScreen> {
         leading: const GlassBackButton(),
         title: Text(
           'Prayer History & Trends',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -147,7 +147,7 @@ class _PrayerHistoryScreenState extends State<PrayerHistoryScreen> {
                     // ── Calmness & Vitals Trend Chart ────────────────────────
                     Text(
                       'Serenity & Vitals Trend',
-                      style: GoogleFonts.inter(
+                      style: AppTypography.inter(
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -187,7 +187,7 @@ class _PrayerHistoryScreenState extends State<PrayerHistoryScreen> {
                     // ── History Session List ────────────────────────────────
                     Text(
                       'Recent Sessions',
-                      style: GoogleFonts.inter(
+                      style: AppTypography.inter(
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -210,13 +210,13 @@ class _PrayerHistoryScreenState extends State<PrayerHistoryScreen> {
                             const SizedBox(height: 12),
                             Text(
                               'No Prayer Sessions Recorded Yet',
-                              style: GoogleFonts.inter(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                              style: AppTypography.inter(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 6),
                             Text(
                               'Start your first prayer session to begin tracking 13 vitals and calmness trends.',
                               textAlign: TextAlign.center,
-                              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+                              style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
                             ),
                           ],
                         ),
@@ -258,18 +258,18 @@ class _PrayerHistoryScreenState extends State<PrayerHistoryScreen> {
                                     children: [
                                       Text(
                                         _formatDate(s['started_at'] as String?),
-                                        style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                        style: AppTypography.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                                       ),
                                       const SizedBox(height: 4),
                                       Row(
                                         children: [
                                           Icon(Icons.timer_rounded, color: AppTheme.textSec, size: 13),
                                           const SizedBox(width: 4),
-                                          Text(_formatDuration(durationSecs), style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12)),
+                                          Text(_formatDuration(durationSecs), style: AppTypography.inter(color: AppTheme.textSec, fontSize: 12)),
                                           const SizedBox(width: 12),
                                           Icon(Icons.favorite_rounded, color: Colors.redAccent, size: 13),
                                           const SizedBox(width: 4),
-                                          Text(avgHr > 0 ? '$avgHr bpm' : '--', style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12)),
+                                          Text(avgHr > 0 ? '$avgHr bpm' : '--', style: AppTypography.inter(color: AppTheme.textSec, fontSize: 12)),
                                         ],
                                       ),
                                     ],
@@ -284,7 +284,7 @@ class _PrayerHistoryScreenState extends State<PrayerHistoryScreen> {
                                   ),
                                   child: Text(
                                     '$calmness% Calm',
-                                    style: GoogleFonts.inter(color: AppTheme.gold, fontSize: 12, fontWeight: FontWeight.bold),
+                                    style: AppTypography.inter(color: AppTheme.gold, fontSize: 12, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ],
@@ -331,7 +331,7 @@ class _SummaryStatCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             value,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -340,7 +340,7 @@ class _SummaryStatCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             title,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               color: AppTheme.textSec,
               fontSize: 10,
             ),
@@ -370,7 +370,7 @@ class _ChartLegend extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 11),
+          style: AppTypography.inter(color: AppTheme.textSec, fontSize: 11),
         ),
       ],
     );

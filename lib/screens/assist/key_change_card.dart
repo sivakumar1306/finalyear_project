@@ -1,6 +1,6 @@
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../../widgets/app_typography.dart';
 
 class KeyChangeCard extends StatelessWidget {
   final String title;
@@ -81,7 +81,7 @@ class KeyChangeCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         title,
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                           color: const Color(0xEBFFFFFF),
@@ -90,7 +90,7 @@ class KeyChangeCard extends StatelessWidget {
                     ),
                     Text(
                       delta,
-                      style: GoogleFonts.inter(
+                      style: AppTypography.inter(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         letterSpacing: -0.005,
@@ -102,7 +102,7 @@ class KeyChangeCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   subtitle,
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w400,
                     color: const Color(0x80FFFFFF),

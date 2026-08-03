@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
@@ -12,6 +11,7 @@ import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/app_typography.dart';
 
 
 // ── Local design tokens — same system as heart_rate_screen.dart / blood_oxygen_screen.dart ──
@@ -28,7 +28,7 @@ TextStyle _inter(
   Color color = Colors.white,
   double? letterSpacing,
   double? height,
-}) => GoogleFonts.inter(
+}) => AppTypography.inter(
   fontSize: size,
   fontWeight: weight,
   color: color,

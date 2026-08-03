@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/alarm_mode_provider.dart';
 import '../../providers/ble_provider.dart';
@@ -8,6 +7,7 @@ import '../../providers/prayer_session_provider.dart';
 import '../../theme/app_theme.dart';
 import 'prayer_history_screen.dart';
 import 'prayer_summary_screen.dart';
+import '../../widgets/app_typography.dart';
 
 /// Live Prayer Session Tracker Screen featuring a magnificent Gold Orbiting Flow-State Orb,
 /// centered digital timer & serenity status badge, and a bottom floating button that opens
@@ -113,7 +113,7 @@ class _PrayerSessionScreenState extends State<PrayerSessionScreen> with SingleTi
                   const SizedBox(width: 6),
                   Text(
                     'Prayer DND Active',
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       color: AppTheme.gold,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -172,7 +172,7 @@ class _PrayerSessionScreenState extends State<PrayerSessionScreen> with SingleTi
                   // Digital Timer below Orb
                   Text(
                     _formatTime(session.elapsedSeconds),
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       color: Colors.white,
                       fontSize: 44,
                       fontWeight: FontWeight.bold,
@@ -210,7 +210,7 @@ class _PrayerSessionScreenState extends State<PrayerSessionScreen> with SingleTi
                         const SizedBox(width: 8),
                         Text(
                           '$calmness% • ${session.calmnessRating}',
-                          style: GoogleFonts.inter(
+                          style: AppTypography.inter(
                             color: AppTheme.gold,
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -231,7 +231,7 @@ class _PrayerSessionScreenState extends State<PrayerSessionScreen> with SingleTi
                       icon: const Icon(Icons.stop_circle_rounded, color: Colors.redAccent, size: 20),
                       label: Text(
                         'End Prayer Session',
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           color: Colors.redAccent,
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -264,7 +264,7 @@ class _PrayerSessionScreenState extends State<PrayerSessionScreen> with SingleTi
                 icon: const Icon(Icons.keyboard_arrow_up_rounded, size: 24),
                 label: Text(
                   'Show 13 Vitals & Metrics',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
@@ -527,7 +527,7 @@ class _VitalsDrawerSheet extends StatelessWidget {
               children: [
                 Text(
                   '13 Live Sensor Metrics',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: Colors.white,
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
@@ -535,7 +535,7 @@ class _VitalsDrawerSheet extends StatelessWidget {
                 ),
                 Text(
                   ble.isConnected ? 'Ring Connected' : 'Simulated Data',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: ble.isConnected ? AppTheme.gold : AppTheme.textSec,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -689,13 +689,13 @@ class _VitalCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 10),
+                  style: AppTypography.inter(color: AppTheme.textSec, fontSize: 10),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   value,
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: Colors.white,
                     fontSize: 13,
                     fontWeight: FontWeight.bold,

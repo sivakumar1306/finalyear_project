@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
@@ -15,6 +14,7 @@ import '../../widgets/screenshot_share.dart';
 import '../settings/card_settings_screen.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/app_typography.dart';
 
 
 // Oudmon SDK sleep stage constants: 0=deep, 1=light, 2=awake, 3=REM
@@ -48,7 +48,7 @@ TextStyle _inter(
   Color color = Colors.white,
   double? letterSpacing,
   double? height,
-}) => GoogleFonts.inter(
+}) => AppTypography.inter(
   fontSize: size,
   fontWeight: weight,
   color: color,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/app_typography.dart';
 
 // ── Design tokens (mirrors steps_screen.dart) ──────────────────────────────
 const _kBg = Color(0xFF050505);
@@ -10,7 +10,7 @@ const _kDistColor = Color(0xFF60A5FA);
 const _kCalColor = Color(0xFFFB923C);
 
 TextStyle _t(double s, {FontWeight w = FontWeight.w400, Color? c, double? h}) =>
-    GoogleFonts.inter(
+    AppTypography.inter(
       fontSize: s,
       fontWeight: w,
       color: c ?? Colors.white.withValues(alpha: 0.95),

@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/app_typography.dart';
 
 /// Full-featured OTA Firmware Update Screen for the Vital Smart Ring.
 /// Supports downloading firmware packages (.bin/.zip) directly from Supabase
@@ -122,16 +122,16 @@ class _OtaScreenState extends State<OtaScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text(
           'Start OTA Firmware Flash?',
-          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
+          style: AppTypography.inter(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         content: Text(
           'Updating to $versionTag.\n\n• Keep your ring close to your phone.\n• Do not close the app or disconnect Bluetooth during the update.',
-          style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13, height: 1.4),
+          style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+            child: Text('Cancel', style: AppTypography.inter(color: AppTheme.textSec)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -139,7 +139,7 @@ class _OtaScreenState extends State<OtaScreen> {
               backgroundColor: AppTheme.gold,
               foregroundColor: Colors.black,
             ),
-            child: Text('Start Flash', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            child: Text('Start Flash', style: AppTypography.inter(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -253,7 +253,7 @@ class _OtaScreenState extends State<OtaScreen> {
         leading: const GlassBackButton(),
         title: Text(
           'OTA Firmware Update',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -303,7 +303,7 @@ class _OtaScreenState extends State<OtaScreen> {
                           const SizedBox(width: 10),
                           Text(
                             isConnected ? 'Ring Connected' : 'Ring Disconnected',
-                            style: GoogleFonts.inter(
+                            style: AppTypography.inter(
                               color: Colors.white,
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
@@ -313,7 +313,7 @@ class _OtaScreenState extends State<OtaScreen> {
                       ),
                       Text(
                         ble.deviceName.isNotEmpty ? ble.deviceName : 'Vital Ring',
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           color: AppTheme.gold,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -344,7 +344,7 @@ class _OtaScreenState extends State<OtaScreen> {
               children: [
                 Text(
                   'Supabase Server Releases',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -408,7 +408,7 @@ class _OtaScreenState extends State<OtaScreen> {
                                 children: [
                                   Text(
                                     version,
-                                    style: GoogleFonts.inter(
+                                    style: AppTypography.inter(
                                       color: Colors.white,
                                       fontSize: 15,
                                       fontWeight: FontWeight.w700,
@@ -424,7 +424,7 @@ class _OtaScreenState extends State<OtaScreen> {
                                       ),
                                       child: Text(
                                         'Recommended',
-                                        style: GoogleFonts.inter(
+                                        style: AppTypography.inter(
                                           color: Colors.redAccent,
                                           fontSize: 10,
                                           fontWeight: FontWeight.w600,
@@ -436,7 +436,7 @@ class _OtaScreenState extends State<OtaScreen> {
                               const SizedBox(height: 6),
                               Text(
                                 notes,
-                                style: GoogleFonts.inter(
+                                style: AppTypography.inter(
                                   color: AppTheme.textSec,
                                   fontSize: 12,
                                   height: 1.3,
@@ -445,7 +445,7 @@ class _OtaScreenState extends State<OtaScreen> {
                               const SizedBox(height: 8),
                               Text(
                                 fileUrl.isNotEmpty ? 'Server URL: Supabase Storage' : 'No file link attached',
-                                style: GoogleFonts.inter(
+                                style: AppTypography.inter(
                                   color: AppTheme.gold.withValues(alpha: 0.8),
                                   fontSize: 11,
                                 ),
@@ -470,7 +470,7 @@ class _OtaScreenState extends State<OtaScreen> {
                   _isLoadingReleases
                       ? 'Checking Supabase server for firmware releases...'
                       : 'No official releases posted on Supabase table `firmware_updates`. You can paste a custom URL or select a local file below.',
-                  style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+                  style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
                 ),
               ),
             ],
@@ -480,7 +480,7 @@ class _OtaScreenState extends State<OtaScreen> {
             // ── Custom Supabase File Link Input ──────────────────────────────
             Text(
               'Or Custom Supabase Storage URL',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: Colors.white,
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -489,10 +489,10 @@ class _OtaScreenState extends State<OtaScreen> {
             const SizedBox(height: 10),
             TextField(
               controller: _customUrlController,
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+              style: AppTypography.inter(color: Colors.white, fontSize: 13),
               decoration: InputDecoration(
                 hintText: 'https://xyz.supabase.co/storage/v1/object/public/...',
-                hintStyle: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
+                hintStyle: AppTypography.inter(color: AppTheme.textSec, fontSize: 12),
                 filled: true,
                 fillColor: AppTheme.card,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -522,7 +522,7 @@ class _OtaScreenState extends State<OtaScreen> {
             // ── Manual Local File Fallback ───────────────────────────────────
             Text(
               'Local File Option',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: Colors.white,
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -547,7 +547,7 @@ class _OtaScreenState extends State<OtaScreen> {
                         Expanded(
                           child: Text(
                             _selectedFileName!,
-                            style: GoogleFonts.inter(
+                            style: AppTypography.inter(
                               color: Colors.white,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -566,7 +566,7 @@ class _OtaScreenState extends State<OtaScreen> {
                       icon: const Icon(Icons.folder_open_rounded, size: 18),
                       label: Text(
                         'Select Local .bin / .zip File',
-                        style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                        style: AppTypography.inter(fontWeight: FontWeight.w600),
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
@@ -600,7 +600,7 @@ class _OtaScreenState extends State<OtaScreen> {
                       children: [
                         Text(
                           _isDownloading ? 'Downloading from Supabase' : 'Flashing Ring Firmware',
-                          style: GoogleFonts.inter(
+                          style: AppTypography.inter(
                             color: Colors.white,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -608,7 +608,7 @@ class _OtaScreenState extends State<OtaScreen> {
                         ),
                         Text(
                           _isDownloading ? '$_downloadProgress%' : '$_flashProgress%',
-                          style: GoogleFonts.inter(
+                          style: AppTypography.inter(
                             color: AppTheme.gold,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -632,7 +632,7 @@ class _OtaScreenState extends State<OtaScreen> {
                       const SizedBox(height: 10),
                       Text(
                         _statusMessage,
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           color: _statusMessage.contains('failed') || _statusMessage.contains('error')
                               ? Colors.redAccent
                               : Colors.greenAccent,
@@ -667,7 +667,7 @@ class _OtaScreenState extends State<OtaScreen> {
                       : _isUpdating
                           ? 'Updating Firmware...'
                           : 'Download & Update Firmware',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
@@ -705,7 +705,7 @@ class _StatColumn extends StatelessWidget {
       children: [
         Text(
           label,
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: AppTheme.textSec,
             fontSize: 11,
           ),
@@ -713,7 +713,7 @@ class _StatColumn extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           value,
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 13,
             fontWeight: FontWeight.w600,

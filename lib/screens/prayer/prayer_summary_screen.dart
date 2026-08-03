@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_typography.dart';
 
 /// Post-Session Workout-style Summary for Prayer Mode.
 class PrayerSummaryScreen extends StatefulWidget {
@@ -71,7 +71,7 @@ class _PrayerSummaryScreenState extends State<PrayerSummaryScreen> {
         automaticallyImplyLeading: false,
         title: Text(
           'Prayer Session Summary',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -105,7 +105,7 @@ class _PrayerSummaryScreenState extends State<PrayerSummaryScreen> {
                   const SizedBox(height: 6),
                   Text(
                     '${widget.peakCalmness}%',
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       color: Colors.white,
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -113,7 +113,7 @@ class _PrayerSummaryScreenState extends State<PrayerSummaryScreen> {
                   ),
                   Text(
                     'Calmness',
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       color: AppTheme.gold,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -126,7 +126,7 @@ class _PrayerSummaryScreenState extends State<PrayerSummaryScreen> {
             const SizedBox(height: 16),
             Text(
               widget.rating,
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: Colors.white,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -135,7 +135,7 @@ class _PrayerSummaryScreenState extends State<PrayerSummaryScreen> {
             const SizedBox(height: 6),
             Text(
               'Recorded in Workout & Wellness History',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: AppTheme.textSec,
                 fontSize: 13,
               ),
@@ -195,7 +195,7 @@ class _PrayerSummaryScreenState extends State<PrayerSummaryScreen> {
                 ),
                 child: Text(
                   'Done',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -208,7 +208,7 @@ class _PrayerSummaryScreenState extends State<PrayerSummaryScreen> {
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(
                   'Syncing session with Supabase...',
-                  style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 11),
+                  style: AppTypography.inter(color: AppTheme.textSec, fontSize: 11),
                 ),
               ),
           ],
@@ -251,7 +251,7 @@ class _SummaryTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: AppTheme.textSec,
                     fontSize: 11,
                   ),
@@ -263,7 +263,7 @@ class _SummaryTile extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               color: Colors.white,
               fontSize: 16,
               fontWeight: FontWeight.bold,

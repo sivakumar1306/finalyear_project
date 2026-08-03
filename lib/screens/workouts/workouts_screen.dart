@@ -1,6 +1,5 @@
 import 'dart:math' show min;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/workout_provider.dart';
 import '../../models/workout_model.dart';
@@ -10,6 +9,7 @@ import '../../widgets/offline_notice.dart';
 import '../../widgets/glass_back_button.dart';
 import 'active_workout_screen.dart';
 import 'workout_detail_screen.dart';
+import '../../widgets/app_typography.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _kBg     = Color(0xFF080808);
@@ -25,7 +25,7 @@ TextStyle _inter(
   double? letterSpacing,
   double? height,
 }) =>
-    GoogleFonts.inter(
+    AppTypography.inter(
       fontSize: size,
       fontWeight: weight,
       color: color,
