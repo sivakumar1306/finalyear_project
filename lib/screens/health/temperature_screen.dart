@@ -727,6 +727,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                 values: _trendValues,
                 xLabels: _trendXLabels(),
                 loading: _loadingTrend,
+                showLegend: true,
               ),
               if (_trendOffline) ...[
                 const SizedBox(height: 8),
@@ -734,20 +735,6 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                   message: 'Connect to WiFi to load your 7-day trend',
                 ),
               ],
-              const SizedBox(height: 12),
-
-              // ── 7. Legend ─────────────────────────────────────────────────
-              Row(
-                children: [
-                  _LegendDot(color: AppTheme.spo2Color, label: 'Low'),
-                  const SizedBox(width: 10),
-                  _LegendDot(color: AppTheme.success, label: 'Normal'),
-                  const SizedBox(width: 10),
-                  _LegendDot(color: const Color(0xFFFBBF24), label: 'Elevated'),
-                  const SizedBox(width: 10),
-                  _LegendDot(color: AppTheme.danger, label: 'Fever'),
-                ],
-              ),
 
               const SizedBox(height: 80),
             ],
@@ -861,6 +848,7 @@ class _TempChartCard extends StatelessWidget {
   final List<double> values;
   final List<String> xLabels;
   final bool loading;
+  final bool showLegend;
 
   const _TempChartCard({
     required this.headerLabel,
@@ -868,6 +856,7 @@ class _TempChartCard extends StatelessWidget {
     required this.values,
     required this.xLabels,
     required this.loading,
+    this.showLegend = false,
   });
 
   static const _yAxisW = 30.0;
@@ -953,6 +942,18 @@ class _TempChartCard extends StatelessWidget {
                   .toList(),
             ),
           ),
+          if (showLegend) ...[
+            const SizedBox(height: 12),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _LegendDot(color: AppTheme.spo2Color, label: 'Low'),
+                _LegendDot(color: AppTheme.success, label: 'Normal'),
+                _LegendDot(color: Color(0xFFFBBF24), label: 'Elevated'),
+                _LegendDot(color: AppTheme.danger, label: 'Fever'),
+              ],
+            ),
+          ],
         ],
       ),
     );
