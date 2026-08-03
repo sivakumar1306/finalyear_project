@@ -29,8 +29,9 @@ object SupabaseSyncManager {
     private const val KEY_LAST_ATTEMPT = "last_attempt_at"
     private const val KEY_LAST_SUCCESS = "last_success_at"
     private const val TICK_MS = 60 * 1000L // check every 1 min whether a push is due
-    private const val PUSH_INTERVAL_MS = 60 * 1000L
+    private const val PUSH_INTERVAL_MS = 5 * 60 * 1000L
     private const val BATCH_LIMIT = 200
+    private const val PURGE_RETENTION_DAYS = 30L
 
     private val gson = Gson()
     private val handler = Handler(Looper.getMainLooper())
@@ -115,6 +116,12 @@ object SupabaseSyncManager {
         if (allOk) {
             prefs.edit().putLong(KEY_LAST_SUCCESS, System.currentTimeMillis()).apply()
             Log.d(TAG, "runPushCycle: all pushes succeeded")
+            try {
+                val n = repository.purgeOldSyncedReadings(PURGE_RETENTION_DAYS)
+                if (n > 0) Log.d(TAG, "runPushCycle: purged $n old synced local rows")
+            } catch (e: Exception) {
+                Log.e(TAG, "local purge failed", e)
+            }
         } else {
             Log.w(TAG, "runPushCycle: one or more pushes failed — will retry next tick, lastSuccess not advanced")
         }

@@ -100,6 +100,22 @@ class ReadingRepository private constructor(context: Context) {
     suspend fun markTemperatureSynced(ids: List<Long>, at: Long) = withContext(Dispatchers.IO) { db.temperatureDao().markSynced(ids, at) }
     suspend fun markStepsSynced(ids: List<Long>, at: Long) = withContext(Dispatchers.IO) { db.stepsSnapshotDao().markSynced(ids, at) }
 
+    // Retention: drop synced vitals older than [retentionDays]. Unsynced rows are kept.
+    suspend fun purgeOldSyncedReadings(retentionDays: Long = 30L): Int = withContext(Dispatchers.IO) {
+        val cutoff = System.currentTimeMillis() - retentionDays * 24L * 60L * 60L * 1000L
+        var deleted = 0
+        deleted += db.heartRateDao().purgeSyncedOlderThan(cutoff)
+        deleted += db.spo2Dao().purgeSyncedOlderThan(cutoff)
+        deleted += db.stressDao().purgeSyncedOlderThan(cutoff)
+        deleted += db.bloodPressureDao().purgeSyncedOlderThan(cutoff)
+        deleted += db.hrvDao().purgeSyncedOlderThan(cutoff)
+        deleted += db.temperatureDao().purgeSyncedOlderThan(cutoff)
+        deleted += db.stepsSnapshotDao().purgeSyncedOlderThan(cutoff)
+        deleted += db.fallRiskLogDao().purgeOlderThan(cutoff)
+        deleted += db.fallEventDao().purgeOlderThan(cutoff)
+        deleted
+    }
+
     // ── Demo data seeding (dev/testing only) ────────────────────────
     //
     // Fills the last `hoursBack` hours with synthetic-but-plausible readings so a

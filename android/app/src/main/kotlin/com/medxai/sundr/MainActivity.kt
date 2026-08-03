@@ -3,10 +3,8 @@ package com.medxai.sundr
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Bundle
-import android.view.Display
 import com.medxai.sundr.analysis.EmergencySmsSender
 import com.medxai.sundr.analysis.FallPredictionNotifier
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -31,29 +29,12 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestMaxRefreshRate()
         if (hasBlePermission()) {
             BleConnectionService.start(this)
         }
         FallPredictionNotifier.restorePending(this)
         EmergencySmsSender.restoreIfNeeded(this)
         handleIntent(intent)
-    }
-
-    /**
-     * Flutter on Android never votes for a refresh rate, so devices like
-     * OnePlus (ColorOS) drop the display to 60 Hz while this window is
-     * focused. Pin the window to the highest supported display mode so the
-     * app renders at the panel's peak refresh rate (e.g. 120 Hz).
-     */
-    private fun requestMaxRefreshRate() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
-        val display = (getSystemService(DisplayManager::class.java))
-            .getDisplay(Display.DEFAULT_DISPLAY) ?: return
-        val best = display.supportedModes.maxByOrNull { it.refreshRate } ?: return
-        val params = window.attributes
-        params.preferredDisplayModeId = best.modeId
-        window.attributes = params
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -2,7 +2,6 @@ import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/home_card_provider.dart';
@@ -10,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/glass_header.dart';
 import '../../widgets/glass_icon_button.dart';
 import 'home_screen.dart';
+import '../../widgets/app_typography.dart';
 
 class _CardItem {
   final HomeCardId id;
@@ -86,7 +86,7 @@ class CardSettingsScreen extends StatelessWidget {
                 child: Center(
                   child: Text(
                     'SELECT CARDS TO DISPLAY',
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
                       color: Colors.white.withValues(alpha: 0.42),
@@ -174,7 +174,7 @@ class _CardSettingsRow extends StatelessWidget {
           Expanded(
             child: Text(
               item.name,
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w500,
                 color: dimmed
