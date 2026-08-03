@@ -957,11 +957,19 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 40,
-            width: double.infinity,
-            child: CustomPaint(painter: _WavePainter(AppTheme.tempColor)),
-          ),
+          if (!hasData)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text('No data found', style: _inter(12, color: AppTheme.textSec)),
+              ),
+            )
+          else
+            SizedBox(
+              height: 40,
+              width: double.infinity,
+              child: CustomPaint(painter: _TempGaugePainter(delta: delta)),
+            ),
           const SizedBox(height: 10),
           Container(height: 0.5, color: Colors.white.withValues(alpha: 0.08)),
           const SizedBox(height: 10),
@@ -998,6 +1006,11 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     final caption =
         hasData ? 'Lighter in late luteal phase.' : 'Connect ring to track sleep.';
 
+    final deepSecs = ble.todaySleepDeepSecs;
+    final lightSecs = ble.todaySleepLightSecs;
+    final remSecs = ble.todaySleepRemSecs;
+    final awakeSecs = math.max(0, durationSec - (deepSecs + lightSecs + remSecs));
+
     return _glassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1024,29 +1037,29 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: SizedBox(
-              height: 8,
-              width: double.infinity,
-              child: Row(
-                children: [
-                  Expanded(
-                      flex: 3,
-                      child: Container(
-                          color: hasData
-                              ? AppTheme.sleepAwake.withValues(alpha: 0.55)
-                              : Colors.white.withValues(alpha: 0.06))),
-                  Expanded(
-                      flex: 7,
-                      child: Container(
-                          color: hasData
-                              ? AppTheme.sleepLight
-                              : Colors.white.withValues(alpha: 0.06))),
-                ],
+          if (!hasData)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text('No data found', style: _inter(12, color: AppTheme.textSec)),
+              ),
+            )
+          else
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: SizedBox(
+                height: 8,
+                width: double.infinity,
+                child: Row(
+                  children: [
+                    if (awakeSecs > 0) Expanded(flex: awakeSecs, child: Container(color: AppTheme.sleepAwake.withValues(alpha: 0.55))),
+                    if (remSecs > 0) Expanded(flex: remSecs, child: Container(color: const Color(0xFF38BDF8))),
+                    if (lightSecs > 0) Expanded(flex: lightSecs, child: Container(color: AppTheme.sleepLight)),
+                    if (deepSecs > 0) Expanded(flex: deepSecs, child: Container(color: AppTheme.sleepDeep)),
+                  ],
+                ),
               ),
             ),
-          ),
           const SizedBox(height: 10),
           Container(height: 0.5, color: Colors.white.withValues(alpha: 0.08)),
           const SizedBox(height: 10),
@@ -1107,11 +1120,25 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 36,
-            width: double.infinity,
-            child: CustomPaint(painter: _StressBarPainter(hasData)),
-          ),
+          if (!hasData)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text('No data found', style: _inter(12, color: AppTheme.textSec)),
+              ),
+            )
+          else
+            SizedBox(
+              height: 36,
+              width: double.infinity,
+              child: CustomPaint(
+                painter: _StressGaugePainter(
+                  min: ble.todayMinStress,
+                  max: ble.todayMaxStress,
+                  latest: stress,
+                ),
+              ),
+            ),
           const SizedBox(height: 10),
           Container(height: 0.5, color: Colors.white.withValues(alpha: 0.08)),
           const SizedBox(height: 10),
@@ -1499,97 +1526,98 @@ class _CyclePatternDotsPainter extends CustomPainter {
       old.markerRatio != markerRatio;
 }
 
-// ── Wave painter (temperature) ────────────────────────────────────────────────
-
-class _WavePainter extends CustomPainter {
-  final Color color;
-  const _WavePainter(this.color);
+class _TempGaugePainter extends CustomPainter {
+  final double delta;
+  const _TempGaugePainter({required this.delta});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final path = Path();
-    const cycles = 2.2;
-    final midY = size.height * 0.55;
-    final amp = size.height * 0.35;
-
-    for (double x = 0; x <= size.width; x++) {
-      final y = midY - math.sin((x / size.width) * cycles * 2 * math.pi) * amp;
-      if (x == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-
-    final fillPath = Path.from(path)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-
-    canvas.drawPath(
-      fillPath,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [color.withValues(alpha: 0.18), color.withValues(alpha: 0.0)],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    final midY = size.height / 2;
+    
+    // Draw baseline
+    canvas.drawLine(
+      Offset(0, midY),
+      Offset(size.width, midY),
+      Paint()..color = Colors.white.withValues(alpha: 0.2)..strokeWidth = 2,
     );
 
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color.withValues(alpha: 0.85)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..strokeCap = StrokeCap.round,
+    // Draw baseline tick
+    canvas.drawLine(
+      Offset(size.width / 2, midY - 6),
+      Offset(size.width / 2, midY + 6),
+      Paint()..color = Colors.white.withValues(alpha: 0.5)..strokeWidth = 2,
+    );
+
+    // Calculate dot x position
+    // Range is -1.0 to +1.0
+    final clampedDelta = delta.clamp(-1.0, 1.0);
+    final ratio = (clampedDelta + 1.0) / 2.0; // 0.0 to 1.0
+    final x = ratio * size.width;
+
+    // Draw dot
+    canvas.drawCircle(
+      Offset(x, midY),
+      6,
+      Paint()..color = AppTheme.tempColor,
     );
   }
 
   @override
-  bool shouldRepaint(_WavePainter old) => old.color != color;
+  bool shouldRepaint(_TempGaugePainter old) => old.delta != delta;
 }
 
-// ── Stress bar painter ────────────────────────────────────────────────────────
+// ── Stress gauge painter ────────────────────────────────────────────────────────
 
-class _StressBarPainter extends CustomPainter {
-  final bool hasData;
-  const _StressBarPainter(this.hasData);
+class _StressGaugePainter extends CustomPainter {
+  final int min;
+  final int max;
+  final int latest;
 
-  static const _n = 30;
-  static const _highlightStart = 10;
-  static const _highlightEnd = 16;
+  const _StressGaugePainter({required this.min, required this.max, required this.latest});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rnd = math.Random(7);
-    final slotW = size.width / _n;
-    final barW = slotW * 0.55;
+    final midY = size.height / 2;
+    
+    // Draw background track
+    final trackRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, midY - 4, size.width, 8),
+      const Radius.circular(4),
+    );
+    canvas.drawRRect(trackRect, Paint()..color = Colors.white.withValues(alpha: 0.1));
 
-    for (int i = 0; i < _n; i++) {
-      final h = (0.25 + rnd.nextDouble() * 0.65) * size.height;
-      final x = i * slotW + (slotW - barW) / 2;
-      final highlighted = i >= _highlightStart && i <= _highlightEnd;
-      final color = !hasData
-          ? Colors.white.withValues(alpha: 0.08)
-          : highlighted
-              ? AppTheme.womenColor.withValues(alpha: 0.75)
-              : AppTheme.success.withValues(alpha: 0.55);
-      canvas.drawRRect(
-        RRect.fromLTRBR(
-          x,
-          size.height - h,
-          x + barW,
-          size.height,
-          const Radius.circular(2),
-        ),
-        Paint()..color = color,
+    if (max > 0) {
+      // Draw range bar
+      final startX = (min / 100.0).clamp(0.0, 1.0) * size.width;
+      final endX = (max / 100.0).clamp(0.0, 1.0) * size.width;
+      
+      final rangeRect = RRect.fromRectAndRadius(
+        Rect.fromLTRB(startX, midY - 4, endX, midY + 4),
+        const Radius.circular(4),
       );
+      canvas.drawRRect(rangeRect, Paint()..color = AppTheme.stressColor.withValues(alpha: 0.4));
     }
+
+    // Draw latest dot
+    final latestX = (latest / 100.0).clamp(0.0, 1.0) * size.width;
+    canvas.drawCircle(
+      Offset(latestX, midY),
+      8,
+      Paint()..color = AppTheme.stressColor,
+    );
+    // Draw white border for dot
+    canvas.drawCircle(
+      Offset(latestX, midY),
+      8,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
   }
 
   @override
-  bool shouldRepaint(_StressBarPainter old) => old.hasData != hasData;
+  bool shouldRepaint(_StressGaugePainter old) => old.min != min || old.max != max || old.latest != latest;
 }
 
 // ── Small supporting widgets ───────────────────────────────────────────────────
