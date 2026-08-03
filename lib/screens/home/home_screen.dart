@@ -21,6 +21,7 @@ import '../settings/about_screen.dart';
 import 'card_settings_screen.dart';
 import '../settings/goal_setting_screen.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../services/unit_prefs.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -1868,19 +1869,26 @@ class _WomensHealthMiniCardState extends State<_WomensHealthMiniCard> {
         final startDt = DateTime(start.year, start.month, start.day);
         final nowDt = DateTime(now.year, now.month, now.day);
         final day = nowDt.difference(startDt).inDays + 1;
-        
+
         final cycleLen = latest['cycle_length'] as int;
         final periodLen = latest['period_length'] as int;
-        
+
         // Build HealthMetrics using BleProvider values
         // Normalized roughly 0-100
         final metrics = HealthMetrics(
-          temperature: (widget.ble.todayAvgSpo2 > 0 ? widget.ble.todayAvgSpo2.toDouble() : 50.0).clamp(0, 100),
+          temperature:
+              (widget.ble.todayAvgSpo2 > 0
+                      ? widget.ble.todayAvgSpo2.toDouble()
+                      : 50.0)
+                  .clamp(0, 100),
           hrv: (widget.ble.todayAvgHrv.toDouble()).clamp(0, 100),
           heartRate: (widget.ble.todayAvgHr.toDouble()).clamp(0, 100),
           sleepQuality: (widget.ble.todaySleepScore.toDouble()).clamp(0, 100),
           stress: (widget.ble.todayAvgStress.toDouble()).clamp(0, 100),
-          activityLevel: ((widget.ble.todaySteps / 10000.0) * 100.0).clamp(0, 100),
+          activityLevel: ((widget.ble.todaySteps / 10000.0) * 100.0).clamp(
+            0,
+            100,
+          ),
         );
 
         final service = WomenHealthPredictionService();
@@ -1889,14 +1897,18 @@ class _WomensHealthMiniCardState extends State<_WomensHealthMiniCard> {
           averageCycleLength: cycleLen,
           metrics: metrics,
         );
-        
+
         String phase = 'Luteal';
         if (day <= 0) {
           phase = 'Luteal';
         } else if (day <= periodLen) {
           phase = 'Menstrual';
         } else {
-          final ovDt = DateTime(result.ovulationDate.year, result.ovulationDate.month, result.ovulationDate.day);
+          final ovDt = DateTime(
+            result.ovulationDate.year,
+            result.ovulationDate.month,
+            result.ovulationDate.day,
+          );
           final ovDay = ovDt.difference(startDt).inDays + 1;
           if (day < ovDay - 5) {
             phase = 'Follicular';
@@ -1904,7 +1916,7 @@ class _WomensHealthMiniCardState extends State<_WomensHealthMiniCard> {
             phase = 'Ovulation';
           }
         }
-        
+
         if (mounted) {
           setState(() {
             _value = 'Day $day';
@@ -3121,7 +3133,7 @@ class _CompactBloodPressureCard extends StatelessWidget {
 // Diagonal glass fade — warm #F5F0E2 highlight top-right easing through the
 // spec's 6% base tone, down to a black-tinted bottom-left corner.
 
-class _TemperatureCard extends StatelessWidget {
+class _TemperatureCard extends StatefulWidget {
   final double tempC;
   final bool connected;
   final VoidCallback? onTap;
@@ -3135,14 +3147,50 @@ class _TemperatureCard extends StatelessWidget {
   });
 
   @override
+  State<_TemperatureCard> createState() => _TemperatureCardState();
+}
+
+class _TemperatureCardState extends State<_TemperatureCard> {
+  TempUnit _tempUnit = TempUnit.celsius;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTempUnit();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TemperatureCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _loadTempUnit();
+  }
+
+  Future<void> _loadTempUnit() async {
+    final unit = await UnitPrefs.loadTempUnit();
+    if (mounted && _tempUnit != unit) {
+      setState(() => _tempUnit = unit);
+    }
+  }
+
+  // Display-only conversion — tempC stays in Celsius (the ring's native unit);
+  // only the number shown changes with the Temperature Unit setting. Mirrors
+  // TemperatureScreen's own _disp()/_unitLabel logic exactly.
+  double get _dispTemp => _tempUnit == TempUnit.fahrenheit
+      ? UnitPrefs.celsiusToFahrenheit(widget.tempC)
+      : widget.tempC;
+
+  String get _unitLabel => _tempUnit == TempUnit.fahrenheit ? '°F' : '°C';
+
+  @override
   Widget build(BuildContext context) {
-    final hasData = tempC > 0;
+    _loadTempUnit();
+    final hasData = widget.tempC > 0;
 
     return _CompactHealthCard(
       title: 'Temperature',
       orbColor: _kOrbTemp,
-      expanded: expanded,
-      onTap: onTap,
+      expanded: widget.expanded,
+      onTap: widget.onTap,
       overlayGradient: const LinearGradient(
         begin: Alignment.topRight,
         end: Alignment.bottomLeft,
@@ -3162,7 +3210,7 @@ class _TemperatureCard extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                hasData ? tempC.toStringAsFixed(1) : '--',
+                hasData ? _dispTemp.toStringAsFixed(1) : '--',
                 style: GoogleFonts.inter(
                   fontSize: 34,
                   fontWeight: FontWeight.w200,
@@ -3172,7 +3220,7 @@ class _TemperatureCard extends StatelessWidget {
               ),
               const SizedBox(width: 3),
               Text(
-                '°C',
+                _unitLabel,
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.w300,
@@ -3183,7 +3231,7 @@ class _TemperatureCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            _tempStatus(tempC),
+            _tempStatus(widget.tempC), // status thresholds stay in Celsius (the canonical unit)
             style: _inter(
               12,
               weight: FontWeight.w500,

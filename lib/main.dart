@@ -90,12 +90,9 @@ void main() async {
     return true;
   };
 
-  // All four families are bundled in pubspec (fonts/) — never fetch at runtime.
-  GoogleFonts.config.allowRuntimeFetching = false;
-  await Future.wait([
-    SupabaseService.initialize(),
-    _syncLoggedInFlag(),
-  ]);
+  // Fonts aren't bundled as local assets, so allow fetching them at runtime.
+  GoogleFonts.config.allowRuntimeFetching = true;
+  await Future.wait([SupabaseService.initialize(), _syncLoggedInFlag()]);
   await _configureNativeSync();
   _authSub?.cancel();
   _authSub = SupabaseService.client.auth.onAuthStateChange.listen((_) {
