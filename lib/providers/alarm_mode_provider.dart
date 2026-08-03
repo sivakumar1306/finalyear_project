@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../screens/prayer/prayer_session_screen.dart';
 import '../theme/app_theme.dart';
+import '../config.dart';
 
 enum PhoneMode { focus, base, prayer }
 
@@ -24,7 +25,7 @@ enum PhoneModeResult { applied, needsDndAccess, unsupported }
 /// closed/swiped away even though the app's foreground service keeps the
 /// process itself alive, so it would silently never fire.
 class AlarmModeProvider extends ChangeNotifier {
-  static const _channel = MethodChannel('com.medxai.qring/phone_mode');
+  static const _channel = MethodChannel(AppConfig.phoneModeChannel);
 
   PhoneMode _mode = PhoneMode.focus;
   PhoneMode get mode => _mode;

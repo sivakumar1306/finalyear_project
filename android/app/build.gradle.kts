@@ -5,8 +5,10 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val appPackageName = "com.medxai.sundr"
+
 android {
-    namespace = "com.medxai.qring_flutter"
+    namespace = appPackageName
     compileSdk = 36
     ndkVersion = "28.2.13676358"
 
@@ -20,7 +22,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.medxai.qring_flutter"
+        applicationId = appPackageName
         minSdk = 26
         targetSdk = 37
         versionCode = 1

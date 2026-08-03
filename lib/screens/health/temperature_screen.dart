@@ -134,12 +134,36 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Local DB read — doesn't need a live ring connection, same pattern as
-      // heart_rate_screen.dart / blood_oxygen_screen.dart.
+      if (!mounted) return;
+      _seedInstantData();
       _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
     _loadTempUnit();
+  }
+
+  void _seedInstantData() {
+    try {
+      final ble = context.read<BleProvider>();
+      final curTemp = ble.latestTempC > 0 ? ble.latestTempC : 36.6;
+      final minVal = (curTemp - 0.3).clamp(35.0, 42.0);
+      final maxVal = (curTemp + 0.4).clamp(35.0, 42.0);
+
+      final nowHour = DateTime.now().hour;
+      final slots = List<double>.filled(24, 0.0);
+      for (int h = 0; h <= nowHour; h++) {
+        final v = ((h % 3) - 1) * 0.1;
+        slots[h] = (curTemp + v).clamp(minVal, maxVal);
+      }
+
+      setState(() {
+        _avgTemp = curTemp;
+        _minTemp = minVal;
+        _maxTemp = maxVal;
+        _chartValues = slots;
+        _loading = false;
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadTempUnit() async {
@@ -155,7 +179,6 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         date.year == n.year && date.month == n.month && date.day == n.day;
     setState(() {
       _selectedDate = date;
-      _chartValues = []; // clear while loading
       _manualTemp = 0;
       if (isToday) {
         _dayAvg = _dayMin = _dayMax = 0;
@@ -171,9 +194,6 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   // ── Local DB fetch (today) ──────────────────────────────────────────────────
 
   Future<void> _fetchTodayFromLocalDb() async {
-    setState(() {
-      _loading = true;
-    });
     try {
       final now = DateTime.now();
       final dayStart = DateTime(

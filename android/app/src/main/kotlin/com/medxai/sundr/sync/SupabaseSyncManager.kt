@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter.sync
+package com.medxai.sundr.sync
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -6,8 +6,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.google.gson.Gson
-import com.medxai.qring_flutter.data.MeasurementConfig
-import com.medxai.qring_flutter.data.ReadingRepository
+import com.medxai.sundr.data.MeasurementConfig
+import com.medxai.sundr.data.ReadingRepository
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient

@@ -58,7 +58,6 @@ class CardSettingsScreen extends StatelessWidget {
     final order = provider.order;
     final hidden = provider.hiddenCards;
     final expanded = provider.expandedCards;
-    final compactMode = provider.compactMode;
 
     final visibleItems = _kCardItems.where((item) => order.contains(item.id)).toList()
       ..sort((a, b) => order.indexOf(a.id).compareTo(order.indexOf(b.id)));
@@ -84,52 +83,16 @@ class CardSettingsScreen extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(28, 18, 28, 12),
-                child: Stack(
-                  children: [
-                    Center(
-                      child: Text(
-                        'SELECT CARDS TO DISPLAY',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white.withValues(alpha: 0.42),
-                          letterSpacing: 2,
-                        ),
-                      ),
+                child: Center(
+                  child: Text(
+                    'SELECT CARDS TO DISPLAY',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.42),
+                      letterSpacing: 2,
                     ),
-                    Positioned(
-                      right: 0,
-                      child: GestureDetector(
-                        onTap: () {
-                          provider.setCompactMode(!compactMode);
-                        },
-                        child: Row(
-                          children: [
-                            Text(
-                              'Compact',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: compactMode ? AppTheme.gold : Colors.white.withValues(alpha: 0.5),
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Transform.scale(
-                              scale: 0.55,
-                              child: CupertinoSwitch(
-                                value: compactMode,
-                                activeTrackColor: AppTheme.gold,
-                                inactiveTrackColor: Colors.white.withValues(alpha: 0.12),
-                                onChanged: (v) {
-                                  provider.setCompactMode(v);
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
               Expanded(

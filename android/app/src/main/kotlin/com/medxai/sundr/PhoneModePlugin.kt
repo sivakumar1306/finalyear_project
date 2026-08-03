@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter
+package com.medxai.sundr
 
 import android.app.NotificationManager
 import android.content.Context
@@ -7,7 +7,7 @@ import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import com.medxai.qring_flutter.data.ReadingRepository
+import com.medxai.sundr.data.ReadingRepository
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.launch

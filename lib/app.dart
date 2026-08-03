@@ -20,6 +20,7 @@ import 'screens/settings/target_profile_screen.dart';
 import 'screens/settings/display_settings_screen.dart';
 import 'screens/settings/advanced_settings_screen.dart';
 import 'screens/settings/touch_control_screen.dart';
+import 'screens/settings/gesture_settings_screen.dart';
 import 'screens/settings/alarms_notifications_screen.dart';
 import 'screens/settings/select_notifications_screen.dart';
 import 'screens/settings/fall_detection_screen.dart';
@@ -63,6 +64,7 @@ class QRingApp extends StatelessWidget {
         '/display-settings': (_) => const DisplaySettingsScreen(),
         '/advanced-settings': (_) => const AdvancedSettingsScreen(),
         '/touch-control': (_) => const TouchControlScreen(),
+        '/gesture-settings': (_) => const GestureSettingsScreen(),
         '/alarms-notifications': (_) => const AlarmsNotificationsScreen(),
         '/select-notifications': (_) => const SelectNotificationsScreen(),
         '/fall-detection': (_) => const FallDetectionScreen(),

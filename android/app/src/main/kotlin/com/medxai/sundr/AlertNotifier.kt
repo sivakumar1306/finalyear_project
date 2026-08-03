@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter
+package com.medxai.sundr
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -6,8 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import androidx.core.app.NotificationCompat
-import com.medxai.qring_flutter.analysis.SafetyLiveUpdate
-import com.medxai.qring_flutter.data.Vital
+import com.medxai.sundr.analysis.SafetyLiveUpdate
+import com.medxai.sundr.data.Vital
 
 // Scaffolding for a future analyzer module (e.g. fall detection) to surface an alert to the
 // user. Nothing in this codebase calls notifyAnomaly() yet — the actual detection algorithm

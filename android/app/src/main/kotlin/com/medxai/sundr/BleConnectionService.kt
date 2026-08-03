@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter
+package com.medxai.sundr
 
 import android.app.Application
 import android.app.Notification
@@ -18,8 +18,8 @@ import com.oudmon.ble.base.bluetooth.BleOperateManager
 import com.oudmon.ble.base.communication.CommandHandle
 import com.oudmon.ble.base.communication.Constants
 import com.oudmon.ble.base.communication.req.SimpleKeyReq
-import com.medxai.qring_flutter.analysis.FallMotionDetector
-import com.medxai.qring_flutter.sync.SupabaseSyncManager
+import com.medxai.sundr.analysis.FallMotionDetector
+import com.medxai.sundr.sync.SupabaseSyncManager
 
 class BleConnectionService : Service() {
 

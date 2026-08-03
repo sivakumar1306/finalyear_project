@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter
+package com.medxai.sundr
 
 import android.Manifest
 import android.content.Intent
@@ -7,8 +7,8 @@ import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Bundle
 import android.view.Display
-import com.medxai.qring_flutter.analysis.EmergencySmsSender
-import com.medxai.qring_flutter.analysis.FallPredictionNotifier
+import com.medxai.sundr.analysis.EmergencySmsSender
+import com.medxai.sundr.analysis.FallPredictionNotifier
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -17,9 +17,10 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterFragmentActivity() {
 
     companion object {
-        const val BLE_METHOD_CHANNEL = "com.medxai.qring/ble"
-        const val BLE_EVENT_CHANNEL = "com.medxai.qring/ble_events"
-        const val PHONE_MODE_METHOD_CHANNEL = "com.medxai.qring/phone_mode"
+        const val PACKAGE_NAME = "com.medxai.sundr"
+        const val BLE_METHOD_CHANNEL = "$PACKAGE_NAME/ble"
+        const val BLE_EVENT_CHANNEL = "$PACKAGE_NAME/ble_events"
+        const val PHONE_MODE_METHOD_CHANNEL = "$PACKAGE_NAME/phone_mode"
 
         var pendingFallPrediction = false
         var pendingFallPredictionHr = 0

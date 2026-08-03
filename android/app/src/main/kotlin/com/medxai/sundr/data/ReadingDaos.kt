@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter.data
+package com.medxai.sundr.data
 
 import androidx.room.Dao
 import androidx.room.Insert

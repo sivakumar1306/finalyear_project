@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -13,9 +14,11 @@ import 'providers/main_tab_provider.dart';
 import 'providers/home_card_provider.dart';
 import 'providers/fall_prediction/fall_prediction_provider.dart';
 import 'services/supabase_service.dart';
+import 'services/incident_service.dart';
+import 'config.dart';
 import 'app.dart';
 
-const _bleChannel = MethodChannel('com.medxai.qring/ble');
+const _bleChannel = MethodChannel(AppConfig.bleMethodChannel);
 
 Future<void> _requestPermissionsAndStartService() async {
   await [
@@ -65,12 +68,31 @@ StreamSubscription? _authSub;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // All four families are bundled in pubspec (fonts/) — never fetch at runtime.
-  GoogleFonts.config.allowRuntimeFetching = false;
-  await Future.wait([
-    SupabaseService.initialize(),
-    _syncLoggedInFlag(),
-  ]);
+
+  // Capture Flutter UI / layout framework errors
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    IncidentService.reportIncident(
+      source: 'flutter_ui',
+      error: details.exception,
+      stackTrace: details.stack,
+      customMessage: details.summary.toString(),
+    );
+  };
+
+  // Capture uncaught async / isolate errors
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    IncidentService.reportIncident(
+      source: 'flutter_async',
+      error: error,
+      stackTrace: stack,
+    );
+    return true;
+  };
+
+  // Fonts aren't bundled as local assets, so allow fetching them at runtime.
+  GoogleFonts.config.allowRuntimeFetching = true;
+  await Future.wait([SupabaseService.initialize(), _syncLoggedInFlag()]);
   await _configureNativeSync();
   _authSub?.cancel();
   _authSub = SupabaseService.client.auth.onAuthStateChange.listen((_) {
