@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/alarm_mode_provider.dart';
@@ -9,6 +8,7 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/app_typography.dart';
 
 /// Available actions that ring touch gestures can be mapped to.
 enum GestureAction {
@@ -252,7 +252,7 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
         leading: const GlassBackButton(),
         title: Text(
           'Gesture & Touch Controls',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -277,11 +277,11 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
                       activeThumbColor: AppTheme.gold,
                       title: Text(
                         'Wrist-Flip Screen Wake',
-                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+                        style: AppTypography.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
                       ),
                       subtitle: Text(
                         'Raise or flip your wrist to automatically illuminate the ring screen',
-                        style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
+                        style: AppTypography.inter(color: AppTheme.textSec, fontSize: 12),
                       ),
                       value: _wristFlipEnabled,
                       onChanged: connected ? _setWristFlip : null,
@@ -294,7 +294,7 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
                           children: [
                             Text(
                               'Wearing Hand:',
-                              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+                              style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
                             ),
                             const Spacer(),
                             ChoiceChip(
@@ -326,11 +326,11 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
                       activeThumbColor: AppTheme.gold,
                       title: Text(
                         'Ring Touch Sensor',
-                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+                        style: AppTypography.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
                       ),
                       subtitle: Text(
                         'Enable physical touch surface for tap, double-tap, and hold gestures',
-                        style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
+                        style: AppTypography.inter(color: AppTheme.textSec, fontSize: 12),
                       ),
                       value: _touchSensorEnabled,
                       onChanged: connected ? _setTouchSensor : null,
@@ -387,7 +387,7 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
                       if (_gestureLog.isNotEmpty)
                         TextButton(
                           onPressed: () => setState(() => _gestureLog.clear()),
-                          child: Text('Clear Log', style: GoogleFonts.inter(color: AppTheme.gold, fontSize: 12)),
+                          child: Text('Clear Log', style: AppTypography.inter(color: AppTheme.gold, fontSize: 12)),
                         ),
                     ],
                   ),
@@ -401,7 +401,7 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
                           child: Text(
                             'No gestures received yet.\nTap or press the ring sensor to test live mapping.',
                             textAlign: TextAlign.center,
-                            style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+                            style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
                           ),
                         ),
                       )
@@ -420,11 +420,11 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
                             ),
                             title: Text(
                               '${item['gesture']} ➔ ${item['action']}',
-                              style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                              style: AppTypography.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
                             ),
                             subtitle: Text(
                               item['time'] ?? '',
-                              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 11),
+                              style: AppTypography.inter(color: AppTheme.textSec, fontSize: 11),
                             ),
                           );
                         },
@@ -440,7 +440,7 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
   Widget _buildSectionHeader(String text) {
     return Text(
       text,
-      style: GoogleFonts.inter(
+      style: AppTypography.inter(
         color: AppTheme.textSec,
         fontSize: 12,
         fontWeight: FontWeight.bold,
@@ -473,12 +473,12 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
         children: [
           Text(
             title,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+            style: AppTypography.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
+            style: AppTypography.inter(color: AppTheme.textSec, fontSize: 12),
           ),
           const SizedBox(height: 8),
           Container(
@@ -503,7 +503,7 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
                         const SizedBox(width: 10),
                         Text(
                           action.label,
-                          style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+                          style: AppTypography.inter(color: Colors.white, fontSize: 13),
                         ),
                       ],
                     ),

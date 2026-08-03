@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/app_typography.dart';
 
 /// Explains why the OS needs to be told not to kill this app in the
 /// background, and links out to the system app-settings page so the user
@@ -47,7 +47,7 @@ class BackgroundProtectionScreen extends StatelessWidget {
         leading: const GlassBackButton(),
         title: Text(
           'Background Protection',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -64,7 +64,7 @@ class BackgroundProtectionScreen extends StatelessWidget {
             const SizedBox(height: 20),
             Text(
               'Keep your ring connected',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: Colors.white,
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -76,7 +76,7 @@ class BackgroundProtectionScreen extends StatelessWidget {
               'battery — that can silently stop your ring from syncing '
               'heart rate, sleep, and other readings. A few quick settings '
               'changes prevent that.',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: AppTheme.textSec,
                 fontSize: 13,
                 height: 1.5,
@@ -111,7 +111,7 @@ class BackgroundProtectionScreen extends StatelessWidget {
                         children: [
                           Text(
                             step.title,
-                            style: GoogleFonts.inter(
+                            style: AppTypography.inter(
                               color: Colors.white,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -120,7 +120,7 @@ class BackgroundProtectionScreen extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(
                             step.body,
-                            style: GoogleFonts.inter(
+                            style: AppTypography.inter(
                               color: AppTheme.textSec,
                               fontSize: 12,
                               height: 1.5,
@@ -148,7 +148,7 @@ class BackgroundProtectionScreen extends StatelessWidget {
                 ),
                 child: Text(
                   'Open App Settings',
-                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+                  style: AppTypography.inter(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
               ),
             ),

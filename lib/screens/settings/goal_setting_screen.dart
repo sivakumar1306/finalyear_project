@@ -1,11 +1,11 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../services/goal_prefs.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_header.dart';
 import '../../widgets/glass_icon_button.dart';
+import '../../widgets/app_typography.dart';
 
 /// Goal setting screen — Figma spec.
 ///
@@ -159,7 +159,7 @@ class _GoalSettingScreenState extends State<GoalSettingScreen> {
                   children: [
                     Text(
                       title,
-                      style: GoogleFonts.inter(
+                      style: AppTypography.inter(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: Colors.white.withValues(alpha: 0.9),
@@ -180,7 +180,7 @@ class _GoalSettingScreenState extends State<GoalSettingScreen> {
                           child: Text(
                             '$displayValue $suffix',
                             textAlign: TextAlign.center,
-                            style: GoogleFonts.inter(
+                            style: AppTypography.inter(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
                               color: Colors.white,
@@ -203,7 +203,7 @@ class _GoalSettingScreenState extends State<GoalSettingScreen> {
                             onPressed: () => Navigator.pop(context),
                             child: Text(
                               'Cancel',
-                              style: GoogleFonts.inter(
+                              style: AppTypography.inter(
                                 color: Colors.white.withValues(alpha: 0.5),
                               ),
                             ),
@@ -214,7 +214,7 @@ class _GoalSettingScreenState extends State<GoalSettingScreen> {
                             onPressed: () => Navigator.pop(context, value),
                             child: Text(
                               'Save',
-                              style: GoogleFonts.inter(
+                              style: AppTypography.inter(
                                 color: AppTheme.gold,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -283,7 +283,7 @@ class _GoalSettingScreenState extends State<GoalSettingScreen> {
           padding: const EdgeInsets.fromLTRB(28, 18, 28, 12),
           child: Text(
             'PROFILE',
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 10,
               fontWeight: FontWeight.w500,
               letterSpacing: 2.0,
@@ -428,7 +428,7 @@ class _GoalRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w500,
                     letterSpacing: -0.005,
@@ -438,7 +438,7 @@ class _GoalRow extends StatelessWidget {
               ),
               Text(
                 value,
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: Colors.white.withValues(alpha: 0.42),

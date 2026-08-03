@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/alarm_mode_provider.dart';
@@ -9,6 +8,7 @@ import '../../widgets/glass_back_button.dart';
 import 'prayer_schedule_screen.dart';
 import 'select_notifications_screen.dart';
 import 'sleep_schedule_screen.dart';
+import '../../widgets/app_typography.dart';
 
 // Same "FlutterSharedPreferences" file / "flutter."-prefixed keys BleConnectionService
 // already reads natively (device_address, user_logged_in) — the native 8s reconnect loop
@@ -99,7 +99,7 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
         leading: const GlassBackButton(),
         title: Text(
           'Alarms & Notifications',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -116,7 +116,7 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
             const SizedBox(height: 20),
             Text(
               'Personalize your day',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: Colors.white,
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
@@ -125,7 +125,7 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
             const SizedBox(height: 8),
             Text(
               'Focus mode active · Notifications on for 2 metrics · 2 alarms',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: AppTheme.textSec,
                 fontSize: 12,
                 height: 1.4,
@@ -183,7 +183,7 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                     onTap: _scheduleSleepReminder,
                     trailing: Text(
                       _sleepReminderTime != null ? 'Change' : 'Schedule now',
-                      style: GoogleFonts.inter(
+                      style: AppTypography.inter(
                         color: AppTheme.gold,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
@@ -219,7 +219,7 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                       Expanded(
                         child: Text(
                           'Select what notifications to recieve',
-                          style: GoogleFonts.inter(
+                          style: AppTypography.inter(
                             color: Colors.white,
                             fontSize: 14,
                             fontWeight: FontWeight.w400,
@@ -259,7 +259,7 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                       title: app,
                       trailing: Text(
                         'set up',
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           color: AppTheme.textSec,
                           fontSize: 13,
                         ),
@@ -283,7 +283,7 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
 
   Widget _sectionLabel(String text) => Text(
     text,
-    style: GoogleFonts.inter(
+    style: AppTypography.inter(
       color: AppTheme.textSec,
       fontSize: 11,
       fontWeight: FontWeight.w600,
@@ -347,7 +347,7 @@ class _AlarmRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       color: Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -357,7 +357,7 @@ class _AlarmRow extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       subtitle!,
-                      style: GoogleFonts.inter(
+                      style: AppTypography.inter(
                         color: subtitleColor ?? AppTheme.textSec,
                         fontSize: 11,
                       ),

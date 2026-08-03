@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../providers/ble_provider.dart';
+import '../../providers/fall_prediction/fall_prediction_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/fall_prediction/fall_risk_score_card.dart';
 import '../../widgets/fall_prediction/explainable_ai_dashboard.dart';
+import '../../widgets/app_typography.dart';
 
 // Local-only (SharedPreferences), same pattern as device_name/device_address in
 // BleProvider — no backend table for these two fields yet, just a single local user.
@@ -55,6 +56,9 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   // least one computation (i.e. a vital reading has actually been saved).
   Map<String, dynamic>? _realRisk;
 
+  FallPredictionProvider? _fallPrediction;
+  bool _sensorsAcquired = false;
+
   @override
   void initState() {
     super.initState();
@@ -65,7 +69,18 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<BleProvider>().refreshEmergencySmsStatus();
+      _fallPrediction = context.read<FallPredictionProvider>();
+      _fallPrediction!.acquireSensors();
+      _sensorsAcquired = true;
     });
+  }
+
+  @override
+  void dispose() {
+    if (_sensorsAcquired) {
+      _fallPrediction?.releaseSensors();
+    }
+    super.dispose();
   }
 
   Future<void> _loadAddressAndInstructions() async {
@@ -343,7 +358,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
         leading: const GlassBackButton(),
         title: Text(
           'Fall Prediction',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -568,7 +583,7 @@ class _SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.only(left: 4),
       child: Text(
         text,
-        style: GoogleFonts.inter(
+        style: AppTypography.inter(
           color: Colors.white.withValues(alpha: 0.35),
           fontSize: 11,
           fontWeight: FontWeight.w600,
@@ -630,7 +645,7 @@ class _HeroCard extends StatelessWidget {
             children: [
               Text(
                 countdown != null ? 'EMERGENCY SMS' : 'FALL PREDICTION',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   color: accent,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
@@ -656,7 +671,7 @@ class _HeroCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             title,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               color: Colors.white,
               fontSize: 20,
               fontWeight: FontWeight.w600,
@@ -665,7 +680,7 @@ class _HeroCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             body,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               color: Colors.white.withValues(alpha: 0.85),
               fontSize: 13,
               height: 1.45,
@@ -700,7 +715,7 @@ class _HeroCard extends StatelessWidget {
                 onPressed: onPrimaryAction,
                 child: Text(
                   'ignore',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: AppTheme.danger,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -739,7 +754,7 @@ class _HeartRateCard extends StatelessWidget {
             children: [
               Text(
                 'Heart Rate',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -787,7 +802,7 @@ class _HeartRateCard extends StatelessWidget {
               children: [
                 TextSpan(
                   text: '$hr ',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: AppTheme.hrColor,
                     fontSize: compact ? 26 : 34,
                     fontWeight: FontWeight.w700,
@@ -795,7 +810,7 @@ class _HeartRateCard extends StatelessWidget {
                 ),
                 TextSpan(
                   text: 'bpm',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: AppTheme.hrColor,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -829,7 +844,7 @@ class _TemperatureCard extends StatelessWidget {
         children: [
           Text(
             'Temperature',
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               color: Colors.white,
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -841,7 +856,7 @@ class _TemperatureCard extends StatelessWidget {
               children: [
                 TextSpan(
                   text: temp.toStringAsFixed(0),
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: Colors.white,
                     fontSize: 26,
                     fontWeight: FontWeight.w700,
@@ -849,7 +864,7 @@ class _TemperatureCard extends StatelessWidget {
                 ),
                 TextSpan(
                   text: ' °C',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: Colors.white.withValues(alpha: 0.6),
                     fontSize: 13,
                   ),
@@ -860,7 +875,7 @@ class _TemperatureCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             '-1 °C in the last 30 seconds',
-            style: GoogleFonts.inter(color: AppTheme.hrColor, fontSize: 11),
+            style: AppTypography.inter(color: AppTheme.hrColor, fontSize: 11),
           ),
         ],
       ),
@@ -905,7 +920,7 @@ class _ActionRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+                style: AppTypography.inter(color: Colors.white, fontSize: 14),
               ),
             ),
             Icon(
@@ -956,12 +971,12 @@ class _ContactRow extends StatelessWidget {
             Expanded(
               child: Text(
                 contact.name,
-                style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+                style: AppTypography.inter(color: Colors.white, fontSize: 14),
               ),
             ),
             Text(
               contact.phone,
-              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+              style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
             ),
           ],
         ),
@@ -1011,14 +1026,14 @@ class _EditableRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+                style: AppTypography.inter(color: Colors.white, fontSize: 14),
               ),
             ),
             Flexible(
               child: Text(
                 value,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+                style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
               ),
             ),
           ],
@@ -1050,21 +1065,21 @@ class _FormDialog extends StatelessWidget {
             },
             child: Text(
               'Delete',
-              style: GoogleFonts.inter(color: AppTheme.danger),
+              style: AppTypography.inter(color: AppTheme.danger),
             ),
           ),
         TextButton(
           onPressed: () => Navigator.pop(context, false),
           child: Text(
             'Cancel',
-            style: GoogleFonts.inter(color: AppTheme.textSec),
+            style: AppTypography.inter(color: AppTheme.textSec),
           ),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, true),
           child: Text(
             'Save',
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               color: AppTheme.gold,
               fontWeight: FontWeight.w600,
             ),
@@ -1127,7 +1142,7 @@ class _AlertContactSheet extends StatelessWidget {
           children: [
             Text(
               'Alert emergency contacts',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -1136,7 +1151,7 @@ class _AlertContactSheet extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Call opens the dialer for ${contact.name}. Message sends SMS to every saved contact.',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: AppTheme.textSec,
                 fontSize: 12,
                 height: 1.4,
@@ -1177,7 +1192,7 @@ class _FallHistorySheet extends StatelessWidget {
           children: [
             Text(
               'Fall history',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -1186,7 +1201,7 @@ class _FallHistorySheet extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Logged by the on-device motion detector — real events only.',
-              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
+              style: AppTypography.inter(color: AppTheme.textSec, fontSize: 12),
             ),
             const SizedBox(height: 16),
             if (events.isEmpty)
@@ -1194,7 +1209,7 @@ class _FallHistorySheet extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Text(
                   'No fall events logged yet.',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: AppTheme.textSec,
                     fontSize: 13,
                   ),
@@ -1250,7 +1265,7 @@ class _FallHistorySheet extends StatelessWidget {
                                           ),
                                         )
                                       : 'Unknown time',
-                                  style: GoogleFonts.inter(
+                                  style: AppTypography.inter(
                                     color: Colors.white,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w500,
@@ -1260,7 +1275,7 @@ class _FallHistorySheet extends StatelessWidget {
                                   isPrediction
                                       ? 'Predicted fall risk'
                                       : (corroborated ? 'Confirmed by $source' : 'Not confirmed'),
-                                  style: GoogleFonts.inter(
+                                  style: AppTypography.inter(
                                     color: AppTheme.textSec,
                                     fontSize: 11,
                                   ),
@@ -1270,7 +1285,7 @@ class _FallHistorySheet extends StatelessWidget {
                           ),
                           Text(
                             '${(confidence * 100).toInt()}%',
-                            style: GoogleFonts.inter(
+                            style: AppTypography.inter(
                               color: Colors.white,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
