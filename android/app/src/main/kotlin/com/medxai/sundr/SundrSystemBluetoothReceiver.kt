@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter
+package com.medxai.sundr
 
 import android.bluetooth.BluetoothDevice
 import android.content.BroadcastReceiver

@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter
+package com.medxai.sundr
 
 import android.app.NotificationChannel
 import android.app.NotificationManager

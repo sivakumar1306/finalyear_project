@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter.analysis
+package com.medxai.sundr.analysis
 
 import android.Manifest
 import android.app.NotificationChannel
@@ -15,8 +15,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import com.medxai.qring_flutter.MainActivity
-import com.medxai.qring_flutter.data.ReadingRepository
+import com.medxai.sundr.MainActivity
+import com.medxai.sundr.data.ReadingRepository
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 

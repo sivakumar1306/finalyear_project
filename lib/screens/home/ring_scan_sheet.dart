@@ -56,7 +56,7 @@ void showRingScanSheet(BuildContext context) {
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.45),
+    barrierColor: Colors.black.withValues(alpha: 0.85),
     builder: (_) =>
         ChangeNotifierProvider.value(value: ble, child: const _RingScanSheet()),
   );

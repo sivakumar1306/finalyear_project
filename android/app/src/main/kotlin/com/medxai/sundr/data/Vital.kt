@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter.data
+package com.medxai.sundr.data
 
 enum class Vital(val defaultEnabled: Boolean) {
     HEART_RATE(true),

@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter.analysis
+package com.medxai.sundr.analysis
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,8 +7,8 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.medxai.qring_flutter.MainActivity
-import com.medxai.qring_flutter.R
+import com.medxai.sundr.MainActivity
+import com.medxai.sundr.R
 
 /**
  * Phase 3 — the first user-visible piece of the fall-risk feature. Fires a local, high-

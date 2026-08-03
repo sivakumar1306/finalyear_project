@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter.analysis
+package com.medxai.sundr.analysis
 
 import android.content.Context
 import android.hardware.Sensor
@@ -7,8 +7,8 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.SystemClock
 import com.google.gson.Gson
-import com.medxai.qring_flutter.data.FallEventEntity
-import com.medxai.qring_flutter.data.ReadingRepository
+import com.medxai.sundr.data.FallEventEntity
+import com.medxai.sundr.data.ReadingRepository
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.max

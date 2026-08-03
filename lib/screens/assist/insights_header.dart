@@ -275,6 +275,12 @@ class InsightsHeaderState extends State<InsightsHeader>
       case 'steps':
         Navigator.pushNamed(context, '/steps');
         break;
+      case 'stress':
+        Navigator.pushNamed(context, '/pressure');
+        break;
+      case 'temperature':
+        Navigator.pushNamed(context, '/temperature');
+        break;
     }
   }
 }

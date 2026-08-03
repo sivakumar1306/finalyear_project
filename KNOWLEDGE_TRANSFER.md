@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Project** | SUMTHING — smart-ring health companion app (package/internal name `qring_flutter`, Android namespace `com.medxai.qring_flutter`) |
+| **Project** | SUMTHING — smart-ring health companion app (package/internal name `qring_flutter`, Android namespace `com.medxai.sundr`) |
 | **Repo root** | `C:\Jeffrey\new-flutter` |
 | **Platform** | Flutter (Android primary target; iOS/desktop scaffolding present but not the active target) |
 | **Backend** | Supabase (Postgres + Auth), plus a separate self-hosted chat API |
@@ -10,7 +10,7 @@
 | **Document date** | 2026-07-12 |
 | **Audience** | A new engineer taking over this codebase with no prior context |
 
-> **Naming note:** the app is user-facing branded **"SUNDR"** (splash screen shows "SUNDR"), but the Flutter package name (`qring_flutter`), Android namespace (`com.medxai.qring_flutter`), all MethodChannel names (`com.medxai.qring/*`), and most internal class names still say **"QRing"** — this is a rebrand-in-place; the two names refer to the same app. Expect to see both throughout the code.
+> **Naming note:** the app is user-facing branded **"SUNDR"** (splash screen shows "SUNDR"), but the Flutter package name (`qring_flutter`), Android namespace (`com.medxai.sundr`), all MethodChannel names (`com.medxai.sundr/*`), and most internal class names still say **"QRing"** — this is a rebrand-in-place; the two names refer to the same app. Expect to see both throughout the code.
 
 ---
 
@@ -322,8 +322,8 @@ flowchart TD
     Screens["lib/screens/*\n(~44 screen files)"] --> Providers["lib/providers/*\nBleProvider / WorkoutProvider /\nAlarmModeProvider"]
     Providers --> Services["lib/services/*\nBleService / SupabaseService /\nChatApiService"]
     Screens -.direct calls for\nsettings/local reads.-> Services
-    Services -->|MethodChannel\ncom.medxai.qring/ble| BlePlugin
-    Services -->|MethodChannel\ncom.medxai.qring/phone_mode| PhoneModePlugin
+    Services -->|MethodChannel\ncom.medxai.sundr/ble| BlePlugin
+    Services -->|MethodChannel\ncom.medxai.sundr/phone_mode| PhoneModePlugin
     Services -->|supabase_flutter| Supabase[(Supabase)]
     Services -->|http| ChatAPI[Chat backend]
     BlePlugin --> RoomDB[(Room DB)]
@@ -561,7 +561,7 @@ flowchart TB
 ```
 
 - **`QRingApplication.kt`** — registers both Bluetooth receivers *before* anything touches `BleOperateManager` (required per the SDK's own documentation, or `onServiceDiscovered()` never fires), initializes the SDK, and calls `FallRiskAnalyzer.init(this)`.
-- **`MainActivity.kt`** — registers the two MethodChannels (`com.medxai.qring/ble`, `com.medxai.qring/phone_mode`) and one EventChannel (`com.medxai.qring/ble_events`); handles fall-prediction notification tap intents.
+- **`MainActivity.kt`** — registers the two MethodChannels (`com.medxai.sundr/ble`, `com.medxai.sundr/phone_mode`) and one EventChannel (`com.medxai.sundr/ble_events`); handles fall-prediction notification tap intents.
 - **`BleConnectionService.kt`** — the **always-on foreground service** (`foregroundServiceType="connectedDevice"`). On create: starts foreground notification, starts an 8s repeating connection-check/auto-reconnect loop (gated on login state), starts `MeasurementLoopManager`, `SupabaseSyncManager`, and `FallMotionDetector` — all three deliberately piggyback on this one service rather than each spinning up their own, explicitly to avoid multiplying OEM battery-optimization kill risk.
 - **`WorkoutService.kt`** — a **second, separate foreground service** (`foregroundServiceType="health"`), started/stopped only around an active workout. Runs its own 5s tick loop with staggered sub-intervals for steps (60s), HR (60s), SpO2 (5 min), and BP (10 min, never overlapping SpO2). Coordinates with `MeasurementLoopManager` via `MeasurementCoordinator` so the background loop pauses entirely during a workout.
 - **`BootReceiver.kt`** — restarts `BleConnectionService` after device reboot, only if a previously-bound device address is saved.
@@ -570,9 +570,9 @@ flowchart TB
 
 | Channel | Type | Direction | Purpose |
 |---|---|---|---|
-| `com.medxai.qring/ble` | MethodChannel | Dart → Native (request/response) | ~90 methods: scanning, connection, all vital reads/settings, OTA, workout start/stop, local DB reads, fall-detection reads, emergency contacts, sync config |
-| `com.medxai.qring/ble_events` | EventChannel | Native → Dart (push stream) | `scanResult`, `scanFinished`, `scanError`, `connectionState`, `deviceNotification`, `otaProgress`, `newReading` |
-| `com.medxai.qring/phone_mode` | MethodChannel | Dart ↔ Native | Focus/Prayer/Base mode, DND permission/control |
+| `com.medxai.sundr/ble` | MethodChannel | Dart → Native (request/response) | ~90 methods: scanning, connection, all vital reads/settings, OTA, workout start/stop, local DB reads, fall-detection reads, emergency contacts, sync config |
+| `com.medxai.sundr/ble_events` | EventChannel | Native → Dart (push stream) | `scanResult`, `scanFinished`, `scanError`, `connectionState`, `deviceNotification`, `otaProgress`, `newReading` |
+| `com.medxai.sundr/phone_mode` | MethodChannel | Dart ↔ Native | Focus/Prayer/Base mode, DND permission/control |
 
 `BlePlugin.handleMethodCall` is a large `when(call.method)` dispatcher. The common pattern for any blocking measurement call: an `AtomicBoolean done` guard prevents double-resolving the Flutter `Result`, and a `mainHandler.postDelayed` timeout races the SDK's callback so a dropped callback can never hang the Dart side forever. Results are serialized to JSON strings via Gson before crossing the channel; Dart-side `BleService` parses them.
 
@@ -777,7 +777,7 @@ This app requires a **real BLE-capable Android device** (or at minimum a physica
 ### 9.2 Build process
 
 - **Debug**: `flutter run` / `flutter build apk --debug`.
-- **Release**: `flutter build apk --release` (or `--split-per-abi` for smaller per-architecture APKs). Note: release builds currently use the **debug signing config** (no separate release keystore configured yet — see [§12](#12-known-issues-and-technical-debt)). `isMinifyEnabled = true` with `proguard-rules.pro` explicitly keeping `com.medxai.qring_flutter.data.**` (Room entities) to prevent R8 stripping Gson-serialized fields.
+- **Release**: `flutter build apk --release` (or `--split-per-abi` for smaller per-architecture APKs). Note: release builds currently use the **debug signing config** (no separate release keystore configured yet — see [§12](#12-known-issues-and-technical-debt)). `isMinifyEnabled = true` with `proguard-rules.pro` explicitly keeping `com.medxai.sundr.data.**` (Room entities) to prevent R8 stripping Gson-serialized fields.
 - **Android SDK requirements**: `compileSdk 36`, `minSdk 26`, `targetSdk 35`, Kotlin/Java target 17.
 - **The vendor AAR** (`android/app/libs/qring_sdk_1.0.0.50.aar`) must be present for the app to build at all — it's checked into `android/app/libs/`, not fetched from a Maven repo.
 
@@ -807,7 +807,7 @@ Native (Kotlin): `androidx.room` (+ `ksp` for the compiler), `gson`, `org.greenr
 - **Dart side**: standard `flutter run` hot reload + `debugPrint`/breakpoints in an IDE (Android Studio / VS Code with the Flutter extension).
 - **Native side**: `adb logcat`, filtered by tag — notable tags used deliberately for hard-to-diagnose issues: `"MeasurementLoop"` (HRV timeout debugging), `"TempSync"` (temperature file-transfer sync), and standard class-name tags elsewhere.
 - **Fall detection debug tooling** (no real fall required): the `⋮` menu on `fall_detection_screen.dart` exposes "Simulate High/Medium/Clear risk" (UI-preview only), "Simulate Fall notification", and — most usefully — "Simulate Trigger risk analysis," which posts a real synthetic 135bpm reading through the **actual** `NewReadingEvent` → `FallRiskAnalyzer` pipeline, confirmed to produce the real end-to-end alert.
-- **Sync debug tooling**: `BleService.getSyncStatus()` (pending/unsynced row counts) and `BleService.forceSyncNow()` (bypass the hourly gate) — both surfaced via the `com.medxai.qring/ble` channel.
+- **Sync debug tooling**: `BleService.getSyncStatus()` (pending/unsynced row counts) and `BleService.forceSyncNow()` (bypass the hourly gate) — both surfaced via the `com.medxai.sundr/ble` channel.
 
 ### 9.6 Testing approach
 

@@ -17,4 +17,8 @@ class AppConfig {
     defaultValue:
         'https://vtialringbackendversion1-production.up.railway.app/api/v1',
   );
+  static const String packagePrefix = 'com.medxai.sundr';
+  static const String bleMethodChannel = '$packagePrefix/ble';
+  static const String bleEventChannel = '$packagePrefix/ble_events';
+  static const String phoneModeChannel = '$packagePrefix/phone_mode';
 }

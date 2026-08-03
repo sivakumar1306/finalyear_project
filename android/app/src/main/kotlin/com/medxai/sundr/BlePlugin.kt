@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter
+package com.medxai.sundr
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -7,6 +7,11 @@ import android.util.Log
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.Build
+import android.annotation.SuppressLint
+import android.telecom.TelecomManager
+import android.media.AudioManager
+import android.view.KeyEvent
 import java.util.concurrent.atomic.AtomicBoolean
 import com.google.gson.Gson
 import com.oudmon.ble.base.bean.SleepDisplay
@@ -73,19 +78,19 @@ import com.oudmon.ble.base.communication.sport.SportPlusHandle
 import com.oudmon.ble.base.scan.BleScannerHelper
 import com.oudmon.ble.base.scan.ScanRecord
 import com.oudmon.ble.base.scan.ScanWrapperCallback
-import com.medxai.qring_flutter.analysis.EmergencyAutoCaller
-import com.medxai.qring_flutter.analysis.EmergencySmsSender
-import com.medxai.qring_flutter.analysis.FallAlertNotifier
-import com.medxai.qring_flutter.analysis.FallMotionDetector
-import com.medxai.qring_flutter.analysis.FallPredictionNotifier
-import com.medxai.qring_flutter.analysis.SafetyLiveUpdate
-import com.medxai.qring_flutter.data.FallEventEntity
-import com.medxai.qring_flutter.data.MeasurementConfig
-import com.medxai.qring_flutter.data.ReadingRepository
-import com.medxai.qring_flutter.data.Vital
-import com.medxai.qring_flutter.events.NewReadingEvent
-import com.medxai.qring_flutter.sync.SupabaseConfig
-import com.medxai.qring_flutter.sync.SupabaseSyncManager
+import com.medxai.sundr.analysis.EmergencyAutoCaller
+import com.medxai.sundr.analysis.EmergencySmsSender
+import com.medxai.sundr.analysis.FallAlertNotifier
+import com.medxai.sundr.analysis.FallMotionDetector
+import com.medxai.sundr.analysis.FallPredictionNotifier
+import com.medxai.sundr.analysis.SafetyLiveUpdate
+import com.medxai.sundr.data.FallEventEntity
+import com.medxai.sundr.data.MeasurementConfig
+import com.medxai.sundr.data.ReadingRepository
+import com.medxai.sundr.data.Vital
+import com.medxai.sundr.events.NewReadingEvent
+import com.medxai.sundr.sync.SupabaseConfig
+import com.medxai.sundr.sync.SupabaseSyncManager
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -320,6 +325,9 @@ class BlePlugin(private val context: Context) {
             "setGestureSetting"          -> setGestureSetting(call, result)
             "getTouchControlSetting"     -> getTouchControlSetting(result)
             "setTouchControlSetting"     -> setTouchControlSetting(call, result)
+            "answerPhoneCall"            -> answerPhoneCall(result)
+            "endOrDeclinePhoneCall"      -> endOrDeclinePhoneCall(result)
+            "toggleMediaPlayPause"       -> toggleMediaPlayPause(result)
             "getDrinkReminder"           -> getDrinkReminder(result)
             "getSedentaryReminder"       -> getSedentaryReminder(result)
             "startOta"                   -> startOta(call, result)
@@ -2085,6 +2093,69 @@ class BlePlugin(private val context: Context) {
                 mainHandler.post { result.success(gson.toJson(rsp)) }
             }
         )
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun answerPhoneCall(result: MethodChannel.Result) {
+        try {
+            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                telecomManager.acceptRingingCall()
+            } else {
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_HEADSETHOOK))
+                audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_HEADSETHOOK))
+            }
+            result.success(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "answerPhoneCall error: ${e.message}")
+            // Fallback via headset key event
+            try {
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_HEADSETHOOK))
+                audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_HEADSETHOOK))
+                result.success(true)
+            } catch (ex: Exception) {
+                result.success(false)
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun endOrDeclinePhoneCall(result: MethodChannel.Result) {
+        try {
+            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                telecomManager.endCall()
+            } else {
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_HEADSETHOOK))
+                audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_HEADSETHOOK))
+            }
+            result.success(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "endOrDeclinePhoneCall error: ${e.message}")
+            try {
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_HEADSETHOOK))
+                audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_HEADSETHOOK))
+                result.success(true)
+            } catch (ex: Exception) {
+                result.success(false)
+            }
+        }
+    }
+
+    private fun toggleMediaPlayPause(result: MethodChannel.Result) {
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
+            audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
+            result.success(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "toggleMediaPlayPause error: ${e.message}")
+            result.success(false)
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────

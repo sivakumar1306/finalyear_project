@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter
+package com.medxai.sundr
 
 import android.content.Context
 import android.os.Handler
@@ -6,10 +6,10 @@ import android.os.Looper
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonArray
-import com.medxai.qring_flutter.data.MeasurementConfig
-import com.medxai.qring_flutter.data.ReadingRepository
-import com.medxai.qring_flutter.data.Vital
-import com.medxai.qring_flutter.events.NewReadingEvent
+import com.medxai.sundr.data.MeasurementConfig
+import com.medxai.sundr.data.ReadingRepository
+import com.medxai.sundr.data.Vital
+import com.medxai.sundr.events.NewReadingEvent
 import com.oudmon.ble.base.bluetooth.BleOperateManager
 import com.oudmon.ble.base.communication.ICommandResponse
 import com.oudmon.ble.base.communication.entity.BleStepDetails

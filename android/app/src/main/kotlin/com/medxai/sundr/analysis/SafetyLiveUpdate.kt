@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter.analysis
+package com.medxai.sundr.analysis
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -9,8 +9,8 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.medxai.qring_flutter.MainActivity
-import com.medxai.qring_flutter.R
+import com.medxai.sundr.MainActivity
+import com.medxai.sundr.R
 
 /**
  * Android 16 "Live Updates" (promoted ongoing notification) mirror for the safety pipeline.

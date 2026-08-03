@@ -25,6 +25,14 @@ class ChatApiService {
 
   static String? get _userId => SupabaseService.currentUser?.id;
 
+  static Map<String, String> get _authHeaders {
+    final token = SupabaseService.accessToken;
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
   static Map<String, dynamic> _decodeOrThrow(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(
@@ -45,7 +53,7 @@ class ChatApiService {
     final response = await http
         .post(
           Uri.parse('$baseUrl/chat'),
-          headers: {'Content-Type': 'application/json'},
+          headers: _authHeaders,
           body: jsonEncode({
             'message': message,
             'user_id': _userId ?? 'anonymous',
@@ -60,14 +68,20 @@ class ChatApiService {
     final userId = _userId;
     if (userId == null) return {'conversations': []};
     final response = await http
-        .get(Uri.parse('$baseUrl/history/$userId'))
+        .get(
+          Uri.parse('$baseUrl/history/$userId'),
+          headers: _authHeaders,
+        )
         .timeout(_timeout);
     return _decodeOrThrow(response);
   }
 
   static Future<Map<String, dynamic>> getMessages(String conversationId) async {
     final response = await http
-        .get(Uri.parse('$baseUrl/history/messages/$conversationId'))
+        .get(
+          Uri.parse('$baseUrl/history/messages/$conversationId'),
+          headers: _authHeaders,
+        )
         .timeout(_timeout);
     return _decodeOrThrow(response);
   }
@@ -76,7 +90,8 @@ class ChatApiService {
   /// computed server-side from real DB trends for the given range.
   static Future<Map<String, dynamic>> getInsights(String range) async {
     final userId = _userId;
-    if (userId == null) {
+    final token = SupabaseService.accessToken;
+    if (userId == null || token == null) {
       return {
         'headline_parts': [
           {'text': 'Sign in to see your trends', 'highlight': false},
@@ -86,7 +101,10 @@ class ChatApiService {
       };
     }
     final response = await http
-        .get(Uri.parse('$baseUrl/insights/$userId?range=$range'))
+        .get(
+          Uri.parse('$baseUrl/insights/$userId?range=$range'),
+          headers: _authHeaders,
+        )
         .timeout(_insightsTimeout);
     return _decodeOrThrow(response);
   }
