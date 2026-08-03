@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import '../config.dart';
 
 class BleService {
-  static const _methodChannel = MethodChannel('com.medxai.qring/ble');
-  static const _eventChannel = EventChannel('com.medxai.qring/ble_events');
+  static const _methodChannel = MethodChannel(AppConfig.bleMethodChannel);
+  static const _eventChannel = EventChannel(AppConfig.bleEventChannel);
 
   static final BleService _instance = BleService._internal();
   factory BleService() => _instance;
@@ -551,6 +552,15 @@ class BleService {
 
   Future<String> getSyncStatus() async =>
       await _methodChannel.invokeMethod<String>('getSyncStatus') ?? '{}';
+
+  Future<bool> answerPhoneCall() async =>
+      await _methodChannel.invokeMethod<bool>('answerPhoneCall') ?? false;
+
+  Future<bool> endOrDeclinePhoneCall() async =>
+      await _methodChannel.invokeMethod<bool>('endOrDeclinePhoneCall') ?? false;
+
+  Future<bool> toggleMediaPlayPause() async =>
+      await _methodChannel.invokeMethod<bool>('toggleMediaPlayPause') ?? false;
 
   Future<String> getMeasurementCycleHistory({int? fromMs, int? toMs}) async =>
       await _methodChannel.invokeMethod<String>('getMeasurementCycleHistory', {

@@ -1,11 +1,11 @@
-package com.medxai.qring_flutter.analysis
+package com.medxai.sundr.analysis
 
 import android.content.Context
 import com.google.gson.Gson
-import com.medxai.qring_flutter.data.FallEventEntity
-import com.medxai.qring_flutter.data.FallRiskLogEntity
-import com.medxai.qring_flutter.data.ReadingRepository
-import com.medxai.qring_flutter.events.NewReadingEvent
+import com.medxai.sundr.data.FallEventEntity
+import com.medxai.sundr.data.FallRiskLogEntity
+import com.medxai.sundr.data.ReadingRepository
+import com.medxai.sundr.events.NewReadingEvent
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe

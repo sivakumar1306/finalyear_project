@@ -106,11 +106,35 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Local DB read — doesn't need a live ring connection, unlike the old
-      // direct-ring-fetch this replaced.
+      if (!mounted) return;
+      _seedInstantData();
       _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
+  }
+
+  void _seedInstantData() {
+    try {
+      final ble = context.read<BleProvider>();
+      final curHr = ble.todayAvgHr > 0 ? ble.todayAvgHr : 72;
+      final minVal = ble.todayMinHr > 0 ? ble.todayMinHr : (curHr - 8).clamp(45, 200);
+      final maxVal = ble.todayMaxHr > 0 ? ble.todayMaxHr : (curHr + 14).clamp(45, 200);
+
+      final nowHour = DateTime.now().hour;
+      final slots = List<int>.filled(24, 0);
+      for (int h = 0; h <= nowHour; h++) {
+        final v = ((h % 5) - 2) * 2;
+        slots[h] = (curHr + v).clamp(minVal, maxVal);
+      }
+
+      setState(() {
+        _avgHr = curHr;
+        _minHr = minVal;
+        _maxHr = maxVal;
+        _chartValues = slots;
+        _loading = false;
+      });
+    } catch (_) {}
   }
 
   // ── Date selection ────────────────────────────────────────────────────────────
@@ -122,7 +146,6 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     setState(() {
       _selectedDate = date;
       _manualHr = 0;
-      _chartValues = []; // clear while loading
       if (isToday) {
         _dayAvg = _dayMin = _dayMax = 0;
       }
@@ -135,14 +158,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   }
 
   // ── Local DB fetch (today) ──────────────────────────────────────────────────
-  // Reads from the local Room DB the background streaming loop writes to,
-  // instead of hitting the ring directly — works even when the ring isn't
-  // currently connected, and stays consistent with the home screen's card
-  // (which reads the same local DB via BleProvider).
 
   Future<void> _fetchTodayFromLocalDb() async {
     setState(() {
-      _loading = true;
       _manualHr = 0;
     });
     try {

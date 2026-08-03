@@ -1,6 +1,6 @@
-package com.medxai.qring_flutter.events
+package com.medxai.sundr.events
 
-import com.medxai.qring_flutter.data.Vital
+import com.medxai.sundr.data.Vital
 
 // Posted on the app-wide greenrobot EventBus (org.greenrobot:eventbus, already a Gradle
 // dependency but unused before this) after a reading has been persisted to Room. Consumers

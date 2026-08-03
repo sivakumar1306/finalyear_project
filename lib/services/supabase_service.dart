@@ -58,7 +58,7 @@ class SupabaseService {
     );
   }
 
-  static const _bleChannel = MethodChannel('com.medxai.qring/ble');
+  static const _bleChannel = MethodChannel(AppConfig.bleMethodChannel);
 
   /// Signs out and wipes every piece of locally stored personal data:
   ///

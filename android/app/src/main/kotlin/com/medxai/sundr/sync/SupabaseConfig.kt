@@ -1,4 +1,4 @@
-package com.medxai.qring_flutter.sync
+package com.medxai.sundr.sync
 
 import android.content.Context
 import android.content.SharedPreferences

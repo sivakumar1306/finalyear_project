@@ -65,6 +65,13 @@ class DeviceSettingsScreen extends StatelessWidget {
             onTap: () => Navigator.pushNamed(context, '/display-settings'),
           ),
           SectionTile(
+            title: 'Gesture & Touch Controls',
+            subtitle: 'Wrist-flip wake, answer calls, camera shutter, tap mapping',
+            icon: Icons.touch_app_rounded,
+            iconColor: const Color(0xFFC9A86E),
+            onTap: () => Navigator.pushNamed(context, '/gesture-settings'),
+          ),
+          SectionTile(
             title: 'Advanced Settings',
             subtitle: 'AGPS, battery saving, touch control',
             icon: Icons.tune,

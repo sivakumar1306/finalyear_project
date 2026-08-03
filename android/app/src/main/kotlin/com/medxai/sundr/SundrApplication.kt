@@ -1,10 +1,10 @@
-package com.medxai.qring_flutter
+package com.medxai.sundr
 
 import android.app.Application
 import android.content.pm.ApplicationInfo
 import androidx.core.content.ContextCompat
-import com.medxai.qring_flutter.analysis.EmergencySmsSender
-import com.medxai.qring_flutter.analysis.FallRiskAnalyzer
+import com.medxai.sundr.analysis.EmergencySmsSender
+import com.medxai.sundr.analysis.FallRiskAnalyzer
 import com.oudmon.ble.base.bluetooth.BleAction
 import com.oudmon.ble.base.bluetooth.BleOperateManager
 

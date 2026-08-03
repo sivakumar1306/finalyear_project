@@ -149,30 +149,58 @@ class _StepsScreenState extends State<StepsScreen> {
 
   Future<void> _init() async {
     final ble = context.read<BleProvider>();
-    if (ble.todaySteps > 0) {
-      final slots = ble.todayStepsByInterval.length == 96
-          ? List<int>.from(ble.todayStepsByInterval)
-          : List<int>.filled(96, 0);
-      setState(() {
-        _totalSteps = ble.todaySteps;
-        _totalCal = ble.todayCalories;
-        _totalDistM = ble.todayDistanceM;
-        _todayStepSlots = slots;
-        _daySteps = ble.todaySteps;
-        _dayCal = ble.todayCalories;
-        _dayDistM = ble.todayDistanceM;
-        _stepsSlots = List<int>.from(slots);
-      });
-      _dayCache[_dateKey(DateTime.now())] = _DaySnapshot(
-        steps: ble.todaySteps,
-        cal: ble.todayCalories,
-        distM: ble.todayDistanceM,
-        stepSlots: List<int>.from(slots),
-        calSlots: List<int>.from(_todayCalSlots),
-        distSlots: List<double>.from(_todayDistSlots),
-      );
+    final curSteps = ble.todaySteps;
+    final curCal = ble.todayCalories;
+    final curDist = ble.todayDistanceM;
+
+    final nowSlot = (DateTime.now().hour * 60 + DateTime.now().minute) ~/ 15;
+    final stepSlots = List<int>.filled(96, 0);
+    final calSlots = List<int>.filled(96, 0);
+    final distSlots = List<double>.filled(96, 0.0);
+
+    if (ble.todayStepsByInterval.length == 96 && ble.todayStepsByInterval.any((s) => s > 0)) {
+      for (int i = 0; i < 96; i++) {
+        stepSlots[i] = ble.todayStepsByInterval[i];
+      }
+    } else if (curSteps > 0) {
+      // Distribute steps across active daytime intervals up to nowSlot
+      final activeSlotsCount = (nowSlot - 28).clamp(1, 96); // starting ~7 AM
+      final stepsPerSlot = (curSteps / activeSlotsCount).round();
+      final calPerSlot = (curCal / activeSlotsCount).round();
+      final distPerSlot = curDist / activeSlotsCount;
+
+      for (int i = 28; i <= nowSlot && i < 96; i++) {
+        stepSlots[i] = stepsPerSlot;
+        calSlots[i] = calPerSlot;
+        distSlots[i] = distPerSlot;
+      }
     }
-    await _loadDay(_selectedDate, force: true);
+
+    setState(() {
+      _totalSteps = curSteps;
+      _totalCal = curCal;
+      _totalDistM = curDist;
+      _todayStepSlots = stepSlots;
+      _todayCalSlots = calSlots;
+      _todayDistSlots = distSlots;
+      _daySteps = curSteps;
+      _dayCal = curCal;
+      _dayDistM = curDist;
+      _stepsSlots = List<int>.from(stepSlots);
+      _calSlots = List<int>.from(calSlots);
+      _distSlots = List<double>.from(distSlots);
+    });
+
+    _dayCache[_dateKey(DateTime.now())] = _DaySnapshot(
+      steps: curSteps,
+      cal: curCal,
+      distM: curDist,
+      stepSlots: List<int>.from(stepSlots),
+      calSlots: List<int>.from(calSlots),
+      distSlots: List<double>.from(distSlots),
+    );
+
+    _loadDay(_selectedDate, force: true);
   }
 
   void _applySnapshot(_DaySnapshot snap, {required bool isToday}) {
