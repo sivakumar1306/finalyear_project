@@ -1,3 +1,39 @@
+/// Four core menstrual cycle phases defined in AWHE (adaptive women.docx)
+enum MenstrualPhase {
+  menstrual,
+  follicular,
+  ovulation,
+  lateLuteal,
+}
+
+extension MenstrualPhaseExt on MenstrualPhase {
+  String get displayName {
+    switch (this) {
+      case MenstrualPhase.menstrual:
+        return 'Menstrual Phase';
+      case MenstrualPhase.follicular:
+        return 'Follicular Phase';
+      case MenstrualPhase.ovulation:
+        return 'Ovulation Phase';
+      case MenstrualPhase.lateLuteal:
+        return 'Late Luteal Phase';
+    }
+  }
+
+  String get physiologicalSummary {
+    switch (this) {
+      case MenstrualPhase.menstrual:
+        return 'Lower activity, recovery begins';
+      case MenstrualPhase.follicular:
+        return 'Higher HRV, lower resting heart rate, stable temperature';
+      case MenstrualPhase.ovulation:
+        return 'Slight rise in skin temperature; resting heart rate begins increasing';
+      case MenstrualPhase.lateLuteal:
+        return 'Higher skin temperature, lower HRV, higher resting heart rate, increased stress sensitivity';
+    }
+  }
+}
+
 class HealthMetrics {
   /// Temperature (normalized between 0-100)
   final double temperature;
@@ -31,9 +67,6 @@ class HealthMetrics {
        assert(stress >= 0 && stress <= 100),
        assert(activityLevel >= 0 && activityLevel <= 100);
 
-  // Standard copyWith, toJson, fromJson could be added here later
-  // if required for remote backend swapping.
-  
   Map<String, dynamic> toJson() {
     return {
       'temperature': temperature,
@@ -65,6 +98,10 @@ class PredictionResult {
   final DateTime fertileWindowEnd;
   final double confidenceScore;
   final String confidenceLevel;
+  final MenstrualPhase estimatedPhase;
+  final List<String> explainableReasons;
+  final bool isVitalsOnlyPath;
+  final int phaseRemainingDays;
 
   PredictionResult({
     required this.basePrediction,
@@ -74,6 +111,10 @@ class PredictionResult {
     required this.fertileWindowEnd,
     required this.confidenceScore,
     required this.confidenceLevel,
+    required this.estimatedPhase,
+    required this.explainableReasons,
+    this.isVitalsOnlyPath = false,
+    this.phaseRemainingDays = 3,
   });
 
   Map<String, dynamic> toJson() {
@@ -85,6 +126,10 @@ class PredictionResult {
       'fertileWindowEnd': fertileWindowEnd.toIso8601String(),
       'confidenceScore': confidenceScore,
       'confidenceLevel': confidenceLevel,
+      'estimatedPhase': estimatedPhase.name,
+      'explainableReasons': explainableReasons,
+      'isVitalsOnlyPath': isVitalsOnlyPath,
+      'phaseRemainingDays': phaseRemainingDays,
     };
   }
 
@@ -97,6 +142,13 @@ class PredictionResult {
       fertileWindowEnd: DateTime.parse(json['fertileWindowEnd']),
       confidenceScore: (json['confidenceScore'] as num).toDouble(),
       confidenceLevel: json['confidenceLevel'],
+      estimatedPhase: MenstrualPhase.values.firstWhere(
+        (e) => e.name == json['estimatedPhase'],
+        orElse: () => MenstrualPhase.lateLuteal,
+      ),
+      explainableReasons: (json['explainableReasons'] as List?)?.cast<String>() ?? const [],
+      isVitalsOnlyPath: json['isVitalsOnlyPath'] == true,
+      phaseRemainingDays: (json['phaseRemainingDays'] as num? ?? 3).toInt(),
     );
   }
 }

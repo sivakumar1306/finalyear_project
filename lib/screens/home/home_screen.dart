@@ -1871,7 +1871,6 @@ class _WomensHealthMiniCardState extends State<_WomensHealthMiniCard> {
         final day = nowDt.difference(startDt).inDays + 1;
 
         final cycleLen = latest['cycle_length'] as int;
-        final periodLen = latest['period_length'] as int;
 
         // Build HealthMetrics using BleProvider values
         // Normalized roughly 0-100
@@ -1896,31 +1895,40 @@ class _WomensHealthMiniCardState extends State<_WomensHealthMiniCard> {
           lastMenstrualPeriod: startDt,
           averageCycleLength: cycleLen,
           metrics: metrics,
+          hasHistory: true,
         );
 
-        String phase = 'Luteal';
-        if (day <= 0) {
-          phase = 'Luteal';
-        } else if (day <= periodLen) {
-          phase = 'Menstrual';
-        } else {
-          final ovDt = DateTime(
-            result.ovulationDate.year,
-            result.ovulationDate.month,
-            result.ovulationDate.day,
-          );
-          final ovDay = ovDt.difference(startDt).inDays + 1;
-          if (day < ovDay - 5) {
-            phase = 'Follicular';
-          } else if (day <= ovDay + 1) {
-            phase = 'Ovulation';
-          }
-        }
+        final phase = result.estimatedPhase.displayName.replaceAll(' Phase', '');
+        final score = result.confidenceScore.round();
 
         if (mounted) {
           setState(() {
-            _value = 'Day $day';
-            _sub = '$phase • ${result.confidenceLevel}';
+            _value = 'Day $day • $phase';
+            _sub = '$score% AWHE Confidence';
+          });
+        }
+      } else {
+        final metrics = HealthMetrics(
+          temperature: (widget.ble.todayAvgSpo2 > 0 ? widget.ble.todayAvgSpo2.toDouble() : 50.0).clamp(0, 100),
+          hrv: (widget.ble.todayAvgHrv.toDouble()).clamp(0, 100),
+          heartRate: (widget.ble.todayAvgHr.toDouble()).clamp(0, 100),
+          sleepQuality: (widget.ble.todaySleepScore.toDouble()).clamp(0, 100),
+          stress: (widget.ble.todayAvgStress.toDouble()).clamp(0, 100),
+          activityLevel: ((widget.ble.todaySteps / 10000.0) * 100.0).clamp(0, 100),
+        );
+        final service = WomenHealthPredictionService();
+        final result = service.predictCycle(
+          lastMenstrualPeriod: null,
+          averageCycleLength: 28,
+          metrics: metrics,
+          hasHistory: false,
+        );
+        final phase = result.estimatedPhase.displayName.replaceAll(' Phase', '');
+        final score = result.confidenceScore.round();
+        if (mounted) {
+          setState(() {
+            _value = phase;
+            _sub = '$score% AWHE Vitals Only';
           });
         }
       }

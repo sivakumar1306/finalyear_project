@@ -141,6 +141,8 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     'Luteal': AppTheme.womenColor,
   };
 
+  PredictionResult? _awheResult;
+
   CycleData? get _latest => _cycles.isEmpty ? null : _cycles.first;
 
   int get _currentCycleDay {
@@ -150,6 +152,9 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   }
 
   String get _currentPhase {
+    if (_awheResult != null) {
+      return _awheResult!.estimatedPhase.displayName.replaceAll(' Phase', '');
+    }
     final c = _latest;
     if (c == null) return '';
     final day = _currentCycleDay;
@@ -183,27 +188,30 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       final cycles = cycleRows.map(CycleData.fromMap).toList();
 
       if (!mounted) return;
-      
+
+      final ble = context.read<BleProvider>();
+      final metrics = HealthMetrics(
+        temperature: (ble.todayAvgSpo2 > 0 ? ble.todayAvgSpo2.toDouble() : 50.0).clamp(0, 100),
+        hrv: ble.todayAvgHrv.toDouble().clamp(0, 100),
+        heartRate: ble.todayAvgHr.toDouble().clamp(0, 100),
+        sleepQuality: ble.todaySleepScore.toDouble().clamp(0, 100),
+        stress: ble.todayAvgStress.toDouble().clamp(0, 100),
+        activityLevel: ((ble.todaySteps / 10000.0) * 100.0).clamp(0, 100),
+      );
+
+      final service = WomenHealthPredictionService();
+      PredictionResult? awheResult;
+
       if (cycles.isNotEmpty) {
         final l = cycles.first;
-        final ble = context.read<BleProvider>();
-        final metrics = HealthMetrics(
-          temperature: (ble.todayAvgSpo2 > 0 ? ble.todayAvgSpo2.toDouble() : 50.0).clamp(0, 100),
-          hrv: ble.todayAvgHrv.toDouble().clamp(0, 100),
-          heartRate: ble.todayAvgHr.toDouble().clamp(0, 100),
-          sleepQuality: ble.todaySleepScore.toDouble().clamp(0, 100),
-          stress: ble.todayAvgStress.toDouble().clamp(0, 100),
-          activityLevel: ((ble.todaySteps / 10000.0) * 100.0).clamp(0, 100),
-        );
-        
-        final service = WomenHealthPredictionService();
-        final result = service.predictCycle(
+        awheResult = service.predictCycle(
           lastMenstrualPeriod: l.periodStart,
           averageCycleLength: l.cycleLength,
           metrics: metrics,
+          hasHistory: true,
         );
 
-        final adjustedCycleLen = result.finalPrediction.difference(l.periodStart).inDays;
+        final adjustedCycleLen = awheResult.finalPrediction.difference(l.periodStart).inDays;
         
         cycles[0] = CycleData(
           id: l.id,
@@ -212,11 +220,19 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
           periodLength: l.periodLength,
           notes: l.notes,
         );
+      } else {
+        awheResult = service.predictCycle(
+          lastMenstrualPeriod: null,
+          averageCycleLength: 28,
+          metrics: metrics,
+          hasHistory: false,
+        );
       }
 
       setState(() {
         _gender = profile?['gender'] as String? ?? '';
         _cycles = cycles;
+        _awheResult = awheResult;
       });
       _computeCalendarDays();
     } catch (_) {
@@ -407,6 +423,10 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 const SizedBox(height: 20),
                 _buildRingSection(),
                 const SizedBox(height: 20),
+                if (_awheResult != null) ...[
+                  _buildAwheCard(),
+                  const SizedBox(height: 14),
+                ],
                 _buildPredictionCard(),
                 const SizedBox(height: 14),
                 _buildCalendarCard(),
@@ -650,6 +670,136 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ── AWHE Adaptive Engine card ─────────────────────────────────────────────
+
+  Widget _buildAwheCard() {
+    final res = _awheResult;
+    if (res == null) return const SizedBox.shrink();
+
+    final phaseName = res.estimatedPhase.displayName;
+    final summary = res.estimatedPhase.physiologicalSummary;
+    final score = res.confidenceScore.round();
+    final reasons = res.explainableReasons;
+    final isVitalsOnly = res.isVitalsOnlyPath;
+
+    return _glassCard(
+      padding: const EdgeInsets.all(18),
+      tint: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          const Color(0xFFA855F7).withValues(alpha: 0.15),
+          AppTheme.womenColor.withValues(alpha: 0.08),
+          Colors.transparent,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFA855F7).withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFA855F7), size: 18),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'ADAPTIVE WOMEN\'S HEALTH ENGINE',
+                    style: _inter(11, color: const Color(0xFFA855F7), weight: FontWeight.w700, letterSpacing: 1.2),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    isVitalsOnly ? 'Wearable Vitals-Only Inference' : 'Smart Ring Vitals + Calendar Engine',
+                    style: _inter(12, color: AppTheme.textSec),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppTheme.hrvColor.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.hrvColor.withValues(alpha: 0.4)),
+                ),
+                child: Text(
+                  '$score% Confidence',
+                  style: _inter(12, color: AppTheme.hrvColor, weight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Text(
+                phaseName,
+                style: _inter(18, weight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppTheme.womenColor.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  res.confidenceLevel.toUpperCase(),
+                  style: _inter(10, color: AppTheme.womenColor, weight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            summary,
+            style: _inter(13, color: AppTheme.textSec, height: 1.3),
+          ),
+          if (reasons.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              'PHYSIOLOGICAL SUPPORTING REASONS',
+              style: _inter(10, color: AppTheme.textSec, weight: FontWeight.w700, letterSpacing: 1.1),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: reasons.map((reason) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_circle_outline_rounded, color: AppTheme.womenColor, size: 13),
+                      const SizedBox(width: 6),
+                      Text(
+                        reason,
+                        style: _inter(12, color: Colors.white.withValues(alpha: 0.9), weight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1119,7 +1269,6 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   Widget _buildStressCard(BuildContext context) {
     final ble = context.watch<BleProvider>();
     final stress = ble.latestStressValue;
-    final hrv = ble.todayAvgHrv;
     final hasData = stress > 0;
 
     String status;
@@ -1135,7 +1284,6 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       status = 'High Stress';
     }
 
-    final hrvLabel = hrv > 0 ? 'HRV $hrv' : '--';
     final caption =
         hasData ? 'Higher in follicular phase.' : 'Connect ring to track stress.';
 
@@ -1156,7 +1304,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('HRV & STRESS',
+                    Text('STRESS',
                         style: _inter(11,
                             weight: FontWeight.w700,
                             color: AppTheme.textSec,
@@ -1175,7 +1323,6 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(status, style: _inter(16, weight: FontWeight.w600)),
-              Text(hrvLabel, style: _inter(15, weight: FontWeight.w500)),
             ],
           ),
           const SizedBox(height: 12),
