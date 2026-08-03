@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'glass_back_button.dart';
+import './app_typography.dart';
 
 /// Shared glass screen header: back button, centered title, optional trailing
 /// action — matches the Figma header used across Edit Cards / schedule screens.
@@ -27,7 +27,7 @@ class GlassHeader extends StatelessWidget {
           GlassBackButton(onTap: onBack),
           Text(
             title,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 13,
               fontWeight: FontWeight.w500,
               letterSpacing: -0.005,

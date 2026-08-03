@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
+import '../../widgets/app_typography.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -17,7 +17,7 @@ class AboutScreen extends StatelessWidget {
         leading: const GlassBackButton(),
         title: Text(
           'About',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -33,11 +33,11 @@ class AboutScreen extends StatelessWidget {
           children: [
             const SizedBox(height: 20),
             // App Icon Placeholder / Ring Image
-            Image.asset('ring.png', width: 90, height: 90, fit: BoxFit.contain),
+            Image.asset('ring.webp', width: 90, height: 90, fit: BoxFit.contain),
             const SizedBox(height: 16),
             Text(
               'SUNDR',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
@@ -46,7 +46,7 @@ class AboutScreen extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Version 1.0.0 (Build 1)',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 fontSize: 14,
                 color: AppTheme.textSec,
               ),
@@ -61,7 +61,7 @@ class AboutScreen extends StatelessWidget {
               child: Text(
                 'SUNDR — your AI-powered health companion, paired with your smart ring for continuous wellness tracking.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   fontSize: 14,
                   color: Colors.white.withValues(alpha: 0.9),
                   height: 1.5,
@@ -73,7 +73,7 @@ class AboutScreen extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 'LEGAL & DOCUMENTS',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   color: AppTheme.textSec,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -140,7 +140,7 @@ class AboutScreen extends StatelessWidget {
             Expanded(
               child: Text(
                 title,
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w400,

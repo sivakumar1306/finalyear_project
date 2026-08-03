@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/app_typography.dart';
 
 class FaqScreen extends StatelessWidget {
   const FaqScreen({super.key});
@@ -34,7 +34,7 @@ class FaqScreen extends StatelessWidget {
           'least 1 hour until the charging indicator light on the ring '
           'turns green',
     ),
-    _FaqImage(assetPath: 'ring_bluetooth_indicator.png'),
+    _FaqImage(assetPath: 'ring_bluetooth_indicator.webp'),
     _FaqItem(
       question:
           'Why does the ring always show disconnected when opening QRing?',
@@ -47,7 +47,7 @@ class FaqScreen extends StatelessWidget {
           'shows disconnected, it is possible that the ring has shut down '
           'due to low battery. Please charge it before reconnecting.',
     ),
-    _FaqImage(assetPath: 'ring_bluetooth_indicator.png'),
+    _FaqImage(assetPath: 'ring_bluetooth_indicator.webp'),
     _FaqItem(
       question: "Why can't the ring be charged?",
       answer:
@@ -56,7 +56,7 @@ class FaqScreen extends StatelessWidget {
           'the charging port. Just turn the cotton swab gently to clean the '
           'surface dust.',
     ),
-    _FaqImage(assetPath: 'charging_port_cotton_swab.png'),
+    _FaqImage(assetPath: 'charging_port_cotton_swab.webp'),
     _FaqItem(
       question: 'Toothpick cleaning method',
       answer:
@@ -64,7 +64,7 @@ class FaqScreen extends StatelessWidget {
           'a toothpick to clean it. But be careful not to use the toothpick '
           'too thick to avoid damaging the charging port.',
     ),
-    _FaqImage(assetPath: 'charging_port_toothpick.png'),
+    _FaqImage(assetPath: 'charging_port_toothpick.webp'),
     _FaqItem(
       question: '2.Detergent',
       answer:
@@ -74,7 +74,7 @@ class FaqScreen extends StatelessWidget {
           'the amount and method of application when using detergent to '
           'avoid corrosion or damage to the charging port.',
     ),
-    _FaqImage(assetPath: 'charging_port_detergent.png'),
+    _FaqImage(assetPath: 'charging_port_detergent.webp'),
     _FaqItem(
       question: '3.Cautions',
       answer:
@@ -92,7 +92,7 @@ class FaqScreen extends StatelessWidget {
           'charging, and the green light indicates that the battery is '
           'fully charged.',
     ),
-    _FaqImage(assetPath: 'charging_indicator_states.png'),
+    _FaqImage(assetPath: 'charging_indicator_states.webp'),
     _FaqItem(
       question: 'Is sleep data unable to synchronize or inaccurate?',
       answer:
@@ -105,7 +105,7 @@ class FaqScreen extends StatelessWidget {
           'waking up. (4) All sleep records will be viewed on the QRing '
           'sleep interface after the ring is synchronized with QRing',
     ),
-    _FaqImage(assetPath: 'sleep_stages_chart.png'),
+    _FaqImage(assetPath: 'sleep_stages_chart.webp'),
     _FaqItem(
       question:
           'There is a deviation between the entry and exit sleep time '
@@ -207,7 +207,7 @@ class FaqScreen extends StatelessWidget {
           'finger wearing area with sweat or other liquids for a long '
           'time, which may cause skin damage',
     ),
-    _FaqImage(assetPath: 'ring_wearing_direction.png'),
+    _FaqImage(assetPath: 'ring_wearing_direction.webp'),
     _FaqItem(
       question:
           'Will historical data be lost after losing or uninstalling the '
@@ -217,7 +217,7 @@ class FaqScreen extends StatelessWidget {
           'locally by QRing will be lost Recommend users to register for '
           'QRing ID and use it to log in to QRing',
     ),
-    _FaqImage(assetPath: 'sundr_welcome.png'),
+    _FaqImage(assetPath: 'sundr_welcome.webp'),
     _FaqItem(
       question: 'How to use the camera function?',
       answer:
@@ -275,7 +275,7 @@ class FaqScreen extends StatelessWidget {
                       const GlassBackButton(),
                       Text(
                         "FAQ's",
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           color: Colors.white.withValues(alpha: 0.88),
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
@@ -352,7 +352,7 @@ class FaqScreen extends StatelessWidget {
         children: [
           Text(
             '$number. ${faq.question}',
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               color: Colors.white.withValues(alpha: 0.92),
               fontSize: 13.5,
               fontWeight: FontWeight.w700,
@@ -363,7 +363,7 @@ class FaqScreen extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             faq.answer,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               color: Colors.white.withValues(alpha: 0.92),
               fontSize: 13.5,
               fontWeight: FontWeight.w400,

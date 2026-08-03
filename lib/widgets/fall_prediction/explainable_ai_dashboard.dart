@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/fall_prediction/fall_prediction_provider.dart';
 import '../../theme/app_theme.dart';
+import '../app_typography.dart';
 
 class ExplainableAIDashboard extends StatelessWidget {
   const ExplainableAIDashboard({super.key});
@@ -36,7 +36,7 @@ class ExplainableAIDashboard extends StatelessWidget {
                     const SizedBox(width: 10),
                     Text(
                       'AI Reasoning',
-                      style: GoogleFonts.inter(
+                      style: AppTypography.inter(
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -70,7 +70,7 @@ class ExplainableAIDashboard extends StatelessWidget {
                       ),
                       child: Text(
                         item,
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           fontWeight: isRecommendation ? FontWeight.w600 : FontWeight.w400,
                           color: isRecommendation ? AppTheme.spo2Color : Colors.white,
                           fontSize: 14,

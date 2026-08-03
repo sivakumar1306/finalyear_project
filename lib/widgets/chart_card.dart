@@ -38,9 +38,9 @@ class ChartCard extends StatelessWidget {
             children: [
               Text(
                 headerLabel,
-                style: AppTypography.inter(11, weight: FontWeight.w600, color: kSec, letterSpacing: 0.6),
+                style: AppTypography.inter(fontSize: 11, weight: FontWeight.w600, color: kSec, letterSpacing: 0.6),
               ),
-              Text(rangeLabel, style: AppTypography.inter(11, weight: FontWeight.w500, color: const Color(0xFF999999))),
+              Text(rangeLabel, style: AppTypography.inter(fontSize: 11, weight: FontWeight.w500, color: const Color(0xFF999999))),
             ],
           ),
           const SizedBox(height: 10),
@@ -57,7 +57,7 @@ class ChartCard extends StatelessWidget {
                     children: yLabels
                         .map((l) => Padding(
                               padding: const EdgeInsets.only(right: 6),
-                              child: Text(l, style: AppTypography.inter(10, color: kSec)),
+                              child: Text(l, style: AppTypography.inter(fontSize: 10, color: kSec)),
                             ))
                         .toList(),
                   ),
@@ -76,7 +76,7 @@ class ChartCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: xLabels
-                  .map((l) => Text(l, style: AppTypography.inter(10, color: kSec)))
+                  .map((l) => Text(l, style: AppTypography.inter(fontSize: 10, color: kSec)))
                   .toList(),
             ),
           ),

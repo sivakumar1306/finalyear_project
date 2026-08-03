@@ -22,19 +22,19 @@ class StatCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, style: AppTypography.inter(10, weight: FontWeight.w600, color: kSec, letterSpacing: 0.7)),
+          Text(label, style: AppTypography.inter(fontSize: 10, weight: FontWeight.w600, color: kSec, letterSpacing: 0.7)),
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(value, style: AppTypography.inter(17, weight: FontWeight.w600)),
+              Text(value, style: AppTypography.inter(fontSize: 17, weight: FontWeight.w600)),
               const SizedBox(width: 4),
-              Text(unit, style: AppTypography.inter(11, color: kSec)),
+              Text(unit, style: AppTypography.inter(fontSize: 11, color: kSec)),
             ],
           ),
           const SizedBox(height: 6),
-          Text('know more >', style: AppTypography.inter(11, color: kSec)),
+          Text('know more >', style: AppTypography.inter(fontSize: 11, color: kSec)),
         ],
       ),
     );

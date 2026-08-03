@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import './app_typography.dart';
 
 /// A basic, clean drag-to-set analog clock — tap or drag anywhere on the
 /// dial to move both hands to that position (classic single-gesture clock
@@ -153,7 +153,7 @@ class _AmPmSegment extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: selected ? AppTheme.gold : Colors.white.withValues(alpha: 0.4),
             fontSize: 12,
             fontWeight: FontWeight.w600,

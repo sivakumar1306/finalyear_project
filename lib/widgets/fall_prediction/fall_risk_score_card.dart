@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/fall_prediction/fall_prediction_provider.dart';
 import '../../models/fall_prediction/prediction_result.dart';
 import '../../theme/app_theme.dart';
+import '../app_typography.dart';
 
 class FallRiskScoreCard extends StatelessWidget {
   const FallRiskScoreCard({super.key});
@@ -25,7 +25,7 @@ class FallRiskScoreCard extends StatelessWidget {
               padding: const EdgeInsets.all(20.0),
               child: Text(
                 'Calculating Risk Score...',
-                style: GoogleFonts.inter(color: AppTheme.textSec),
+                style: AppTypography.inter(color: AppTheme.textSec),
               ),
             ),
           );
@@ -62,12 +62,12 @@ class FallRiskScoreCard extends StatelessWidget {
               children: [
                 Text(
                   'Fall Confidence Score',
-                  style: GoogleFonts.inter(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                  style: AppTypography.inter(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   result.fcs.toStringAsFixed(1),
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 48,
                     fontWeight: FontWeight.w300,
                     color: Colors.white,
@@ -83,7 +83,7 @@ class FallRiskScoreCard extends StatelessWidget {
                   ),
                   child: Text(
                     riskText,
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       color: riskColor,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
