@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -69,6 +68,10 @@ StreamSubscription? _authSub;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  final imageCache = PaintingBinding.instance.imageCache;
+  imageCache.maximumSize = 80;
+  imageCache.maximumSizeBytes = 40 << 20; // 40 MB
+
   // Capture Flutter UI / layout framework errors
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
@@ -90,8 +93,6 @@ void main() async {
     return true;
   };
 
-  // Fonts aren't bundled as local assets, so allow fetching them at runtime.
-  GoogleFonts.config.allowRuntimeFetching = true;
   await Future.wait([SupabaseService.initialize(), _syncLoggedInFlag()]);
   await _configureNativeSync();
   _authSub?.cancel();

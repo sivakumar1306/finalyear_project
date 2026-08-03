@@ -3,11 +3,11 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_typography.dart';
 
 /// Ring-controlled camera screen.
 ///
@@ -70,7 +70,7 @@ class _RingCameraScreenState extends State<RingCameraScreen>
       );
       final controller = CameraController(
         back,
-        ResolutionPreset.high,
+        ResolutionPreset.medium,
         enableAudio: false,
       );
       await controller.initialize();
@@ -195,7 +195,7 @@ class _RingCameraScreenState extends State<RingCameraScreen>
                       child: Text(
                         _error!,
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(color: Colors.white70),
+                        style: AppTypography.inter(color: Colors.white70),
                       ),
                     ),
                   );
@@ -230,7 +230,7 @@ class _RingCameraScreenState extends State<RingCameraScreen>
               child: Center(
                 child: Text(
                   'Use your ring to take a photo',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: Colors.white70,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,

@@ -14,7 +14,7 @@ Future<void> shareScreenshot(GlobalKey repaintKey, {required String text}) async
     final boundary =
         repaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
     if (boundary == null) return;
-    final image = await boundary.toImage(pixelRatio: 2.5);
+    final image = await boundary.toImage(pixelRatio: 2.0);
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     if (byteData == null) return;
     final dir = await getTemporaryDirectory();

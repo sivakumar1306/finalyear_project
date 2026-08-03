@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/app_typography.dart';
 
 class TermsOfServiceScreen extends StatelessWidget {
   const TermsOfServiceScreen({super.key});
@@ -15,7 +15,7 @@ class TermsOfServiceScreen extends StatelessWidget {
         leading: const GlassBackButton(),
         title: Text(
           'Terms of Service',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -31,7 +31,7 @@ class TermsOfServiceScreen extends StatelessWidget {
           children: [
             Text(
               'Last updated: July 25, 2026',
-              style: GoogleFonts.inter(fontSize: 12, color: AppTheme.textSec),
+              style: AppTypography.inter(fontSize: 12, color: AppTheme.textSec),
             ),
             const SizedBox(height: 24),
             _section(
@@ -101,7 +101,7 @@ class TermsOfServiceScreen extends StatelessWidget {
         children: [
           Text(
             title,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: Colors.white,
@@ -110,7 +110,7 @@ class TermsOfServiceScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             body,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 14,
               color: Colors.white.withValues(alpha: 0.65),
               height: 1.55,

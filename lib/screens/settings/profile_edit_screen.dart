@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../providers/main_tab_provider.dart';
@@ -12,6 +11,7 @@ import '../../widgets/glass_icon_button.dart';
 import '../auth/login_screen.dart';
 import '../auth/sign_up_screen.dart';
 import 'account_system_settings_screen.dart';
+import '../../widgets/app_typography.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   final bool showBackButton;
@@ -126,7 +126,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Profile saved', style: GoogleFonts.inter()),
+            content: Text('Profile saved', style: AppTypography.inter()),
             backgroundColor: AppTheme.success,
             behavior: SnackBarBehavior.floating,
           ),
@@ -137,7 +137,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to save: $e', style: GoogleFonts.inter()),
+            content: Text('Failed to save: $e', style: AppTypography.inter()),
             backgroundColor: AppTheme.danger,
             behavior: SnackBarBehavior.floating,
           ),
@@ -374,7 +374,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             : null,
         title: Text(
           'Profile',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -632,7 +632,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   Widget _sectionLabel(String text) => Text(
     text,
-    style: GoogleFonts.inter(
+    style: AppTypography.inter(
       color: AppTheme.textSec,
       fontSize: 11,
       fontWeight: FontWeight.w600,
@@ -650,28 +650,28 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Log out',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontWeight: FontWeight.w600,
           ),
         ),
         content: Text(
           'Logging out clears your session and all personal data stored on this device (health history, emergency contacts, ring pairing). Are you sure?',
-          style: GoogleFonts.inter(color: AppTheme.textSec),
+          style: AppTypography.inter(color: AppTheme.textSec),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: Text(
               'Cancel',
-              style: GoogleFonts.inter(color: AppTheme.textSec),
+              style: AppTypography.inter(color: AppTheme.textSec),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text(
               'Log out',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: AppTheme.danger,
                 fontWeight: FontWeight.w600,
               ),
@@ -716,7 +716,7 @@ class _AccountEmailRow extends StatelessWidget {
           Expanded(
             child: Text(
               email,
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: Colors.white,
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
@@ -765,7 +765,7 @@ class _AccountActionRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
@@ -820,7 +820,7 @@ class _ProfileRow extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
@@ -832,7 +832,7 @@ class _ProfileRow extends StatelessWidget {
                 value,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.right,
-                style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+                style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
               ),
             ),
           ],
@@ -873,12 +873,12 @@ class _ContactRow extends StatelessWidget {
             Expanded(
               child: Text(
                 contact.name,
-                style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+                style: AppTypography.inter(color: Colors.white, fontSize: 14),
               ),
             ),
             Text(
               contact.phone,
-              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+              style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
             ),
           ],
         ),
@@ -909,21 +909,21 @@ class _FormDialog extends StatelessWidget {
             },
             child: Text(
               'Delete',
-              style: GoogleFonts.inter(color: AppTheme.danger),
+              style: AppTypography.inter(color: AppTheme.danger),
             ),
           ),
         TextButton(
           onPressed: () => Navigator.pop(context, false),
           child: Text(
             'Cancel',
-            style: GoogleFonts.inter(color: AppTheme.textSec),
+            style: AppTypography.inter(color: AppTheme.textSec),
           ),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, true),
           child: Text(
             'Save',
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               color: AppTheme.gold,
               fontWeight: FontWeight.w600,
             ),
@@ -956,7 +956,7 @@ class _InputDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text(
         title,
-        style: GoogleFonts.inter(
+        style: AppTypography.inter(
           color: Colors.white,
           fontWeight: FontWeight.w600,
           fontSize: 16,
@@ -967,10 +967,10 @@ class _InputDialog extends StatelessWidget {
         keyboardType: keyboardType,
         inputFormatters: inputFormatters,
         autofocus: true,
-        style: GoogleFonts.inter(color: Colors.white),
+        style: AppTypography.inter(color: Colors.white),
         decoration: InputDecoration(
           suffixText: suffix,
-          suffixStyle: GoogleFonts.inter(color: AppTheme.textSec),
+          suffixStyle: AppTypography.inter(color: AppTheme.textSec),
           enabledBorder: const UnderlineInputBorder(
             borderSide: BorderSide(color: AppTheme.div),
           ),
@@ -984,14 +984,14 @@ class _InputDialog extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
           child: Text(
             'Cancel',
-            style: GoogleFonts.inter(color: AppTheme.textSec),
+            style: AppTypography.inter(color: AppTheme.textSec),
           ),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, controller.text.trim()),
           child: Text(
             'OK',
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               color: AppTheme.gold,
               fontWeight: FontWeight.w600,
             ),
@@ -1035,7 +1035,7 @@ class _PickerDialogState extends State<_PickerDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text(
         widget.title,
-        style: GoogleFonts.inter(
+        style: AppTypography.inter(
           color: Colors.white,
           fontWeight: FontWeight.w600,
           fontSize: 16,
@@ -1055,7 +1055,7 @@ class _PickerDialogState extends State<_PickerDialog> {
                   Expanded(
                     child: Text(
                       opt,
-                      style: GoogleFonts.inter(
+                      style: AppTypography.inter(
                         color: selected ? AppTheme.gold : Colors.white,
                         fontWeight: selected
                             ? FontWeight.w600
@@ -1081,14 +1081,14 @@ class _PickerDialogState extends State<_PickerDialog> {
           onPressed: () => Navigator.pop(context),
           child: Text(
             'Cancel',
-            style: GoogleFonts.inter(color: AppTheme.textSec),
+            style: AppTypography.inter(color: AppTheme.textSec),
           ),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, _current),
           child: Text(
             'OK',
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               color: AppTheme.gold,
               fontWeight: FontWeight.w600,
             ),

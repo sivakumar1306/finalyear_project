@@ -1,6 +1,5 @@
 import '../../providers/alarm_mode_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
@@ -15,6 +14,7 @@ import 'health_connect_screen.dart';
 import 'profile_edit_screen.dart';
 import 'ring_camera_screen.dart';
 import '../main_shell.dart';
+import '../../widgets/app_typography.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -107,7 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
               child: Text(
                 title,
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -136,7 +136,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(width: 14),
                       Text(
                         o.label,
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           color: Colors.white,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -145,7 +145,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(width: 8),
                       Text(
                         o.hint,
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           color: AppTheme.textSec,
                           fontSize: 12,
                         ),
@@ -225,6 +225,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return SafeArea(
       bottom: false,
       child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,7 +235,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 24),
             Text(
               'Settings',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: Colors.white,
                 fontSize: 28,
                 fontWeight: FontWeight.w700,
@@ -255,7 +258,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         Text(
                           ringTitle,
-                          style: GoogleFonts.inter(
+                          style: AppTypography.inter(
                             color: Colors.white,
                             fontSize: 17,
                             fontWeight: FontWeight.w600,
@@ -265,7 +268,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const SizedBox(height: 4),
                           Text(
                             ble.deviceName,
-                            style: GoogleFonts.inter(
+                            style: AppTypography.inter(
                               color: AppTheme.textSec,
                               fontSize: 12,
                             ),
@@ -275,7 +278,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const SizedBox(height: 4),
                           Text(
                             mac,
-                            style: GoogleFonts.inter(
+                            style: AppTypography.inter(
                               color: AppTheme.textSec,
                               fontSize: 12,
                             ),
@@ -284,7 +287,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(height: 4),
                         Text(
                           firmware,
-                          style: GoogleFonts.inter(
+                          style: AppTypography.inter(
                             color: AppTheme.textSec,
                             fontSize: 12,
                           ),
@@ -292,7 +295,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(height: 4),
                         Text(
                           connected ? 'Connected' : 'Disconnected',
-                          style: GoogleFonts.inter(
+                          style: AppTypography.inter(
                             color: AppTheme.textSec,
                             fontSize: 12,
                           ),
@@ -301,7 +304,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const SizedBox(height: 4),
                           Text(
                             'Battery $battery%',
-                            style: GoogleFonts.inter(
+                            style: AppTypography.inter(
                               color: AppTheme.textSec,
                               fontSize: 12,
                             ),
@@ -311,7 +314,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   Image.asset(
-                    'ring.png',
+                    'ring.webp',
                     width: 72,
                     height: 72,
                     fit: BoxFit.contain,
@@ -337,7 +340,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Center(
                   child: Text(
                     connected ? 'Disconnect' : 'Connect',
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
@@ -351,7 +354,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             Text(
               'SETTINGS',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: AppTheme.textSec,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -575,28 +578,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Disconnect ring',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontWeight: FontWeight.w600,
           ),
         ),
         content: Text(
           'This will disconnect and remove the pairing with your ring.',
-          style: GoogleFonts.inter(color: AppTheme.textSec),
+          style: AppTypography.inter(color: AppTheme.textSec),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: Text(
               'Cancel',
-              style: GoogleFonts.inter(color: AppTheme.textSec),
+              style: AppTypography.inter(color: AppTheme.textSec),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text(
               'Disconnect',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: AppTheme.danger,
                 fontWeight: FontWeight.w600,
               ),
@@ -684,7 +687,7 @@ class _SettingsRow extends StatelessWidget {
       case _RowType.value:
         trailing = Text(
           value ?? '',
-          style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+          style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
         );
       case _RowType.toggle:
         trailing = Transform.scale(
@@ -716,7 +719,7 @@ class _SettingsRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       color: Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
@@ -726,7 +729,7 @@ class _SettingsRow extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle!,
-                      style: GoogleFonts.inter(
+                      style: AppTypography.inter(
                         color: AppTheme.textSec,
                         fontSize: 11,
                       ),
