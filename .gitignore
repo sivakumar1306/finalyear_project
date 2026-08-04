@@ -45,6 +45,13 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Release signing (never commit keystores)
+/android/key.properties
+/android/app/*.jks
+/android/app/*.keystore
+*.jks
+*.keystore
+
 # iOS — generated per-machine files only; the Runner/ sources stay tracked
 **/ios/Flutter/.last_build_id
 **/ios/Flutter/Generated.xcconfig

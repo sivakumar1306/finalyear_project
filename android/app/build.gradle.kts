@@ -7,6 +7,13 @@ plugins {
 
 val appPackageName = "com.medxai.sundr"
 
+// Optional release signing: android/key.properties (local) or CI-generated.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = java.util.Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
 android {
     namespace = appPackageName
     compileSdk = 36
@@ -29,6 +36,18 @@ android {
         versionName = "1.0.0"
     }
 
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
+    // Per-ABI APKs by default (smaller sideload installs).
     splits {
         abi {
             isEnable = true
@@ -40,7 +59,11 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -58,11 +81,9 @@ flutter {
 dependencies {
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
 
-    // Core Android
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 
-    // Existing deps
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("org.greenrobot:eventbus:3.3.1")
     implementation("androidx.room:room-runtime:2.7.1")

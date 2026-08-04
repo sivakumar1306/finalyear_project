@@ -1,0 +1,251 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.1). Leave empty to use run id."
+        required: false
+        default: ""
+      create_release:
+        description: "Create/update GitHub Release with artifacts"
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: "3.44.1"
+  JAVA_VERSION: "17"
+
+jobs:
+  build-and-release:
+    name: Build AAB + split APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Cache pub
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+          key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties', 'android/**/*.kts') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Resolve version
+        id: ver
+        run: |
+          set -euo pipefail
+          # pubspec: version: 1.0.0+1  → name=1.0.0  code=1
+          FULL=$(grep -E '^version:' pubspec.yaml | head -1 | awk '{print $2}')
+          NAME="${FULL%%+*}"
+          CODE="${FULL##*+}"
+          if [[ "$FULL" == "$NAME" ]]; then CODE="1"; fi
+
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${{ github.ref_name }}"
+          elif [[ -n "${{ inputs.tag }}" ]]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="v${NAME}-build.${{ github.run_number }}"
+          fi
+
+          # Prefer tag semver for artifact names when present (v1.2.3)
+          ARTIFACT_VER="${TAG#v}"
+
+          echo "version_name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "artifact_ver=$ARTIFACT_VER" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag=$TAG name=$NAME code=$CODE"
+
+      - name: Optional release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${KEYSTORE_BASE64:-}" ]]; then
+            echo "No KEYSTORE_BASE64 secret — release builds will use debug signing."
+            echo "SIGNED_WITH=debug" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          # android/key.properties (rootProject); storeFile is relative to android/app/
+          cat > android/key.properties <<EOF
+          storePassword=${KEYSTORE_PASSWORD}
+          keyPassword=${KEY_PASSWORD}
+          keyAlias=${KEY_ALIAS}
+          storeFile=upload-keystore.jks
+          EOF
+          # Strip accidental leading spaces from heredoc lines
+          sed -i 's/^[[:space:]]*//' android/key.properties
+          echo "SIGNED_WITH=release-keystore" >> "$GITHUB_ENV"
+          echo "Release keystore configured."
+
+      - name: Build Play App Bundle (.aab)
+        run: flutter build appbundle --release
+
+      - name: Build per-ABI APKs
+        run: flutter build apk --release --split-per-abi
+
+      - name: Collect and rename artifacts
+        id: artifacts
+        run: |
+          set -euo pipefail
+          VER="${{ steps.ver.outputs.artifact_ver }}"
+          OUT="release-out"
+          mkdir -p "$OUT"
+
+          AAB_SRC="build/app/outputs/bundle/release/app-release.aab"
+          if [[ ! -f "$AAB_SRC" ]]; then
+            echo "AAB not found at $AAB_SRC"
+            find build/app/outputs -type f \( -name '*.aab' -o -name '*.apk' \) | head -50
+            exit 1
+          fi
+          cp "$AAB_SRC" "$OUT/sundr-${VER}-play.aab"
+
+          # Split APKs (Flutter / Gradle)
+          mapfile -t APKS < <(find build/app/outputs -type f -name '*-release.apk' | sort)
+          if [[ ${#APKS[@]} -eq 0 ]]; then
+            echo "No release APKs found"
+            find build/app/outputs -type f -name '*.apk' | head -50
+            exit 1
+          fi
+
+          for apk in "${APKS[@]}"; do
+            base=$(basename "$apk")
+            case "$base" in
+              *arm64-v8a*)
+                cp "$apk" "$OUT/sundr-${VER}-arm64-v8a.apk"
+                ;;
+              *armeabi-v7a*)
+                cp "$apk" "$OUT/sundr-${VER}-armeabi-v7a.apk"
+                ;;
+              *x86_64*)
+                cp "$apk" "$OUT/sundr-${VER}-x86_64.apk"
+                ;;
+              app-release.apk)
+                # universal fat apk if produced
+                cp "$apk" "$OUT/sundr-${VER}-universal.apk"
+                ;;
+              *)
+                cp "$apk" "$OUT/sundr-${VER}-${base}"
+                ;;
+            esac
+          done
+
+          # WHICH FILE IS FOR WHAT
+          cat > "$OUT/WHICH_FILE.txt" <<EOF
+          SUNDR release artifacts (version ${VER})
+          Signed with: ${SIGNED_WITH:-unknown}
+
+          =============================================================================
+          FILE                                    | USE FOR
+          -----------------------------------------------------------------------------
+          sundr-${VER}-play.aab                   | Google Play Store upload (required for Play)
+                                                  | Play generates per-device APKs from this.
+          -----------------------------------------------------------------------------
+          sundr-${VER}-arm64-v8a.apk              | Most modern Android phones (64-bit ARM)
+                                                  | Sideload / direct install. Use this on a real phone.
+          -----------------------------------------------------------------------------
+          sundr-${VER}-armeabi-v7a.apk            | Older 32-bit ARM phones only
+          -----------------------------------------------------------------------------
+          sundr-${VER}-x86_64.apk                 | Emulators / Waydroid / x86_64 devices
+                                                  | Do NOT install on normal phones.
+          -----------------------------------------------------------------------------
+          sundr-${VER}-universal.apk              | (If present) All ABIs in one large APK
+                                                  | Prefer split APKs above when possible.
+          =============================================================================
+
+          Install examples:
+            # Phone (typical)
+            adb install -r sundr-${VER}-arm64-v8a.apk
+
+            # Waydroid / x86 emulator
+            adb install -r sundr-${VER}-x86_64.apk
+
+            # Play Console
+            Upload sundr-${VER}-play.aab under Production / Testing track.
+          EOF
+
+          # Flatten leading spaces from heredoc if any
+          sed -i 's/^          //' "$OUT/WHICH_FILE.txt"
+
+          ls -lah "$OUT"
+          echo "dir=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifacts (Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sundr-${{ steps.ver.outputs.artifact_ver }}
+          path: release-out/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: ${{ github.event_name == 'push' || inputs.create_release }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: SUNDR ${{ steps.ver.outputs.tag }}
+          generate_release_notes: true
+          body: |
+            ## Artifacts
+
+            | File | Purpose |
+            |------|---------|
+            | `sundr-${{ steps.ver.outputs.artifact_ver }}-play.aab` | **Google Play** — upload this to Play Console |
+            | `sundr-${{ steps.ver.outputs.artifact_ver }}-arm64-v8a.apk` | **Most phones** (64-bit ARM) sideload |
+            | `sundr-${{ steps.ver.outputs.artifact_ver }}-armeabi-v7a.apk` | Older **32-bit ARM** phones |
+            | `sundr-${{ steps.ver.outputs.artifact_ver }}-x86_64.apk` | **Waydroid / x86_64 emulator** only |
+
+            See attached `WHICH_FILE.txt` for install commands.
+
+            - App version (pubspec): `${{ steps.ver.outputs.version_name }}+${{ steps.ver.outputs.version_code }}`
+            - Signing: `${{ env.SIGNED_WITH || 'debug' }}`
+          files: |
+            release-out/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
