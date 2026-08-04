@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import './app_typography.dart';
 
 /// A single row in a [showGlassMenu] dropdown.
 class GlassMenuItem {
@@ -94,7 +94,7 @@ Future<void> showGlassMenu({
                           child: Text(
                             item.label,
                             textAlign: TextAlign.left,
-                            style: GoogleFonts.inter(
+                            style: AppTypography.inter(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w500,
                               color: Colors.white.withValues(alpha: 0.92),

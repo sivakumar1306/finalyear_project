@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../models/workout_model.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_typography.dart';
 
 class WorkoutDetailScreen extends StatelessWidget {
   final Map<String, dynamic> row;
@@ -16,7 +16,7 @@ class WorkoutDetailScreen extends StatelessWidget {
     double? letterSpacing,
     double? height,
   }) =>
-      GoogleFonts.inter(
+      AppTypography.inter(
         fontSize: size,
         fontWeight: weight,
         color: color,
@@ -471,7 +471,7 @@ class _MetricTile extends StatelessWidget {
     FontWeight weight = FontWeight.w400,
     Color color = Colors.white,
   }) =>
-      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color);
+      AppTypography.inter(fontSize: size, fontWeight: weight, color: color);
 
   @override
   Widget build(BuildContext context) {
@@ -544,7 +544,7 @@ class _HrZoneBar extends StatelessWidget {
   const _HrZoneBar({required this.avgHr, required this.durationS});
 
   TextStyle _inter(double size, {FontWeight weight = FontWeight.w400, Color color = Colors.white}) =>
-      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color);
+      AppTypography.inter(fontSize: size, fontWeight: weight, color: color);
 
   @override
   Widget build(BuildContext context) {
@@ -641,7 +641,7 @@ class _ZoneLegendItem extends StatelessWidget {
       children: [
         Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 5),
-        Text('$label ($pct)', style: GoogleFonts.inter(fontSize: 10, color: AppTheme.textSec)),
+        Text('$label ($pct)', style: AppTypography.inter(fontSize: 10, color: AppTheme.textSec)),
       ],
     );
   }
@@ -663,7 +663,7 @@ class _InsightCard extends StatelessWidget {
   });
 
   TextStyle _inter(double size, {FontWeight weight = FontWeight.w400, Color color = Colors.white, double? height}) =>
-      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color, height: height);
+      AppTypography.inter(fontSize: size, fontWeight: weight, color: color, height: height);
 
   @override
   Widget build(BuildContext context) {
@@ -717,11 +717,11 @@ class _AuditRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: GoogleFonts.inter(fontSize: 11, color: AppTheme.textSec)),
+          Text(label, style: AppTypography.inter(fontSize: 11, color: AppTheme.textSec)),
           Flexible(
             child: Text(
               value,
-              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: Colors.white),
+              style: AppTypography.inter(fontSize: 11, fontWeight: FontWeight.w500, color: Colors.white),
               textAlign: TextAlign.end,
               overflow: TextOverflow.ellipsis,
             ),

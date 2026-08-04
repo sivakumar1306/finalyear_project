@@ -1,8 +1,8 @@
 import 'dart:ui' show ImageFilter, TileMode;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../providers/alarm_mode_provider.dart';
@@ -22,6 +22,7 @@ import 'card_settings_screen.dart';
 import '../settings/goal_setting_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/unit_prefs.dart';
+import '../../widgets/app_typography.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -121,7 +122,7 @@ TextStyle _inter(
   Color color = Colors.white,
   double? letterSpacing,
   double? height,
-}) => GoogleFonts.inter(
+}) => AppTypography.inter(
   fontSize: size,
   fontWeight: weight,
   color: color,
@@ -753,14 +754,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       expandedCards: expandedCards,
     );
     return SliverList(
-      delegate: SliverChildBuilderDelegate((context, index) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          // Isolate each card's layer so scrolling doesn't re-rasterize the
-          // whole list when a single card (or BLE update) invalidates paint.
-          child: RepaintBoundary(child: rows[index]),
-        );
-      }, childCount: rows.length),
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: RepaintBoundary(child: rows[index]),
+          );
+        },
+        childCount: rows.length,
+        addRepaintBoundaries: false,
+        addAutomaticKeepAlives: false,
+      ),
     );
   }
 
@@ -797,18 +801,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         await _loadUserProfile();
       },
       child: CustomScrollView(
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        scrollCacheExtent: const ScrollCacheExtent.pixels(480),
         slivers: [
           SliverToBoxAdapter(
             child: SafeArea(
               bottom: false,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTopBar(context),
-                  _buildGreetingRow(ble),
-                  const _HomeAiInsightSnippet(),
-                  _buildSectionLabel(),
-                ],
+              child: RepaintBoundary(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildTopBar(context),
+                    _buildGreetingRow(ble),
+                    const _HomeAiInsightSnippet(),
+                    _buildSectionLabel(),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1127,7 +1137,7 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
               children: [
                 Text(
                   'AI SUMMARY',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 0.18 * 10,
@@ -1139,7 +1149,7 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
                   headline,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 19,
                     fontWeight: FontWeight.w400,
                     height: 1.30,
@@ -1153,7 +1163,7 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
                     subtext,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w400,
                       height: 1.50,
@@ -1314,39 +1324,27 @@ class _ShrinkButton extends StatefulWidget {
   State<_ShrinkButton> createState() => _ShrinkButtonState();
 }
 
-class _ShrinkButtonState extends State<_ShrinkButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 100),
-  );
-  late final Animation<double> _scale = Tween<double>(
-    begin: 1.0,
-    end: 0.96,
-  ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+class _ShrinkButtonState extends State<_ShrinkButton> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    // Skip the scale layer when the card is not tappable — avoids an extra
-    // composited layer over every non-interactive / edit-mode card.
     if (widget.onTap == null) {
       return widget.child;
     }
     return GestureDetector(
-      onTapDown: (_) => _ctrl.forward(),
+      onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) {
-        _ctrl.reverse();
+        setState(() => _pressed = false);
         widget.onTap!();
       },
-      onTapCancel: () => _ctrl.reverse(),
+      onTapCancel: () => setState(() => _pressed = false),
       behavior: HitTestBehavior.opaque,
-      child: ScaleTransition(scale: _scale, child: widget.child),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 80),
+        opacity: _pressed ? 0.88 : 1.0,
+        child: widget.child,
+      ),
     );
   }
 }
@@ -1390,7 +1388,7 @@ class _GlassCard extends StatelessWidget {
       child: child,
     );
 
-    // ImageFiltered blur restored for visual quality. Clip + RepaintBoundary
+    // ImageFiltered blur restored for visual quality. Clip +
     // (inside _blurOrb) keep corners clean and limit re-rasterization on scroll.
     return _ShrinkButton(
       onTap: onTap,
@@ -1441,7 +1439,7 @@ TextStyle _figmaMono(
   Color color = _kFigmaLabel,
   FontWeight weight = FontWeight.w500,
   double tracking = 1.32,
-}) => GoogleFonts.inter(
+}) => AppTypography.inter(
   fontSize: size,
   fontWeight: weight,
   color: color,
@@ -1449,7 +1447,7 @@ TextStyle _figmaMono(
   height: 1,
 );
 
-TextStyle _figmaFraunces(double size) => GoogleFonts.inter(
+TextStyle _figmaFraunces(double size) => AppTypography.inter(
   fontSize: size,
   fontWeight: FontWeight.w300,
   color: Colors.white.withValues(alpha: 0.95),
@@ -1457,7 +1455,7 @@ TextStyle _figmaFraunces(double size) => GoogleFonts.inter(
   height: 1,
 );
 
-TextStyle _figmaStatusStyle() => GoogleFonts.inter(
+TextStyle _figmaStatusStyle() => AppTypography.inter(
   fontSize: 14,
   fontWeight: FontWeight.w500,
   color: Colors.white.withValues(alpha: 0.95),
@@ -2022,7 +2020,7 @@ class _HomeCard extends StatelessWidget {
                         alignment: Alignment.centerLeft,
                         child: Text(
                           value,
-                          style: GoogleFonts.inter(
+                          style: AppTypography.inter(
                             fontSize: 30,
                             fontWeight: FontWeight.w200,
                             color: Colors.white.withValues(alpha: 0.95),
@@ -2184,7 +2182,7 @@ class _StressCard extends StatelessWidget {
             children: [
               Text(
                 value > 0 ? '$value' : '--',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   fontSize: 36,
                   fontWeight: FontWeight.w300,
                   height: 1.1,
@@ -2286,7 +2284,7 @@ class _StressStatColumn extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           value,
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             fontSize: 22,
             fontWeight: FontWeight.w300,
             height: 1.15,
@@ -2406,7 +2404,7 @@ class _ActivityScoreCard extends StatelessWidget {
           const Spacer(),
           Text(
             hasData ? '$score' : '--',
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 40,
               fontWeight: FontWeight.w300,
               height: 1.1,
@@ -2553,7 +2551,7 @@ class _AlarmCard extends StatelessWidget {
                     children: [
                       Text(
                         info.title,
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           fontSize: 24,
                           fontWeight: FontWeight.w500,
                           height: 1.15,
@@ -3011,7 +3009,7 @@ class _CompactWomensHealthCardState extends State<_CompactWomensHealthCard> {
         children: [
           Text(
             _cycleDay > 0 ? 'Day $_cycleDay' : 'Day --',
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 34,
               fontWeight: FontWeight.w200,
               color: Colors.white.withValues(alpha: 0.98),
@@ -3104,7 +3102,7 @@ class _CompactBloodPressureCard extends StatelessWidget {
             children: [
               Text(
                 hasData ? '$sbp' : '--',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   fontSize: 34,
                   fontWeight: FontWeight.w200,
                   color: Colors.white.withValues(alpha: 0.98),
@@ -3113,7 +3111,7 @@ class _CompactBloodPressureCard extends StatelessWidget {
               ),
               Text(
                 hasData ? '/$dbp' : '/--',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   fontSize: 18,
                   fontWeight: FontWeight.w300,
                   color: Colors.white.withValues(alpha: 0.6),
@@ -3219,7 +3217,7 @@ class _TemperatureCardState extends State<_TemperatureCard> {
             children: [
               Text(
                 hasData ? _dispTemp.toStringAsFixed(1) : '--',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   fontSize: 34,
                   fontWeight: FontWeight.w200,
                   color: Colors.white.withValues(alpha: 0.98),
@@ -3229,7 +3227,7 @@ class _TemperatureCardState extends State<_TemperatureCard> {
               const SizedBox(width: 3),
               Text(
                 _unitLabel,
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.w300,
                   color: Colors.white.withValues(alpha: 0.6),

@@ -13,6 +13,19 @@ class BleService {
 
   Stream<Map<String, dynamic>>? _eventStream;
 
+  /// Logs [PlatformException]s for critical channels without changing call sites.
+  Future<T?> _invoke<T>(String method, [dynamic arguments]) async {
+    try {
+      return await _methodChannel.invokeMethod<T>(method, arguments);
+    } on PlatformException catch (e) {
+      debugPrint('[BleService] $method PlatformException: ${e.code} ${e.message}');
+      rethrow;
+    } on MissingPluginException catch (e) {
+      debugPrint('[BleService] $method MissingPluginException: $e');
+      rethrow;
+    }
+  }
+
   Stream<Map<String, dynamic>> get events {
     _eventStream ??= _eventChannel.receiveBroadcastStream().map(
       (e) => Map<String, dynamic>.from(e as Map),
@@ -22,22 +35,22 @@ class BleService {
 
   // ── Scanning ──────────────────────────────────────────────────────
   Future<void> startScan({String filterName = ''}) =>
-      _methodChannel.invokeMethod('startScan', {'filterName': filterName});
+      _invoke('startScan', {'filterName': filterName});
 
-  Future<void> stopScan() => _methodChannel.invokeMethod('stopScan');
+  Future<void> stopScan() => _invoke('stopScan');
 
   // ── Connection ─────────────────────────────────────────────────────
   Future<bool> connect(String address) async {
-    final result = await _methodChannel.invokeMethod<bool>('connect', {
+    final result = await _invoke<bool>('connect', {
       'address': address,
     });
     return result ?? false;
   }
 
-  Future<void> disconnect() => _methodChannel.invokeMethod('disconnect');
+  Future<void> disconnect() => _invoke('disconnect');
 
   Future<bool> isConnected() async {
-    final result = await _methodChannel.invokeMethod<bool>('isConnected');
+    final result = await _invoke<bool>('isConnected');
     return result ?? false;
   }
 

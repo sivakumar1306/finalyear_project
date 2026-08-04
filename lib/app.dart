@@ -32,6 +32,7 @@ import 'screens/settings/account_system_settings_screen.dart';
 import 'screens/settings/profile_edit_screen.dart';
 import 'screens/settings/faq_screen.dart';
 import 'theme/app_theme.dart';
+import 'theme/app_scroll_behavior.dart';
 
 class QRingApp extends StatelessWidget {
   const QRingApp({super.key});
@@ -42,6 +43,7 @@ class QRingApp extends StatelessWidget {
       title: 'SUNDR',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme(),
+      scrollBehavior: const AppScrollBehavior(),
       initialRoute: '/',
       routes: {
         '/': (_) => const SplashScreen(),

@@ -1,11 +1,11 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../services/health_connect_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/app_typography.dart';
 
 /// Health Connect — connects Google Health Connect to the app.
 ///
@@ -133,7 +133,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
         backgroundColor: AppTheme.card2,
         content: Text(
           message,
-          style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+          style: AppTypography.inter(color: Colors.white, fontSize: 13),
         ),
         behavior: SnackBarBehavior.floating,
       ),
@@ -152,7 +152,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
         ),
         title: Text(
           'Health Connect',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -176,7 +176,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
             ],
             Text(
               'Sync health data with other apps',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: Colors.white,
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -187,7 +187,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
               'Choose what to sync, then allow read & write access. Sundr '
               'sends the measurements it takes and pulls in your other apps\' '
               'core health data.',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: AppTheme.textSec,
                 fontSize: 12,
                 height: 1.4,
@@ -206,7 +206,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
                   onPressed: _busy ? null : _disconnect,
                   child: Text(
                     'Disconnect Health Connect',
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       color: AppTheme.danger.withValues(alpha: 0.9),
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -265,7 +265,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
               children: [
                 Text(
                   type.label,
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -274,7 +274,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
                 const SizedBox(height: 2),
                 Text(
                   granted ? 'Sending & syncing' : type.subtitle,
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: granted ? AppTheme.gold : AppTheme.textSec,
                     fontSize: 12,
                   ),
@@ -339,7 +339,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
                   const SizedBox(width: 8),
                   Text(
                     connected ? 'Update Permissions' : 'Connect Health Connect',
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       color: Colors.black,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -363,7 +363,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
             Expanded(
               child: Text(
                 'Today',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -401,7 +401,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
                   child: Text(
                     'Enable a data type above and connect to see today\'s '
                     'readings here.',
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       color: AppTheme.textSec,
                       fontSize: 12,
                       height: 1.4,
@@ -474,7 +474,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
                         type.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           color: Colors.white.withValues(alpha: 0.9),
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
@@ -492,7 +492,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
                         value,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           fontSize: 30,
                           fontWeight: FontWeight.w300,
                           height: 1.1,
@@ -504,7 +504,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
                       const SizedBox(width: 6),
                       Text(
                         unit,
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           fontSize: 12,
                           color: AppTheme.textSec,
                         ),
@@ -616,7 +616,7 @@ class _AvailabilityBanner extends StatelessWidget {
               children: [
                 Text(
                   'Health Connect not found',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -625,7 +625,7 @@ class _AvailabilityBanner extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   'Install it from the Play Store to sync your health data.',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: AppTheme.textSec,
                     fontSize: 12,
                     height: 1.4,
@@ -659,7 +659,7 @@ class _AvailabilityBanner extends StatelessWidget {
                     )
                   : Text(
                       'Install',
-                      style: GoogleFonts.inter(
+                      style: AppTypography.inter(
                         color: Colors.black,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,

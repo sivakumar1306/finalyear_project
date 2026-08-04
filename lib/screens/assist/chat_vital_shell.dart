@@ -1,6 +1,6 @@
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../../widgets/app_typography.dart';
 
 /// Shared glass-card shell for single-metric vital cards shown in chat
 /// (heart rate, SpO2, HRV, steps). Matches the Figma sleep-highlights style.
@@ -56,7 +56,7 @@ class ChatVitalCardShell extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
                           letterSpacing: 0.14 * 10,
@@ -124,7 +124,7 @@ class ChatVitalCardShell extends StatelessWidget {
       children: [
         Text(
           label,
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             fontSize: 9,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.6,
@@ -137,7 +137,7 @@ class ChatVitalCardShell extends StatelessWidget {
             children: [
               TextSpan(
                 text: value,
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: color,
@@ -145,7 +145,7 @@ class ChatVitalCardShell extends StatelessWidget {
               ),
               TextSpan(
                 text: ' $unit',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   fontSize: 10,
                   color: const Color(0x66FFFFFF),
                 ),
@@ -202,7 +202,7 @@ class MiniBarChart extends StatelessWidget {
               .map(
                 (l) => Text(
                   l,
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 9,
                     color: const Color(0x66FFFFFF),
                   ),
@@ -315,7 +315,7 @@ class DualMiniBarChart extends StatelessWidget {
               .map(
                 (l) => Text(
                   l,
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 9,
                     color: const Color(0x66FFFFFF),
                   ),

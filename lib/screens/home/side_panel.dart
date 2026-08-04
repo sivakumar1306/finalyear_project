@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_typography.dart';
 
 Future<void> showSidePanel({
   required BuildContext context,
@@ -143,7 +143,7 @@ class SidePanelItem extends StatelessWidget {
           children: [
             Text(
               label,
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
                 color: Colors.white,

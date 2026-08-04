@@ -89,8 +89,8 @@ object FallMotionDetector : SensorEventListener {
         if (accelerometer == null) return // nothing to detect with — degrade silently
 
         active = true
-        sm.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)
-        gyroscope?.let { sm.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+        sm.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI)
+        gyroscope?.let { sm.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
     }
 
     fun stop() {

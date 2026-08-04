@@ -9,7 +9,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.8
   provider: ^6.1.2
   shared_preferences: ^2.3.3
   permission_handler: 11.4.0
@@ -17,7 +16,6 @@ dependencies:
   path_provider: ^2.1.5
   intl: ^0.20.0
   supabase_flutter: ^2.16.0
-  google_fonts: 6.3.3
   url_launcher: ^6.3.1
   http: ^1.6.0
   speech_to_text: ^7.0.0
@@ -35,20 +33,17 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - ring.png
+    - ring.webp
     - sundr_logo.png
-    - ring_bluetooth_indicator.png
-    - charging_port_cotton_swab.png
-    - charging_port_toothpick.png
-    - charging_port_detergent.png
-    - charging_indicator_states.png
-    - sleep_stages_chart.png
-    - ring_wearing_direction.png
-    - sundr_welcome.png
-  fonts:
-    - family: Inter
-      fonts:
-        - asset: fonts/Inter.ttf
+    - ring_bluetooth_indicator.webp
+    - charging_port_cotton_swab.webp
+    - charging_port_toothpick.webp
+    - charging_port_detergent.webp
+    - charging_indicator_states.webp
+    - sleep_stages_chart.webp
+    - ring_wearing_direction.webp
+    - sundr_welcome.webp
+  # Typography uses the platform system font (no bundled fonts).
 
 flutter_launcher_icons:
   android: true

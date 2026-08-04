@@ -39,21 +39,20 @@ class RealtimeCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: AppTypography.inter(14, weight: FontWeight.w500)),
+              Text(label, style: AppTypography.inter(fontSize: 14, weight: FontWeight.w500)),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(
                     displayText,
-                    style: AppTypography.inter(
-                      15,
+                    style: AppTypography.inter(fontSize: 15,
                       weight: FontWeight.w600,
                       color: measuring || latestValue > 0 ? Colors.white : kSec2,
                     ),
                   ),
                   const SizedBox(width: 4),
-                  Text(unitLabel, style: AppTypography.inter(11, color: kSec)),
+                  Text(unitLabel, style: AppTypography.inter(fontSize: 11, color: kSec)),
                 ],
               ),
             ],
@@ -81,8 +80,7 @@ class RealtimeCard extends StatelessWidget {
                       )
                     : Text(
                         'Click to start measurement',
-                        style: AppTypography.inter(
-                          14,
+                        style: AppTypography.inter(fontSize: 14,
                           weight: FontWeight.w500,
                           color: enabled ? Colors.white70 : kSec,
                         ),

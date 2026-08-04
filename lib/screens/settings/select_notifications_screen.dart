@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../services/notification_prefs.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/app_typography.dart';
 
 class SelectNotificationsScreen extends StatefulWidget {
   const SelectNotificationsScreen({super.key});
@@ -34,7 +34,7 @@ class _SelectNotificationsScreenState extends State<SelectNotificationsScreen> {
         leading: const GlassBackButton(),
         title: Text(
           'Notifications',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -51,7 +51,7 @@ class _SelectNotificationsScreenState extends State<SelectNotificationsScreen> {
             const SizedBox(height: 20),
             Text(
               'Choose your alerts',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: Colors.white,
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
@@ -60,7 +60,7 @@ class _SelectNotificationsScreenState extends State<SelectNotificationsScreen> {
             const SizedBox(height: 8),
             Text(
               'Select what metrics you would like to be notified about',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: AppTheme.textSec,
                 fontSize: 12,
                 height: 1.4,
@@ -69,7 +69,7 @@ class _SelectNotificationsScreenState extends State<SelectNotificationsScreen> {
             const SizedBox(height: 28),
             Text(
               'NOTIFICATIONS',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: AppTheme.textSec,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -122,7 +122,7 @@ class _AlertRow extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: Colors.white,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,

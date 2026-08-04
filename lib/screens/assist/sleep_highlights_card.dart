@@ -1,7 +1,7 @@
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_typography.dart';
 
 class SleepHighlightsCard extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -64,7 +64,7 @@ class SleepHighlightsCard extends StatelessWidget {
                       children: [
                         Text(
                           'SLEEP HIGHLIGHTS',
-                          style: GoogleFonts.inter(
+                          style: AppTypography.inter(
                             fontSize: 10,
                             fontWeight: FontWeight.w500,
                             letterSpacing: 0.14 * 10, // 0.14em
@@ -141,7 +141,7 @@ class SleepHighlightsCard extends StatelessWidget {
           flex: 4,
           child: Text(
             label,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 12.5,
               fontWeight: FontWeight.w400,
               color: const Color(0xEBFFFFFF), // rgba(255,255,255,0.92)
@@ -183,7 +183,7 @@ class SleepHighlightsCard extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: Text(
               _formatMinutes(mins),
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.w400,
                 color: const Color(0x73FFFFFF), // rgba(255,255,255,0.45)

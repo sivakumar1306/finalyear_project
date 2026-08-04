@@ -2,6 +2,7 @@ package com.medxai.sundr
 
 import android.app.Application
 import android.content.pm.ApplicationInfo
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.medxai.sundr.analysis.EmergencySmsSender
 import com.medxai.sundr.analysis.FallRiskAnalyzer
@@ -18,6 +19,12 @@ class QRingApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            Log.e("SundrCrash", "Uncaught on ${thread.name}", throwable)
+            previous?.uncaughtException(thread, throwable)
+        }
 
         ContextCompat.registerReceiver(
             applicationContext,

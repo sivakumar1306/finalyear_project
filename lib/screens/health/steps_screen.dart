@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
@@ -12,6 +11,7 @@ import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import '../settings/card_settings_screen.dart';
 import 'activity_description_screen.dart';
+import '../../widgets/app_typography.dart';
 
 // ── Design tokens ───────────────────────────────────────────────────────────
 const _kBg = Color(0xFF050505);
@@ -39,7 +39,7 @@ TextStyle _t(
   FontWeight w = FontWeight.w400,
   Color? c,
   double? ls,
-}) => GoogleFonts.inter(
+}) => AppTypography.inter(
   fontSize: s,
   fontWeight: w,
   color: c ?? Colors.white.withValues(alpha: 0.95),
@@ -1330,7 +1330,7 @@ class _BarPainter extends CustomPainter {
       final textPainter = TextPainter(
         text: TextSpan(
           text: valStr,
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             fontSize: 9,
             fontWeight: FontWeight.w700,
             color: Colors.white,

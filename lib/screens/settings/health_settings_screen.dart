@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_typography.dart';
 
 class HealthSettingsScreen extends StatefulWidget {
   const HealthSettingsScreen({super.key});
@@ -201,7 +201,7 @@ class _HealthSettingsScreenState extends State<HealthSettingsScreen> {
         backgroundColor: AppTheme.card2,
         content: Text(
           message,
-          style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+          style: AppTypography.inter(color: Colors.white, fontSize: 13),
         ),
       ),
     );
@@ -213,7 +213,7 @@ class _HealthSettingsScreenState extends State<HealthSettingsScreen> {
     padding: const EdgeInsets.fromLTRB(4, 24, 4, 10),
     child: Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: AppTypography.inter(
         color: AppTheme.textSec,
         fontSize: 11,
         fontWeight: FontWeight.w600,
@@ -259,7 +259,7 @@ class _HealthSettingsScreenState extends State<HealthSettingsScreen> {
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
@@ -269,7 +269,7 @@ class _HealthSettingsScreenState extends State<HealthSettingsScreen> {
                   const SizedBox(height: 3),
                   Text(
                     subtitle,
-                    style: GoogleFonts.inter(
+                    style: AppTypography.inter(
                       color: AppTheme.textSec,
                       fontSize: 11,
                       height: 1.4,
@@ -349,7 +349,7 @@ class _HealthSettingsScreenState extends State<HealthSettingsScreen> {
         color: AppTheme.textSec,
         size: 18,
       ),
-      style: GoogleFonts.inter(
+      style: AppTypography.inter(
         color: AppTheme.gold,
         fontSize: 13,
         fontWeight: FontWeight.w500,
@@ -367,7 +367,7 @@ class _HealthSettingsScreenState extends State<HealthSettingsScreen> {
       appBar: AppBar(
         title: Text(
           'Measurement Intervals',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -378,7 +378,7 @@ class _HealthSettingsScreenState extends State<HealthSettingsScreen> {
             onPressed: (connected && !_saving) ? _save : null,
             child: Text(
               _saving ? 'Saving…' : 'Save',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: (connected && !_saving)
                     ? AppTheme.gold
                     : AppTheme.textSec,
@@ -449,7 +449,7 @@ class _HealthSettingsScreenState extends State<HealthSettingsScreen> {
                           child: Text(
                             'Connect your ring to view and change the monitoring '
                             'settings below.',
-                            style: GoogleFonts.inter(
+                            style: AppTypography.inter(
                               color: AppTheme.textSec,
                               fontSize: 12,
                               height: 1.4,

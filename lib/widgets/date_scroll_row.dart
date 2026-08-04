@@ -54,7 +54,7 @@ class DateScrollRow extends StatelessWidget {
           ),
           child: Text(
             isToday ? 'Today, ${d.day} ${_months[d.month - 1]}' : '${d.day} ${_months[d.month - 1]}',
-            style: AppTypography.inter(13, weight: FontWeight.w500),
+            style: AppTypography.inter(fontSize: 13, weight: FontWeight.w500),
           ),
         ),
       );
@@ -66,7 +66,7 @@ class DateScrollRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Text(
           '${d.day}',
-          style: AppTypography.inter(15, color: isFuture ? const Color(0xFF333333) : kSec2),
+          style: AppTypography.inter(fontSize: 15, color: isFuture ? const Color(0xFF333333) : kSec2),
         ),
       ),
     );

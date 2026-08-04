@@ -1,10 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../screens/prayer/prayer_session_screen.dart';
 import '../theme/app_theme.dart';
 import '../config.dart';
+import '../widgets/app_typography.dart';
 
 enum PhoneMode { focus, base, prayer }
 
@@ -120,7 +120,7 @@ Future<void> requestPhoneMode(
                 Expanded(
                   child: Text(
                     'Prayer Mode Session',
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    style: AppTypography.inter(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
@@ -128,7 +128,7 @@ Future<void> requestPhoneMode(
             const SizedBox(height: 16),
             Text(
               'Select your preferred Prayer Session style. Both modes activate Do Not Disturb and track 13 dynamic vitals:',
-              style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13, height: 1.4),
+              style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13, height: 1.4),
             ),
             const SizedBox(height: 20),
 
@@ -163,12 +163,12 @@ Future<void> requestPhoneMode(
                         children: [
                           Text(
                             'Sedentary Prayer Mode',
-                            style: GoogleFonts.inter(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                            style: AppTypography.inter(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             'Stillness meditation & deep calm tracking',
-                            style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
+                            style: AppTypography.inter(color: AppTheme.textSec, fontSize: 12),
                           ),
                         ],
                       ),
@@ -209,12 +209,12 @@ Future<void> requestPhoneMode(
                         children: [
                           Text(
                             'Freestyle Prayer Mode',
-                            style: GoogleFonts.inter(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                            style: AppTypography.inter(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             'Active motion & vitals prayer tracking',
-                            style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 12),
+                            style: AppTypography.inter(color: AppTheme.textSec, fontSize: 12),
                           ),
                         ],
                       ),
@@ -229,7 +229,7 @@ Future<void> requestPhoneMode(
             Center(
               child: TextButton(
                 onPressed: () => Navigator.pop(ctx, 'cancel'),
-                child: Text('Cancel', style: GoogleFonts.inter(color: Colors.white38)),
+                child: Text('Cancel', style: AppTypography.inter(color: Colors.white38)),
               ),
             ),
           ],

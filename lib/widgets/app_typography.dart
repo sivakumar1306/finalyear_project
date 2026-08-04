@@ -1,19 +1,33 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+/// System font text styles. Method name kept for existing call sites.
 class AppTypography {
-  static TextStyle inter(
-    double size, {
-    FontWeight weight = FontWeight.w400,
-    Color color = Colors.white,
+  static const String? fontFamily = null;
+
+  static TextStyle inter({
+    double? fontSize,
+    FontWeight? fontWeight,
+    FontWeight? weight,
+    Color? color,
     double? letterSpacing,
     double? height,
+    TextDecoration? decoration,
+    Color? decorationColor,
+    FontStyle? fontStyle,
+    List<Shadow>? shadows,
+    TextOverflow? overflow,
   }) =>
-      GoogleFonts.inter(
-        fontSize: size,
-        fontWeight: weight,
+      TextStyle(
+        fontFamily: fontFamily,
+        fontSize: fontSize,
+        fontWeight: weight ?? fontWeight,
         color: color,
         letterSpacing: letterSpacing,
         height: height,
+        decoration: decoration,
+        decorationColor: decorationColor,
+        fontStyle: fontStyle,
+        shadows: shadows,
+        overflow: overflow,
       );
 }

@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/app_typography.dart';
 
 /// Premium interactive screen to locate your paired Vital Smart Ring.
 /// Triggers real-time ring vibration/flashing via SDK [findDevice], displays
@@ -134,7 +134,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
         leading: const GlassBackButton(),
         title: Text(
           'Find My Ring',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -252,7 +252,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
 
               Text(
                 _isRinging ? 'Alerting Ring...' : 'Locate Your Ring',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   color: Colors.white,
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
@@ -266,7 +266,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                       ? 'The ring is flashing and vibrating. Follow the light or vibration to locate it.'
                       : 'Tap the button below to trigger the ring\'s LED light and vibration alert.',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     color: AppTheme.textSec,
                     fontSize: 13,
                     height: 1.4,
@@ -313,7 +313,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                             const SizedBox(width: 10),
                             Text(
                               _isRinging ? 'Stop Alert' : 'Start Ringing / Flashing',
-                              style: GoogleFonts.inter(
+                              style: AppTypography.inter(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -356,7 +356,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                             const SizedBox(width: 10),
                             Text(
                               'Battery Level',
-                              style: GoogleFonts.inter(
+                              style: AppTypography.inter(
                                 color: Colors.white,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
@@ -366,7 +366,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                         ),
                         Text(
                           ble.battery >= 0 ? '$batteryPct%' : 'Checking...',
-                          style: GoogleFonts.inter(
+                          style: AppTypography.inter(
                             color: batteryPct > 20
                                 ? AppTheme.gold
                                 : Colors.redAccent,
@@ -480,7 +480,7 @@ class _DetailRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               color: AppTheme.textSec,
               fontSize: 13,
             ),
@@ -489,7 +489,7 @@ class _DetailRow extends StatelessWidget {
             children: [
               Text(
                 value,
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   color: valueColor ?? Colors.white,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,

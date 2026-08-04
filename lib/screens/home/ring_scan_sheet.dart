@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/app_typography.dart';
 
 // ── Alphahuman ring detection ─────────────────────────────────────────────────
 // Widened from a narrow allowlist of just 'R08_'/'R02_' (which only matched the
@@ -236,7 +236,7 @@ class _RingScanSheetState extends State<_RingScanSheet>
                       ),
                       Text(
                         'Pair Ring',
-                        style: GoogleFonts.inter(
+                        style: AppTypography.inter(
                           fontSize: 17,
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
@@ -312,7 +312,7 @@ class _SearchingBody extends StatelessWidget {
           child: Text(
             'Place your ring on the charger and check if your phone has Bluetooth on',
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 14,
               color: Colors.white60,
               height: 1.6,
@@ -355,7 +355,7 @@ class _SearchingBody extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 'SEARCHING FOR RING',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   color: Colors.white30,
@@ -367,7 +367,7 @@ class _SearchingBody extends StatelessWidget {
         else ...[
           Text(
             'No SUNDR rings found nearby',
-            style: GoogleFonts.inter(fontSize: 13, color: Colors.white38),
+            style: AppTypography.inter(fontSize: 13, color: Colors.white38),
           ),
           const SizedBox(height: 20),
           _GoldButton(label: 'Search Again', onTap: onRetry),
@@ -389,7 +389,7 @@ class _SearchingBody extends StatelessWidget {
                     onTap: onConnectLast,
                     child: Text(
                       'Connect to "$lastDeviceName" directly',
-                      style: GoogleFonts.inter(
+                      style: AppTypography.inter(
                         fontSize: 13,
                         color: AppTheme.gold,
                         decoration: TextDecoration.underline,
@@ -434,7 +434,7 @@ class _RingsFoundBody extends StatelessWidget {
             children: [
               Text(
                 'RINGS NEARBY',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: AppTheme.gold.withValues(alpha: 0.85),
@@ -477,7 +477,7 @@ class _RingsFoundBody extends StatelessWidget {
               onTap: onRescan,
               child: Text(
                 'Search Again',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   fontSize: 13,
                   color: Colors.white30,
                   decoration: TextDecoration.underline,
@@ -537,7 +537,7 @@ class _RingTile extends StatelessWidget {
               children: [
                 Text(
                   device.name,
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
@@ -554,7 +554,7 @@ class _RingTile extends StatelessWidget {
                     const SizedBox(width: 3),
                     Text(
                       '${device.rssi} dBm',
-                      style: GoogleFonts.inter(
+                      style: AppTypography.inter(
                         fontSize: 11,
                         color: _rssiColor(device.rssi),
                       ),
@@ -585,7 +585,7 @@ class _RingTile extends StatelessWidget {
                 const SizedBox(width: 5),
                 Text(
                   'Connected',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: AppTheme.success,
@@ -618,7 +618,7 @@ class _PermissionDeniedBody extends StatelessWidget {
           Text(
             'Bluetooth permission is required to scan for rings.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 14,
               color: Colors.white54,
               height: 1.5,
@@ -653,7 +653,7 @@ class _GoldButton extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             fontSize: 13,
             fontWeight: FontWeight.w600,
             color: AppTheme.gold,

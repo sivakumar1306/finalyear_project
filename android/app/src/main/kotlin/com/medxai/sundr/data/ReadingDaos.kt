@@ -50,6 +50,10 @@ interface HeartRateReadingDao {
 
     @Query("SELECT AVG(valueBpm) as avg, MIN(valueBpm) as min, MAX(valueBpm) as max, COUNT(*) as count FROM reading_heart_rate WHERE measuredAt BETWEEN :dayStart AND :dayEnd")
     suspend fun dailyAggregate(dayStart: Long, dayEnd: Long): DailyAggregate
+
+    // Drop synced rows older than retention; unsynced rows are kept until pushed.
+    @Query("DELETE FROM reading_heart_rate WHERE measuredAt < :cutoffMs AND syncedAt IS NOT NULL")
+    suspend fun purgeSyncedOlderThan(cutoffMs: Long): Int
 }
 
 @Dao
@@ -74,6 +78,9 @@ interface Spo2ReadingDao {
 
     @Query("SELECT AVG(valuePct) as avg, MIN(valuePct) as min, MAX(valuePct) as max, COUNT(*) as count FROM reading_spo2 WHERE measuredAt BETWEEN :dayStart AND :dayEnd")
     suspend fun dailyAggregate(dayStart: Long, dayEnd: Long): DailyAggregate
+
+    @Query("DELETE FROM reading_spo2 WHERE measuredAt < :cutoffMs AND syncedAt IS NOT NULL")
+    suspend fun purgeSyncedOlderThan(cutoffMs: Long): Int
 }
 
 @Dao
@@ -98,6 +105,9 @@ interface StressReadingDao {
 
     @Query("SELECT AVG(value) as avg, MIN(value) as min, MAX(value) as max, COUNT(*) as count FROM reading_stress WHERE measuredAt BETWEEN :dayStart AND :dayEnd")
     suspend fun dailyAggregate(dayStart: Long, dayEnd: Long): DailyAggregate
+
+    @Query("DELETE FROM reading_stress WHERE measuredAt < :cutoffMs AND syncedAt IS NOT NULL")
+    suspend fun purgeSyncedOlderThan(cutoffMs: Long): Int
 }
 
 @Dao
@@ -127,6 +137,9 @@ interface BloodPressureReadingDao {
         FROM reading_blood_pressure WHERE measuredAt BETWEEN :dayStart AND :dayEnd
     """)
     suspend fun dailyAggregate(dayStart: Long, dayEnd: Long): BpDailyAggregate
+
+    @Query("DELETE FROM reading_blood_pressure WHERE measuredAt < :cutoffMs AND syncedAt IS NOT NULL")
+    suspend fun purgeSyncedOlderThan(cutoffMs: Long): Int
 }
 
 @Dao
@@ -151,6 +164,9 @@ interface HrvReadingDao {
 
     @Query("SELECT AVG(valueMs) as avg, MIN(valueMs) as min, MAX(valueMs) as max, COUNT(*) as count FROM reading_hrv WHERE measuredAt BETWEEN :dayStart AND :dayEnd")
     suspend fun dailyAggregate(dayStart: Long, dayEnd: Long): DailyAggregate
+
+    @Query("DELETE FROM reading_hrv WHERE measuredAt < :cutoffMs AND syncedAt IS NOT NULL")
+    suspend fun purgeSyncedOlderThan(cutoffMs: Long): Int
 }
 
 @Dao
@@ -175,6 +191,9 @@ interface TemperatureReadingDao {
 
     @Query("SELECT AVG(valueC) as avg, MIN(valueC) as min, MAX(valueC) as max, COUNT(*) as count FROM reading_temperature WHERE measuredAt BETWEEN :dayStart AND :dayEnd")
     suspend fun dailyAggregate(dayStart: Long, dayEnd: Long): DailyAggregateDouble
+
+    @Query("DELETE FROM reading_temperature WHERE measuredAt < :cutoffMs AND syncedAt IS NOT NULL")
+    suspend fun purgeSyncedOlderThan(cutoffMs: Long): Int
 }
 
 data class DailyAggregateDouble(val avg: Double?, val min: Double?, val max: Double?, val count: Int)
@@ -189,6 +208,9 @@ interface FallRiskLogDao {
 
     @Query("SELECT * FROM fall_risk_log WHERE computedAt BETWEEN :fromMs AND :toMs ORDER BY computedAt DESC LIMIT :limit")
     suspend fun recent(fromMs: Long, toMs: Long, limit: Int): List<FallRiskLogEntity>
+
+    @Query("DELETE FROM fall_risk_log WHERE computedAt < :cutoffMs")
+    suspend fun purgeOlderThan(cutoffMs: Long): Int
 }
 
 @Dao
@@ -201,6 +223,9 @@ interface FallEventDao {
 
     @Query("SELECT * FROM fall_event WHERE detectedAt BETWEEN :fromMs AND :toMs ORDER BY detectedAt DESC LIMIT :limit")
     suspend fun recent(fromMs: Long, toMs: Long, limit: Int): List<FallEventEntity>
+
+    @Query("DELETE FROM fall_event WHERE detectedAt < :cutoffMs")
+    suspend fun purgeOlderThan(cutoffMs: Long): Int
 }
 
 @Dao
@@ -263,4 +288,7 @@ interface StepsSnapshotDao {
         WHERE capturedAt BETWEEN :dayStart AND :dayEnd ORDER BY steps DESC LIMIT 1
     """)
     suspend fun dailyMax(dayStart: Long, dayEnd: Long): DailyStepsAggregate?
+
+    @Query("DELETE FROM reading_steps_snapshot WHERE capturedAt < :cutoffMs AND syncedAt IS NOT NULL")
+    suspend fun purgeSyncedOlderThan(cutoffMs: Long): Int
 }

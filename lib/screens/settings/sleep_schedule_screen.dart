@@ -1,11 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/analog_clock_picker.dart';
 import '../../widgets/glass_header.dart';
 import '../../widgets/glass_icon_button.dart';
+import '../../widgets/app_typography.dart';
 
 // Same keys as Alarms & Notifications — native reconnect loop reads these
 // from FlutterSharedPreferences for the daily sleep reminder.
@@ -121,7 +121,7 @@ class _SleepScheduleScreenState extends State<SleepScheduleScreen> {
           padding: const EdgeInsets.fromLTRB(28, 18, 28, 12),
           child: Text(
             'REMINDER TIME',
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 10,
               fontWeight: FontWeight.w500,
               letterSpacing: 2.0,
@@ -146,7 +146,7 @@ class _SleepScheduleScreenState extends State<SleepScheduleScreen> {
               children: [
                 Text(
                   'REMINDER',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1.2,
@@ -156,7 +156,7 @@ class _SleepScheduleScreenState extends State<SleepScheduleScreen> {
                 const SizedBox(height: 3),
                 Text(
                   _fmt(_time),
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: Colors.white.withValues(alpha: 0.95),
@@ -174,7 +174,7 @@ class _SleepScheduleScreenState extends State<SleepScheduleScreen> {
               children: [
                 Text(
                   _fmt(_time),
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 34,
                     fontWeight: FontWeight.w300,
                     color: Colors.white,
@@ -188,7 +188,7 @@ class _SleepScheduleScreenState extends State<SleepScheduleScreen> {
                 const SizedBox(height: 28),
                 Text(
                   'You\'ll be reminded to wind down at ${_fmt(_time)}',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 12,
                     color: Colors.white.withValues(alpha: 0.42),
                   ),

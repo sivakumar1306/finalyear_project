@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
@@ -12,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../models/womens_health_models.dart';
 import '../../services/womens_health_prediction_service.dart';
+import '../../widgets/app_typography.dart';
 
 // ── Design tokens (glass card system per DESIGN.md) ────────────────────────
 
@@ -28,7 +28,7 @@ TextStyle _inter(
   Color color = Colors.white,
   double? letterSpacing,
   double? height,
-}) => GoogleFonts.inter(
+}) => AppTypography.inter(
   fontSize: size,
   fontWeight: weight,
   color: color,

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import 'profile_edit_screen.dart';
+import '../../widgets/app_typography.dart';
 
 class AccountSystemSettingsScreen extends StatelessWidget {
   const AccountSystemSettingsScreen({super.key});
@@ -21,7 +21,7 @@ class AccountSystemSettingsScreen extends StatelessWidget {
         leading: const GlassBackButton(),
         title: Text(
           'Account & System settings',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -134,7 +134,7 @@ class AccountSystemSettingsScreen extends StatelessWidget {
 
   Widget _sectionLabel(String text) => Text(
         text,
-        style: GoogleFonts.inter(
+        style: AppTypography.inter(
           color: AppTheme.textSec,
           fontSize: 11,
           fontWeight: FontWeight.w600,
@@ -151,19 +151,19 @@ class AccountSystemSettingsScreen extends StatelessWidget {
         backgroundColor: AppTheme.card2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Log out',
-            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+            style: AppTypography.inter(color: Colors.white, fontWeight: FontWeight.w600)),
         content: Text(
             'Logging out clears your session and all personal data stored on this device (health history, emergency contacts, ring pairing). Are you sure?',
-            style: GoogleFonts.inter(color: AppTheme.textSec)),
+            style: AppTypography.inter(color: AppTheme.textSec)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+            child: Text('Cancel', style: AppTypography.inter(color: AppTheme.textSec)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text('Log out',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                     color: AppTheme.danger, fontWeight: FontWeight.w600)),
           ),
         ],
@@ -190,23 +190,23 @@ class AccountSystemSettingsScreen extends StatelessWidget {
             backgroundColor: AppTheme.card2,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Text('Delete Account',
-                style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+                style: AppTypography.inter(color: Colors.white, fontWeight: FontWeight.w600)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'This action is permanent and cannot be undone. All your health data and settings will be permanently erased. Please enter your password to confirm.',
-                  style: GoogleFonts.inter(color: AppTheme.textSec),
+                  style: AppTypography.inter(color: AppTheme.textSec),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: passwordController,
                   obscureText: true,
-                  style: GoogleFonts.inter(color: Colors.white),
+                  style: AppTypography.inter(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: 'Password',
-                    hintStyle: GoogleFonts.inter(color: AppTheme.textSec),
+                    hintStyle: AppTypography.inter(color: AppTheme.textSec),
                     filled: true,
                     fillColor: AppTheme.card,
                     border: OutlineInputBorder(
@@ -221,7 +221,7 @@ class AccountSystemSettingsScreen extends StatelessWidget {
               if (!isLoading)
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+                  child: Text('Cancel', style: AppTypography.inter(color: AppTheme.textSec)),
                 ),
               TextButton(
                 onPressed: isLoading
@@ -250,7 +250,7 @@ class AccountSystemSettingsScreen extends StatelessWidget {
                 child: isLoading
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.danger))
                     : Text('Delete Permanently',
-                        style: GoogleFonts.inter(color: AppTheme.danger, fontWeight: FontWeight.w600)),
+                        style: AppTypography.inter(color: AppTheme.danger, fontWeight: FontWeight.w600)),
               ),
             ],
           );
@@ -273,19 +273,19 @@ class AccountSystemSettingsScreen extends StatelessWidget {
         backgroundColor: AppTheme.card2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Factory Reset Ring',
-            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+            style: AppTypography.inter(color: Colors.white, fontWeight: FontWeight.w600)),
         content: Text(
             'This will restore the ring to factory default settings and erase stored ring metrics. Are you sure?',
-            style: GoogleFonts.inter(color: AppTheme.textSec)),
+            style: AppTypography.inter(color: AppTheme.textSec)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+            child: Text('Cancel', style: AppTypography.inter(color: AppTheme.textSec)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text('Reset',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                     color: AppTheme.danger, fontWeight: FontWeight.w600)),
           ),
         ],
@@ -317,19 +317,19 @@ class AccountSystemSettingsScreen extends StatelessWidget {
         backgroundColor: AppTheme.card2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Shut Down Ring',
-            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+            style: AppTypography.inter(color: Colors.white, fontWeight: FontWeight.w600)),
         content: Text(
             'This will power off the ring. You will need to place it on its charger to turn it back on. Continue?',
-            style: GoogleFonts.inter(color: AppTheme.textSec)),
+            style: AppTypography.inter(color: AppTheme.textSec)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textSec)),
+            child: Text('Cancel', style: AppTypography.inter(color: AppTheme.textSec)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text('Shut Down',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                     color: AppTheme.danger, fontWeight: FontWeight.w600)),
           ),
         ],
@@ -387,7 +387,7 @@ class _AccountRow extends StatelessWidget {
             Expanded(
               child: Text(
                 title,
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   color: titleColor ?? Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
@@ -399,7 +399,7 @@ class _AccountRow extends StatelessWidget {
               Flexible(
                 child: Text(
                   value!,
-                  style: GoogleFonts.inter(color: AppTheme.textSec, fontSize: 13),
+                  style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
                   textAlign: TextAlign.end,

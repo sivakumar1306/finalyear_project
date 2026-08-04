@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../services/chat_api_service.dart';
 import 'key_change_card.dart';
+import '../../widgets/app_typography.dart';
 
 class InsightsHeader extends StatefulWidget {
   const InsightsHeader({super.key});
@@ -88,7 +88,7 @@ class InsightsHeaderState extends State<InsightsHeader>
           Center(
             child: Text(
               'AI Assist',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.02 * 20,
@@ -134,7 +134,7 @@ class InsightsHeaderState extends State<InsightsHeader>
         // Eyebrow label
         Text(
           'YOUR LAST ${_rangeLabel(_selectedRange)}',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             fontSize: 10,
             fontWeight: FontWeight.w500,
             letterSpacing: 0.2 * 10,
@@ -147,7 +147,7 @@ class InsightsHeaderState extends State<InsightsHeader>
         // Headline (dynamic, built from headline_parts)
         RichText(
           text: TextSpan(
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 21,
               fontWeight: FontWeight.w400,
               height: 1.30,
@@ -159,7 +159,7 @@ class InsightsHeaderState extends State<InsightsHeader>
                 TextSpan(
                   text: part['text'] as String? ?? '',
                   style: (part['highlight'] == true)
-                      ? GoogleFonts.inter(
+                      ? AppTypography.inter(
                           color: AppTheme.goldAccent,
                           fontWeight: FontWeight.w400,
                         )
@@ -173,7 +173,7 @@ class InsightsHeaderState extends State<InsightsHeader>
           const SizedBox(height: 8),
           Text(
             subtext,
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 12.5,
               fontWeight: FontWeight.w400,
               height: 1.50,
@@ -189,7 +189,7 @@ class InsightsHeaderState extends State<InsightsHeader>
             updates.any((u) => u['alarming'] == true)
                 ? 'NEEDS ATTENTION'
                 : 'KEY CHANGES',
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 10,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.2 * 10,
@@ -235,7 +235,7 @@ class InsightsHeaderState extends State<InsightsHeader>
   Widget _buildFallback() {
     return Text(
       'Your trends will appear here once we have enough recent readings.',
-      style: GoogleFonts.inter(
+      style: AppTypography.inter(
         fontSize: 12.5,
         fontWeight: FontWeight.w400,
         height: 1.50,

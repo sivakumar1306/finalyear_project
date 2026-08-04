@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/main_tab_provider.dart';
@@ -10,6 +9,8 @@ import 'home/home_screen.dart';
 import 'settings/settings_screen.dart';
 import 'workouts/active_workout_screen.dart';
 import 'assist/chat_screen.dart';
+import '../widgets/app_typography.dart';
+
 
 // ── Apple-style transitions ───────────────────────────────────────────────────
 //
@@ -242,9 +243,6 @@ class _MainShellState extends State<MainShell> {
       ),
       child: Scaffold(
         backgroundColor: const Color.fromRGBO(8, 8, 8, 1),
-        // Without this, Scaffold reserves space and stops `body` short of
-        // bottomNavigationBar — so the BackdropFilter behind the pill only
-        // ever blurs empty black Scaffold background, not scrolled content.
         extendBody: true,
         body: PageView(
           controller: _pageController,
@@ -257,15 +255,17 @@ class _MainShellState extends State<MainShell> {
               context.read<MainTabProvider>().setTab(nextTab);
             }
           },
-          children: const [
-            _KeepAlivePage(child: HomeScreen()),
-            _KeepAlivePage(child: SettingsScreen()),
+          children: [
+            const _KeepAlivePage(child: HomeScreen()),
+            _LazyKeepAlivePage(builder: (_) => const SettingsScreen()),
           ],
         ),
-        bottomNavigationBar: _BottomNav(
-          selected: tab,
-          onTap: _onTabTap,
-          onAssistTap: _openAiAssist,
+        bottomNavigationBar: RepaintBoundary(
+          child: _BottomNav(
+            selected: tab,
+            onTap: _onTabTap,
+            onAssistTap: _openAiAssist,
+          ),
         ),
       ),
     );
@@ -291,6 +291,32 @@ class _KeepAlivePageState extends State<_KeepAlivePage>
   Widget build(BuildContext context) {
     super.build(context);
     return widget.child;
+  }
+}
+
+class _LazyKeepAlivePage extends StatefulWidget {
+  final WidgetBuilder builder;
+  const _LazyKeepAlivePage({required this.builder});
+
+  @override
+  State<_LazyKeepAlivePage> createState() => _LazyKeepAlivePageState();
+}
+
+class _LazyKeepAlivePageState extends State<_LazyKeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  Widget? _child;
+
+  @override
+  bool get wantKeepAlive => _child != null;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (_child == null) {
+      _child = widget.builder(context);
+      updateKeepAlive();
+    }
+    return _child!;
   }
 }
 
@@ -439,7 +465,7 @@ class _NavTabState extends State<_NavTab> {
               AnimatedDefaultTextStyle(
                 duration: const Duration(milliseconds: 280),
                 curve: Curves.easeOutCubic,
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.w400,
                   color: color,

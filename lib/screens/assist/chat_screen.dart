@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/main_tab_provider.dart';
@@ -17,6 +16,7 @@ import 'blood_oxygen_chat_card.dart';
 import 'hrv_chat_card.dart';
 import 'blood_pressure_chat_card.dart';
 import 'steps_chat_card.dart';
+import '../../widgets/app_typography.dart';
 
 // Persist the active conversation id per-user so the thread survives an
 // app close/reopen. Keyed by user id so switching accounts doesn't leak
@@ -134,14 +134,14 @@ class _ChatScreenState extends State<ChatScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Start a new chat?',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: Colors.white,
             fontWeight: FontWeight.w600,
           ),
         ),
         content: Text(
           'This clears the current conversation from view. Your history isn\'t deleted.',
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: const Color(0x99FFFFFF),
             fontSize: 13,
           ),
@@ -151,14 +151,14 @@ class _ChatScreenState extends State<ChatScreen> {
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               'Cancel',
-              style: GoogleFonts.inter(color: const Color(0x99FFFFFF)),
+              style: AppTypography.inter(color: const Color(0x99FFFFFF)),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
               'Start new',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 color: AppTheme.goldAccent,
                 fontWeight: FontWeight.w600,
               ),
@@ -388,7 +388,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                       ),
                                       child: Text(
                                         'AI ASSIST',
-                                        style: GoogleFonts.inter(
+                                        style: AppTypography.inter(
                                           fontSize: 10,
                                           fontWeight: FontWeight.w500,
                                           letterSpacing: 0.12 * 10,
@@ -463,7 +463,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                           const SizedBox(width: 6),
                                           Text(
                                             'New chat',
-                                            style: GoogleFonts.inter(
+                                            style: AppTypography.inter(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w500,
                                               color: const Color(0xCCFFFFFF),
@@ -613,7 +613,7 @@ class _ChatScreenState extends State<ChatScreen> {
               const SizedBox(height: 16),
               Text(
                 'AI Assist',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   color: Colors.white,
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
@@ -622,7 +622,7 @@ class _ChatScreenState extends State<ChatScreen> {
               const SizedBox(height: 8),
               Text(
                 'Ask me anything about your health',
-                style: GoogleFonts.inter(
+                style: AppTypography.inter(
                   color: const Color(0x85FFFFFF), // rgba(255,255,255,0.52)
                   fontSize: 14,
                 ),
@@ -670,7 +670,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         child: Text(
           content,
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             fontSize: 13,
             fontWeight: FontWeight.w400,
             height: 1.50,
@@ -692,7 +692,7 @@ class _ChatScreenState extends State<ChatScreen> {
             padding: const EdgeInsets.only(left: 6, bottom: 4),
             child: Text(
               'AI ASSIST',
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 0.12 * 10,
@@ -724,7 +724,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             child: Text(
               content,
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w400,
                 height: 1.50,
@@ -778,14 +778,14 @@ class _ChatScreenState extends State<ChatScreen> {
                           controller: _controller,
                           onSubmitted: (_) => _sendMessage(),
                           enabled: !_isLoading,
-                          style: GoogleFonts.inter(
+                          style: AppTypography.inter(
                             color: Colors.white,
                             fontSize: 13,
                           ),
                           decoration: InputDecoration(
                             isDense: true,
                             hintText: 'Ask about your health ...',
-                            hintStyle: GoogleFonts.inter(
+                            hintStyle: AppTypography.inter(
                               fontSize: 13,
                               fontWeight: FontWeight.w400,
                               letterSpacing: -0.005 * 13,
@@ -885,7 +885,7 @@ class _SuggestionChip extends StatelessWidget {
         ),
         child: Text(
           text,
-          style: GoogleFonts.inter(
+          style: AppTypography.inter(
             color: const Color(0x85FFFFFF), // rgba(255,255,255,0.52)
             fontSize: 13,
             fontWeight: FontWeight.w400,

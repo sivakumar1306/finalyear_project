@@ -1,11 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../services/prayer_schedule_prefs.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/analog_clock_picker.dart';
 import '../../widgets/glass_header.dart';
 import '../../widgets/glass_icon_button.dart';
+import '../../widgets/app_typography.dart';
 
 /// Prayer Mode's quiet-hours scheduler — a clean drag-to-set analog clock
 /// for the start and end time, reached via the pencil icon on the Prayer
@@ -103,7 +103,7 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
           padding: const EdgeInsets.fromLTRB(28, 18, 28, 12),
           child: Text(
             'QUIET HOURS',
-            style: GoogleFonts.inter(
+            style: AppTypography.inter(
               fontSize: 10,
               fontWeight: FontWeight.w500,
               letterSpacing: 2.0,
@@ -158,7 +158,7 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
               children: [
                 Text(
                   _fmt(current),
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 34,
                     fontWeight: FontWeight.w300,
                     color: Colors.white,
@@ -173,7 +173,7 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
                 const SizedBox(height: 28),
                 Text(
                   'Notifications stay silent from ${_fmt(_start)} to ${_fmt(_end)}',
-                  style: GoogleFonts.inter(
+                  style: AppTypography.inter(
                     fontSize: 12,
                     color: Colors.white.withValues(alpha: 0.42),
                   ),
@@ -215,7 +215,7 @@ class _PeriodTab extends StatelessWidget {
           children: [
             Text(
               label.toUpperCase(),
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 1.2,
@@ -227,7 +227,7 @@ class _PeriodTab extends StatelessWidget {
             const SizedBox(height: 3),
             Text(
               value,
-              style: GoogleFonts.inter(
+              style: AppTypography.inter(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: Colors.white.withValues(alpha: selected ? 0.95 : 0.55),
