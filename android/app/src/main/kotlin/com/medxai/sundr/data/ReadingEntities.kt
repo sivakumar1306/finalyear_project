@@ -23,7 +23,8 @@ data class MeasurementCycleEntity(
     @SerializedName("abortedAtVital") val abortedAtVital: String? = null
 )
 
-// source: "auto_cycle" | "manual" | "workout"
+// source: "auto_cycle" | "manual" | "workout" | "demo_seed" | "cloud_cache"
+// deviceAddress / extraJson enrich offline detail without requiring cloud.
 @Entity(tableName = "reading_heart_rate", indices = [Index("measuredAt"), Index("syncedAt")])
 data class HeartRateReadingEntity(
     @PrimaryKey(autoGenerate = true) @SerializedName("id") val id: Long = 0,
@@ -31,7 +32,9 @@ data class HeartRateReadingEntity(
     @SerializedName("measuredAt") val measuredAt: Long,
     @SerializedName("cycleId") val cycleId: Long,
     @SerializedName("source") val source: String,
-    @SerializedName("syncedAt") val syncedAt: Long? = null
+    @SerializedName("syncedAt") val syncedAt: Long? = null,
+    @SerializedName("deviceAddress") val deviceAddress: String? = null,
+    @SerializedName("extraJson") val extraJson: String? = null
 )
 
 @Entity(tableName = "reading_spo2", indices = [Index("measuredAt"), Index("syncedAt")])
@@ -41,7 +44,9 @@ data class Spo2ReadingEntity(
     @SerializedName("measuredAt") val measuredAt: Long,
     @SerializedName("cycleId") val cycleId: Long,
     @SerializedName("source") val source: String,
-    @SerializedName("syncedAt") val syncedAt: Long? = null
+    @SerializedName("syncedAt") val syncedAt: Long? = null,
+    @SerializedName("deviceAddress") val deviceAddress: String? = null,
+    @SerializedName("extraJson") val extraJson: String? = null
 )
 
 @Entity(tableName = "reading_stress", indices = [Index("measuredAt"), Index("syncedAt")])
@@ -52,7 +57,9 @@ data class StressReadingEntity(
     @SerializedName("measuredAt") val measuredAt: Long,
     @SerializedName("cycleId") val cycleId: Long,
     @SerializedName("source") val source: String,
-    @SerializedName("syncedAt") val syncedAt: Long? = null
+    @SerializedName("syncedAt") val syncedAt: Long? = null,
+    @SerializedName("deviceAddress") val deviceAddress: String? = null,
+    @SerializedName("extraJson") val extraJson: String? = null
 )
 
 @Entity(tableName = "reading_blood_pressure", indices = [Index("measuredAt"), Index("syncedAt")])
@@ -63,7 +70,9 @@ data class BloodPressureReadingEntity(
     @SerializedName("measuredAt") val measuredAt: Long,
     @SerializedName("cycleId") val cycleId: Long,
     @SerializedName("source") val source: String,
-    @SerializedName("syncedAt") val syncedAt: Long? = null
+    @SerializedName("syncedAt") val syncedAt: Long? = null,
+    @SerializedName("deviceAddress") val deviceAddress: String? = null,
+    @SerializedName("extraJson") val extraJson: String? = null
 )
 
 @Entity(tableName = "reading_hrv", indices = [Index("measuredAt"), Index("syncedAt")])
@@ -73,7 +82,9 @@ data class HrvReadingEntity(
     @SerializedName("measuredAt") val measuredAt: Long,
     @SerializedName("cycleId") val cycleId: Long,
     @SerializedName("source") val source: String,
-    @SerializedName("syncedAt") val syncedAt: Long? = null
+    @SerializedName("syncedAt") val syncedAt: Long? = null,
+    @SerializedName("deviceAddress") val deviceAddress: String? = null,
+    @SerializedName("extraJson") val extraJson: String? = null
 )
 
 // Schema present now; table stays empty until Vital.TEMPERATURE is enabled via MeasurementConfig.
@@ -84,7 +95,9 @@ data class TemperatureReadingEntity(
     @SerializedName("measuredAt") val measuredAt: Long,
     @SerializedName("cycleId") val cycleId: Long,
     @SerializedName("source") val source: String,
-    @SerializedName("syncedAt") val syncedAt: Long? = null
+    @SerializedName("syncedAt") val syncedAt: Long? = null,
+    @SerializedName("deviceAddress") val deviceAddress: String? = null,
+    @SerializedName("extraJson") val extraJson: String? = null
 )
 
 // One row per cycle, holding the ring's cumulative day-total as of that fetch —
@@ -98,7 +111,9 @@ data class StepsSnapshotEntity(
     @SerializedName("capturedAt") val capturedAt: Long,
     @SerializedName("cycleId") val cycleId: Long,
     @SerializedName("source") val source: String,
-    @SerializedName("syncedAt") val syncedAt: Long? = null
+    @SerializedName("syncedAt") val syncedAt: Long? = null,
+    @SerializedName("deviceAddress") val deviceAddress: String? = null,
+    @SerializedName("extraJson") val extraJson: String? = null
 )
 
 // Phase 1 of the fall-risk feature — computed silently on every NewReadingEvent and logged
@@ -150,4 +165,33 @@ data class PhoneModeSessionEntity(
     @SerializedName("mode") val mode: String,
     @SerializedName("startedAt") val startedAt: Long,
     @SerializedName("endedAt") val endedAt: Long? = null
+)
+
+// Offline-first daily rollups. Recomputed from raw Room readings on insert, and can also
+// cache cloud day-rows so 7-day trends / past-day picks work without network.
+// Primary key is (vital, dayEpochMs) where dayEpochMs is local-midnight start.
+@Entity(
+    tableName = "daily_vital_summary",
+    primaryKeys = ["vital", "dayEpochMs"],
+    indices = [Index("vital"), Index("dayEpochMs"), Index("dateStr")]
+)
+data class DailyVitalSummaryEntity(
+    @SerializedName("vital") val vital: String,
+    @SerializedName("dayEpochMs") val dayEpochMs: Long,
+    @SerializedName("dateStr") val dateStr: String,
+    @SerializedName("avg") val avg: Double? = null,
+    @SerializedName("min") val min: Double? = null,
+    @SerializedName("max") val max: Double? = null,
+    @SerializedName("count") val count: Int = 0,
+    // BP secondary (diastolic) or unused for single-value vitals
+    @SerializedName("avgSecondary") val avgSecondary: Double? = null,
+    @SerializedName("minSecondary") val minSecondary: Double? = null,
+    @SerializedName("maxSecondary") val maxSecondary: Double? = null,
+    // Steps-only extras
+    @SerializedName("steps") val steps: Int? = null,
+    @SerializedName("caloriesKcal") val caloriesKcal: Int? = null,
+    @SerializedName("distanceM") val distanceM: Double? = null,
+    // local = derived from Room raw rows; cloud_cache = mirrored from Supabase for offline
+    @SerializedName("origin") val origin: String = "local",
+    @SerializedName("updatedAt") val updatedAt: Long = System.currentTimeMillis()
 )

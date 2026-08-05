@@ -98,7 +98,7 @@ class _SplashScreenState extends State<SplashScreen> {
               child: Column(
                 children: [
                   const Spacer(flex: 2),
-                  Image.asset('ring.png', height: 200),
+                  Image.asset('ring.webp', height: 200),
                   const SizedBox(height: 28),
                   const Text(
                     'SUNDR',

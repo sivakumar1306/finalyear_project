@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'supabase_service.dart';
@@ -22,8 +23,15 @@ class IncidentService {
     Map<String, dynamic>? extraInfo,
   }) async {
     try {
-      final user = SupabaseService.client.auth.currentUser;
-      final userId = user?.id;
+      // Never block UI / crash path on network; always log locally first.
+      debugPrint('[IncidentService] $source: ${customMessage ?? error}');
+
+      String? userId;
+      try {
+        userId = SupabaseService.client.auth.currentUser?.id;
+      } catch (_) {
+        // Supabase may not be initialized yet during early bootstrap crashes.
+      }
 
       final deviceInfo = <String, dynamic>{
         'platform': kIsWeb ? 'web' : Platform.operatingSystem,
@@ -43,9 +51,10 @@ class IncidentService {
         payload['user_id'] = userId;
       }
 
-      debugPrint('[IncidentService] Reporting incident to Supabase: ${payload['message']}');
-
-      await SupabaseService.client.from('app_incidents').insert(payload);
+      await SupabaseService.client
+          .from('app_incidents')
+          .insert(payload)
+          .timeout(const Duration(seconds: 5));
     } catch (e, st) {
       // Incident reporting itself must never throw or crash the host app.
       debugPrint('[IncidentService] Failed to record incident to Supabase: $e\n$st');

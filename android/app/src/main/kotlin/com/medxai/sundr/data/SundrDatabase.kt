@@ -18,9 +18,11 @@ import androidx.room.RoomDatabase
         FallRiskLogEntity::class,
         FallEventEntity::class,
         EmergencyContactEntity::class,
-        PhoneModeSessionEntity::class
+        PhoneModeSessionEntity::class,
+        DailyVitalSummaryEntity::class
     ],
-    version = 6,
+    // v7: daily_vital_summary offline rollups + richer reading metadata fields
+    version = 7,
     exportSchema = false
 )
 abstract class QRingDatabase : RoomDatabase() {
@@ -36,6 +38,7 @@ abstract class QRingDatabase : RoomDatabase() {
     abstract fun fallEventDao(): FallEventDao
     abstract fun emergencyContactDao(): EmergencyContactDao
     abstract fun phoneModeSessionDao(): PhoneModeSessionDao
+    abstract fun dailyVitalSummaryDao(): DailyVitalSummaryDao
 
     companion object {
         @Volatile private var INSTANCE: QRingDatabase? = null

@@ -2,6 +2,7 @@ package com.medxai.sundr.data
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 
 data class DailyAggregate(val avg: Double?, val min: Int?, val max: Int?, val count: Int)
@@ -291,4 +292,29 @@ interface StepsSnapshotDao {
 
     @Query("DELETE FROM reading_steps_snapshot WHERE capturedAt < :cutoffMs AND syncedAt IS NOT NULL")
     suspend fun purgeSyncedOlderThan(cutoffMs: Long): Int
+}
+
+@Dao
+interface DailyVitalSummaryDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: DailyVitalSummaryEntity)
+
+    @Query("SELECT * FROM daily_vital_summary WHERE vital = :vital AND dayEpochMs = :dayEpochMs LIMIT 1")
+    suspend fun get(vital: String, dayEpochMs: Long): DailyVitalSummaryEntity?
+
+    @Query(
+        "SELECT * FROM daily_vital_summary WHERE vital = :vital AND dayEpochMs BETWEEN :fromMs AND :toMs " +
+            "ORDER BY dayEpochMs ASC"
+    )
+    suspend fun between(vital: String, fromMs: Long, toMs: Long): List<DailyVitalSummaryEntity>
+
+    @Query("SELECT COUNT(*) FROM daily_vital_summary")
+    suspend fun count(): Int
+
+    @Query("DELETE FROM daily_vital_summary WHERE dayEpochMs < :cutoffMs AND origin = 'cloud_cache'")
+    suspend fun purgeOldCloudCache(cutoffMs: Long): Int
+
+    // Keep local-origin rollups longer than raw readings so trends survive raw purge.
+    @Query("DELETE FROM daily_vital_summary WHERE dayEpochMs < :cutoffMs AND origin = 'local'")
+    suspend fun purgeOldLocal(cutoffMs: Long): Int
 }

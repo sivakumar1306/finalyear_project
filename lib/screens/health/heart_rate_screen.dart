@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/local_vitals_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_menu.dart';
@@ -45,6 +46,7 @@ class HeartRateScreen extends StatefulWidget {
 
 class _HeartRateScreenState extends State<HeartRateScreen> {
   final _ble = BleService();
+  final _local = LocalVitalsService();
   final _moreButtonKey = GlobalKey();
   final _screenshotKey = GlobalKey();
 
@@ -245,97 +247,172 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     } catch (_) {}
   }
 
-  // ── Supabase fetches ──────────────────────────────────────────────────────────
+  // ── Local-first day / trend (cloud only fills gaps + refreshes cache) ──────
 
   Future<void> _loadDayFromSupabase(DateTime date) async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
     setState(() {
       _loadingDay = true;
       _dayOffline = false;
     });
     try {
-      final row = await SupabaseService.getHrForDate(user.id, date);
-      
-      final dayStart = DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
-      final dayEnd = DateTime(date.year, date.month, date.day, 23, 59, 59, 999).millisecondsSinceEpoch;
-      final readingsJson = await _ble.getReadings('heart_rate', fromMs: dayStart, toMs: dayEnd, limit: 1000);
-      final decoded = jsonDecode(readingsJson);
-      final list = decoded is List ? decoded : <dynamic>[];
-      
-      final hourly = List<int>.filled(24, 0);
-      final sums = List<int>.filled(24, 0);
-      final counts = List<int>.filled(24, 0);
-      for (final item in list) {
-        final m = item as Map<String, dynamic>;
-        final bpm = (m['valueBpm'] as num? ?? 0).toInt();
-        final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-        if (bpm <= 0 || measuredAt <= 0) continue;
-        final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
-        sums[h] += bpm;
-        counts[h] += 1;
-      }
-      for (int h = 0; h < 24; h++) {
-        if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
-      }
+      // 1) Local Room first — works offline.
+      final local = await _local.getDaySummary('heart_rate', date);
+      final localReadings = await _local.getReadings('heart_rate', date);
+      final hourly = _hourlyFromHrReadings(localReadings);
 
       if (!mounted) return;
-      if (row != null) {
+      if (_local.hasData(local)) {
         setState(() {
-          _dayAvg = (row['avg_hr'] as num? ?? 0).toInt();
-          _dayMin = (row['min_hr'] as num? ?? 0).toInt();
-          _dayMax = (row['max_hr'] as num? ?? 0).toInt();
+          _dayAvg = (local['avg'] as num?)?.round() ?? 0;
+          _dayMin = (local['min'] as num?)?.toInt() ?? 0;
+          _dayMax = (local['max'] as num?)?.toInt() ?? 0;
+          if (_selectedDate == date) _chartValues = hourly;
         });
+      } else if (hourly.any((v) => v > 0) && _selectedDate == date) {
+        setState(() => _chartValues = hourly);
       }
-      setState(() {
-        if (_selectedDate == date) _chartValues = hourly;
-      });
-    } catch (e) {
-      if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
+
+      // 2) Optional cloud enrich + cache for next offline open.
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      try {
+        final row = await SupabaseService.getHrForDate(user.id, date);
+        if (!mounted || row == null) return;
+        final avg = (row['avg_hr'] as num? ?? 0).toInt();
+        final minV = (row['min_hr'] as num? ?? 0).toInt();
+        final maxV = (row['max_hr'] as num? ?? 0).toInt();
+        final count = (row['sample_count'] as num? ?? 1).toInt();
+        if (!_local.hasData(local) || avg > 0) {
+          setState(() {
+            if (avg > 0) _dayAvg = avg;
+            if (minV > 0) _dayMin = minV;
+            if (maxV > 0) _dayMax = maxV;
+          });
+        }
+        await _local.cacheSimpleDay(
+          vital: 'heart_rate',
+          date: date,
+          avg: avg,
+          min: minV,
+          max: maxV,
+          count: count,
+        );
+      } catch (e) {
+        if (mounted && isNetworkError(e) && !_local.hasData(local)) {
+          setState(() => _dayOffline = true);
+        }
+      }
+    } catch (_) {
     } finally {
       if (mounted) setState(() => _loadingDay = false);
     }
   }
 
+  List<int> _hourlyFromHrReadings(List<Map<String, dynamic>> list) {
+    final hourly = List<int>.filled(24, 0);
+    final sums = List<int>.filled(24, 0);
+    final counts = List<int>.filled(24, 0);
+    for (final m in list) {
+      final bpm = (m['valueBpm'] as num? ?? 0).toInt();
+      final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
+      if (bpm <= 0 || measuredAt <= 0) continue;
+      final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
+      sums[h] += bpm;
+      counts[h] += 1;
+    }
+    for (int h = 0; h < 24; h++) {
+      if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
+    }
+    return hourly;
+  }
+
   Future<void> _load7DayTrend() async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
     setState(() {
       _loadingTrend = true;
       _trendOffline = false;
     });
     try {
-      final now = DateTime.now();
-      final rows = await SupabaseService.getHrHistory(
-        userId: user.id,
-        from: now.subtract(const Duration(days: 6)),
-        to: now,
-      );
-      final vals = List.generate(7, (i) {
-        final day = now.subtract(Duration(days: 6 - i));
-        final row = rows.firstWhere(
-          (r) => r['date'] == _fmt(day),
-          orElse: () => {},
-        );
-        return (row['avg_hr'] as num? ?? 0).toInt();
-      });
-      final valid = rows.where((r) => r['min_hr'] != null).toList();
+      // 1) Local rollups first.
+      final localRows = await _local.getHistory('heart_rate', days: 7);
+      final localVals = await _local.historyAvgSeries('heart_rate', days: 7);
+      final localValid = localRows.where((r) => r['min'] != null).toList();
       if (!mounted) return;
-      setState(() {
-        _trendValues = vals;
-        _trendMin = valid.isEmpty
-            ? 0
-            : valid
-                  .map((r) => (r['min_hr'] as num).toInt())
+      if (localVals.any((v) => v > 0)) {
+        setState(() {
+          _trendValues = localVals;
+          _trendMin = localValid.isEmpty
+              ? 0
+              : localValid
+                  .map((r) => (r['min'] as num).toInt())
                   .reduce((a, b) => a < b ? a : b);
-        _trendMax = valid.isEmpty
-            ? 0
-            : valid
-                  .map((r) => (r['max_hr'] as num).toInt())
+          _trendMax = localValid.isEmpty
+              ? 0
+              : localValid
+                  .map((r) => (r['max'] as num).toInt())
                   .reduce((a, b) => a > b ? a : b);
-      });
-    } catch (e) {
-      if (mounted && isNetworkError(e)) setState(() => _trendOffline = true);
+        });
+      }
+
+      // 2) Cloud refresh + write-through cache when online.
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      try {
+        final now = DateTime.now();
+        final rows = await SupabaseService.getHrHistory(
+          userId: user.id,
+          from: now.subtract(const Duration(days: 6)),
+          to: now,
+        );
+        final vals = List.generate(7, (i) {
+          final day = now.subtract(Duration(days: 6 - i));
+          final row = rows.firstWhere(
+            (r) => r['date'] == _fmt(day),
+            orElse: () => {},
+          );
+          return (row['avg_hr'] as num? ?? 0).toInt();
+        });
+        final valid = rows.where((r) => r['min_hr'] != null).toList();
+        if (!mounted) return;
+        if (vals.any((v) => v > 0)) {
+          setState(() {
+            _trendValues = vals;
+            _trendMin = valid.isEmpty
+                ? 0
+                : valid
+                    .map((r) => (r['min_hr'] as num).toInt())
+                    .reduce((a, b) => a < b ? a : b);
+            _trendMax = valid.isEmpty
+                ? 0
+                : valid
+                    .map((r) => (r['max_hr'] as num).toInt())
+                    .reduce((a, b) => a > b ? a : b);
+          });
+        }
+        for (final r in rows) {
+          final dateStr = r['date'] as String?;
+          if (dateStr == null) continue;
+          final parts = dateStr.split('-');
+          if (parts.length != 3) continue;
+          final day = DateTime(
+            int.parse(parts[0]),
+            int.parse(parts[1]),
+            int.parse(parts[2]),
+          );
+          await _local.cacheSimpleDay(
+            vital: 'heart_rate',
+            date: day,
+            avg: r['avg_hr'] as num?,
+            min: r['min_hr'] as num?,
+            max: r['max_hr'] as num?,
+            count: (r['sample_count'] as num?)?.toInt() ?? 1,
+          );
+        }
+      } catch (e) {
+        if (mounted && isNetworkError(e) && !localVals.any((v) => v > 0)) {
+          setState(() => _trendOffline = true);
+        }
+      }
+    } catch (_) {
     } finally {
       if (mounted) setState(() => _loadingTrend = false);
     }

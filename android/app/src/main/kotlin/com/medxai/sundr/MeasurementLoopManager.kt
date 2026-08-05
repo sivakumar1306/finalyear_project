@@ -125,8 +125,14 @@ object MeasurementLoopManager {
         if (!runningCycle.compareAndSet(false, true)) return // a cycle is already in flight
 
         repository.ioScope.launch {
-            val cycleId = repository.startCycle()
-            handler.post { walkSequence(cycleId, 0) }
+            try {
+                val cycleId = repository.startCycle()
+                handler.post { walkSequence(cycleId, 0) }
+            } catch (e: Exception) {
+                Log.e(TAG, "startCycle failed", e)
+                runningCycle.set(false)
+                scheduleNext(DISCONNECTED_RECHECK_MS)
+            }
         }
     }
 
@@ -522,8 +528,12 @@ object MeasurementLoopManager {
 
     private fun persist(vital: Vital, cycleId: Long, primaryValue: Double, insert: suspend () -> Long) {
         repository.ioScope.launch {
-            val id = insert()
-            EventBus.getDefault().post(NewReadingEvent(vital, id, cycleId, System.currentTimeMillis(), primaryValue))
+            try {
+                val id = insert()
+                EventBus.getDefault().post(NewReadingEvent(vital, id, cycleId, System.currentTimeMillis(), primaryValue))
+            } catch (e: Exception) {
+                Log.e(TAG, "persist($vital) failed", e)
+            }
         }
     }
 }
