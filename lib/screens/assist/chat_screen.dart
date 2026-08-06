@@ -24,7 +24,8 @@ import '../../widgets/app_typography.dart';
 String _conversationPrefsKey(String userId) => 'chat_conversation_id_$userId';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final String? initialPrompt;
+  const ChatScreen({super.key, this.initialPrompt});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -33,9 +34,6 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  // Lets pull-to-refresh reach into InsightsHeader and re-fetch its data —
-  // see InsightsHeaderState.refresh(). The toggle/refresh-icon UI was removed
-  // from that header in favor of this gesture.
   final GlobalKey<InsightsHeaderState> _insightsKey =
       GlobalKey<InsightsHeaderState>();
   final List<Map<String, dynamic>> _messages = [];
@@ -45,6 +43,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _conversationId;
   String _errorMessage = '';
   int _scrollTimerId = 0;
+  bool _sentInitialPrompt = false;
 
   @override
   void initState() {
@@ -101,11 +100,26 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
     } catch (_) {
-      // Silently fall back to a fresh chat if history can't be loaded — no
-      // need to block the screen with an error for a background restore.
     } finally {
-      if (mounted) setState(() => _isRestoring = false);
+      if (mounted) {
+        setState(() => _isRestoring = false);
+        _maybeSendInitialPrompt();
+      }
     }
+  }
+
+  void _maybeSendInitialPrompt() {
+    final prompt = widget.initialPrompt?.trim();
+    if (prompt == null || prompt.isEmpty || _sentInitialPrompt) return;
+    if (_messages.isNotEmpty) {
+      _controller.text = prompt;
+      setState(() => _hasText = true);
+      return;
+    }
+    _sentInitialPrompt = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _sendMessage(prompt);
+    });
   }
 
   @override

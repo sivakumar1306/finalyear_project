@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
-import '../../providers/main_tab_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../services/unit_prefs.dart';
 import '../../theme/app_theme.dart';
@@ -11,7 +10,9 @@ import '../../widgets/glass_icon_button.dart';
 import '../auth/login_screen.dart';
 import '../auth/sign_up_screen.dart';
 import 'account_system_settings_screen.dart';
+import 'settings_screen.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/footer_spacer.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   final bool showBackButton;
@@ -108,9 +109,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     });
   }
 
-  Future<void> _save() async {
+  Future<void> _autoSave() async {
     final user = SupabaseService.currentUser;
-    if (user == null) return;
+    if (user == null || _saving) return;
     setState(() => _saving = true);
     try {
       await SupabaseService.upsertProfile(
@@ -123,16 +124,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         address: _address,
         additionalInstructions: _instructions,
       );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Profile saved', style: AppTypography.inter()),
-            backgroundColor: AppTheme.success,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        if (widget.showBackButton) Navigator.pop(context);
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -158,7 +149,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         keyboardType: TextInputType.name,
       ),
     );
-    if (result != null) setState(() => _name = result);
+    if (result != null && result != _name) {
+      setState(() => _name = result);
+      await _autoSave();
+    }
   }
 
   void _editGender() async {
@@ -168,7 +162,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       builder: (_) =>
           _PickerDialog(title: 'Gender', options: options, selected: _gender),
     );
-    if (result != null) setState(() => _gender = result);
+    if (result != null && result != _gender) {
+      setState(() => _gender = result);
+      await _autoSave();
+    }
   }
 
   void _editAge() async {
@@ -185,7 +182,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     );
     if (result != null) {
       final v = int.tryParse(result);
-      if (v != null) setState(() => _age = v);
+      if (v != null && v != _age) {
+        setState(() => _age = v);
+        await _autoSave();
+      }
     }
   }
 
@@ -211,11 +211,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     if (result != null) {
       final v = int.tryParse(result);
       if (v != null) {
-        setState(
-          () => _heightCm = _useUs
-              ? UnitPrefs.inchesToCm(v.toDouble()).round()
-              : v,
-        );
+        final next = _useUs
+            ? UnitPrefs.inchesToCm(v.toDouble()).round()
+            : v;
+        if (next != _heightCm) {
+          setState(() => _heightCm = next);
+          await _autoSave();
+        }
       }
     }
   }
@@ -240,7 +242,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     if (result != null) {
       final v = double.tryParse(result);
       if (v != null) {
-        setState(() => _weightKg = _useUs ? UnitPrefs.lbsToKg(v) : v);
+        final next = _useUs ? UnitPrefs.lbsToKg(v) : v;
+        if (next != _weightKg) {
+          setState(() => _weightKg = next);
+          await _autoSave();
+        }
       }
     }
   }
@@ -332,7 +338,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       ),
     );
     if (saved != true) return;
-    setState(() => _address = ctl.text.trim());
+    final next = ctl.text.trim();
+    if (next == _address) return;
+    setState(() => _address = next);
+    await _autoSave();
   }
 
   Future<void> _editInstructions() async {
@@ -354,7 +363,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       ),
     );
     if (saved != true) return;
-    setState(() => _instructions = ctl.text.trim());
+    final next = ctl.text.trim();
+    if (next == _instructions) return;
+    setState(() => _instructions = next);
+    await _autoSave();
   }
 
   @override
@@ -383,25 +395,19 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         centerTitle: true,
         elevation: 0,
         actions: [
-          if (_saving)
-            const Padding(
-              padding: EdgeInsets.only(right: 16),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppTheme.gold,
-                ),
-              ),
-            )
-          else
+          if (!widget.showBackButton)
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: Center(
                 child: GlassIconButton(
-                  icon: Icons.check_rounded,
-                  onTap: _save,
+                  icon: Icons.settings_outlined,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const SettingsScreen(showBackButton: true),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -414,7 +420,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 16),
                   _sectionLabel('ABOUT YOU'),
                   const SizedBox(height: 10),
                   Container(
@@ -479,10 +485,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       icon: Icons.arrow_forward_rounded,
                       label: 'Go to system settings',
                       trailing: true,
-                      onTap: () {
-                        context.read<MainTabProvider>().setTab(2);
-                        Navigator.pop(context);
-                      },
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              const SettingsScreen(showBackButton: true),
+                        ),
+                      ),
                     ),
                   ),
 
@@ -560,7 +569,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     ),
                   ],
 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 24),
+                  if (!widget.showBackButton) const FooterSpacer(),
+                  if (widget.showBackButton) const SizedBox(height: 24),
                 ],
               ),
             ),

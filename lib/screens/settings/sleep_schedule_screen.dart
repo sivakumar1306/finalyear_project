@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/analog_clock_picker.dart';
 import '../../widgets/glass_header.dart';
-import '../../widgets/glass_icon_button.dart';
 import '../../widgets/app_typography.dart';
 
 // Same keys as Alarms & Notifications — native reconnect loop reads these
@@ -113,10 +112,7 @@ class _SleepScheduleScreenState extends State<SleepScheduleScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GlassHeader(
-          title: 'Sleep Reminder',
-          trailing: GlassIconButton(icon: Icons.check_rounded, onTap: _confirm),
-        ),
+        const GlassHeader(title: 'Sleep Reminder'),
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 18, 28, 12),
           child: Text(
@@ -194,6 +190,31 @@ class _SleepScheduleScreenState extends State<SleepScheduleScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _confirm,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.gold,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                'Confirm',
+                style: AppTypography.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ),

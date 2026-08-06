@@ -342,6 +342,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           hasData: true,
           steps: ble.todaySteps,
           calories: ble.todayCalories,
+          distanceM: ble.todayDistanceM,
           expanded: expanded,
           onTap: () => _navigateTo('/steps'),
         );
@@ -599,10 +600,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ble.todayDistanceM,
           ble.todayCalories,
         );
+        final dist = ble.todayDistanceM;
+        final distLabel = dist <= 0
+            ? _activityScoreLabel(score)
+            : dist >= 1000
+                ? '${(dist / 1000).toStringAsFixed(1)} km'
+                : '${dist.round()} m';
         return _MiniCard(
           label: 'Activity',
           value: '$score',
-          sub: _activityScoreLabel(score),
+          sub: distLabel,
           color: _kOrbActivity,
           icon: Icons.directions_walk,
           expanded: expanded,
@@ -1119,7 +1126,12 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: _ShrinkButton(
-        onTap: () => Navigator.of(context).push(buildAiAssistRoute()),
+        onTap: () {
+          final prompt = subtext != null && subtext.isNotEmpty
+              ? 'Expand on this insight: $headline $subtext'
+              : 'Expand on this insight: $headline';
+          Navigator.of(context).push(buildAiAssistRoute(initialPrompt: prompt));
+        },
         child: ClipRRect(
           borderRadius: BorderRadius.circular(18),
           child: BackdropFilter(
@@ -1128,9 +1140,9 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0x0DC9A86E), // rgba(201,168,110,0.05)
+                color: const Color(0x0DC9A86E),
                 border: Border.all(
-                  color: const Color(0x26C9A86E), // rgba(201,168,110,0.15)
+                  color: const Color(0x26C9A86E),
                   width: 0.5,
                 ),
                 borderRadius: BorderRadius.circular(18),
@@ -2322,6 +2334,7 @@ class _ActivityScoreCard extends StatelessWidget {
   final bool hasData;
   final int steps;
   final int calories;
+  final double distanceM;
   final VoidCallback? onTap;
   final bool expanded;
 
@@ -2330,9 +2343,18 @@ class _ActivityScoreCard extends StatelessWidget {
     required this.hasData,
     this.steps = 0,
     this.calories = 0,
+    this.distanceM = 0,
     this.onTap,
     this.expanded = false,
   });
+
+  String get _distanceLabel {
+    if (distanceM <= 0) return 'No distance';
+    if (distanceM >= 1000) {
+      return '${(distanceM / 1000).toStringAsFixed(1)} km';
+    }
+    return '${distanceM.round()} m';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2358,7 +2380,7 @@ class _ActivityScoreCard extends StatelessWidget {
           ],
         ),
         chart: _ActivityProgressBar(fraction: steps / 10000.0),
-        footnoteLead: calories > 0 ? '${_formatInt(calories)} cal' : 'No data',
+        footnoteLead: distanceM > 0 ? _distanceLabel : 'No distance',
         footnoteRest: steps > 0
             ? ' · $activeMin min active · ${_formatInt(remaining)} to go'
             : '',
@@ -2417,7 +2439,7 @@ class _ActivityScoreCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            _HomeScreenState._activityScoreLabel(score),
+            hasData && distanceM > 0 ? _distanceLabel : _HomeScreenState._activityScoreLabel(score),
             style: _inter(
               13,
               weight: FontWeight.w500,
@@ -2466,9 +2488,9 @@ const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
     Icons.circle_outlined,
   ),
   PhoneMode.prayer: _AlarmModeInfo(
-    'Prayer mode',
-    'Dhuhr 13:14',
-    'Prayer',
+    'Meditation',
+    'Quiet hours',
+    'Meditation',
     AppTheme.success,
     Icons.self_improvement_rounded,
   ),
