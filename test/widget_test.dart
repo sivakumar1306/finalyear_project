@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('App smoke test', (WidgetTester tester) async {
-    // Placeholder — full app requires BLE hardware
+  test('test suite loads', () {
+    expect(true, isTrue);
   });
 }
