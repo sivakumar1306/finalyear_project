@@ -64,6 +64,18 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
+      # CMake is pulled in during native/plugin builds (e.g. jni). Without this
+      # cache, every run re-downloads ~100MB+ of CMake 3.22.1 into the SDK.
+      - name: Cache Android SDK CMake / NDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/lib/android/sdk/cmake
+            /usr/local/lib/android/sdk/ndk
+          key: android-sdk-native-${{ runner.os }}-cmake-3.22.1-ndk-28.2.13676358
+          restore-keys: |
+            android-sdk-native-${{ runner.os }}-
+
       - name: Flutter pub get
         run: flutter pub get
 
