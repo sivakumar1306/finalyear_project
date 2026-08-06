@@ -205,7 +205,6 @@ This split exists because continuous ring-data collection is driven by a native 
 | Self-hosted Chat API (external repo, URL TBD) | AI chat assistant backend |
 | Vendor ring SDK (`qring_sdk_1.0.0.50.aar`) | All BLE communication with the physical ring |
 | Android system services | Bluetooth stack, Do-Not-Disturb (`NotificationManager.setInterruptionFilter`), notifications, boot receiver, foreground services |
-| `google_fonts` | Typography (Inter family used throughout) |
 | `permission_handler` | Runtime permission requests (Bluetooth, location, notifications) |
 | `file_picker` | OTA firmware `.bin` file selection |
 | `url_launcher` | `tel:`/`sms:` intents for emergency contacts |
@@ -794,11 +793,12 @@ This app requires a **real BLE-capable Android device** (or at minimum a physica
 | `supabase_flutter` | Auth + Postgres client (Dart side) |
 | `shared_preferences` | Cross-restart state, shared with native Kotlin reads |
 | `permission_handler` | Runtime Bluetooth/location/notification permissions |
-| `google_fonts` | Typography (Inter) |
 | `file_picker` | OTA `.bin` file selection |
 | `url_launcher` | `tel:`/`sms:` intents (emergency contacts) |
 | `http` | Chat backend REST calls only (not used for Supabase) |
 | `path_provider`, `intl`, `cupertino_icons` | Supporting utilities |
+
+> Note: `google_fonts` was removed (commit `cbbd27c`) — typography now uses the platform system font (`AppTypography.fontFamily == null`), no bundled fonts.
 
 Native (Kotlin): `androidx.room` (+ `ksp` for the compiler), `gson`, `org.greenrobot:eventbus`, `com.squareup.okhttp3:okhttp` (native Supabase sync), `com.tencent:mmkv` (bundled, likely an SDK transitive dependency, not directly used in reviewed app code).
 
@@ -848,7 +848,7 @@ There is currently **no meaningful automated test suite** — `test/widget_test.
 
 - **APIs**: Supabase REST/PostgREST (both Dart `supabase_flutter` and native raw OkHttp), a separate self-hosted chat REST API (URL TBD/undeployed).
 - **SDKs**: Vendor closed-source ring SDK (`qring_sdk_1.0.0.50.aar`), `supabase_flutter`.
-- **Third-party libraries**: see [§9.4](#94-important-dependencies) for the full list; notable ones are `google_fonts` (typography), `permission_handler` (runtime permissions), `file_picker` (OTA), `eventbus` (native cross-component pub/sub), `okhttp` (native Supabase push).
+- **Third-party libraries**: see [§9.4](#94-important-dependencies) for the full list; notable ones are `permission_handler` (runtime permissions), `file_picker` (OTA), `eventbus` (native cross-component pub/sub), `okhttp` (native Supabase push).
 - **Authentication provider**: Supabase Auth (email/password only observed — no OAuth/social login wired up).
 - **Database providers**: Supabase-hosted Postgres (cloud), Room/SQLite (on-device).
 - **Notification services**: purely local Android notifications (`NotificationManager`) across several channels — `qring_ble_connection` (foreground service, silent), `qring_fall_alerts`, `qring_fall_predictions`, `qring_phone_mode`, `qring_sleep_reminder`, `qring_health_alerts` (unused scaffolding), `qring_workout`. **No push-notification service (FCM/APNs) is integrated** — this is explicitly called out as a blocked decision for the caregiver-push punch-list item (see [§13](#13-recommended-next-steps)).
