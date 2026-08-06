@@ -11,7 +11,9 @@ import '../../widgets/glass_icon_button.dart';
 import '../auth/login_screen.dart';
 import '../auth/sign_up_screen.dart';
 import 'account_system_settings_screen.dart';
+import 'settings_screen.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/footer_spacer.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   final bool showBackButton;
@@ -383,6 +385,22 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         centerTitle: true,
         elevation: 0,
         actions: [
+          if (!widget.showBackButton)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Center(
+                child: GlassIconButton(
+                  icon: Icons.settings_outlined,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const SettingsScreen(showBackButton: true),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (_saving)
             const Padding(
               padding: EdgeInsets.only(right: 16),
@@ -414,7 +432,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 16),
                   _sectionLabel('ABOUT YOU'),
                   const SizedBox(height: 10),
                   Container(
@@ -560,7 +578,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     ),
                   ],
 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 24),
+                  if (!widget.showBackButton) const FooterSpacer(),
+                  if (widget.showBackButton) const SizedBox(height: 24),
                 ],
               ),
             ),

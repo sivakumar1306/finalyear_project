@@ -4,12 +4,9 @@ import '../../services/prayer_schedule_prefs.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/analog_clock_picker.dart';
 import '../../widgets/glass_header.dart';
-import '../../widgets/glass_icon_button.dart';
 import '../../widgets/app_typography.dart';
 
-/// Prayer Mode's quiet-hours scheduler — a clean drag-to-set analog clock
-/// for the start and end time, reached via the pencil icon on the Prayer
-/// Mode row in Alarms & Notifications.
+/// Meditation quiet-hours scheduler — drag-to-set analog clock for start/end.
 class PrayerScheduleScreen extends StatefulWidget {
   const PrayerScheduleScreen({super.key});
 
@@ -95,10 +92,7 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GlassHeader(
-          title: 'Prayer Mode Schedule',
-          trailing: GlassIconButton(icon: Icons.check_rounded, onTap: _confirm),
-        ),
+        const GlassHeader(title: 'Schedule meditation'),
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 18, 28, 12),
           child: Text(
@@ -179,6 +173,31 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _confirm,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.gold,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                'Confirm',
+                style: AppTypography.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ),

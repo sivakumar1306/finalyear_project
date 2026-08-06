@@ -6,7 +6,7 @@ import '../theme/app_theme.dart';
 import '../providers/main_tab_provider.dart';
 import '../providers/workout_provider.dart';
 import 'home/home_screen.dart';
-import 'settings/settings_screen.dart';
+import 'settings/profile_edit_screen.dart';
 import 'workouts/active_workout_screen.dart';
 import 'assist/chat_screen.dart';
 import '../widgets/app_typography.dart';
@@ -14,7 +14,7 @@ import '../widgets/app_typography.dart';
 
 // ── Apple-style transitions ───────────────────────────────────────────────────
 //
-// Home ↔ Settings: horizontal slide with easeOutCubic (iOS tab-like).
+// Home ↔ Profile: horizontal slide with easeOutCubic (iOS tab-like).
 // AI Assist: fade + slight lift/scale present (iOS fullScreenCover feel).
 
 const _kTabAnimDuration = Duration(milliseconds: 380);
@@ -22,13 +22,13 @@ const _kTabAnimCurve = Curves.easeOutCubic;
 
 /// Shared route used by the bottom-nav FAB and Settings → AI Analysis.
 /// iOS fullScreenCover-style: fade + slight lift + scale spring-in.
-Route<void> buildAiAssistRoute() {
+Route<void> buildAiAssistRoute({String? initialPrompt}) {
   return PageRouteBuilder<void>(
     transitionDuration: const Duration(milliseconds: 420),
     reverseTransitionDuration: const Duration(milliseconds: 340),
     opaque: true,
     pageBuilder: (context, animation, secondaryAnimation) {
-      return const ChatScreen();
+      return ChatScreen(initialPrompt: initialPrompt);
     },
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       final curved = CurvedAnimation(
@@ -104,7 +104,7 @@ class _MainShellState extends State<MainShell> {
   }
 
   /// Syncs PageView when something outside the shell changes the tab
-  /// (e.g. profile edit → Settings).
+  /// (e.g. profile edit → Profile).
   void _onTabProviderChanged() {
     if (!mounted || !_pageController.hasClients || _animatingFromTap) return;
     final target = _pageForTab(_tabProvider!.tab);
@@ -257,7 +257,9 @@ class _MainShellState extends State<MainShell> {
           },
           children: [
             const _KeepAlivePage(child: HomeScreen()),
-            _LazyKeepAlivePage(builder: (_) => const SettingsScreen()),
+            _LazyKeepAlivePage(
+              builder: (_) => const ProfileEditScreen(showBackButton: false),
+            ),
           ],
         ),
         bottomNavigationBar: RepaintBoundary(
@@ -379,8 +381,8 @@ class _BottomNav extends StatelessWidget {
                           _NavFab(onTap: onAssistTap),
                           const SizedBox(width: 24),
                           _NavTab(
-                            icon: Icons.settings_outlined,
-                            label: 'Settings',
+                            icon: Icons.person_outline_rounded,
+                            label: 'Profile',
                             active: selected == 2,
                             onTap: () => onTap(2),
                           ),

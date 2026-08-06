@@ -112,7 +112,7 @@ class _PrayerSessionScreenState extends State<PrayerSessionScreen> with SingleTi
                   const Icon(Icons.do_not_disturb_on_rounded, color: AppTheme.gold, size: 14),
                   const SizedBox(width: 6),
                   Text(
-                    'Prayer DND Active',
+                    'Meditation DND Active',
                     style: AppTypography.inter(
                       color: AppTheme.gold,
                       fontSize: 12,
@@ -230,7 +230,7 @@ class _PrayerSessionScreenState extends State<PrayerSessionScreen> with SingleTi
                       onPressed: _endSession,
                       icon: const Icon(Icons.stop_circle_rounded, color: Colors.redAccent, size: 20),
                       label: Text(
-                        'End Prayer Session',
+                        'End Meditation',
                         style: AppTypography.inter(
                           color: Colors.redAccent,
                           fontSize: 14,

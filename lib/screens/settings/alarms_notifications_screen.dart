@@ -158,9 +158,9 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                   _AlarmRow(
                     showEditIcon: true,
                     onEditTap: _editPrayerSchedule,
-                    title: 'Prayer Mode',
+                    title: 'Meditation',
                     subtitle: prayerOn
-                        ? 'Active · Dhuhr 13:14'
+                        ? 'Active · Quiet hours'
                         : 'Scheduled · ${_prayerStart.format(context)}-${_prayerEnd.format(context)}',
                     subtitleColor: prayerOn ? const Color(0xFF6BC99B) : null,
                     trailing: _switch(
