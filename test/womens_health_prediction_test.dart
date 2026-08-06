@@ -100,5 +100,102 @@ void main() {
         result.ovulationDate.add(const Duration(days: 1)),
       );
     });
+
+    test('late luteal + low hrv shifts period earlier by 1 day', () {
+      final lmp = DateTime(2026, 5, 1);
+      final result = service.predictCycle(
+        lastMenstrualPeriod: lmp,
+        averageCycleLength: 28,
+        metrics: metrics(temperature: 60, hrv: 40, heartRate: 60),
+        hasHistory: true,
+        now: fixedNow,
+      );
+      expect(result.estimatedPhase, MenstrualPhase.lateLuteal);
+      expect(result.basePrediction, DateTime(2026, 5, 29));
+      expect(result.finalPrediction, DateTime(2026, 5, 28));
+    });
+
+    test('high stress and poor sleep delay cycle by 2 days', () {
+      final lmp = DateTime(2026, 5, 1);
+      final result = service.predictCycle(
+        lastMenstrualPeriod: lmp,
+        averageCycleLength: 28,
+        metrics: metrics(
+          temperature: 50,
+          hrv: 60,
+          heartRate: 40,
+          stress: 70,
+          sleepQuality: 30,
+        ),
+        hasHistory: true,
+        now: fixedNow,
+      );
+      expect(result.estimatedPhase, MenstrualPhase.follicular);
+      expect(result.finalPrediction, DateTime(2026, 5, 31));
+    });
+
+    test('high activity delays cycle by 1 day', () {
+      final lmp = DateTime(2026, 5, 1);
+      final result = service.predictCycle(
+        lastMenstrualPeriod: lmp,
+        averageCycleLength: 28,
+        metrics: metrics(
+          temperature: 50,
+          hrv: 60,
+          heartRate: 40,
+          activityLevel: 80,
+        ),
+        hasHistory: true,
+        now: fixedNow,
+      );
+      expect(result.finalPrediction, DateTime(2026, 5, 30));
+    });
+  });
+
+  group('vitals-only path remaining days', () {
+    test('follicular uses 14 remaining days from now', () {
+      final result = service.predictCycle(
+        lastMenstrualPeriod: null,
+        averageCycleLength: 28,
+        metrics: metrics(temperature: 50, hrv: 60, heartRate: 40),
+        hasHistory: false,
+        now: fixedNow,
+      );
+      expect(result.phaseRemainingDays, 14);
+      expect(result.finalPrediction, fixedNow.add(const Duration(days: 14)));
+    });
+
+    test('menstrual uses 2 remaining days', () {
+      final result = service.predictCycle(
+        lastMenstrualPeriod: null,
+        averageCycleLength: 28,
+        metrics: metrics(activityLevel: 20),
+        hasHistory: false,
+        now: fixedNow,
+      );
+      expect(result.phaseRemainingDays, 2);
+      expect(result.finalPrediction, fixedNow.add(const Duration(days: 2)));
+    });
+  });
+
+  group('confidence', () {
+    test('history path scores higher than vitals-only', () {
+      final withHistory = service.predictCycle(
+        lastMenstrualPeriod: DateTime(2026, 5, 1),
+        averageCycleLength: 28,
+        metrics: metrics(temperature: 50, hrv: 60, heartRate: 40),
+        hasHistory: true,
+        now: fixedNow,
+      );
+      final vitalsOnly = service.predictCycle(
+        lastMenstrualPeriod: null,
+        averageCycleLength: 28,
+        metrics: metrics(temperature: 50, hrv: 60, heartRate: 40),
+        hasHistory: false,
+        now: fixedNow,
+      );
+      expect(withHistory.confidenceScore, greaterThan(vitalsOnly.confidenceScore));
+      expect(withHistory.confidenceLevel, isNotEmpty);
+    });
   });
 }

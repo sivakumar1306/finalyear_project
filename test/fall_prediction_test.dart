@@ -89,6 +89,95 @@ void main() {
       expect(result.riskLevel, isNot(RiskClassification.low));
       expect(result.fcs, greaterThan(30));
     });
+
+    test('fcs clamps to 0-100', () {
+      final result = engine.calculateRisk(
+        pData: PhysiologicalData(
+          heartRate: 0,
+          hrv: 0,
+          bloodPressure: 0,
+          spo2: 0,
+          skinTemperature: 0,
+        ),
+        rData: BehavioralData(
+          sleepDuration: 0,
+          sleepQuality: 0,
+          dailyActivity: 0,
+          workoutLoad: 0,
+          stress: 100,
+        ),
+        mData: MotionData(
+          impact: 100,
+          orientation: 0,
+          recoveryAttempts: 0,
+          fallHistory: 100,
+          accelerationMagnitude: 50,
+        ),
+        wData: _whOff(),
+        context: ContextFactors(previousFallsFactor: 3.0),
+      );
+      expect(result.fcs, inInclusiveRange(0, 100));
+      expect(result.hsi, inInclusiveRange(0, 100));
+    });
+
+    test('pms lowers womens health score when applicable', () {
+      final base = engine.calculateRisk(
+        pData: _goodPhysio(),
+        rData: _goodRecovery(),
+        mData: _stableMotion(),
+        wData: WomensHealthData(
+          isApplicable: true,
+          daysSinceLastPeriod: 25,
+          cycleLength: 28,
+          isPMS: false,
+        ),
+        context: ContextFactors(),
+      );
+      final pms = engine.calculateRisk(
+        pData: _goodPhysio(),
+        rData: _goodRecovery(),
+        mData: _stableMotion(),
+        wData: WomensHealthData(
+          isApplicable: true,
+          daysSinceLastPeriod: 25,
+          cycleLength: 28,
+          isPMS: true,
+        ),
+        context: ContextFactors(),
+      );
+      expect(pms.hsi, lessThan(base.hsi));
+      expect(pms.fcs, greaterThan(base.fcs));
+    });
+
+    test('high classification when fcs above 60', () {
+      final result = engine.calculateRisk(
+        pData: PhysiologicalData(
+          heartRate: 10,
+          hrv: 10,
+          bloodPressure: 10,
+          spo2: 10,
+          skinTemperature: 10,
+        ),
+        rData: BehavioralData(
+          sleepDuration: 10,
+          sleepQuality: 10,
+          dailyActivity: 10,
+          workoutLoad: 10,
+          stress: 95,
+        ),
+        mData: MotionData(
+          impact: 95,
+          orientation: 5,
+          recoveryAttempts: 5,
+          fallHistory: 90,
+          accelerationMagnitude: 30,
+        ),
+        wData: _whOff(),
+        context: ContextFactors(previousFallsFactor: 2.0),
+      );
+      expect(result.riskLevel, RiskClassification.high);
+      expect(result.fcs, greaterThan(60));
+    });
   });
 
   group('ReasoningEngine', () {
@@ -118,6 +207,48 @@ void main() {
       );
       expect(chain.any((s) => s.toLowerCase().contains('sleep')), isTrue);
       expect(chain.any((s) => s.startsWith('Recommendation:')), isTrue);
+    });
+
+    test('motion issues recommend avoiding stairs', () {
+      final chain = ReasoningEngine.generateReasoningChain(
+        40,
+        _goodPhysio(),
+        _goodRecovery(),
+        MotionData(
+          impact: 80,
+          orientation: 20,
+          recoveryAttempts: 50,
+          fallHistory: 10,
+          accelerationMagnitude: 15,
+        ),
+      );
+      expect(chain.any((s) => s.toLowerCase().contains('motion')), isTrue);
+      expect(
+        chain.any((s) => s.contains('Avoid stairs')),
+        isTrue,
+      );
+    });
+
+    test('stress surfaces recommendation to monitor', () {
+      final chain = ReasoningEngine.generateReasoningChain(
+        55,
+        PhysiologicalData(
+          heartRate: 95,
+          hrv: 95,
+          bloodPressure: 95,
+          spo2: 95,
+          skinTemperature: 95,
+        ),
+        BehavioralData(
+          sleepDuration: 90,
+          sleepQuality: 90,
+          dailyActivity: 80,
+          workoutLoad: 70,
+          stress: 90,
+        ),
+        _stableMotion(),
+      );
+      expect(chain.any((s) => s.toLowerCase().contains('stress')), isTrue);
     });
   });
 }
