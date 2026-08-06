@@ -9,14 +9,22 @@ import '../../models/fall_prediction/context_factors.dart';
 import '../../models/fall_prediction/prediction_result.dart';
 import '../../services/fall_prediction/fall_prediction_engine.dart';
 import '../../services/fall_prediction/layer2_recovery.dart';
+import '../../services/fall_prediction/layer1_physiology.dart' show BpSource;
 import '../../services/health_connect_service.dart';
+import '../ble_provider.dart';
+import '../../services/supabase_service.dart';
+import '../../services/fall_prediction/layer3_motion.dart';
 
 import '../../services/fall_prediction/red_flag_override.dart';
 
-class _MockEscalationService extends EscalationService {
+class _RealEscalationService extends EscalationService {
+  final Future<void> Function(String reason)? onAlert;
+
+  _RealEscalationService({this.onAlert});
+
   @override
   void triggerAlert({required EscalationLadder ladder, required String reason}) {
-    // No-op for provider
+    onAlert?.call(reason);
   }
 }
 
@@ -29,11 +37,12 @@ class _MockCorroborationService extends CorroborationService {
 
 /// Client-side fall prediction scores.
 class FallPredictionProvider extends ChangeNotifier {
-  final FallPredictionEngine _engine = FallPredictionEngine(
-    redFlagService: RedFlagOverrideService(),
-    escalationService: _MockEscalationService(),
-    corroborationService: _MockCorroborationService(),
-  );
+  late final FallPredictionEngine _engine;
+  BleProvider? _bleProvider;
+
+  void updateBleProvider(BleProvider ble) {
+    _bleProvider = ble;
+  }
 
   PredictionResult? _currentResult;
   PredictionResult? get currentResult => _currentResult;
@@ -61,7 +70,7 @@ class FallPredictionProvider extends ChangeNotifier {
     str: null,
   );
 
-  final Layer4WomensHealthData _wData = Layer4WomensHealthData(
+  Layer4WomensHealthData _wData = Layer4WomensHealthData(
     isApplicable: false,
     hasConsentedToWomensHealth: false,
     cycleState: CycleState.optedOut,
@@ -73,6 +82,15 @@ class FallPredictionProvider extends ChangeNotifier {
   final ContextFactors _context = ContextFactors();
 
   FallPredictionProvider() {
+    _engine = FallPredictionEngine(
+      redFlagService: RedFlagOverrideService(),
+      escalationService: _RealEscalationService(
+        onAlert: (reason) async {
+          await _bleProvider?.sendEmergencySms(message: reason);
+        },
+      ),
+      corroborationService: _MockCorroborationService(),
+    );
     _fetchHealthData();
     _healthSyncTimer =
         Timer.periodic(const Duration(minutes: 5), (_) => _fetchHealthData());
@@ -105,44 +123,45 @@ class FallPredictionProvider extends ChangeNotifier {
     final types = await healthService.loadEnabledTypes();
     final today = await healthService.fetchToday(types);
 
-    double? hrScore;
-    if (today.avgHeartRate != null) {
-      hrScore =
-          (100.0 - ((today.avgHeartRate! - 70).abs() * 1.5)).clamp(0.0, 100.0);
-    }
-
-    double? hrvScore;
-    if (today.avgHrv != null) {
-      hrvScore = (today.avgHrv! / 60.0 * 100.0).clamp(0.0, 100.0);
-    }
-
-    double? bpScore;
-    if (today.bpSystolic != null && today.bpDiastolic != null) {
-      final sysDiff = (today.bpSystolic! - 120).abs().toDouble();
-      final diaDiff = (today.bpDiastolic! - 80).abs().toDouble();
-      bpScore = (100.0 - (sysDiff + diaDiff) * 1.5).clamp(0.0, 100.0);
-    }
-
-    double? spo2Score;
-    if (today.avgSpo2 != null) {
-      spo2Score = today.avgSpo2! >= 95
-          ? 100.0
-          : ((today.avgSpo2! - 80) / 15 * 100).clamp(0.0, 100.0);
-    }
-
-    double? tempScore;
-    if (today.avgTemperatureC != null) {
-      tempScore =
-          (100.0 - (today.avgTemperatureC! - 36.5).abs() * 20).clamp(0.0, 100.0);
-    }
-
+    final historicalBaselines = await healthService.fetchHistoricalBaselines();
+    
     _pData = Layer1PhysiologyData(
-      hr: hrScore,
-      hrv: hrvScore,
-      bp: bpScore,
-      spo2: spo2Score,
-      temp: tempScore,
+      hr: today.avgHeartRate,
+      hrv: today.avgHrv,
+      bp: null, // We'll pass sys and dia directly
+      spo2: today.avgSpo2,
+      temp: today.avgTemperatureC,
+      sys: today.bpSystolic?.toDouble(),
+      dia: today.bpDiastolic?.toDouble(),
+      baselines: Layer1Baselines(
+        rolling14DayMedianHR: historicalBaselines['rolling14DayMedianHR'] ?? 65.0,
+        rolling28DayMeanHRV: historicalBaselines['rolling28DayMeanHRV'] ?? 45.0,
+        rolling28DayStdDevHRV: historicalBaselines['rolling28DayStdDevHRV'] ?? 8.0,
+        baselineAdjustedTemp: historicalBaselines['baselineAdjustedTemp'] ?? 36.5,
+      ),
     );
+
+    if (today.hasMenstruationData && today.daysSinceLastPeriod != null) {
+      bool isPMS = today.daysSinceLastPeriod! >= 21 && today.daysSinceLastPeriod! <= 28;
+      CycleState state = CycleState.active;
+      _wData = Layer4WomensHealthData(
+        isApplicable: true,
+        hasConsentedToWomensHealth: true,
+        cycleState: state,
+        daysSinceLastPeriod: today.daysSinceLastPeriod!,
+        cycleLength: 28,
+        isPMS: isPMS,
+      );
+    } else {
+      _wData = Layer4WomensHealthData(
+        isApplicable: false,
+        hasConsentedToWomensHealth: false,
+        cycleState: CycleState.optedOut,
+        daysSinceLastPeriod: 0,
+        cycleLength: 28,
+        isPMS: false,
+      );
+    }
 
     double? sleepDurScore;
     if (today.sleepMinutes != null) {
@@ -163,8 +182,8 @@ class FallPredictionProvider extends ChangeNotifier {
     }
 
     double? stressScore;
-    if (hrvScore != null) {
-      stressScore = (100.0 - hrvScore).clamp(0.0, 100.0);
+    if (today.avgHrv != null) {
+      stressScore = (100.0 - (today.avgHrv! / 60.0 * 100.0).clamp(0.0, 100.0)).clamp(0.0, 100.0);
     }
 
     ActivityRecovery? actRecovery;
@@ -198,7 +217,14 @@ class FallPredictionProvider extends ChangeNotifier {
     });
   }
 
-  void _recalculate() {
+  void _recalculate() async {
+    final userId = SupabaseService.currentUser?.id;
+    List<FallEvent> trailingFalls = [];
+    if (userId != null) {
+      final layer3Svc = Layer3MotionService(SupabaseService.client);
+      trailingFalls = await layer3Svc.fetchTrailing12MonthFalls(userId);
+    }
+
     final mData = Layer3MotionData(
       acc: _lastMagnitude,
       gyr: null,
@@ -206,19 +232,33 @@ class FallPredictionProvider extends ChangeNotifier {
       psw: null,
       ortho: null,
       plnt: null,
-      fh: 10,
+      fh: null,
       actExp: _lastActExp,
     );
 
-    _currentResult = _engine.calculateRisk(
+    final v2Result = await _engine.calculateFRSv2(
       pData: _pData,
       rData: _rData,
       mData: mData,
       wData: _wData,
+      bpSource: BpSource.none, // Fallback assumption
       context: _context,
+      trailingFalls: trailingFalls,
     );
 
-    notifyListeners();
+    if (v2Result != null) {
+      _currentResult = PredictionResult(
+        hsiBase: v2Result.hsiBase,
+        hsi: v2Result.hsiAdj,
+        frs24: v2Result.frs24,
+        frs30: v2Result.frs30,
+        riskLevel: RiskClassification.low, // Deprecated in UI, UI uses frs24.value.riskBand
+        tau: v2Result.predictionHorizon,
+        q: v2Result.coverageScore,
+        explainability: v2Result.explainability,
+      );
+      notifyListeners();
+    }
   }
 
   @override

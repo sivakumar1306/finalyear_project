@@ -10,6 +10,20 @@ class ActivityExposure {
   const ActivityExposure(this.value);
 }
 
+class Layer1Baselines {
+  final double rolling14DayMedianHR;
+  final double rolling28DayMeanHRV;
+  final double rolling28DayStdDevHRV;
+  final double baselineAdjustedTemp;
+  
+  const Layer1Baselines({
+    required this.rolling14DayMedianHR,
+    required this.rolling28DayMeanHRV,
+    required this.rolling28DayStdDevHRV,
+    required this.baselineAdjustedTemp,
+  });
+}
+
 // Layer 1 Inputs: Physiological raw inputs
 class Layer1PhysiologyData {
   final double? hr;    // Heart Rate
@@ -21,6 +35,7 @@ class Layer1PhysiologyData {
   final BpSource? bpSource; // Source of BP measurement
   final double? sys;  // Systolic BP
   final double? dia;  // Diastolic BP
+  final Layer1Baselines? baselines; // Historical baselines
 
   Layer1PhysiologyData({
     required this.hr,
@@ -32,6 +47,7 @@ class Layer1PhysiologyData {
     this.bpSource,
     this.sys,
     this.dia,
+    this.baselines,
   });
 }
 

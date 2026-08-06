@@ -109,7 +109,10 @@ void main() async {
         ChangeNotifierProvider(create: (_) => PrayerSessionProvider()),
         ChangeNotifierProvider(create: (_) => MainTabProvider()),
         ChangeNotifierProvider(create: (_) => HomeCardProvider()..load()),
-        ChangeNotifierProvider(create: (_) => FallPredictionProvider()),
+        ChangeNotifierProxyProvider<BleProvider, FallPredictionProvider>(
+          create: (_) => FallPredictionProvider(),
+          update: (_, ble, fall) => fall!..updateBleProvider(ble),
+        ),
       ],
       child: const QRingApp(),
     ),

@@ -544,6 +544,11 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
           t?.avgTemperatureC != null ? t!.avgTemperatureC!.toStringAsFixed(1) : '--',
           '°C',
         );
+      case HealthSyncType.menstruation:
+        return (
+          t?.hasMenstruationData == true ? (t!.daysSinceLastPeriod != null ? '${t.daysSinceLastPeriod}' : 'Active') : '--',
+          'days ago',
+        );
     }
   }
 
@@ -563,6 +568,8 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
         return AppTheme.bpColor;
       case HealthSyncType.temperature:
         return AppTheme.tempColor;
+      case HealthSyncType.menstruation:
+        return Colors.pink;
     }
   }
 
@@ -582,6 +589,8 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
         return Icons.speed_rounded;
       case HealthSyncType.temperature:
         return Icons.thermostat_rounded;
+      case HealthSyncType.menstruation:
+        return Icons.water_drop_rounded;
     }
   }
 }

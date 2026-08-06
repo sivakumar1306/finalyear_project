@@ -205,12 +205,7 @@ class FallPredictionEngine {
     );
   }
 
-  // --- v2 Pipeline Dependencies ---
-  double _fetch14DayRollingMedianHR() => 65.0;
-  double _fetch28DayRollingHRVMean() => 45.0;
-  double _fetch28DayRollingHRVStdDev() => 8.0;
-  double _fetchUserBaselineTemp() => 0.0; // Baseline adjusted
-  BpBaseline? _fetchHospitalBpBaseline() => const BpBaseline(sys: 115.0, dia: 75.0);
+  // Removed hardcoded v2 Pipeline Dependencies - baselines are now sourced from pData
 
   Future<FallRiskScoreV2Result?> calculateFRSv2({
     required Layer1PhysiologyData pData,
@@ -253,11 +248,11 @@ class FallPredictionEngine {
     // Step D: Pass the layer-specific weights into Layer1Calculator, Layer2Calculator, and Layer3Calculator at the time of their execution.
 
     // --- Layer 1 Execution ---
-    double rolling14DayMedianHR = _fetch14DayRollingMedianHR();
-    double rolling28DayMeanHRV = _fetch28DayRollingHRVMean();
-    double rolling28DayStdDevHRV = _fetch28DayRollingHRVStdDev();
-    double baselineAdjustedTemp = _fetchUserBaselineTemp();
-    BpBaseline? hospitalBaseline = _fetchHospitalBpBaseline();
+    double rolling14DayMedianHR = pData.baselines?.rolling14DayMedianHR ?? 65.0;
+    double rolling28DayMeanHRV = pData.baselines?.rolling28DayMeanHRV ?? 45.0;
+    double rolling28DayStdDevHRV = pData.baselines?.rolling28DayStdDevHRV ?? 8.0;
+    double baselineAdjustedTemp = pData.baselines?.baselineAdjustedTemp ?? 36.5;
+    BpBaseline? hospitalBaseline = const BpBaseline(sys: 115.0, dia: 75.0); // Retain hospital mock for now
 
     double? currentSys = pData.sys ?? pData.bp;
     double? currentDia = pData.dia ?? (pData.bp != null && pData.bp! > 40 ? pData.bp! - 40 : pData.bp);
@@ -341,12 +336,30 @@ class FallPredictionEngine {
       'wh': (wData.isApplicable && whScore != null) ? whVal : 0.0,
     };
     
-    // Mocking personal baseline scores for the UI insight payload
+    // Compute true physiological baseline from historical averages
+    Layer1Result baselinePResult = layer1.calculateP(
+      currentHR: rolling14DayMedianHR,
+      rolling14DayMedianHR: rolling14DayMedianHR,
+      currentHRV: rolling28DayMeanHRV,
+      rolling28DayMeanHRV: rolling28DayMeanHRV,
+      rolling28DayStdDevHRV: rolling28DayStdDevHRV,
+      currentSpO2: 98.0, // Assumed healthy SpO2 baseline
+      peripheralTemp: baselineAdjustedTemp,
+      ambientTemp: 22.0,
+      baselineAdjustedTemp: baselineAdjustedTemp,
+      currentSys: hospitalBaseline?.sys ?? 120.0, // Standard healthy BP
+      currentDia: hospitalBaseline?.dia ?? 80.0,
+      bpSource: BpSource.hospitalBaseline,
+      hospitalBaseline: hospitalBaseline,
+      weights: pWeights,
+    );
+
+    // Provide personal baseline scores for the UI insight payload
     final baselineScores = {
-      'p': (pScore.value * 1.1).clamp(0.0, 100.0), // mock 10% higher baseline
-      'rc': (rcScore.value * 1.1).clamp(0.0, 100.0), 
-      'mo': (moScore.value * 1.1).clamp(0.0, 100.0),
-      'wh': (wData.isApplicable && whScore != null) ? (whVal * 1.05).clamp(0.0, 100.0) : 0.0,
+      'p': baselinePResult.pScore.value,
+      'rc': 90.0, // Standard healthy recovery baseline
+      'mo': 90.0, // Standard healthy motion baseline
+      'wh': (wData.isApplicable && whScore != null) ? 95.0 : 0.0,
     };
     final baseWeightsForExplainability = {
       'p': baseAlpha,
@@ -363,7 +376,7 @@ class FallPredictionEngine {
     );
 
     // Final FRS (Inverted Formula)
-    double fhRateNormalized = ((mData.fh ?? 0.0) * 10.0).clamp(0.0, 100.0); // Placeholder normalization
+    double fhRateNormalized = (fhRate.rate * 10.0).clamp(0.0, 100.0); // Normalizing the calculated FH rate
 
     // FRS-24 Weights (Actionable Alert Horizon)
     double lambda1_24 = 0.20; // MO
