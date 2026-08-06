@@ -129,6 +129,20 @@ class BleProvider extends ChangeNotifier {
   bool _gestureEnabled = false;
   bool get gestureEnabled => _gestureEnabled;
 
+  String? _lastError;
+  String? get lastError => _lastError;
+
+  void _recordError(Object e, [StackTrace? st, String? context]) {
+    final label = context == null ? '$e' : '$context: $e';
+    _lastError = label;
+    debugPrint('BleProvider $label');
+    if (st != null) debugPrint('$st');
+  }
+
+  void clearLastError() {
+    _lastError = null;
+  }
+
   // Low battery prompt — phone-side only (SharedPreferences), driven by the
   // ring's proactive battery push (see BlePlugin.kt's "batteryPush" event,
   // native dataType 0x0c). Edge-triggered like the other _maybeAlert() calls
@@ -381,7 +395,9 @@ class BleProvider extends ChangeNotifier {
         _gestureEnabled = decoded['enabled'] == true;
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   /// Writes to the ring (PalmScreenReq.getWriteInstance). [isLeft] mirrors
@@ -394,7 +410,9 @@ class BleProvider extends ChangeNotifier {
         _gestureEnabled = enabled;
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   /// Sends factory reset command to the ring and disconnects upon success.
@@ -540,7 +558,9 @@ class BleProvider extends ChangeNotifier {
           final v = (m['steps'] as num?)?.toInt() ?? 0;
           if (v > 0) await hc.tryWriteSteps(v, at);
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   // ── Health-event alerts (Select Notifications screen) ────────────────────
@@ -571,7 +591,9 @@ class BleProvider extends ChangeNotifier {
           message: message,
           vital: vital,
         );
-      } catch (_) {}
+      } catch (e, st) {
+        _recordError(e, st);
+      }
     }
   }
 
@@ -1019,7 +1041,9 @@ class BleProvider extends ChangeNotifier {
           _todayMinStress = (summary['min'] as num?)?.toInt() ?? 0;
           _todayMaxStress = (summary['max'] as num?)?.toInt() ?? 0;
         }
-      } catch (_) {}
+      } catch (e, st) {
+        _recordError(e, st);
+      }
       notifyListeners();
       return true;
     } catch (_) {
@@ -1152,7 +1176,9 @@ class BleProvider extends ChangeNotifier {
         // which fires when the ring is fully ready (green light). Calling it here
         // (on raw GATT connect) is too early and causes sync to hang.
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
     _isReconnecting = false;
     notifyListeners();
   }
@@ -1168,7 +1194,9 @@ class BleProvider extends ChangeNotifier {
     // blood-oxygen SDK crash at 12:03 AM.
     try {
       await _ble.setTime();
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
     await refreshBattery();
     await refreshFirmwareVersion();
     await loadGestureSetting();
@@ -1229,7 +1257,9 @@ class BleProvider extends ChangeNotifier {
       try {
         final json = await _ble.getTodayHrv().timeout(kTimeout);
         _parseAndSaveHrv(json);
-      } catch (_) {}
+      } catch (e, st) {
+        _recordError(e, st);
+      }
       if (!alive()) return;
       _syncProgress = 0.33;
       _syncStep = 'Sleep';
@@ -1239,7 +1269,9 @@ class BleProvider extends ChangeNotifier {
       try {
         final json = await _ble.getTodaySleep().timeout(kTimeout);
         _parseAndSaveSleep(json);
-      } catch (_) {}
+      } catch (e, st) {
+        _recordError(e, st);
+      }
       if (!alive()) return;
       _syncProgress = 0.66;
       _syncStep = 'Temperature';
@@ -1251,7 +1283,9 @@ class BleProvider extends ChangeNotifier {
           const Duration(seconds: 15),
         );
         _parseAndSaveTemp(json);
-      } catch (_) {}
+      } catch (e, st) {
+        _recordError(e, st);
+      }
       if (!alive()) return;
       _syncProgress = 1.0;
       notifyListeners();
@@ -1285,7 +1319,9 @@ class BleProvider extends ChangeNotifier {
       _todayAvgHrv = avg;
       notifyListeners();
       _saveHrvToDb(avg, min, max, readings.length);
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   void _parseAndSaveSleep(String jsonStr) {
@@ -1317,7 +1353,9 @@ class BleProvider extends ChangeNotifier {
       _saveSleepToDb(total, deep, light, rem, awake, score, st, et);
       // Two-way sync: push last night's sleep into Health Connect.
       unawaited(_pushSleepToHealthConnect(st, et, deep, light, rem, awake));
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   Future<void> _pushSleepToHealthConnect(
@@ -1398,7 +1436,9 @@ class BleProvider extends ChangeNotifier {
           source: 'auto',
         ).catchError((_) {});
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   // ── DB save helpers ───────────────────────────────────────────────────────
@@ -1415,7 +1455,9 @@ class BleProvider extends ChangeNotifier {
         maxHrv: max,
         sampleCount: count,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   Future<void> _saveSleepToDb(
@@ -1443,7 +1485,9 @@ class BleProvider extends ChangeNotifier {
         sleepTime: st,
         wakeTime: et,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   Future<void> _saveStepsToDb(int steps, int calories, double distanceM) async {
@@ -1498,7 +1542,9 @@ class BleProvider extends ChangeNotifier {
         _todayDistanceM = (data['distance_m'] as num? ?? 0).toDouble();
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   Future<void> _loadTodayHrFromSupabase() async {
@@ -1512,7 +1558,9 @@ class BleProvider extends ChangeNotifier {
         _todayMaxHr = (data['max_hr'] as num? ?? 0).toInt();
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   Future<void> _loadTodaySpo2FromSupabase() async {
@@ -1526,7 +1574,9 @@ class BleProvider extends ChangeNotifier {
         _todayMaxSpo2 = (data['max_spo2'] as num? ?? 0).toInt();
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   Future<void> _loadLatestBpFromSupabase() async {
@@ -1539,7 +1589,9 @@ class BleProvider extends ChangeNotifier {
         _latestBpDbp = (data['diastolic'] as num? ?? 0).toInt();
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   Future<void> _loadLatestStressFromSupabase() async {
@@ -1551,7 +1603,9 @@ class BleProvider extends ChangeNotifier {
         _latestStressValue = (data['stress_value'] as num? ?? 0).toInt();
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   Future<void> _loadLatestTempFromSupabase() async {
@@ -1566,7 +1620,9 @@ class BleProvider extends ChangeNotifier {
           notifyListeners();
         }
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   Future<void> _loadTodayHrvFromSupabase() async {
@@ -1578,7 +1634,9 @@ class BleProvider extends ChangeNotifier {
         _todayAvgHrv = (data['avg_hrv'] as num? ?? 0).toInt();
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   Future<void> _loadTodaySleepFromSupabase() async {
@@ -1597,7 +1655,9 @@ class BleProvider extends ChangeNotifier {
         _todaySleepRemSecs = (data['rem_duration'] as num? ?? 0).toInt();
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   // ── Steps refresh (also called from StepsScreen for pull-to-refresh) ──────
@@ -1628,7 +1688,9 @@ class BleProvider extends ChangeNotifier {
           vital: 'heart_rate',
         );
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   Future<bool> findDevice({bool enable = true}) async {
@@ -1645,7 +1707,9 @@ class BleProvider extends ChangeNotifier {
       final v = await _ble.getFirmwareVersion();
       _firmwareVersion = v.map((k, val) => MapEntry(k, val.toString()));
       notifyListeners();
-    } catch (_) {}
+    } catch (e, st) {
+      _recordError(e, st);
+    }
   }
 
   // ── Scan / connect ────────────────────────────────────────────────────────

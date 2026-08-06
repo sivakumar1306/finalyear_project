@@ -6,12 +6,14 @@ class StatCard extends StatelessWidget {
   final String label;
   final String value;
   final String unit;
+  final VoidCallback? onKnowMore;
 
   const StatCard({
     super.key,
     required this.label,
     required this.value,
     required this.unit,
+    this.onKnowMore,
   });
 
   @override
@@ -33,8 +35,16 @@ class StatCard extends StatelessWidget {
               Text(unit, style: AppTypography.inter(fontSize: 11, color: kSec)),
             ],
           ),
-          const SizedBox(height: 6),
-          Text('know more >', style: AppTypography.inter(fontSize: 11, color: kSec)),
+          if (onKnowMore != null) ...[
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: onKnowMore,
+              child: Text(
+                'know more >',
+                style: AppTypography.inter(fontSize: 11, color: kSec),
+              ),
+            ),
+          ],
         ],
       ),
     );

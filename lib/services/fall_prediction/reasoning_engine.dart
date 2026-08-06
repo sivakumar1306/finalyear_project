@@ -2,7 +2,12 @@ import '../../models/fall_prediction/physiological_data.dart';
 import '../../models/fall_prediction/behavioral_data.dart';
 import '../../models/fall_prediction/motion_data.dart';
 
+/// Builds a deterministic reasoning chain from normalized 0–100 metric scores.
+/// Higher is better for HR/HRV/sleep/orientation; higher is worse for impact/stress.
 class ReasoningEngine {
+  static const double optimalBaseline = 100.0;
+  static const double issueThreshold = 10.0;
+
   static List<String> generateReasoningChain(
     double currentHsi,
     PhysiologicalData pData,
@@ -10,17 +15,15 @@ class ReasoningEngine {
     MotionData mData,
   ) {
     List<String> chain = ['HSI: ${currentHsi.toStringAsFixed(0)}'];
-    
-    // Calculate deviations (assuming 100 is optimal)
-    // Deviation = 100 - score
+
     Map<String, double> deviations = {
-      'Heart Rate': 100 - pData.heartRate,
-      'HRV': 100 - pData.hrv,
-      'Sleep Duration': 100 - rData.sleepDuration,
-      'Sleep Quality': 100 - rData.sleepQuality,
-      'Motion Stability (Orientation)': 100 - mData.orientation,
-      'Impact': mData.impact, // High impact is bad (assuming 0 is optimal for impact)
-      'Stress': rData.stress, // Assuming high stress is bad
+      'Heart Rate': optimalBaseline - pData.heartRate,
+      'HRV': optimalBaseline - pData.hrv,
+      'Sleep Duration': optimalBaseline - rData.sleepDuration,
+      'Sleep Quality': optimalBaseline - rData.sleepQuality,
+      'Motion Stability (Orientation)': optimalBaseline - mData.orientation,
+      'Impact': mData.impact,
+      'Stress': rData.stress,
     };
     
     // Sort by magnitude of negative deviation (highest first)
@@ -28,7 +31,8 @@ class ReasoningEngine {
       ..sort((a, b) => b.value.compareTo(a.value));
       
     // Filter and take top 2 most severely degraded metrics
-    var topIssues = sortedEntries.where((e) => e.value > 10).take(2).toList();
+    var topIssues =
+        sortedEntries.where((e) => e.value > issueThreshold).take(2).toList();
     
     if (topIssues.isEmpty) {
       chain.add('Metrics stable. Keep up the good work.');

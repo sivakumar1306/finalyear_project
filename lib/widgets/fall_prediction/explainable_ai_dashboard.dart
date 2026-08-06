@@ -35,7 +35,7 @@ class ExplainableAIDashboard extends StatelessWidget {
                     const Icon(Icons.psychology, color: AppTheme.spo2Color, size: 22),
                     const SizedBox(width: 10),
                     Text(
-                      'AI Reasoning',
+                      'Risk Reasoning',
                       style: AppTypography.inter(
                         color: Colors.white,
                         fontSize: 16,

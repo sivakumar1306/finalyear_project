@@ -1,33 +1,36 @@
 import '../models/womens_health_models.dart';
 
 class WomenHealthPredictionService {
-  /// Predicts cycle, ovulation, phase estimation, and explainability reasons
-  /// following the Adaptive Women's Health Engine (AWHE) specification from adaptive women.docx.
+  /// Metrics are normalized 0–100 (not raw °C / bpm). Thresholds below are on that scale.
+  static const double tempElevatedThreshold = 55.0;
+  static const double tempRisingLow = 52.0;
+  static const double tempRisingHigh = 60.0;
+  static const double hrvLowThreshold = 45.0;
+  static const double hrvHighThreshold = 55.0;
+  static const double rhrElevatedThreshold = 55.0;
+  static const double rhrLowThreshold = 45.0;
+  static const double activityLowThreshold = 35.0;
+
   PredictionResult predictCycle({
     required DateTime? lastMenstrualPeriod,
     required int averageCycleLength,
     required HealthMetrics metrics,
     bool hasHistory = true,
+    DateTime? now,
   }) {
-    final now = DateTime.now();
-
-    // ── STEP 1: Rule-Based Physiological Phase Estimation ────────────────────
-    // Section 6 Rules:
-    // Rule 1: Skin Temp ↑, HRV ↓, Resting Heart Rate ↑ => Late Luteal
-    // Rule 2: HRV ↑, Resting Heart Rate ↓, Temp Stable => Follicular
-    // Rule 3: Temp begins rising, Resting Heart Rate begins increasing => Ovulation
-    // Baseline: Lower activity, recovery => Menstrual
+    final clock = now ?? DateTime.now();
 
     MenstrualPhase estimatedPhase;
     final List<String> reasons = [];
 
-    final bool isTempElevated = metrics.temperature > 55.0;
-    final bool isTempRising = metrics.temperature >= 52.0 && metrics.temperature <= 60.0;
-    final bool isHrvLow = metrics.hrv < 45.0;
-    final bool isHrvHigh = metrics.hrv >= 55.0;
-    final bool isRhrElevated = metrics.heartRate > 55.0;
-    final bool isRhrLow = metrics.heartRate <= 45.0;
-    final bool isActivityLow = metrics.activityLevel < 35.0;
+    final bool isTempElevated = metrics.temperature > tempElevatedThreshold;
+    final bool isTempRising =
+        metrics.temperature >= tempRisingLow && metrics.temperature <= tempRisingHigh;
+    final bool isHrvLow = metrics.hrv < hrvLowThreshold;
+    final bool isHrvHigh = metrics.hrv >= hrvHighThreshold;
+    final bool isRhrElevated = metrics.heartRate > rhrElevatedThreshold;
+    final bool isRhrLow = metrics.heartRate <= rhrLowThreshold;
+    final bool isActivityLow = metrics.activityLevel < activityLowThreshold;
 
     if (isTempElevated && isHrvLow && isRhrElevated) {
       estimatedPhase = MenstrualPhase.lateLuteal;
@@ -91,7 +94,7 @@ class WomenHealthPredictionService {
           phaseRemainingDays = 3;
           break;
       }
-      basePrediction = now.add(Duration(days: phaseRemainingDays));
+      basePrediction = clock.add(Duration(days: phaseRemainingDays));
       finalPrediction = basePrediction;
     }
 
