@@ -1,15 +1,15 @@
 class ContextFactors {
-  final double ageFactor;
-  final double sleepDebtFactor;
-  final double stressTrendFactor;
-  final double previousFallsFactor;
-  final double cyclePhaseFactor;
+  final double age;
+  final double sleepDebt;
+  final double stressTrend;
+  final double womensHealthPhase;
+
+  // V2 SPEC: Fall history (FH) is strictly forbidden from context factors to prevent triple-counting. It enters exactly once in Layer 3.
 
   ContextFactors({
-    this.ageFactor = 1.0,
-    this.sleepDebtFactor = 1.0,
-    this.stressTrendFactor = 1.0,
-    this.previousFallsFactor = 1.0,
-    this.cyclePhaseFactor = 1.0,
+    this.age = 1.0,
+    this.sleepDebt = 1.0,
+    this.stressTrend = 1.0,
+    this.womensHealthPhase = 1.0,
   });
 }
