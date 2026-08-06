@@ -3,7 +3,6 @@ import '../onboarding/pair_ring_screen.dart';
 import '../../models/onboarding_data.dart';
 import '../../widgets/glass_back_button.dart';
 
-
 const kGold = Color(0xFFC9A86E);
 const kBg = Colors.black;
 
@@ -54,7 +53,7 @@ class OnboardingShell extends StatelessWidget {
                       (_) => false,
                     ),
                     child: const Text(
-                      'SKIP',
+                      'LOG IN',
                       style: TextStyle(
                         color: Colors.white54,
                         fontSize: 13,
