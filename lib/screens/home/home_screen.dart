@@ -22,6 +22,7 @@ import 'card_settings_screen.dart';
 import '../settings/goal_setting_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/unit_prefs.dart';
+import '../main_shell.dart';
 import '../../widgets/app_typography.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -1076,7 +1077,7 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
     }
     setState(() => _loading = true);
     try {
-      final result = await ChatApiService.getInsights('7D');
+      final result = await ChatApiService.getInsights();
       _cache = result;
       _cacheTime = DateTime.now();
       if (mounted) setState(() => _data = result);
@@ -1117,62 +1118,65 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0x0DC9A86E), // rgba(201,168,110,0.05)
-              border: Border.all(
-                color: const Color(0x26C9A86E), // rgba(201,168,110,0.15)
-                width: 0.5,
+      child: _ShrinkButton(
+        onTap: () => Navigator.of(context).push(buildAiAssistRoute()),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0x0DC9A86E), // rgba(201,168,110,0.05)
+                border: Border.all(
+                  color: const Color(0x26C9A86E), // rgba(201,168,110,0.15)
+                  width: 0.5,
+                ),
+                borderRadius: BorderRadius.circular(18),
               ),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'AI SUMMARY',
-                  style: AppTypography.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.18 * 10,
-                    color: AppTheme.goldAccent,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'AI SUMMARY',
+                    style: AppTypography.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.18 * 10,
+                      color: AppTheme.goldAccent,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  headline,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.inter(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w400,
-                    height: 1.30,
-                    letterSpacing: -0.02 * 19,
-                    color: Colors.white,
-                  ),
-                ),
-                if (subtext != null && subtext.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
-                    subtext,
+                    headline,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppTypography.inter(
-                      fontSize: 12.5,
+                      fontSize: 19,
                       fontWeight: FontWeight.w400,
-                      height: 1.50,
-                      letterSpacing: 0.02 * 12.5,
-                      color: Colors.white.withValues(alpha: 0.52),
+                      height: 1.30,
+                      letterSpacing: -0.02 * 19,
+                      color: Colors.white,
                     ),
                   ),
+                  if (subtext != null && subtext.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      subtext,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w400,
+                        height: 1.50,
+                        letterSpacing: 0.02 * 12.5,
+                        color: Colors.white.withValues(alpha: 0.52),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -3237,7 +3241,9 @@ class _TemperatureCardState extends State<_TemperatureCard> {
           ),
           const SizedBox(height: 4),
           Text(
-            _tempStatus(widget.tempC), // status thresholds stay in Celsius (the canonical unit)
+            _tempStatus(
+              widget.tempC,
+            ), // status thresholds stay in Celsius (the canonical unit)
             style: _inter(
               12,
               weight: FontWeight.w500,

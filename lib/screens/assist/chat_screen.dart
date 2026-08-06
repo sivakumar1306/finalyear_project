@@ -488,6 +488,8 @@ class _ChatScreenState extends State<ChatScreen> {
                           } else {
                             final String content = msg['content'] ?? '';
                             final card = msg['card'];
+                            final cardWidget =
+                                card != null ? _buildChatCard(context, card) : null;
                             return Align(
                               alignment: Alignment.centerLeft,
                               child: Column(
@@ -495,68 +497,12 @@ class _ChatScreenState extends State<ChatScreen> {
                                 children: [
                                   if (content.isNotEmpty)
                                     _buildAssistantBubble(context, content),
-                                  if (card != null) ...[
+                                  if (cardWidget != null) ...[
                                     const SizedBox(height: 8),
                                     // Cache the blurred card layer so scrolling
                                     // doesn't re-blur the backdrop each frame.
                                     RepaintBoundary(
-                                      child:
-                                          card['type'] == 'sleep_highlights'
-                                              ? SleepHighlightsCard(
-                                                  data: card['data'],
-                                                  onTap: () =>
-                                                      Navigator.pushNamed(
-                                                          context, '/sleep'),
-                                                )
-                                              : card['type'] ==
-                                                      'heart_rate_trend'
-                                                  ? HeartRateChatCard(
-                                                      data: card['data'],
-                                                      onTap: () =>
-                                                          Navigator.pushNamed(
-                                                              context,
-                                                              '/heart-rate'),
-                                                    )
-                                                  : card['type'] == 'spo2_trend'
-                                                      ? BloodOxygenChatCard(
-                                                          data: card['data'],
-                                                          onTap: () =>
-                                                              Navigator
-                                                                  .pushNamed(
-                                                                      context,
-                                                                      '/blood-oxygen'),
-                                                        )
-                                                      : card['type'] ==
-                                                              'hrv_trend'
-                                                          ? HrvChatCard(
-                                                              data:
-                                                                  card['data'],
-                                                              onTap: () =>
-                                                                  Navigator
-                                                                      .pushNamed(
-                                                                          context,
-                                                                          '/hrv'),
-                                                            )
-                                                          : card['type'] ==
-                                                                  'bp_trend'
-                                                              ? BloodPressureChatCard(
-                                                                  data:
-                                                                      card[
-                                                                          'data'],
-                                                                  onTap: () =>
-                                                                      Navigator.pushNamed(
-                                                                          context,
-                                                                          '/blood-pressure'),
-                                                                )
-                                                              : StepsChatCard(
-                                                                  data:
-                                                                      card[
-                                                                          'data'],
-                                                                  onTap: () =>
-                                                                      Navigator.pushNamed(
-                                                                          context,
-                                                                          '/steps'),
-                                                                ),
+                                      child: cardWidget,
                                     ),
                                   ],
                                 ],
@@ -680,6 +626,47 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     );
+  }
+
+  Widget? _buildChatCard(BuildContext context, Map<String, dynamic> card) {
+    final type = card['type'];
+    final data = card['data'];
+    if (data == null) return null;
+
+    switch (type) {
+      case 'sleep_highlights':
+        return SleepHighlightsCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/sleep'),
+        );
+      case 'heart_rate_trend':
+        return HeartRateChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/heart-rate'),
+        );
+      case 'spo2_trend':
+        return BloodOxygenChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/blood-oxygen'),
+        );
+      case 'hrv_trend':
+        return HrvChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/hrv'),
+        );
+      case 'bp_trend':
+        return BloodPressureChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
+        );
+      case 'steps_trend':
+        return StepsChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/steps'),
+        );
+      default:
+        return null;
+    }
   }
 
   Widget _buildAssistantBubble(BuildContext context, String content) {

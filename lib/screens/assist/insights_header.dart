@@ -21,11 +21,6 @@ class InsightsHeaderState extends State<InsightsHeader>
   static DateTime? _cacheTime;
   static const _cacheTtl = Duration(minutes: 5);
 
-  // Toggle removed — range is fixed. Kept as a constant (rather than deleting
-  // every _selectedRange reference) so _rangeLabel/_load/_navigateFor below
-  // don't need to change shape.
-  static const String _selectedRange = '30D';
-
   Future<Map<String, dynamic>>? _insightsFuture;
   Map<String, dynamic>? _cachedData;
 
@@ -54,7 +49,10 @@ class InsightsHeaderState extends State<InsightsHeader>
     // Show stale cache (if any) while a fresh fetch runs in the background,
     // instead of blanking out to a spinner on every re-fetch.
     _cachedData = cached;
-    _insightsFuture = ChatApiService.getInsights(_selectedRange).then((data) {
+    // Range selector removed app-wide — the backend now always analyzes a
+    // fixed (capped) window and tells us via `days_used` how many days of
+    // real data that actually covered, so no range argument is passed here.
+    _insightsFuture = ChatApiService.getInsights().then((data) {
       _cache = data;
       _cacheTime = DateTime.now();
       return data;
@@ -127,22 +125,29 @@ class InsightsHeaderState extends State<InsightsHeader>
     final headlineParts = (data['headline_parts'] as List?) ?? [];
     final subtext = data['subtext'] as String? ?? '';
     final updates = (data['updates'] as List?) ?? [];
+    // Real number of days of data the backend actually analyzed, e.g. a
+    // brand-new user with 4 days of readings sees "YOUR LAST 4 DAYS" rather
+    // than a hardcoded 30 that overstates what was used.
+    final daysUsed = (data['days_used'] as num?)?.toInt();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Eyebrow label
-        Text(
-          'YOUR LAST ${_rangeLabel(_selectedRange)}',
-          style: AppTypography.inter(
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0.2 * 10,
-            color: AppTheme.goldAccent,
+        // Eyebrow label — only shown once we actually have a day count from
+        // the backend; omitted entirely for a user with zero data rather
+        // than showing a misleading "YOUR LAST 0 DAYS".
+        if (daysUsed != null && daysUsed > 0) ...[
+          Text(
+            'YOUR LAST $daysUsed ${daysUsed == 1 ? 'DAY' : 'DAYS'}',
+            style: AppTypography.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.2 * 10,
+              color: AppTheme.goldAccent,
+            ),
           ),
-        ),
-
-        const SizedBox(height: 6),
+          const SizedBox(height: 6),
+        ],
 
         // Headline (dynamic, built from headline_parts)
         RichText(
@@ -242,17 +247,6 @@ class InsightsHeaderState extends State<InsightsHeader>
         color: const Color(0x85FFFFFF),
       ),
     );
-  }
-
-  String _rangeLabel(String range) {
-    switch (range) {
-      case '7D':
-        return '7 DAYS';
-      case '90D':
-        return '90 DAYS';
-      default:
-        return '30 DAYS';
-    }
   }
 
   void _navigateFor(String? key) {
