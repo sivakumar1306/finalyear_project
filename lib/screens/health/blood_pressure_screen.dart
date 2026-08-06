@@ -11,6 +11,7 @@ import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../utils/bp_staging.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -20,7 +21,6 @@ const _kBorder = Color(0xFF242424);
 const _kGrid = Color(0xFF222222);
 const _kSec = Color(0xFF666666);
 const _kSec2 = Color(0xFF888888);
-// DBP uses a contrasting violet so both series are visually distinct.
 const _dbpColor = Color(0xFFC084FC);
 
 TextStyle _inter(
@@ -37,21 +37,10 @@ TextStyle _inter(
   height: height,
 );
 
-String _bpStatus(int sbp, int dbp) {
-  if (sbp <= 0 || dbp <= 0) return '';
-  if (sbp < 120 && dbp < 80) return 'Normal';
-  if (sbp < 130 && dbp < 80) return 'Elevated';
-  if (sbp < 140 || dbp < 90) return 'Stage 1';
-  return 'Stage 2';
-}
+String _bpStatus(int sbp, int dbp) => bpStatusLabel(sbp, dbp);
 
-Color _bpStatusColor(int sbp, int dbp) {
-  if (sbp <= 0 || dbp <= 0) return _kSec2;
-  if (sbp < 120 && dbp < 80) return AppTheme.success;
-  if (sbp < 130 && dbp < 80) return const Color(0xFFFBBF24);
-  if (sbp < 140 || dbp < 90) return AppTheme.stressColor;
-  return AppTheme.danger;
-}
+Color _bpStatusColor(int sbp, int dbp) =>
+    bpStatusColor(sbp, dbp, noDataColor: _kSec2);
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 

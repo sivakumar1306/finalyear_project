@@ -24,6 +24,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../services/unit_prefs.dart';
 import '../main_shell.dart';
 import '../../widgets/app_typography.dart';
+import '../../utils/bp_staging.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -3063,21 +3064,11 @@ class _CompactBloodPressureCard extends StatelessWidget {
   final bool expanded;
   const _CompactBloodPressureCard({this.onTap, this.expanded = false});
 
-  String _bpCompactStatus(int sbp, int dbp) {
-    if (sbp <= 0 || dbp <= 0) return 'No data';
-    if (sbp < 120 && dbp < 80) return 'Normal';
-    if (sbp < 130 && dbp < 80) return 'Elevated';
-    if (sbp < 140 || dbp < 90) return 'Stage 1';
-    return 'Stage 2';
-  }
+  String _bpCompactStatus(int sbp, int dbp) =>
+      bpCompactStatusLabel(sbp, dbp);
 
-  Color _bpCompactStatusColor(int sbp, int dbp) {
-    if (sbp <= 0 || dbp <= 0) return _kSec2;
-    if (sbp < 120 && dbp < 80) return AppTheme.success;
-    if (sbp < 130 && dbp < 80) return const Color(0xFFFBBF24);
-    if (sbp < 140 || dbp < 90) return AppTheme.stressColor;
-    return AppTheme.danger;
-  }
+  Color _bpCompactStatusColor(int sbp, int dbp) =>
+      bpStatusColor(sbp, dbp, noDataColor: _kSec2);
 
   @override
   Widget build(BuildContext context) {
