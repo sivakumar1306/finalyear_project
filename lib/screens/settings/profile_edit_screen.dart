@@ -86,14 +86,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   Future<void> _loadContacts() async {
     final ble = context.read<BleProvider>();
-    var rows = await ble.getEmergencyContacts();
-    if (rows.isEmpty) {
-      await ble.addEmergencyContact(
-        'Default Emergency (Default)',
-        '9999999999',
-      );
-      rows = await ble.getEmergencyContacts();
-    }
+    final rows = await ble.getEmergencyContacts();
     if (!mounted) return;
     setState(() {
       _contacts = rows
@@ -505,6 +498,38 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                         child: Center(
                           child: CircularProgressIndicator(
                             color: AppTheme.gold,
+                          ),
+                        ),
+                      )
+                    else if (_contacts.isEmpty)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppTheme.card,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.warning_amber_rounded,
+                                color: AppTheme.danger,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'No emergency contacts saved. Add at least one real '
+                                  'contact so fall alerts can reach someone.',
+                                  style: AppTypography.inter(
+                                    color: Colors.white.withValues(alpha: 0.75),
+                                    fontSize: 12.5,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       )

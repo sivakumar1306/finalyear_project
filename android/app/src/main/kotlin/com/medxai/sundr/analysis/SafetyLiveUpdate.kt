@@ -39,13 +39,23 @@ object SafetyLiveUpdate {
         )
     }
 
-    fun showFall(context: Context, confidencePct: Int, countdownSeconds: Int, autoCall: Boolean) {
+    fun showFall(
+        context: Context,
+        confidencePct: Int,
+        countdownSeconds: Int,
+        autoCall: Boolean,
+        simulated: Boolean = false,
+    ) {
         val callLine = if (autoCall) " Calling your emergency contact now." else ""
         show(
             context = context,
-            title = "Possible fall detected",
-            text = "Confidence $confidencePct% — SMS in ${countdownSeconds}s.$callLine",
-            shortText = "Fall detected",
+            title = if (simulated) "SIMULATION — possible fall" else "Possible fall detected",
+            text = if (simulated) {
+                "Demo only — no SMS or call was triggered."
+            } else {
+                "Confidence $confidencePct% — SMS in ${countdownSeconds}s.$callLine"
+            },
+            shortText = if (simulated) "Fall demo" else "Fall detected",
             okAction = true,
         )
     }

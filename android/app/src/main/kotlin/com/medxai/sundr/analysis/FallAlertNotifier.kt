@@ -21,7 +21,12 @@ object FallAlertNotifier {
     private const val CHANNEL_ID = "qring_fall_alerts"
     const val NOTIFICATION_ID = 2001
 
-    fun notifyFall(context: Context, confidence: Float, corroborationSource: String) {
+    fun notifyFall(
+        context: Context,
+        confidence: Float,
+        corroborationSource: String,
+        simulated: Boolean = false,
+    ) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureChannel(manager)
 
@@ -56,25 +61,36 @@ object FallAlertNotifier {
             ""
         }
 
+        val body: String
+        val bigText: String
+        val actionLabel: String
+        if (simulated) {
+            body = "Demo only — no SMS or call was triggered."
+            bigText = "Simulated fall detection corroborated by $sourceLabel " +
+                "($pct% confidence). This is a demo — no SMS was scheduled and no call " +
+                "was placed."
+            actionLabel = "Dismiss"
+        } else {
+            body = "Confidence $pct% — SMS in ${countdown}s.$callLine Tap I'm okay to cancel SMS."
+            bigText = "A sudden motion consistent with a fall was detected, corroborated by " +
+                "$sourceLabel ($pct% confidence).$callLine SMS will be sent to all " +
+                "emergency contacts in $countdown seconds. If you're okay, tap I'm okay " +
+                "to cancel the SMS."
+            actionLabel = "I'm okay"
+        }
+
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("Possible fall detected")
-            .setContentText(
-                "Confidence $pct% — SMS in ${countdown}s.$callLine Tap I'm okay to cancel SMS."
-            )
+            .setContentTitle(if (simulated) "SIMULATION — possible fall" else "Possible fall detected")
+            .setContentText(body)
             .setStyle(
-                NotificationCompat.BigTextStyle().bigText(
-                    "A sudden motion consistent with a fall was detected, corroborated by " +
-                        "$sourceLabel ($pct% confidence).$callLine SMS will be sent to all " +
-                        "emergency contacts in $countdown seconds. If you're okay, tap I'm okay " +
-                        "to cancel the SMS."
-                )
+                NotificationCompat.BigTextStyle().bigText(bigText)
             )
             .setSmallIcon(R.drawable.ic_notification)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(launchIntent)
-            .addAction(0, "I'm okay", dismissIntent)
+            .addAction(0, actionLabel, dismissIntent)
             .build()
 
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)

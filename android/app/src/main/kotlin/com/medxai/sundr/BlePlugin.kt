@@ -2511,15 +2511,15 @@ class BlePlugin(private val context: Context) {
                         detectedAt = System.currentTimeMillis(),
                     )
                 )
-                FallAlertNotifier.notifyFall(context, confidence, source)
+                // Demo only — never schedule SMS or place a call from a simulation.
+                FallAlertNotifier.notifyFall(context, confidence, source, simulated = true)
                 SafetyLiveUpdate.showFall(
                     context,
                     (confidence * 100).toInt(),
                     EmergencySmsSender.COUNTDOWN_SECONDS,
                     EmergencyAutoCaller.isEnabled(context),
+                    simulated = true,
                 )
-                EmergencySmsSender.schedule(context, reason = "fall")
-                EmergencyAutoCaller.placeIfEnabled(context)
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
@@ -2543,7 +2543,10 @@ class BlePlugin(private val context: Context) {
                 val bpm = 135
                 val id = repo().insertHeartRate(bpm, cycleId, "demo_seed")
                 EventBus.getDefault().post(
-                    NewReadingEvent(Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(), bpm.toDouble())
+                    NewReadingEvent(
+                        Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(),
+                        bpm.toDouble(), simulated = true,
+                    )
                 )
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
@@ -2559,10 +2562,13 @@ class BlePlugin(private val context: Context) {
                 val bpm = 122
                 val id = repo().insertHeartRate(bpm, cycleId, "demo_seed")
                 EventBus.getDefault().post(
-                    NewReadingEvent(Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(), bpm.toDouble())
+                    NewReadingEvent(
+                        Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(),
+                        bpm.toDouble(), simulated = true,
+                    )
                 )
-                FallPredictionNotifier.notifyPrediction(context, bpm)
-                EmergencySmsSender.schedule(context, reason = "prediction")
+                // Demo only — never schedule SMS from a simulation.
+                FallPredictionNotifier.notifyPrediction(context, bpm, simulated = true)
 
                 // Persist so it shows up in Fall History, same as the real
                 // FallRiskAnalyzer.maybeAlert() path.

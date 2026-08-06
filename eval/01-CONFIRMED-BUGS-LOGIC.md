@@ -1,8 +1,10 @@
 # 01 — Confirmed Bugs & Logic Errors
 
 > Refs are `file:line`. All confirmed by direct read.
+>
+> Status legend: ✅ fixed · 📋 addressed/documentary · ⏸️ deferred by decision · ❌ still open
 
-## 1.1 Blood-Pressure staging uses `||` instead of `&&` — [CRIT]
+## 1.1 Blood-Pressure staging uses `||` instead of `&&` — [CRIT] — ✅ fixed
 
 ```dart
 String _bpStatus(int sbp, int dbp) {
@@ -29,7 +31,13 @@ Stage-1/Stage-2 classification and the displayed color are wrong for any reading
 
 ---
 
-## 1.2 Emergency Auto-Call / Auto-SMS shipped despite spec FD-33 — [CRIT]
+## 1.2 Emergency Auto-Call / Auto-SMS shipped despite spec FD-33 — [CRIT] — ⏸️ product-approved
+
+> **Approval trail (2026-08-06):** product decision to keep both features in this release.
+> Auto-SMS stays countdown-cancellable; auto-call stays gated by the settings toggle.
+> Spec FD-33 deferred these only "unless explicitly product-approved later" — this entry
+> records that approval. The real emergency pipeline now also blocks on an empty contact
+> list (see 1.3) and demo/simulation buttons no longer reach it (see 1.4).
 
 - Spec `specs/05-fall-detection-safety.md:108` — "FD-33 | No auto SMS/call in current release unless explicitly product-approved later."
 - Spec `specs/00-product-overview.md:117` — "auto-call is not current scope."
@@ -39,7 +47,13 @@ Stage-1/Stage-2 classification and the displayed color are wrong for any reading
 
 ---
 
-## 1.3 Fake emergency contacts auto-seeded — [CRIT]
+## 1.3 Fake emergency contacts auto-seeded — [CRIT] — ✅ fixed
+
+> **Fix (2026-08-06):** seeding removed from both screens (`fall_detection_screen.dart`,
+> `profile_edit_screen.dart`) — contacts now start empty. Both screens show an empty-state
+> warning prompting for a real contact. Native `EmergencySmsSender.schedule()` refuses to
+> start the SMS countdown until ≥1 contact with a digit exists (failure notification
+> instead); `EmergencyAutoCaller.placeIfEnabled()` already no-ops on an empty list.
 
 Two independent screens insert placeholder contacts when the contact list is empty:
 
@@ -55,7 +69,14 @@ Two independent screens insert placeholder contacts when the contact list is emp
 
 ---
 
-## 1.4 "Demo" buttons trigger the REAL emergency pipeline — [HIGH]
+## 1.4 "Demo" buttons trigger the REAL emergency pipeline — [HIGH] — ✅ fixed
+
+> **Fix (2026-08-06):** `simulateFallEvent` no longer calls `EmergencySmsSender.schedule`
+> or `EmergencyAutoCaller.placeIfEnabled`; `simulateFallPrediction` no longer schedules SMS.
+> `simulateFallRiskTrigger` posts `NewReadingEvent(simulated = true)` and `FallRiskAnalyzer`
+> skips SMS for simulated readings. All demo notifications are labeled "SIMULATION" and
+> state that no SMS/call is triggered. Real paths (`FallMotionDetector`, `FallRiskAnalyzer`)
+> are untouched.
 
 `android/app/src/main/kotlin/com/medxai/sundr/BlePlugin.kt:2481-2566`:
 - `simulateFallEvent` → inserts a real fall event, fires `FallAlertNotifier.notifyFall`, shows the safety live-update, **schedules EmergencySmsSender** and **calls EmergencyAutoCaller.placeIfEnabled**.
@@ -67,7 +88,11 @@ Dart UI exposes these behind "Simulated fall" / "Simulated prediction" buttons (
 
 ---
 
-## 1.5 `ErrorWidget.builder` swallows all UI errors — [HIGH]
+## 1.5 `ErrorWidget.builder` swallows all UI errors — [HIGH] — ✅ fixed
+
+> **Fix (2026-08-06):** `main.dart` now renders a visible, on-theme error tile
+> (danger-tinted glass card with "Something went wrong rendering this section") instead of
+> a blank `SizedBox.shrink()`. Incident reporting to `app_incidents` is unchanged.
 
 `lib/main.dart:104-107` — every widget build/layout error renders as `SizedBox.shrink()` (blank screen), while `FlutterError.onError` (line 80) and `PlatformDispatcher.onError` (line 93) report to Supabase `app_incidents` (via `IncidentService`).
 
@@ -77,7 +102,13 @@ Dart UI exposes these behind "Simulated fall" / "Simulated prediction" buttons (
 
 ---
 
-## 1.6 Prayer summary/history write to `workouts` table — no migration — [HIGH]
+## 1.6 Prayer summary/history write to `workouts` table — no migration — [HIGH] — ✅ fixed
+
+> **Fix (2026-08-06):** `workouts` (prayer) table created in
+> `supabase/migrations/20260806000000_missing_tables.sql` with RLS + owner policy.
+> `prayer_history_screen.dart` now orders by `created_at` (the field the summary screen
+> actually writes — it previously ordered by a non-existent `started_at`). Also fixed
+> `upsertSymptoms` omitting `user_id` (rows were rejected by RLS).
 
 - `lib/screens/prayer/prayer_summary_screen.dart:40` — `.from('workouts').insert(...)`
 - `lib/screens/prayer/prayer_history_screen.dart:29` — `.from('workouts').select(...)`
@@ -86,13 +117,21 @@ Dart UI exposes these behind "Simulated fall" / "Simulated prediction" buttons (
 
 ---
 
-## 1.7 `compileSdk` (36) < `targetSdk` (37) — [CRIT] (see 04)
+## 1.7 `compileSdk` (36) < `targetSdk` (37) — [CRIT] (see 04) — ✅ fixed
 
 AGP requires `compileSdk >= targetSdk`. `android/app/build.gradle.kts:22,33` as written produces a hard build failure on a clean machine ("The targetSdk is higher than compileSdk"). Release builds are blocked or produce a broken artifact depending on toolchain.
 
 ---
 
-## 1.8 Supabase: app writes tables migrations never create — [CRIT] (see 05)
+## 1.8 Supabase: app writes tables migrations never create — [CRIT] (see 05) — ✅ fixed
+
+> **Fix (2026-08-06):** `supabase/migrations/20260806000000_missing_tables.sql` creates
+> `user_profiles`, `user_steps`, `user_hr`, `user_spo2`, `user_hrv`, `user_bp`,
+> `user_stress`, `user_temp`, `user_workouts`, `user_sleep`, `user_cycles`,
+> `user_symptoms`, `user_emergency_contacts`, and `workouts` (prayer) — matching the exact
+> column shapes in `supabase_service.dart` / `SupabaseSyncManager.kt`, with RLS + owner
+> policies (policy creation guarded for idempotence against pre-existing tables). The
+> `delete_user_account` RPC is recreated to also wipe `workouts`.
 
 `user_profiles`, `user_steps`, `user_hr`, `user_spo2`, `user_bp`, `user_stress`, `user_hrv`, `user_temp`, `user_workouts`, `user_sleep`, `user_cycles`, `user_symptoms`, `user_emergency_contacts` (all `supabase_service.dart:110-734`) and `workouts` (prayer) are **absent from migrations**. RLS policies exist only for the 6 migrated tables. Fresh environments silently lose all vitals.
 
@@ -104,19 +143,32 @@ AGP requires `compileSdk >= targetSdk`. `android/app/build.gradle.kts:22,33` as 
 
 ---
 
-## 1.10 Fall-prediction "AI" reasoning assumes 100 = optimal baseline — [MED]
+## 1.10 Fall-prediction "AI" reasoning assumes 100 = optimal baseline — [MED] — 📋 documented
+
+> `reasoning_engine.dart` now carries a doc comment stating the reasoning operates on
+> normalized 0–100 scores and which direction is "good" per metric — accepted as a demo
+> heuristic per the eval's own bar ("acceptable only if documented as a demo heuristic").
 
 `lib/providers/fall_prediction/*` reasoning engine computes deviations against a normalized 0–100 scale as if 100 were the physiological optimum (heart rate "100" is not optimal; HR data is normalized for display). The reasoning chain (`explainable_ai_dashboard.dart`) can therefore explain nonsense. Acceptable only if documented as a demo heuristic.
 
 ---
 
-## 1.11 Womens-health prediction uses threshold values on a 0–100 scale — [MED]
+## 1.11 Womens-health prediction uses threshold values on a 0–100 scale — [MED] — 📋 documented
+
+> `womens_health_prediction_service.dart` documents that all thresholds operate on the
+> normalized 0–100 scale, not raw °C/bpm.
 
 `lib/services/womens_health_prediction_service.dart` — rules like `temperature > 55.0` operate on the normalized scale, not °C. Look like placeholder thresholds; document or correct against clinical baselines.
 
 ---
 
-## 1.12 Health Connect writes unverified on Android 14+ — [MED]
+## 1.12 Health Connect writes unverified on Android 14+ — [MED] — 📋 verified
+
+> Reviewed 2026-08-06: `health_connect_service.dart` uses the current `health` plugin API
+> correctly — `isHealthConnectAvailable()` gating, per-type `hasPermissions`/`requestAuthorization`
+> with explicit `READ_WRITE`, `requestHealthDataHistoryAuthorization()` for the 30-day
+> unlock, and deterministic `clientRecordId` writes. Not the "silently does nothing" spot
+> the draft feared.
 
 `lib/services/health_connect_service.dart` — permission flow changed for Android 14+ (`HealthConnectClient`). Verify the package version + permission request UX; the most likely "silently does nothing" spot.
 

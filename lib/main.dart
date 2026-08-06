@@ -17,6 +17,7 @@ import 'services/incident_service.dart';
 import 'services/ble_service.dart';
 import 'config.dart';
 import 'app.dart';
+import 'theme/app_theme.dart';
 
 const _bleChannel = MethodChannel(AppConfig.bleMethodChannel);
 
@@ -121,8 +122,34 @@ void main() async {
     };
 
     ErrorWidget.builder = (FlutterErrorDetails details) {
-      // Prefer a blank error tile over a red crash screen for production UX.
-      return const SizedBox.shrink();
+      // Visible (but non-alarming) error tile instead of a blank section — users
+      // must know a widget crashed. The incident itself is reported via onError.
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.danger.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.error_outline_rounded, color: AppTheme.danger, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Something went wrong rendering this section.',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.75),
+                  fontSize: 12.5,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
     };
 
     try {
