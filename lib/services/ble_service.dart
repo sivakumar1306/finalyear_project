@@ -54,6 +54,36 @@ class BleService {
     return result ?? false;
   }
 
+  /// Last native crash/SDK failure recorded before a process death (or soft fail).
+  Future<Map<String, dynamic>?> getLastNativeCrash() async {
+    try {
+      final result = await _methodChannel.invokeMethod<dynamic>('getLastNativeCrash');
+      if (result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[BleService] getLastNativeCrash: $e');
+      return null;
+    }
+  }
+
+  Future<void> clearLastNativeCrash() async {
+    try {
+      await _methodChannel.invokeMethod('clearLastNativeCrash');
+    } catch (e) {
+      debugPrint('[BleService] clearLastNativeCrash: $e');
+    }
+  }
+
+  Future<void> softResetBleSdk() async {
+    try {
+      await _methodChannel.invokeMethod('softResetBleSdk');
+    } catch (e) {
+      debugPrint('[BleService] softResetBleSdk: $e');
+    }
+  }
+
   // ── Device Info ────────────────────────────────────────────────────
   Future<int> getBattery() async {
     final result = await _methodChannel.invokeMethod<int>('getBattery');
