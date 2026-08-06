@@ -164,14 +164,26 @@ class BlePlugin(private val context: Context) {
     }
 
     init {
+        com.medxai.sundr.sdk.CrashStore.init(context.applicationContext)
+        com.medxai.sundr.sdk.BleSdkLifecycle.ensureInitialized(context.applicationContext)
         try {
-            BleOperateManager.getInstance(context.applicationContext as Application)
-            BleOperateManager.getInstance().init()
-        } catch (_: Exception) {}
-        registerDeviceListener()
-        MeasurementConfig.init(context.applicationContext)
-        SupabaseConfig.init(context.applicationContext)
-        EventBus.getDefault().register(this)
+            registerDeviceListener()
+        } catch (e: Exception) {
+            Log.e(TAG, "registerDeviceListener failed", e)
+        }
+        try {
+            MeasurementConfig.init(context.applicationContext)
+            SupabaseConfig.init(context.applicationContext)
+        } catch (e: Exception) {
+            Log.e(TAG, "config init failed", e)
+        }
+        try {
+            if (!EventBus.getDefault().isRegistered(this)) {
+                EventBus.getDefault().register(this)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "EventBus register failed", e)
+        }
         instance = this
     }
 
@@ -194,45 +206,41 @@ class BlePlugin(private val context: Context) {
             NOTIFY_KEY,
             object : DeviceNotifyListener() {
                 override fun onDataResponse(resultEntity: DeviceNotifyRsp?) {
-                    resultEntity ?: return
+                    try {
+                        resultEntity ?: return
 
-                    // CMD_BIND_SUCCESS (0x10) echoes back through this generic notify path even
-                    // though the SDK has no registered response parser for it (it silently runs
-                    // the command as NO_ACK, so ICommandResponse<BaseRspCmd> never fires for it —
-                    // see sendBindSuccessWithRetry()). Treat this raw echo as the real ack.
-                    if (resultEntity.dataType == (Constants.CMD_BIND_SUCCESS.toInt() and 0xFF)) {
-                        if (bindConfirmed.compareAndSet(false, true)) {
-                            Log.d(TAG, "CMD_BIND_SUCCESS confirmed via raw notify echo")
-                            val confirm = pendingBindConfirmation
-                            pendingBindConfirmation = null
-                            confirm?.let { mainHandler.post(it) }
+                        if (resultEntity.dataType == (Constants.CMD_BIND_SUCCESS.toInt() and 0xFF)) {
+                            if (bindConfirmed.compareAndSet(false, true)) {
+                                Log.d(TAG, "CMD_BIND_SUCCESS confirmed via raw notify echo")
+                                val confirm = pendingBindConfirmation
+                                pendingBindConfirmation = null
+                                confirm?.let { mainHandler.post(it) }
+                            }
                         }
-                    }
 
-                    // Proactive battery/charging push (0x0c) — per SDK section 2.3.9:
-                    // loadData[1] = battery percent (0-100), loadData[2] = charging flag (>0 = charging).
-                    // Forwarded as its own event so BleProvider can drive the phone-side
-                    // "Low battery prompt" toggle without polling getBattery().
-                    if (resultEntity.dataType == DATA_TYPE_BATTERY_PUSH) {
-                        val loadData = resultEntity.loadData
-                        if (loadData != null && loadData.size >= 3) {
-                            val batteryPercent = loadData[1].toInt() and 0xFF
-                            val charging = (loadData[2].toInt() and 0xFF) > 0
-                            sendEvent(
-                                "batteryPush",
-                                mapOf("batteryPercent" to batteryPercent, "charging" to charging)
+                        if (resultEntity.dataType == DATA_TYPE_BATTERY_PUSH) {
+                            val loadData = resultEntity.loadData
+                            if (loadData != null && loadData.size >= 3) {
+                                val batteryPercent = loadData[1].toInt() and 0xFF
+                                val charging = (loadData[2].toInt() and 0xFF) > 0
+                                sendEvent(
+                                    "batteryPush",
+                                    mapOf("batteryPercent" to batteryPercent, "charging" to charging)
+                                )
+                            }
+                        }
+
+                        sendEvent(
+                            "deviceNotification",
+                            mapOf(
+                                "dataType" to resultEntity.dataType,
+                                "status" to resultEntity.status,
+                                "loadData" to (resultEntity.loadData?.map { it.toInt() and 0xFF } ?: emptyList<Int>())
                             )
-                        }
-                    }
-
-                    sendEvent(
-                        "deviceNotification",
-                        mapOf(
-                            "dataType" to resultEntity.dataType,
-                            "status" to resultEntity.status,
-                            "loadData" to (resultEntity.loadData?.map { it.toInt() and 0xFF } ?: emptyList<Int>())
                         )
-                    )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "onDataResponse failed", e)
+                    }
                 }
             }
         )
@@ -337,11 +345,19 @@ class BlePlugin(private val context: Context) {
             "factoryReset"               -> factoryReset(result)
             "shutDownRing"               -> shutDownRing(result)
             "startForegroundService"     -> {
-                try {
-                    BleOperateManager.getInstance(context.applicationContext as Application)
-                    BleOperateManager.getInstance().init()
-                } catch (_: Exception) {}
+                com.medxai.sundr.sdk.BleSdkLifecycle.ensureInitialized(context.applicationContext)
                 BleConnectionService.start(context)
+                result.success(true)
+            }
+            "getLastNativeCrash"         -> {
+                result.success(com.medxai.sundr.sdk.CrashStore.peek())
+            }
+            "clearLastNativeCrash"       -> {
+                com.medxai.sundr.sdk.CrashStore.clear()
+                result.success(true)
+            }
+            "softResetBleSdk"            -> {
+                com.medxai.sundr.sdk.BleSdkLifecycle.requestSoftReset("flutter_request")
                 result.success(true)
             }
             "startWorkout"               -> {
@@ -573,9 +589,12 @@ class BlePlugin(private val context: Context) {
             result.error("INVALID_ARG", "address required", null); return
         }
         deviceAddress = address
-        BleScannerHelper.getInstance().stopScan(context)
+        try {
+            BleScannerHelper.getInstance().stopScan(context)
+        } catch (_: Exception) {
+        }
 
-        if (BleOperateManager.getInstance().isConnected) {
+        if (com.medxai.sundr.sdk.BleSdkLifecycle.isConnected()) {
             _isConnected = true
             mainHandler.post { result.success(true) }
             return
@@ -584,13 +603,13 @@ class BlePlugin(private val context: Context) {
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         pendingConnectResult = result
         mainHandler.postDelayed(connectTimeoutRunnable, CONNECT_TIMEOUT_MS)
-        BleOperateManager.getInstance().connectDirectly(address)
+        com.medxai.sundr.sdk.BleSdkLifecycle.connectDirectly(address)
     }
 
     private fun disconnect(result: MethodChannel.Result) {
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         pendingConnectResult = null
-        BleOperateManager.getInstance().unBindDevice()
+        com.medxai.sundr.sdk.BleSdkLifecycle.unBindDevice()
         _isConnected = false
         sendEvent("connectionState", mapOf("connected" to false))
         result.success(null)
