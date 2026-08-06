@@ -5,7 +5,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 
 // ── Alphahuman ring detection ─────────────────────────────────────────────────
@@ -224,25 +223,13 @@ class _RingScanSheetState extends State<_RingScanSheet>
                   ),
                 ),
                 const SizedBox(height: 18),
-                // Title row
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: const GlassBackButton(),
-                      ),
-                      Text(
-                        'Pair Ring',
-                        style: AppTypography.inter(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
+                // Title only — sheet is dismissed via drag handle / outside tap
+                Text(
+                  'Pair Ring',
+                  style: AppTypography.inter(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 28),
@@ -336,7 +323,7 @@ class _SearchingBody extends StatelessWidget {
                 ),
               ],
             ),
-            child: Image.asset('ring.png', fit: BoxFit.contain),
+            child: Image.asset('ring.webp', fit: BoxFit.contain),
           ),
         ),
         const SizedBox(height: 40),
@@ -528,7 +515,7 @@ class _RingTile extends StatelessWidget {
           SizedBox(
             width: 48,
             height: 48,
-            child: Image.asset('ring.png', fit: BoxFit.contain),
+            child: Image.asset('ring.webp', fit: BoxFit.contain),
           ),
           const SizedBox(width: 14),
           Expanded(

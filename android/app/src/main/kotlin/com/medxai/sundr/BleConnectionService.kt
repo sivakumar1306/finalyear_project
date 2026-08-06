@@ -55,42 +55,71 @@ class BleConnectionService : Service() {
     // reaches the login screen), and for a previously-paired ring that isn't in range/bonded
     // this repeatedly pops Android's system BLE pairing dialog on top of the login/signup UI.
     private val loggedIn: Boolean
-        get() = prefs.getBoolean("flutter.user_logged_in", false)
+        get() = safeGetBoolean("flutter.user_logged_in", false)
+
+    // shared_preferences type mismatches (bool stored as long/string) throw ClassCastException
+    // on a hard getBoolean — that previously killed the reconnect loop / whole process.
+    private fun safeGetBoolean(key: String, default: Boolean): Boolean {
+        return try {
+            prefs.getBoolean(key, default)
+        } catch (_: ClassCastException) {
+            try {
+                when (val v = prefs.all[key]) {
+                    is Boolean -> v
+                    is String -> v.equals("true", ignoreCase = true) || v == "1"
+                    is Number -> v.toInt() != 0
+                    else -> default
+                }
+            } catch (_: Exception) {
+                default
+            }
+        } catch (_: Exception) {
+            default
+        }
+    }
 
     private val checkRunnable = object : Runnable {
         override fun run() {
-            val connected = try {
-                BleOperateManager.getInstance().isConnected
-            } catch (_: Exception) { false }
-
-            // On reconnect: send bind command to finalize
-            if (connected && !wasConnected) {
-                try {
-                    CommandHandle.getInstance().executeReqCmd(
-                        SimpleKeyReq(Constants.CMD_BIND_SUCCESS), null
-                    )
-                } catch (_: Exception) {}
-                updateNotification(true)
-            } else if (!connected && wasConnected) {
-                updateNotification(false)
-            }
-            wasConnected = connected
-
-            if (!connected && !isConnecting && loggedIn) {
-                val address = savedAddress
-                if (!address.isNullOrEmpty()) {
-                    isConnecting = true
-                    try {
-                        BleOperateManager.getInstance().connectDirectly(address)
-                    } catch (_: Exception) {}
-                    // Release connecting flag after window
-                    handler.postDelayed({ isConnecting = false }, 15_000L)
+            try {
+                val connected = try {
+                    BleOperateManager.getInstance().isConnected
+                } catch (_: Exception) {
+                    false
                 }
+
+                // On reconnect: send bind command to finalize
+                if (connected && !wasConnected) {
+                    try {
+                        CommandHandle.getInstance().executeReqCmd(
+                            SimpleKeyReq(Constants.CMD_BIND_SUCCESS), null
+                        )
+                    } catch (_: Exception) {
+                    }
+                    updateNotification(true)
+                } else if (!connected && wasConnected) {
+                    updateNotification(false)
+                }
+                wasConnected = connected
+
+                if (!connected && !isConnecting && loggedIn) {
+                    val address = savedAddress
+                    if (!address.isNullOrEmpty()) {
+                        isConnecting = true
+                        try {
+                            BleOperateManager.getInstance().connectDirectly(address)
+                        } catch (_: Exception) {
+                        }
+                        // Release connecting flag after window
+                        handler.postDelayed({ isConnecting = false }, 15_000L)
+                    }
+                }
+
+                maybeFireSleepReminder()
+            } catch (e: Exception) {
+                android.util.Log.e("BleConnectionService", "checkRunnable failed", e)
+            } finally {
+                handler.postDelayed(this, 8_000L)
             }
-
-            maybeFireSleepReminder()
-
-            handler.postDelayed(this, 8_000L)
         }
     }
 
@@ -100,7 +129,7 @@ class BleConnectionService : Service() {
     // per day even though this check runs every 8s.
     private fun maybeFireSleepReminder() {
         try {
-            if (!prefs.getBoolean("flutter.sleep_reminder_enabled", false)) return
+            if (!safeGetBoolean("flutter.sleep_reminder_enabled", false)) return
             val hour = prefs.getString("flutter.sleep_reminder_hour", null)?.toIntOrNull() ?: return
             val minute = prefs.getString("flutter.sleep_reminder_minute", null)?.toIntOrNull() ?: return
 

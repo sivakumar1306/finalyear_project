@@ -354,6 +354,10 @@ class BlePlugin(private val context: Context) {
             }
             "getReadings"                -> getReadings(call, result)
             "getTodaySummary"            -> getTodaySummary(call, result)
+            "getDaySummary"              -> getDaySummary(call, result)
+            "getLocalHistory"            -> getLocalHistory(call, result)
+            "cacheCloudDaySummary"       -> cacheCloudDaySummary(call, result)
+            "getLocalDbStats"            -> getLocalDbStats(result)
             "getLatestReading"           -> getLatestReading(call, result)
             "getStepsToday"              -> getStepsToday(result)
             "saveStepsSnapshot"          -> saveStepsSnapshot(call, result)
@@ -2268,53 +2272,114 @@ class BlePlugin(private val context: Context) {
         val (dayStart, dayEnd) = todayBoundsMs()
         repo().ioScope.launch {
             val map: Map<String, Any?> = try {
-                when (vital) {
-                    Vital.HEART_RATE -> {
-                        val agg = repo().heartRateAggregate(dayStart, dayEnd)
-                        val last = repo().latestHeartRate()
-                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
-                            "lastValue" to last?.valueBpm, "lastMeasuredAt" to last?.measuredAt)
-                    }
-                    Vital.SPO2 -> {
-                        val agg = repo().spo2Aggregate(dayStart, dayEnd)
-                        val last = repo().latestSpo2()
-                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
-                            "lastValue" to last?.valuePct, "lastMeasuredAt" to last?.measuredAt)
-                    }
-                    Vital.STRESS -> {
-                        val agg = repo().stressAggregate(dayStart, dayEnd)
-                        val last = repo().latestStress()
-                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
-                            "lastValue" to last?.value, "lastMeasuredAt" to last?.measuredAt)
-                    }
-                    Vital.BLOOD_PRESSURE -> {
-                        val agg = repo().bpAggregate(dayStart, dayEnd)
-                        val last = repo().latestBloodPressure()
-                        mapOf(
-                            "avgSbp" to agg.avgSbp, "minSbp" to agg.minSbp, "maxSbp" to agg.maxSbp,
-                            "avgDbp" to agg.avgDbp, "minDbp" to agg.minDbp, "maxDbp" to agg.maxDbp,
-                            "count" to agg.count,
-                            "lastSbp" to last?.systolic, "lastDbp" to last?.diastolic, "lastMeasuredAt" to last?.measuredAt
-                        )
-                    }
-                    Vital.HRV -> {
-                        val agg = repo().hrvAggregate(dayStart, dayEnd)
-                        val last = repo().latestHrv()
-                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
-                            "lastValue" to last?.valueMs, "lastMeasuredAt" to last?.measuredAt)
-                    }
-                    Vital.TEMPERATURE -> {
-                        val agg = repo().temperatureAggregate(dayStart, dayEnd)
-                        val last = repo().latestTemperature()
-                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
-                            "lastValue" to last?.valueC, "lastMeasuredAt" to last?.measuredAt)
-                    }
-                    Vital.STEPS -> {
-                        val agg = repo().stepsAggregate(dayStart, dayEnd)
-                        mapOf("steps" to agg?.steps, "caloriesKcal" to agg?.caloriesKcal,
-                            "distanceM" to agg?.distanceM, "capturedAt" to agg?.capturedAt)
-                    }
-                }
+                // Unified path: daySummary prefers raw Room then daily_vital_summary cache.
+                repo().daySummary(vitalChannelKey(vital), dayStart, dayEnd)
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(gson.toJson(map)) }
+        }
+    }
+
+    private fun vitalChannelKey(vital: Vital): String = when (vital) {
+        Vital.HEART_RATE -> "heart_rate"
+        Vital.SPO2 -> "spo2"
+        Vital.STRESS -> "stress"
+        Vital.BLOOD_PRESSURE -> "blood_pressure"
+        Vital.HRV -> "hrv"
+        Vital.TEMPERATURE -> "temperature"
+        Vital.STEPS -> "steps"
+    }
+
+    private fun getDaySummary(call: MethodCall, result: MethodChannel.Result) {
+        val vitalKey = call.argument<String>("vital")
+        if (vitalKey.isNullOrBlank()) {
+            result.error("BAD_ARGS", "vital is required", null)
+            return
+        }
+        val dayStartMs = (call.argument<Number>("dayStartMs") ?: 0L).toLong()
+        val dayEndMs = (call.argument<Number>("dayEndMs")
+            ?: (dayStartMs + ReadingRepository.DAY_MS - 1)).toLong()
+        if (dayStartMs <= 0L) {
+            result.error("BAD_ARGS", "dayStartMs is required", null)
+            return
+        }
+        repo().ioScope.launch {
+            val map = try {
+                repo().daySummary(vitalKey, dayStartMs, dayEndMs)
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(gson.toJson(map)) }
+        }
+    }
+
+    private fun getLocalHistory(call: MethodCall, result: MethodChannel.Result) {
+        val vitalKey = call.argument<String>("vital")
+        if (vitalKey.isNullOrBlank()) {
+            result.error("BAD_ARGS", "vital is required", null)
+            return
+        }
+        val fromDayStartMs = (call.argument<Number>("fromDayStartMs") ?: 0L).toLong()
+        val toDayStartMs = (call.argument<Number>("toDayStartMs")
+            ?: System.currentTimeMillis()).toLong()
+        repo().ioScope.launch {
+            val list = try {
+                repo().localHistory(vitalKey, fromDayStartMs, toDayStartMs)
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(gson.toJson(list)) }
+        }
+    }
+
+    private fun cacheCloudDaySummary(call: MethodCall, result: MethodChannel.Result) {
+        val vitalKey = call.argument<String>("vital")
+        val dayStartMs = (call.argument<Number>("dayStartMs") ?: 0L).toLong()
+        if (vitalKey.isNullOrBlank() || dayStartMs <= 0L) {
+            result.error("BAD_ARGS", "vital and dayStartMs are required", null)
+            return
+        }
+        val avg = call.argument<Number>("avg")?.toDouble()
+        val min = call.argument<Number>("min")?.toDouble()
+        val max = call.argument<Number>("max")?.toDouble()
+        val count = call.argument<Number>("count")?.toInt() ?: 0
+        val avgSecondary = call.argument<Number>("avgSecondary")?.toDouble()
+        val minSecondary = call.argument<Number>("minSecondary")?.toDouble()
+        val maxSecondary = call.argument<Number>("maxSecondary")?.toDouble()
+        val steps = call.argument<Number>("steps")?.toInt()
+        val caloriesKcal = call.argument<Number>("caloriesKcal")?.toInt()
+        val distanceM = call.argument<Number>("distanceM")?.toDouble()
+        repo().ioScope.launch {
+            try {
+                repo().cacheCloudDaySummary(
+                    vital = vitalKey,
+                    dayStartMs = dayStartMs,
+                    avg = avg,
+                    min = min,
+                    max = max,
+                    count = count,
+                    avgSecondary = avgSecondary,
+                    minSecondary = minSecondary,
+                    maxSecondary = maxSecondary,
+                    steps = steps,
+                    caloriesKcal = caloriesKcal,
+                    distanceM = distanceM
+                )
+                mainHandler.post { result.success(true) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("CACHE_FAILED", e.message, null) }
+            }
+        }
+    }
+
+    private fun getLocalDbStats(result: MethodChannel.Result) {
+        repo().ioScope.launch {
+            val map = try {
+                repo().localDbStats()
             } catch (e: Exception) {
                 mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
                 return@launch
@@ -2706,6 +2771,7 @@ class BlePlugin(private val context: Context) {
     }
 
     private fun getSyncStatus(result: MethodChannel.Result) {
+        // Enriched below with pending queue + local DB stats for offline diagnostics.
         repo().ioScope.launch {
             val pending = try { repo().pendingRowCount() } catch (_: Exception) { 0 }
             val status = SupabaseSyncManager.getSyncStatus() + mapOf("pendingRowCount" to pending)
@@ -2753,7 +2819,13 @@ class BlePlugin(private val context: Context) {
 
     private fun sendEvent(type: String, data: Map<String, Any>) {
         mainHandler.post {
-            eventSink?.success(mapOf("type" to type, "data" to data))
+            try {
+                eventSink?.success(mapOf("type" to type, "data" to data))
+            } catch (e: Exception) {
+                // Channel already closed / engine detaching — drop the event rather than crash.
+                Log.w(TAG, "sendEvent($type) dropped: ${e.message}")
+                eventSink = null
+            }
         }
     }
 
@@ -2816,11 +2888,26 @@ class BlePlugin(private val context: Context) {
     }
 
     fun onDestroy() {
-        mainHandler.removeCallbacks(connectTimeoutRunnable)
-        stopCameraKeepAlive()
-        BleScannerHelper.getInstance().stopScan(context)
-        BleOperateManager.getInstance().removeNotifyListener(NOTIFY_KEY)
-        EventBus.getDefault().unregister(this)
+        try {
+            mainHandler.removeCallbacks(connectTimeoutRunnable)
+            stopCameraKeepAlive()
+        } catch (_: Exception) {
+        }
+        try {
+            BleScannerHelper.getInstance().stopScan(context)
+        } catch (_: Exception) {
+        }
+        try {
+            BleOperateManager.getInstance().removeNotifyListener(NOTIFY_KEY)
+        } catch (_: Exception) {
+        }
+        try {
+            if (EventBus.getDefault().isRegistered(this)) {
+                EventBus.getDefault().unregister(this)
+            }
+        } catch (_: Exception) {
+        }
+        eventSink = null
         if (instance === this) instance = null
     }
 }

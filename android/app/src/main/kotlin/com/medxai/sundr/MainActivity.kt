@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import com.medxai.sundr.analysis.EmergencySmsSender
 import com.medxai.sundr.analysis.FallPredictionNotifier
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -15,6 +16,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterFragmentActivity() {
 
     companion object {
+        private const val TAG = "MainActivity"
         const val PACKAGE_NAME = "com.medxai.sundr"
         const val BLE_METHOD_CHANNEL = "$PACKAGE_NAME/ble"
         const val BLE_EVENT_CHANNEL = "$PACKAGE_NAME/ble_events"
@@ -24,22 +26,34 @@ class MainActivity : FlutterFragmentActivity() {
         var pendingFallPredictionHr = 0
     }
 
-    private lateinit var blePlugin: BlePlugin
-    private lateinit var phoneModePlugin: PhoneModePlugin
+    private var blePlugin: BlePlugin? = null
+    private var phoneModePlugin: PhoneModePlugin? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (hasBlePermission()) {
-            BleConnectionService.start(this)
+        try {
+            if (hasBlePermission()) {
+                BleConnectionService.start(this)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start BleConnectionService", e)
         }
-        FallPredictionNotifier.restorePending(this)
-        EmergencySmsSender.restoreIfNeeded(this)
-        handleIntent(intent)
+        try {
+            FallPredictionNotifier.restorePending(this)
+            EmergencySmsSender.restoreIfNeeded(this)
+            handleIntent(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "onCreate restore/intent failed", e)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleIntent(intent)
+        try {
+            handleIntent(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "onNewIntent failed", e)
+        }
     }
 
     private fun handleIntent(intent: Intent?) {
@@ -60,32 +74,61 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        blePlugin = BlePlugin(this)
+        try {
+            val plugin = BlePlugin(this)
+            blePlugin = plugin
 
-        MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            BLE_METHOD_CHANNEL
-        ).setMethodCallHandler { call, result ->
-            blePlugin.handleMethodCall(call, result)
-        }
+            MethodChannel(
+                flutterEngine.dartExecutor.binaryMessenger,
+                BLE_METHOD_CHANNEL
+            ).setMethodCallHandler { call, result ->
+                try {
+                    plugin.handleMethodCall(call, result)
+                } catch (e: Exception) {
+                    Log.e(TAG, "BLE method ${call.method} crashed", e)
+                    try {
+                        result.error("NATIVE_CRASH", e.message, null)
+                    } catch (_: Exception) {
+                        // Result may already be replied — never crash the process for that.
+                    }
+                }
+            }
 
-        EventChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            BLE_EVENT_CHANNEL
-        ).setStreamHandler(blePlugin.eventStreamHandler)
+            EventChannel(
+                flutterEngine.dartExecutor.binaryMessenger,
+                BLE_EVENT_CHANNEL
+            ).setStreamHandler(plugin.eventStreamHandler)
 
-        phoneModePlugin = PhoneModePlugin(this)
+            val phonePlugin = PhoneModePlugin(this)
+            phoneModePlugin = phonePlugin
 
-        MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            PHONE_MODE_METHOD_CHANNEL
-        ).setMethodCallHandler { call, result ->
-            phoneModePlugin.handleMethodCall(call, result)
+            MethodChannel(
+                flutterEngine.dartExecutor.binaryMessenger,
+                PHONE_MODE_METHOD_CHANNEL
+            ).setMethodCallHandler { call, result ->
+                try {
+                    phonePlugin.handleMethodCall(call, result)
+                } catch (e: Exception) {
+                    Log.e(TAG, "PhoneMode method ${call.method} crashed", e)
+                    try {
+                        result.error("NATIVE_CRASH", e.message, null)
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "configureFlutterEngine failed", e)
         }
     }
 
     override fun onDestroy() {
-        blePlugin.onDestroy()
+        try {
+            blePlugin?.onDestroy()
+        } catch (e: Exception) {
+            Log.e(TAG, "blePlugin.onDestroy failed", e)
+        }
+        blePlugin = null
+        phoneModePlugin = null
         super.onDestroy()
     }
 }

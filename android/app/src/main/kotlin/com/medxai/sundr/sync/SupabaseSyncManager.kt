@@ -31,7 +31,9 @@ object SupabaseSyncManager {
     private const val TICK_MS = 60 * 1000L // check every 1 min whether a push is due
     private const val PUSH_INTERVAL_MS = 5 * 60 * 1000L
     private const val BATCH_LIMIT = 200
-    private const val PURGE_RETENTION_DAYS = 30L
+    // Keep raw Room samples long enough for offline past-day hour charts; day rollups
+    // (daily_vital_summary) are retained longer inside ReadingRepository.purgeOldSyncedReadings.
+    private const val PURGE_RETENTION_DAYS = ReadingRepository.RETENTION_RAW_DAYS
 
     private val gson = Gson()
     private val handler = Handler(Looper.getMainLooper())

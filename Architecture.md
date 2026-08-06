@@ -13,6 +13,10 @@ For a detailed breakdown of each component, please refer to the following docume
 5.  **[Health Analysis & Safety](architecture/Health_Analysis.md)**: Fall detection, risk assessment, and emergency response logic.
 6.  **[Flutter-Native Interoperability](architecture/InterOp.md)**: Communication channels (MethodChannel/EventChannel) and shared state.
 
+## Product specs
+
+Feature requirements, acceptance criteria, and shipping status live under **[specs/](specs/README.md)** (product *what*, separate from this architecture *how*).
+
 ## Core Design Principles
 
 -   **Offline-First**: All health data is captured and stored locally on the device (Room DB) before being synced to the cloud.

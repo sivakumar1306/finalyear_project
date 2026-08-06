@@ -66,53 +66,86 @@ Future<void> _configureNativeSync() async {
 StreamSubscription? _authSub;
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // Zone guard: uncaught Dart errors (including from plugins) are reported but
+  // must not tear down the isolate if we can keep the UI alive.
+  await runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  final imageCache = PaintingBinding.instance.imageCache;
-  imageCache.maximumSize = 80;
-  imageCache.maximumSizeBytes = 40 << 20; // 40 MB
+    final imageCache = PaintingBinding.instance.imageCache;
+    imageCache.maximumSize = 80;
+    imageCache.maximumSizeBytes = 40 << 20; // 40 MB
 
-  // Capture Flutter UI / layout framework errors
-  FlutterError.onError = (FlutterErrorDetails details) {
-    FlutterError.presentError(details);
-    IncidentService.reportIncident(
-      source: 'flutter_ui',
-      error: details.exception,
-      stackTrace: details.stack,
-      customMessage: details.summary.toString(),
+    // Capture Flutter UI / layout framework errors (e.g. missing assets) without
+    // treating them as fatal process kills.
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      unawaited(
+        IncidentService.reportIncident(
+          source: 'flutter_ui',
+          error: details.exception,
+          stackTrace: details.stack,
+          customMessage: details.summary.toString(),
+        ),
+      );
+    };
+
+    // Capture uncaught async / isolate errors — return true = "handled".
+    PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+      unawaited(
+        IncidentService.reportIncident(
+          source: 'flutter_async',
+          error: error,
+          stackTrace: stack,
+        ),
+      );
+      return true;
+    };
+
+    ErrorWidget.builder = (FlutterErrorDetails details) {
+      // Prefer a blank error tile over a red crash screen for production UX.
+      return const SizedBox.shrink();
+    };
+
+    try {
+      await Future.wait([SupabaseService.initialize(), _syncLoggedInFlag()]);
+      await _configureNativeSync();
+    } catch (e, st) {
+      debugPrint('Startup init failed (continuing offline): $e\n$st');
+    }
+
+    _authSub?.cancel();
+    try {
+      _authSub = SupabaseService.client.auth.onAuthStateChange.listen((_) {
+        unawaited(_syncLoggedInFlag());
+        unawaited(_configureNativeSync());
+      });
+    } catch (e) {
+      debugPrint('Auth listener setup failed: $e');
+    }
+
+    runApp(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => BleProvider()),
+          ChangeNotifierProvider(create: (_) => WorkoutProvider()),
+          ChangeNotifierProvider(create: (_) => AlarmModeProvider()),
+          ChangeNotifierProvider(create: (_) => PrayerSessionProvider()),
+          ChangeNotifierProvider(create: (_) => MainTabProvider()),
+          ChangeNotifierProvider(create: (_) => HomeCardProvider()..load()),
+          ChangeNotifierProvider(create: (_) => FallPredictionProvider()),
+        ],
+        child: const QRingApp(),
+      ),
     );
-  };
-
-  // Capture uncaught async / isolate errors
-  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
-    IncidentService.reportIncident(
-      source: 'flutter_async',
-      error: error,
-      stackTrace: stack,
+    unawaited(_requestPermissionsAndStartService());
+  }, (Object error, StackTrace stack) {
+    debugPrint('Uncaught zone error: $error\n$stack');
+    unawaited(
+      IncidentService.reportIncident(
+        source: 'flutter_zone',
+        error: error,
+        stackTrace: stack,
+      ),
     );
-    return true;
-  };
-
-  await Future.wait([SupabaseService.initialize(), _syncLoggedInFlag()]);
-  await _configureNativeSync();
-  _authSub?.cancel();
-  _authSub = SupabaseService.client.auth.onAuthStateChange.listen((_) {
-    _syncLoggedInFlag();
-    _configureNativeSync();
   });
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => BleProvider()),
-        ChangeNotifierProvider(create: (_) => WorkoutProvider()),
-        ChangeNotifierProvider(create: (_) => AlarmModeProvider()),
-        ChangeNotifierProvider(create: (_) => PrayerSessionProvider()),
-        ChangeNotifierProvider(create: (_) => MainTabProvider()),
-        ChangeNotifierProvider(create: (_) => HomeCardProvider()..load()),
-        ChangeNotifierProvider(create: (_) => FallPredictionProvider()),
-      ],
-      child: const QRingApp(),
-    ),
-  );
-  unawaited(_requestPermissionsAndStartService());
 }

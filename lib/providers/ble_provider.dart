@@ -277,70 +277,86 @@ class BleProvider extends ChangeNotifier {
   // ── Event listener ────────────────────────────────────────────────────────
 
   void _listenEvents() {
-    _eventSub = _ble.events.listen((event) {
-      final type = event['type'] as String;
-      final data = Map<String, dynamic>.from(event['data'] as Map? ?? {});
-      switch (type) {
-        case 'connectionState':
-          _isConnected = data['connected'] as bool? ?? false;
-          if (_isConnected) {
-            if (_deviceAddress.isEmpty && _pendingDeviceAddress != null) {
-              // Native connected successfully after our own connect() call had
-              // already timed out and given up (see connect()'s doc comment) — the
-              // connection is real, we just never recorded which device it was.
-              // Persist it now so Home's deviceAddress-gated UI reflects reality.
-              _deviceName = _pendingDeviceName!;
-              _deviceAddress = _pendingDeviceAddress!;
-              SharedPreferences.getInstance().then((prefs) {
-                prefs.setString('device_name', _deviceName);
-                prefs.setString('device_address', _deviceAddress);
-              });
-            }
-            _bindReadyCompleter = Completer<void>();
-            _onConnected(delay: _connectDelaySeconds);
-          } else {
-            _battery = -1;
+    _eventSub = _ble.events.listen(
+      (event) {
+        try {
+          if (!hasListeners) return;
+          final type = event['type']?.toString();
+          if (type == null || type.isEmpty) return;
+          final rawData = event['data'];
+          final data = rawData is Map
+              ? Map<String, dynamic>.from(rawData)
+              : <String, dynamic>{};
+          switch (type) {
+            case 'connectionState':
+              _isConnected = data['connected'] as bool? ?? false;
+              if (_isConnected) {
+                if (_deviceAddress.isEmpty && _pendingDeviceAddress != null) {
+                  // Native connected successfully after our own connect() call had
+                  // already timed out and given up (see connect()'s doc comment) — the
+                  // connection is real, we just never recorded which device it was.
+                  // Persist it now so Home's deviceAddress-gated UI reflects reality.
+                  _deviceName = _pendingDeviceName ?? _deviceName;
+                  _deviceAddress = _pendingDeviceAddress!;
+                  SharedPreferences.getInstance().then((prefs) {
+                    prefs.setString('device_name', _deviceName);
+                    prefs.setString('device_address', _deviceAddress);
+                  });
+                }
+                _bindReadyCompleter = Completer<void>();
+                _onConnected(delay: _connectDelaySeconds);
+              } else {
+                _battery = -1;
+              }
+              notifyListeners();
+              break;
+            case 'bindReady':
+              final completer = _bindReadyCompleter;
+              if (completer != null && !completer.isCompleted) {
+                completer.complete();
+              }
+              break;
+            case 'scanResult':
+              final dev = ScannedDevice(
+                name: data['name'] as String? ?? '',
+                address: data['address'] as String? ?? '',
+                rssi: (data['rssi'] as num?)?.toInt() ?? -100,
+              );
+              final idx = _scannedDevices.indexWhere(
+                (d) => d.address == dev.address,
+              );
+              if (idx >= 0) {
+                _scannedDevices[idx] = dev;
+              } else {
+                _scannedDevices.add(dev);
+              }
+              _scannedDevices.sort((a, b) => b.rssi.compareTo(a.rssi));
+              notifyListeners();
+              break;
+            case 'scanFinished':
+              _isScanning = false;
+              notifyListeners();
+              break;
+            case 'newReading':
+              _onNewReadingEvent(data);
+              break;
+            case 'cameraShutter':
+              if (!_cameraShutterController.isClosed) {
+                _cameraShutterController.add(data['action'] as String? ?? '');
+              }
+              break;
+            case 'batteryPush':
+              _onBatteryPushEvent(data);
+              break;
           }
-          notifyListeners();
-          break;
-        case 'bindReady':
-          final completer = _bindReadyCompleter;
-          if (completer != null && !completer.isCompleted) {
-            completer.complete();
-          }
-          break;
-        case 'scanResult':
-          final dev = ScannedDevice(
-            name: data['name'] as String? ?? '',
-            address: data['address'] as String? ?? '',
-            rssi: data['rssi'] as int? ?? -100,
-          );
-          final idx = _scannedDevices.indexWhere(
-            (d) => d.address == dev.address,
-          );
-          if (idx >= 0) {
-            _scannedDevices[idx] = dev;
-          } else {
-            _scannedDevices.add(dev);
-          }
-          _scannedDevices.sort((a, b) => b.rssi.compareTo(a.rssi));
-          notifyListeners();
-          break;
-        case 'scanFinished':
-          _isScanning = false;
-          notifyListeners();
-          break;
-        case 'newReading':
-          _onNewReadingEvent(data);
-          break;
-        case 'cameraShutter':
-          _cameraShutterController.add(data['action'] as String? ?? '');
-          break;
-        case 'batteryPush':
-          _onBatteryPushEvent(data);
-          break;
-      }
-    });
+        } catch (e, st) {
+          debugPrint('[BleProvider] event handler error: $e\n$st');
+        }
+      },
+      onError: (Object e, StackTrace st) {
+        debugPrint('[BleProvider] event stream error: $e\n$st');
+      },
+    );
   }
 
   // ── Ring camera / photo control ───────────────────────────────────────────
@@ -840,6 +856,7 @@ class BleProvider extends ChangeNotifier {
 
   @override
   void notifyListeners() {
+    if (!hasListeners) return;
     if (_notifyBatching) {
       _notifyQueued = true;
       return;
@@ -848,11 +865,16 @@ class BleProvider extends ChangeNotifier {
     _microtaskNotifyScheduled = true;
     scheduleMicrotask(() {
       _microtaskNotifyScheduled = false;
+      if (!hasListeners) return;
       if (_notifyBatching) {
-          _notifyQueued = true;
+        _notifyQueued = true;
         return;
       }
-      super.notifyListeners();
+      try {
+        super.notifyListeners();
+      } catch (e) {
+        debugPrint('[BleProvider] notifyListeners failed: $e');
+      }
     });
   }
 
@@ -869,7 +891,12 @@ class BleProvider extends ChangeNotifier {
       _microtaskNotifyScheduled = true;
       scheduleMicrotask(() {
         _microtaskNotifyScheduled = false;
-        super.notifyListeners();
+        if (!hasListeners) return;
+        try {
+          super.notifyListeners();
+        } catch (e) {
+          debugPrint('[BleProvider] notifyListeners failed: $e');
+        }
       });
     }
   }

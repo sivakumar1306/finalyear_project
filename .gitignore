@@ -33,6 +33,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+**/web
 
 # Symbolication related
 app.*.symbols
@@ -59,6 +60,11 @@ app.*.map.json
 **/ios/Flutter/flutter_export_environment.sh
 **/ios/Flutter/flutter_native_integration.env
 **/ios/Runner/GeneratedPluginRegistrant.*
+**/ios
+
+#some custom files
+something-action-plan.md
+something.md
 
 # Linux — generated per-machine files; never commit
 **/linux/flutter/ephemeral/
@@ -72,9 +78,12 @@ app.*.map.json
 **/macos/Flutter/Generated.xcconfig
 **/macos/Flutter/flutter_export_environment.sh
 **/macos/Flutter/flutter_native_integration.env
+**/macos
 
 # Windows — generated per-machine files; never commit
 **/windows/flutter/ephemeral/
 **/windows/flutter/generated_plugin_registrant.cc
 **/windows/flutter/generated_plugin_registrant.h
 **/windows/flutter/generated_plugins.cmake
+**/windows
+**/linux

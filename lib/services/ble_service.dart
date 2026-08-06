@@ -554,6 +554,66 @@ class BleService {
       }) ??
       '{}';
 
+  /// Any calendar day from local Room (raw first, then daily_vital_summary cache).
+  Future<String> getDaySummary(
+    String vital, {
+    required int dayStartMs,
+    int? dayEndMs,
+  }) async =>
+      await _methodChannel.invokeMethod<String>('getDaySummary', {
+        'vital': vital,
+        'dayStartMs': dayStartMs,
+        'dayEndMs': dayEndMs ?? (dayStartMs + 24 * 60 * 60 * 1000 - 1),
+      }) ??
+      '{}';
+
+  /// Multi-day offline history from local daily rollups (and recent raw recompute).
+  Future<String> getLocalHistory(
+    String vital, {
+    required int fromDayStartMs,
+    required int toDayStartMs,
+  }) async =>
+      await _methodChannel.invokeMethod<String>('getLocalHistory', {
+        'vital': vital,
+        'fromDayStartMs': fromDayStartMs,
+        'toDayStartMs': toDayStartMs,
+      }) ??
+      '[]';
+
+  /// Persist a cloud day-row into Room so the next open works offline.
+  Future<bool> cacheCloudDaySummary({
+    required String vital,
+    required int dayStartMs,
+    double? avg,
+    double? min,
+    double? max,
+    int count = 0,
+    double? avgSecondary,
+    double? minSecondary,
+    double? maxSecondary,
+    int? steps,
+    int? caloriesKcal,
+    double? distanceM,
+  }) async =>
+      await _methodChannel.invokeMethod<bool>('cacheCloudDaySummary', {
+        'vital': vital,
+        'dayStartMs': dayStartMs,
+        'avg': avg,
+        'min': min,
+        'max': max,
+        'count': count,
+        'avgSecondary': avgSecondary,
+        'minSecondary': minSecondary,
+        'maxSecondary': maxSecondary,
+        'steps': steps,
+        'caloriesKcal': caloriesKcal,
+        'distanceM': distanceM,
+      }) ??
+      false;
+
+  Future<String> getLocalDbStats() async =>
+      await _methodChannel.invokeMethod<String>('getLocalDbStats') ?? '{}';
+
   Future<String> getLatestReading(String vital) async =>
       await _methodChannel.invokeMethod<String>('getLatestReading', {
         'vital': vital,
