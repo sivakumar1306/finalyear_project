@@ -1,6 +1,5 @@
 package com.medxai.sundr
 
-import android.app.Application
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -14,11 +13,12 @@ import android.os.Looper
 import java.util.Calendar
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.oudmon.ble.base.bluetooth.BleOperateManager
 import com.oudmon.ble.base.communication.CommandHandle
 import com.oudmon.ble.base.communication.Constants
 import com.oudmon.ble.base.communication.req.SimpleKeyReq
 import com.medxai.sundr.analysis.FallMotionDetector
+import com.medxai.sundr.sdk.BleSdkLifecycle
+import com.medxai.sundr.sdk.SdkGuard
 import com.medxai.sundr.sync.SupabaseSyncManager
 
 class BleConnectionService : Service() {
@@ -81,43 +81,37 @@ class BleConnectionService : Service() {
     private val checkRunnable = object : Runnable {
         override fun run() {
             try {
-                val connected = try {
-                    BleOperateManager.getInstance().isConnected
-                } catch (_: Exception) {
-                    false
-                }
+                // Back off reconnect storms while the SDK circuit breaker is open.
+                val intervalMs = if (SdkGuard.isOpen()) 30_000L else 8_000L
 
-                // On reconnect: send bind command to finalize
+                val connected = BleSdkLifecycle.isConnected()
+
                 if (connected && !wasConnected) {
-                    try {
+                    SdkGuard.run("service.bindSuccess") {
                         CommandHandle.getInstance().executeReqCmd(
                             SimpleKeyReq(Constants.CMD_BIND_SUCCESS), null
                         )
-                    } catch (_: Exception) {
                     }
                     updateNotification(true)
+                    SdkGuard.recordSuccess()
                 } else if (!connected && wasConnected) {
                     updateNotification(false)
                 }
                 wasConnected = connected
 
-                if (!connected && !isConnecting && loggedIn) {
+                if (!connected && !isConnecting && loggedIn && !SdkGuard.isOpen()) {
                     val address = savedAddress
                     if (!address.isNullOrEmpty()) {
                         isConnecting = true
-                        try {
-                            BleOperateManager.getInstance().connectDirectly(address)
-                        } catch (_: Exception) {
-                        }
-                        // Release connecting flag after window
+                        BleSdkLifecycle.connectDirectly(address)
                         handler.postDelayed({ isConnecting = false }, 15_000L)
                     }
                 }
 
                 maybeFireSleepReminder()
+                handler.postDelayed(this, intervalMs)
             } catch (e: Exception) {
                 android.util.Log.e("BleConnectionService", "checkRunnable failed", e)
-            } finally {
                 handler.postDelayed(this, 8_000L)
             }
         }
@@ -154,16 +148,10 @@ class BleConnectionService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        try {
-            BleOperateManager.getInstance(applicationContext as Application)
-            BleOperateManager.getInstance().init()
-        } catch (_: Exception) {}
+        BleSdkLifecycle.ensureInitialized(applicationContext)
 
         createNotificationChannel()
 
-        // Android 14+ (API 34+) may throw ForegroundServiceStartNotAllowedException
-        // if startForeground() is called while the app is not in the foreground
-        // (e.g. during early boot before Flutter's runApp). Catch and retry.
         try {
             startForeground(NOTIFICATION_ID, buildNotification(false))
         } catch (_: Exception) {
@@ -174,16 +162,17 @@ class BleConnectionService : Service() {
             }, 5_000L)
         }
 
-        // Start first check after a short delay to let SDK settle
         handler.postDelayed(checkRunnable, 4_000L)
 
-        // Both are no-ops while their respective MeasurementConfig flag is off.
-        MeasurementLoopManager.start(applicationContext)
-        SupabaseSyncManager.start(applicationContext)
-
-        // Piggybacks on this already-running foreground service rather than starting a
-        // second one — see FallMotionDetector kdoc.
-        FallMotionDetector.start(applicationContext)
+        try {
+            MeasurementLoopManager.start(applicationContext)
+        } catch (_: Exception) {}
+        try {
+            SupabaseSyncManager.start(applicationContext)
+        } catch (_: Exception) {}
+        try {
+            FallMotionDetector.start(applicationContext)
+        } catch (_: Exception) {}
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

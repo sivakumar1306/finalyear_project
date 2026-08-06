@@ -15,3 +15,14 @@
 -keep class com.google.gson.** { *; }
 -keep class com.google.gson.reflect.TypeToken { *; }
 -keep class * extends com.google.gson.reflect.TypeToken
+
+# Vendor QRing / Oudmon BLE SDK (AAR) — R8 must not strip reflection/JNI entry points.
+-keep class com.oudmon.** { *; }
+-keep class com.realsil.** { *; }
+-keep class com.jieli.** { *; }
+-keepclassmembers class * {
+    native <methods>;
+}
+-dontwarn com.oudmon.**
+-dontwarn com.realsil.**
+-dontwarn com.jieli.**

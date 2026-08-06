@@ -14,10 +14,29 @@ import 'providers/home_card_provider.dart';
 import 'providers/fall_prediction/fall_prediction_provider.dart';
 import 'services/supabase_service.dart';
 import 'services/incident_service.dart';
+import 'services/ble_service.dart';
 import 'config.dart';
 import 'app.dart';
 
 const _bleChannel = MethodChannel(AppConfig.bleMethodChannel);
+
+Future<void> _reportLastNativeCrash() async {
+  try {
+    final crash = await BleService().getLastNativeCrash();
+    if (crash == null) return;
+    final message = crash['message']?.toString() ?? 'native crash';
+    final source = crash['source']?.toString() ?? 'android_native';
+    await IncidentService.reportIncident(
+      source: 'android_native',
+      error: message,
+      customMessage: source,
+      extraInfo: crash,
+    );
+    await BleService().clearLastNativeCrash();
+  } catch (e) {
+    debugPrint('_reportLastNativeCrash: $e');
+  }
+}
 
 Future<void> _requestPermissionsAndStartService() async {
   await [
@@ -112,6 +131,8 @@ void main() async {
     } catch (e, st) {
       debugPrint('Startup init failed (continuing offline): $e\n$st');
     }
+
+    unawaited(_reportLastNativeCrash());
 
     _authSub?.cancel();
     try {
