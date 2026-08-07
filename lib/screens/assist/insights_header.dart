@@ -143,7 +143,7 @@ class InsightsHeaderState extends State<InsightsHeader>
               fontSize: 10,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.2 * 10,
-              color: AppTheme.goldAccent,
+              color: AppTheme.gold,
             ),
           ),
           const SizedBox(height: 6),
@@ -165,7 +165,7 @@ class InsightsHeaderState extends State<InsightsHeader>
                   text: part['text'] as String? ?? '',
                   style: (part['highlight'] == true)
                       ? AppTypography.inter(
-                          color: AppTheme.goldAccent,
+                          color: AppTheme.gold,
                           fontWeight: FontWeight.w400,
                         )
                       : null,

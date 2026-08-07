@@ -64,22 +64,44 @@ object EmergencySmsSender {
     /**
      * Start (or restart) a [COUNTDOWN_SECONDS] countdown. When it expires, SMS is sent to
      * every emergency contact. Safe to call from background threads.
+     *
+     * Refuses to start when no real emergency contact exists — the countdown must never run
+     * against an empty (or fake) contact list. Returns false when it could not start.
      */
-    fun schedule(context: Context, reason: String) {
+    fun schedule(context: Context, reason: String): Boolean {
         val app = context.applicationContext
         val prefs = prefs(app)
         val lastSent = prefs.getLong(KEY_LAST_SENT_AT, 0L)
         val now = System.currentTimeMillis()
         if (lastSent > 0 && now - lastSent < SEND_COOLDOWN_MS) {
             Log.i(TAG, "Skipping schedule — within send cooldown")
-            return
+            return false
         }
         // Already counting down — leave the existing timer so we don't extend forever on
         // repeated vitals spikes; the user still has their original cancel window.
         if (active && sendAtMs > now) {
             Log.i(TAG, "Countdown already active — not restarting")
             updateCountdownNotification(app)
-            return
+            return true
+        }
+
+        // Block auto-SMS until at least one real contact (with a digit) is saved.
+        val hasContact = try {
+            runBlocking {
+                ReadingRepository.getInstance(app).allEmergencyContacts().any {
+                    it.phone.trim().any { ch -> ch.isDigit() }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load contacts before scheduling", e)
+            false
+        }
+        if (!hasContact) {
+            val err = "No emergency contacts saved — add one before SMS alerting can work"
+            Log.w(TAG, err)
+            prefs.edit().putString(KEY_LAST_ERROR, err).apply()
+            notifySendResult(app, success = false, count = 0, detail = err)
+            return false
         }
 
         this.reason = reason
@@ -96,6 +118,7 @@ object EmergencySmsSender {
         startTicking(app)
         updateCountdownNotification(app)
         Log.i(TAG, "Scheduled emergency SMS in ${COUNTDOWN_SECONDS}s (reason=$reason)")
+        return true
     }
 
     /** Cancel a pending countdown. Does nothing if already sent or idle. */

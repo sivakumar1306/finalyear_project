@@ -35,16 +35,26 @@ import com.oudmon.ble.base.communication.entity.BleStepDetails
 import com.oudmon.ble.base.communication.entity.StartEndTimeEntity
 import com.oudmon.ble.base.communication.file.FileHandle
 import com.oudmon.ble.base.communication.file.SimpleCallback
+import com.oudmon.ble.base.communication.req.AgpsReq
+import com.oudmon.ble.base.communication.req.BaseReqCmd
+import com.oudmon.ble.base.communication.req.BatterySavingReq
 import com.oudmon.ble.base.communication.req.BloodOxygenSettingReq
 import com.oudmon.ble.base.communication.req.BpSettingReq
+import com.oudmon.ble.base.communication.req.BrightnessSettingsReq
 import com.oudmon.ble.base.communication.req.CameraReq
 import com.oudmon.ble.base.communication.req.DeviceSupportReq
+import com.oudmon.ble.base.communication.req.DisplayOrientationReq
+import com.oudmon.ble.base.communication.req.DisplayStyleReq
+import com.oudmon.ble.base.communication.req.DisplayTimeReq
 import com.oudmon.ble.base.communication.req.DndReq
 import com.oudmon.ble.base.communication.req.FindDeviceReq
 import com.oudmon.ble.base.communication.req.HRVReq
 import com.oudmon.ble.base.communication.req.HeartRateSettingReq
 import com.oudmon.ble.base.communication.req.HrvSettingReq
+import com.oudmon.ble.base.communication.req.IntellReq
 import com.oudmon.ble.base.communication.req.MusicSwitchReq
+import com.oudmon.ble.base.communication.req.MuslimReq
+import com.oudmon.ble.base.communication.req.NotificationEventNotifyReq
 import com.oudmon.ble.base.communication.req.PalmScreenReq
 import com.oudmon.ble.base.communication.req.PressureReq
 import com.oudmon.ble.base.communication.req.PressureSettingReq
@@ -57,15 +67,25 @@ import com.oudmon.ble.base.communication.req.SetTimeReq
 import com.oudmon.ble.base.communication.req.SimpleKeyPowerOffReq
 import com.oudmon.ble.base.communication.req.SimpleKeyReq
 import com.oudmon.ble.base.communication.req.SugarLipidsSettingReq
+import com.oudmon.ble.base.communication.req.TargetSettingReq
+import com.oudmon.ble.base.communication.req.TimeFormatReq
 import com.oudmon.ble.base.communication.req.TouchControlReq
 import com.oudmon.ble.base.communication.responseImpl.DeviceNotifyListener
+import com.oudmon.ble.base.communication.rsp.AgpsRsp
 import com.oudmon.ble.base.communication.rsp.BaseRspCmd
 import com.oudmon.ble.base.communication.rsp.BatteryRsp
+import com.oudmon.ble.base.communication.rsp.BatterySavingRsp
+import com.oudmon.ble.base.communication.rsp.BloodSugarLipidsSettingRsp
+import com.oudmon.ble.base.communication.rsp.BrightnessSettingsRsp
 import com.oudmon.ble.base.communication.rsp.CameraNotifyRsp
 import com.oudmon.ble.base.communication.rsp.DeviceNotifyRsp
 import com.oudmon.ble.base.communication.rsp.DeviceSupportFunctionRsp
+import com.oudmon.ble.base.communication.rsp.DisplayOrientationRsp
+import com.oudmon.ble.base.communication.rsp.DisplayStyleRsp
+import com.oudmon.ble.base.communication.rsp.DisplayTimeRsp
 import com.oudmon.ble.base.communication.rsp.HRVRsp
 import com.oudmon.ble.base.communication.rsp.HeartRateSettingRsp
+import com.oudmon.ble.base.communication.rsp.IntellRsp
 import com.oudmon.ble.base.communication.rsp.PalmScreenRsp
 import com.oudmon.ble.base.communication.rsp.PressureRsp
 import com.oudmon.ble.base.communication.rsp.ReadDetailSportDataRsp
@@ -73,6 +93,8 @@ import com.oudmon.ble.base.communication.rsp.ReadHeartRateRsp
 import com.oudmon.ble.base.communication.rsp.SetTimeRsp
 import com.oudmon.ble.base.communication.rsp.SleepNewProtoResp
 import com.oudmon.ble.base.communication.rsp.StartHeartRateRsp
+import com.oudmon.ble.base.communication.rsp.TargetSettingRsp
+import com.oudmon.ble.base.communication.rsp.TimeFormatRsp
 import com.oudmon.ble.base.communication.rsp.TouchControlResp
 import com.oudmon.ble.base.communication.sport.SportPlusHandle
 import com.oudmon.ble.base.scan.BleScannerHelper
@@ -317,18 +339,20 @@ class BlePlugin(private val context: Context) {
             "syncManualTemperature"      -> syncManualTemperature(result)
             "testManualTemperature"      -> testManualTemperature(result)
             "syncSportRecords"           -> syncSportRecords(result)
+            "getHealthSettings"          -> getHealthSettings(result)
+            "setHealthSettings"          -> setHealthSettings(call, result)
             "getNotificationSettings"    -> getNotificationSettings(result)
             "setNotificationSetting"     -> setNotificationSetting(call, result)
             "getDndSetting"              -> getDndSetting(result)
             "setDndSetting"              -> setDndSetting(call, result)
             "getMusicSwitch"             -> getMusicSwitch(result)
             "setMusicSwitch"             -> setMusicSwitch(call, result)
-            "getDisplaySettings"         -> result.success("{}")
-            "setDisplaySetting"          -> result.success(true)
-            "getTargetAndProfile"        -> result.success("{}")
-            "setTargetAndProfile"        -> result.success(true)
-            "getAdvancedSettings"        -> result.success("{}")
-            "setAdvancedSetting"         -> result.success(true)
+            "getDisplaySettings"         -> getDisplaySettings(result)
+            "setDisplaySetting"          -> setDisplaySetting(call, result)
+            "getTargetAndProfile"        -> getTargetAndProfile(result)
+            "setTargetAndProfile"        -> setTargetAndProfile(call, result)
+            "getAdvancedSettings"        -> getAdvancedSettings(result)
+            "setAdvancedSetting"         -> setAdvancedSetting(call, result)
             "getGestureSetting"          -> getGestureSetting(result)
             "setGestureSetting"          -> setGestureSetting(call, result)
             "getTouchControlSetting"     -> getTouchControlSetting(result)
@@ -339,7 +363,7 @@ class BlePlugin(private val context: Context) {
             "getDrinkReminder"           -> getDrinkReminder(result)
             "getSedentaryReminder"       -> getSedentaryReminder(result)
             "startOta"                   -> startOta(call, result)
-            "sendNotification"           -> result.success(true)
+            "sendNotification"           -> sendRingNotification(call, result)
             "takePicture"                -> takePicture(result)
             "exitCameraMode"             -> exitCameraMode(result)
             "factoryReset"               -> factoryReset(result)
@@ -2094,6 +2118,283 @@ class BlePlugin(private val context: Context) {
     }
 
     // ─────────────────────────────────────────────────────────────────
+    // Ring display settings (brightness / clock style / time format /
+    // orientation / screen-on duration) — real SDK reads & writes
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun <T : BaseRspCmd> readSetting(
+        req: BaseReqCmd,
+        rspClass: Class<T>,
+        onDone: (T?) -> Unit
+    ) {
+        try {
+            CommandHandle.getInstance().executeReqCmd(
+                req,
+                ICommandResponse<T> { rsp ->
+                    mainHandler.post { onDone(rsp) }
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "readSetting error: ${e.message}")
+            mainHandler.post { onDone(null) }
+        }
+    }
+
+    private fun getDisplaySettings(result: MethodChannel.Result) {
+        val out = HashMap<String, Any?>()
+        readSetting(BrightnessSettingsReq.getReadInstance(), BrightnessSettingsRsp::class.java) { b ->
+            if (b != null) out["brightness"] = b.level
+            readSetting(DisplayStyleReq.getReadInstance(), DisplayStyleRsp::class.java) { s ->
+                if (s != null) out["clockStyle"] = s.styleIndex
+                readSetting(DisplayTimeReq.getReadInstance(), DisplayTimeRsp::class.java) { t ->
+                    if (t != null) out["screenOnDuration"] = t.displayTime
+                    readSetting(DisplayOrientationReq.getReadInstance(), DisplayOrientationRsp::class.java) { o ->
+                        if (o != null) out["orientation"] = if (o.isLeft) 0 else 1
+                        readSetting(TimeFormatReq.getReadInstance(), TimeFormatRsp::class.java) { f ->
+                            if (f != null) out["is24h"] = f.is24
+                            mainHandler.post { result.success(gson.toJson(out)) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun setDisplaySetting(call: MethodCall, result: MethodChannel.Result) {
+        val m = try {
+            gson.fromJson(call.argument<String>("data"), Map::class.java)
+        } catch (e: Exception) {
+            Log.e(TAG, "setDisplaySetting parse error: ${e.message}")
+            null
+        } ?: run { result.success(false); return }
+        (m["brightness"] as? Number)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(BrightnessSettingsReq.getWriteInstance(v.toInt()), null)
+        }
+        (m["clockStyle"] as? Number)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(DisplayStyleReq.getWriteInstance(v.toInt()), null)
+        }
+        (m["is24h"] as? Boolean)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(TimeFormatReq.getWriteInstance(v, 1), null)
+        }
+        (m["orientation"] as? Number)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(
+                DisplayOrientationReq.getWriteInstance(true, v.toInt() == 0),
+                null
+            )
+        }
+        (m["screenOnDuration"] as? Number)?.let { v ->
+            readSetting(DisplayTimeReq.getReadInstance(), DisplayTimeRsp::class.java) { cur ->
+                CommandHandle.getInstance().executeReqCmd(
+                    DisplayTimeReq.getWriteInstanceNew(
+                        v.toInt(),
+                        cur?.displayType ?: 1,
+                        cur?.alpha ?: 5,
+                        cur?.total ?: 5,
+                        cur?.alwaysOn ?: 5,
+                        true
+                    ),
+                    null
+                )
+                mainHandler.post { result.success(true) }
+            }
+            return
+        }
+        result.success(true)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Targets & user profile (read-only on this ring model)
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun getTargetAndProfile(result: MethodChannel.Result) {
+        readSetting(TargetSettingReq.getReadInstance(), TargetSettingRsp::class.java) { r ->
+            val out = HashMap<String, Any?>()
+            if (r != null) {
+                out["stepTarget"] = r.step
+                out["calorieTarget"] = r.calorie
+                out["distanceTargetM"] = r.distance
+                out["sleepTargetMin"] = r.getmSleep()
+                out["sportTargetMin"] = r.getmSport()
+            }
+            out["profileSupported"] = false
+            mainHandler.post { result.success(gson.toJson(out)) }
+        }
+    }
+
+    private fun setTargetAndProfile(call: MethodCall, result: MethodChannel.Result) {
+        val m = try {
+            gson.fromJson(call.argument<String>("data"), Map::class.java)
+        } catch (e: Exception) {
+            Log.e(TAG, "setTargetAndProfile parse error: ${e.message}")
+            null
+        } ?: run { result.success(false); return }
+        val step = (m["stepTarget"] as? Number)?.toInt() ?: 8000
+        val calorie = (m["calorieTarget"] as? Number)?.toInt() ?: 500
+        val distanceM = ((m["distanceTarget"] as? Number)?.toDouble() ?: 5.0).let { (it * 1000).toInt() }
+        val sportMin = (m["sportTargetMin"] as? Number)?.toInt() ?: 60
+        val sleepMin = ((m["sleepTarget"] as? Number)?.toDouble() ?: 8.0).let { (it * 60).toInt() }
+        CommandHandle.getInstance().executeReqCmd(
+            TargetSettingReq.getWriteInstance(step, calorie, distanceM, sportMin, sleepMin),
+            ICommandResponse<BaseRspCmd> { _ ->
+                mainHandler.post { result.success(true) }
+            }
+        )
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Advanced settings (battery saving / AGPS / intelligent / touch)
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun getAdvancedSettings(result: MethodChannel.Result) {
+        val out = HashMap<String, Any?>()
+        readSetting(BatterySavingReq.getReadInstance(), BatterySavingRsp::class.java) { b ->
+            if (b != null) out["batterySaving"] = b.isOpen
+            readSetting(AgpsReq.getReadInstance(), AgpsRsp::class.java) { a ->
+                if (a != null) out["agpsEnable"] = a.isEnable
+                readSetting(IntellReq.getReadInstance(), IntellRsp::class.java) { i ->
+                    if (i != null) out["intellSettings"] = i.isEnable
+                    readSetting(TouchControlReq.getReadInstance(true), TouchControlResp::class.java) { t ->
+                        if (t != null) out["touchControl"] = t.isTouch
+                        mainHandler.post { result.success(gson.toJson(out)) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun setAdvancedSetting(call: MethodCall, result: MethodChannel.Result) {
+        val m = try {
+            gson.fromJson(call.argument<String>("data"), Map::class.java)
+        } catch (e: Exception) {
+            Log.e(TAG, "setAdvancedSetting parse error: ${e.message}")
+            null
+        } ?: run { result.success(false); return }
+        (m["batterySaving"] as? Boolean)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(BatterySavingReq.getWriteInstance(v), null)
+        }
+        (m["agpsEnable"] as? Boolean)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(AgpsReq.getWriteInstance(v), null)
+        }
+        (m["intellSettings"] as? Boolean)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(IntellReq.getWriteInstance(v, 0), null)
+        }
+        (m["touchControl"] as? Boolean)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(
+                TouchControlReq.getWriteInstance(if (v) 9 else 0, true, 5),
+                null
+            )
+        }
+        (m["muslimMode"] as? Boolean)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(MuslimReq.getWriteInstance(v), null)
+        }
+        result.success(true)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Ring event notification (fixed ring-side events; title/content
+    // are accepted for API compatibility but not part of the protocol)
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun sendRingNotification(call: MethodCall, result: MethodChannel.Result) {
+        val type = call.argument<Int>("type") ?: NotificationEventNotifyReq.EVENT_NONE
+        val event = when (type) {
+            1 -> NotificationEventNotifyReq.EVENT_DOUBLE_CLICK_BUTTON
+            2 -> NotificationEventNotifyReq.EVENT_PAIRING
+            3 -> NotificationEventNotifyReq.EVENT_MISS_YOU
+            4 -> NotificationEventNotifyReq.EVENT_LOVE_YOU
+            5 -> NotificationEventNotifyReq.EVENT_NEED_YOU
+            6 -> NotificationEventNotifyReq.EVENT_SAD
+            7 -> NotificationEventNotifyReq.EVENT_LOVE_LETTER
+            else -> NotificationEventNotifyReq.EVENT_NONE
+        }
+        CommandHandle.getInstance().executeReqCmd(NotificationEventNotifyReq.getEventInstance(event), null)
+        result.success(true)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Health settings — sugar/lipids measurement state on the ring
+    // (temperature / RRI / emotion auto-measure toggles)
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun getHealthSettings(result: MethodChannel.Result) {
+        readSetting(
+            SugarLipidsSettingReq.getReadTemperatureInstance(),
+            BloodSugarLipidsSettingRsp::class.java
+        ) { t ->
+            readSetting(
+                SugarLipidsSettingReq.getReadRriInstance(),
+                BloodSugarLipidsSettingRsp::class.java
+            ) { rri ->
+                readSetting(
+                    SugarLipidsSettingReq.getReadEmotionInstance(),
+                    BloodSugarLipidsSettingRsp::class.java
+                ) { em ->
+                    fun toMap(r: BloodSugarLipidsSettingRsp?) = r?.let {
+                        mapOf(
+                            "enabled" to it.isEnable,
+                            "value" to it.value,
+                            "type" to it.type,
+                            "read" to it.isRead,
+                            "startInterval" to it.startInterval,
+                            "interval" to it.interval,
+                            "rriAutoMeasureEnable" to it.isRriAutoMeasureEnable
+                        )
+                    }
+                    mainHandler.post {
+                        result.success(
+                            gson.toJson(
+                                mapOf(
+                                    "sugarLipids" to mapOf(
+                                        "temperature" to toMap(t),
+                                        "rri" to toMap(rri),
+                                        "emotion" to toMap(em)
+                                    )
+                                )
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun setHealthSettings(call: MethodCall, result: MethodChannel.Result) {
+        val m = try {
+            gson.fromJson(call.argument<String>("data"), Map::class.java)
+        } catch (e: Exception) {
+            Log.e(TAG, "setHealthSettings parse error: ${e.message}")
+            null
+        } ?: run { result.success(false); return }
+        val sugarLipids = m["sugarLipids"] as? Map<*, *>
+        (sugarLipids?.get("temperature") as? Map<*, *>)?.let { t ->
+            (t["enabled"] as? Boolean)?.let { en ->
+                val interval = (t["interval"] as? Number)?.toInt() ?: 60
+                CommandHandle.getInstance().executeReqCmd(
+                    SugarLipidsSettingReq.getWriteTemperatureInstance(en, interval),
+                    null
+                )
+            }
+        }
+        (sugarLipids?.get("rri") as? Map<*, *>)?.let { r ->
+            (r["enabled"] as? Boolean)?.let { en ->
+                CommandHandle.getInstance().executeReqCmd(
+                    SugarLipidsSettingReq.getWriteRriInstance(en),
+                    null
+                )
+            }
+        }
+        (sugarLipids?.get("emotion") as? Map<*, *>)?.let { e ->
+            (e["enabled"] as? Boolean)?.let { en ->
+                CommandHandle.getInstance().executeReqCmd(
+                    SugarLipidsSettingReq.getWriteEmotionInstance(en),
+                    null
+                )
+            }
+        }
+        result.success(true)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
     // Touch Control
     // ─────────────────────────────────────────────────────────────────
 
@@ -2511,15 +2812,15 @@ class BlePlugin(private val context: Context) {
                         detectedAt = System.currentTimeMillis(),
                     )
                 )
-                FallAlertNotifier.notifyFall(context, confidence, source)
+                // Demo only — never schedule SMS or place a call from a simulation.
+                FallAlertNotifier.notifyFall(context, confidence, source, simulated = true)
                 SafetyLiveUpdate.showFall(
                     context,
                     (confidence * 100).toInt(),
                     EmergencySmsSender.COUNTDOWN_SECONDS,
                     EmergencyAutoCaller.isEnabled(context),
+                    simulated = true,
                 )
-                EmergencySmsSender.schedule(context, reason = "fall")
-                EmergencyAutoCaller.placeIfEnabled(context)
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
@@ -2543,7 +2844,10 @@ class BlePlugin(private val context: Context) {
                 val bpm = 135
                 val id = repo().insertHeartRate(bpm, cycleId, "demo_seed")
                 EventBus.getDefault().post(
-                    NewReadingEvent(Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(), bpm.toDouble())
+                    NewReadingEvent(
+                        Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(),
+                        bpm.toDouble(), simulated = true,
+                    )
                 )
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
@@ -2559,10 +2863,13 @@ class BlePlugin(private val context: Context) {
                 val bpm = 122
                 val id = repo().insertHeartRate(bpm, cycleId, "demo_seed")
                 EventBus.getDefault().post(
-                    NewReadingEvent(Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(), bpm.toDouble())
+                    NewReadingEvent(
+                        Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(),
+                        bpm.toDouble(), simulated = true,
+                    )
                 )
-                FallPredictionNotifier.notifyPrediction(context, bpm)
-                EmergencySmsSender.schedule(context, reason = "prediction")
+                // Demo only — never schedule SMS from a simulation.
+                FallPredictionNotifier.notifyPrediction(context, bpm, simulated = true)
 
                 // Persist so it shows up in Fall History, same as the real
                 // FallRiskAnalyzer.maybeAlert() path.

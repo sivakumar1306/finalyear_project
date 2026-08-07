@@ -799,6 +799,11 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
               }).toList(),
             ),
           ],
+          const SizedBox(height: 12),
+          Text(
+            'Estimates from ring vitals plus cycle rules — informational only, not a medical diagnosis.',
+            style: _inter(11, color: AppTheme.textSec, height: 1.3),
+          ),
         ],
       ),
     );

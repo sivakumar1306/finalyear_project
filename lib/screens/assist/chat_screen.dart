@@ -173,7 +173,7 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Text(
               'Start new',
               style: AppTypography.inter(
-                color: AppTheme.goldAccent,
+                color: AppTheme.gold,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -343,7 +343,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: _isRestoring
                     ? const Center(
                         child: CircularProgressIndicator(
-                          color: AppTheme.goldAccent,
+                          color: AppTheme.gold,
                           strokeWidth: 2,
                         ),
                       )
@@ -351,7 +351,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ? _buildEmptyState()
                     : RefreshIndicator(
                         onRefresh: _onPullToRefresh,
-                        color: AppTheme.goldAccent,
+                        color: AppTheme.gold,
                         backgroundColor: const Color(0xFF141414),
                         child: ListView.builder(
                           controller: _scrollController,
@@ -472,7 +472,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                           const Icon(
                                             Icons.add_comment_outlined,
                                             size: 14,
-                                            color: AppTheme.goldAccent,
+                                            color: AppTheme.gold,
                                           ),
                                           const SizedBox(width: 6),
                                           Text(
@@ -540,7 +540,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildEmptyState() {
     return RefreshIndicator(
       onRefresh: _onPullToRefresh,
-      color: AppTheme.goldAccent,
+      color: AppTheme.gold,
       backgroundColor: const Color(0xFF141414),
       child: ListView(
         controller: _scrollController,
@@ -567,7 +567,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: const Icon(
                   Icons.smart_toy_rounded,
                   size: 48,
-                  color: AppTheme.goldAccent,
+                  color: AppTheme.gold,
                 ),
               ),
               const SizedBox(height: 16),
@@ -804,7 +804,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         onTap: _isLoading ? null : _startVoiceInput,
                         child: const Icon(
                           Icons.mic_none_rounded,
-                          color: AppTheme.goldAccent,
+                          color: AppTheme.gold,
                           size: 28,
                         ),
                       ),
@@ -827,7 +827,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             decoration: BoxDecoration(
                               color: _isLoading
                                   ? Colors.transparent
-                                  : AppTheme.goldAccent,
+                                  : AppTheme.gold,
                               shape: BoxShape.circle,
                               border: _isLoading
                                   ? Border.all(
@@ -842,7 +842,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                       width: 20,
                                       height: 20,
                                       child: CircularProgressIndicator(
-                                        color: AppTheme.goldAccent,
+                                        color: AppTheme.gold,
                                         strokeWidth: 2,
                                       ),
                                     )
@@ -940,7 +940,7 @@ class _ChatLoadingIndicatorState extends State<_ChatLoadingIndicator>
   Widget _buildDot(int index) {
     final double size = index == 1 ? 12.0 : 8.0;
     final Color color = index == 1
-        ? AppTheme.goldAccent
+        ? AppTheme.gold
         : const Color(0xB2C9A86E); // rgba(201,168,110,0.7)
 
     return AnimatedBuilder(

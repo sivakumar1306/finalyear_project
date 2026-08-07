@@ -37,7 +37,7 @@ class ExplainableAIDashboard extends StatelessWidget {
                     Text(
                       'Risk Reasoning',
                       style: AppTypography.inter(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -72,7 +72,7 @@ class ExplainableAIDashboard extends StatelessWidget {
                         item,
                         style: AppTypography.inter(
                           fontWeight: isRecommendation ? FontWeight.w600 : FontWeight.w400,
-                          color: isRecommendation ? AppTheme.spo2Color : Colors.white,
+                          color: isRecommendation ? AppTheme.spo2Color : AppTheme.textPrimary,
                           fontSize: 14,
                           height: 1.4,
                         ),

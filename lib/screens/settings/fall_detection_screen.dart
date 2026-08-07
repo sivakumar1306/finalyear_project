@@ -102,18 +102,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
 
   Future<void> _loadContacts() async {
     final ble = context.read<BleProvider>();
-    var rows = await ble.getEmergencyContacts();
-    if (rows.isEmpty) {
-      // First run — seed the same two defaults the old in-memory demo used, but for real.
-      // Uses a fake test number (not a real emergency line) since the debug menu's
-      // "Alert emergency contact" actually opens the dialer/SMS app with this number.
-      await ble.addEmergencyContact(
-        'Default Emergency (Default)',
-        '9999999999',
-      );
-      await ble.addEmergencyContact('Mom', '+91 000 000 0000');
-      rows = await ble.getEmergencyContacts();
-    }
+    final rows = await ble.getEmergencyContacts();
     if (!mounted) return;
     setState(() {
       _contacts = rows
@@ -396,7 +385,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
-                        'Simulated fall — SMS countdown started (auto-call follows Settings toggle)',
+                        'Simulated fall — notification only. No SMS or call was triggered.',
                       ),
                     ),
                   );
@@ -410,7 +399,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
-                        'Simulated prediction — SMS countdown started (Cancel in notification or here)',
+                        'Simulated prediction — notification only. No SMS was scheduled.',
                       ),
                     ),
                   );
@@ -540,6 +529,44 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Center(
                 child: CircularProgressIndicator(color: AppTheme.gold),
+              ),
+            )
+          else if (_contacts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppTheme.danger.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.danger.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: AppTheme.danger,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'No emergency contacts saved. Add at least one real contact '
+                        'before fall alerts can reach anyone — SMS and auto-call stay '
+                        'blocked until then.',
+                        style: AppTypography.inter(
+                          color: Colors.white.withValues(alpha: 0.75),
+                          fontSize: 12.5,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
           else

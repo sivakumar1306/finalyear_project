@@ -31,7 +31,7 @@ object FallPredictionNotifier {
     private const val KEY_PENDING = "pending"
     private const val KEY_HR = "hr"
 
-    fun notifyPrediction(context: Context, hr: Int) {
+    fun notifyPrediction(context: Context, hr: Int, simulated: Boolean = false) {
         // Persist immediately so a cold start / launcher open still picks this up —
         // previously the flag lived only on the notification PendingIntent extras.
         markPending(context, hr)
@@ -53,9 +53,14 @@ object FallPredictionNotifier {
         }
 
         val countdown = EmergencySmsSender.COUNTDOWN_SECONDS
-        val bodyText = "We have detected multiple signs that you might fall down in the " +
-            "next 2-3 minutes. SMS will be sent to all emergency contacts in $countdown " +
-            "seconds unless you cancel."
+        val bodyText = if (simulated) {
+            "DEMO ONLY — simulated vitals suggest a fall might be near. " +
+                "No SMS is scheduled and no contact is called for this simulation."
+        } else {
+            "We have detected multiple signs that you might fall down in the " +
+                "next 2-3 minutes. SMS will be sent to all emergency contacts in $countdown " +
+                "seconds unless you cancel."
+        }
 
         val cancelSmsIntent = PendingIntent.getBroadcast(
             context,
@@ -65,21 +70,23 @@ object FallPredictionNotifier {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("You might fall soon...")
+            .setContentTitle(if (simulated) "SIMULATION — fall prediction" else "You might fall soon...")
             .setContentText(bodyText)
-            .setSubText("Fall Prediction")
+            .setSubText(if (simulated) "Fall Prediction (Demo)" else "Fall Prediction")
             .setStyle(NotificationCompat.BigTextStyle().bigText(bodyText))
             .setSmallIcon(R.drawable.ic_notification)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(launchIntent(0))
-            .addAction(0, "Cancel SMS", cancelSmsIntent)
+            .addAction(0, if (simulated) "Dismiss" else "Cancel SMS", cancelSmsIntent)
             .addAction(0, "Open app", launchIntent(1))
             .build()
 
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
-        SafetyLiveUpdate.showPrediction(context, countdown)
+        if (!simulated) {
+            SafetyLiveUpdate.showPrediction(context, countdown)
+        }
     }
 
     /** Write pending prediction so any subsequent app open can surface the alert. */

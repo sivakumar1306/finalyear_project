@@ -29,7 +29,7 @@ class _PrayerHistoryScreenState extends State<PrayerHistoryScreen> {
           .from('workouts')
           .select()
           .eq('workout_type', 'Prayer')
-          .order('started_at', ascending: false);
+          .order('created_at', ascending: false);
 
       final list = List<Map<String, dynamic>>.from(res as List);
       setState(() {

@@ -28,7 +28,7 @@ import '../../utils/bp_staging.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
-const _kSec2 = Color(0xFF888888);
+const _kSec2 = AppTheme.textSec;
 const _kCardBg = Color(0x0FFFFFFF); // rgba(255,255,255,0.06)
 const _kCardBorder = Color(0x17FFFFFF); // rgba(255,255,255,0.09)
 const _kBtnBg = Color(0x08FFFFFF); // rgba(255,255,255,0.03)
@@ -1157,7 +1157,7 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 0.18 * 10,
-                      color: AppTheme.goldAccent,
+                      color: AppTheme.gold,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -2485,7 +2485,7 @@ const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
     'Normal',
     'All alerts on',
     'Base',
-    AppTheme.base,
+    AppTheme.gold,
     Icons.circle_outlined,
   ),
   PhoneMode.prayer: _AlarmModeInfo(

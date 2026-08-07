@@ -20,9 +20,10 @@ class _HealthSettingsScreenState extends State<HealthSettingsScreen> {
 
   // Ring-side monitoring settings. Loaded from / written to the ring via the per-vital
   // SDK setting commands (getHeartRateSetting, setBloodOxygenSetting, ...). These used to
-  // go through getHealthSettings/setHealthSettings, which are not implemented natively at
-  // all — every load silently failed and every save threw, so nothing on this screen
-  // actually reached the ring.
+  // go through getHealthSettings/setHealthSettings, which were stubs natively — every load
+  // silently failed and every save threw, so nothing on this screen reached the ring.
+  // The per-vital commands below are wired to real SDK req/rsp pairs; getHealthSettings
+  // is now also implemented natively and powers the Sugar & Lipids screen.
   Map<String, dynamic> _settings = {};
 
   // Phone-side auto-measurement cadence (SharedPreferences via MeasurementConfig), kept

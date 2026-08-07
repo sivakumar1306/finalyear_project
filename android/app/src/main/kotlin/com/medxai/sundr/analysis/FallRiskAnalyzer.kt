@@ -58,22 +58,25 @@ object FallRiskAnalyzer {
                         computedAt = event.measuredAt,
                     )
                 )
-                maybeAlert(result, event.measuredAt)
+                maybeAlert(result, event.measuredAt, event.simulated)
             } catch (_: Exception) {
                 // Must never affect the rest of the vitals pipeline.
             }
         }
     }
 
-    private fun maybeAlert(result: ScoreResult, measuredAt: Long) {
+    private fun maybeAlert(result: ScoreResult, measuredAt: Long, simulated: Boolean) {
         if (result.tier != "HIGH" && result.tier != "CRITICAL" && result.tier != "OVERRIDE") return
         if (measuredAt - lastAlertAt < ALERT_COOLDOWN_MS) return
         val context = appContext ?: return
         val repo = repository ?: return
         lastAlertAt = measuredAt
         val hr = (result.components["hr"] as? Int) ?: 0
-        FallPredictionNotifier.notifyPrediction(context, hr)
-        EmergencySmsSender.schedule(context, reason = "prediction")
+        FallPredictionNotifier.notifyPrediction(context, hr, simulated = simulated)
+        // Simulations must never reach the real emergency pipeline.
+        if (!simulated) {
+            EmergencySmsSender.schedule(context, reason = "prediction")
+        }
 
         // Persist so it survives banner dismissal and shows up in Fall History.
         repo.ioScope.launch {
