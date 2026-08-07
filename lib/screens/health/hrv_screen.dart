@@ -138,36 +138,13 @@ class _HrvScreenState extends State<HrvScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _seedInstantData();
+
       _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
   }
 
-  void _seedInstantData() {
-    try {
-      final ble = context.read<BleProvider>();
-      final curHrv = ble.todayAvgHrv > 0 ? ble.todayAvgHrv : 48;
-      final minVal = (curHrv - 6).clamp(15, 150);
-      final maxVal = (curHrv + 10).clamp(15, 150);
 
-      const totalSlots = 48;
-      final nowSlot = (DateTime.now().hour * 60 + DateTime.now().minute) ~/ 30;
-      final slots = List<int>.filled(totalSlots, 0);
-      for (int i = 0; i <= nowSlot && i < totalSlots; i++) {
-        final v = ((i % 5) - 2) * 2;
-        slots[i] = (curHrv + v).clamp(minVal, maxVal);
-      }
-
-      setState(() {
-        _avgHrv = curHrv;
-        _minHrv = minVal;
-        _maxHrv = maxVal;
-        _chartValues = slots;
-        _loading = false;
-      });
-    } catch (_) {}
-  }
 
   // ── Date selection ────────────────────────────────────────────────────────
 
@@ -948,16 +925,24 @@ class _HRVDateRow extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < dates.length; i++) ...[
-            if (i > 0) const SizedBox(width: 16),
-            _buildItem(dates[i], today),
-          ],
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (int i = 0; i < dates.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 16),
+                  _buildItem(dates[i], today),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -969,11 +954,11 @@ class _HRVDateRow extends StatelessWidget {
       selectedDate.month,
       selectedDate.day,
     );
-    final isSelected = d == sel && !isToday;
+    final isSelected = d == sel;
 
-    if (isToday || isSelected) {
+    if (isSelected) {
       return GestureDetector(
-        onTap: isToday ? null : () => onDateSelected(d),
+        onTap: null,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
@@ -997,7 +982,7 @@ class _HRVDateRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Text(
           '${d.day}',
-          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
+          style: _inter(15, color: isFuture ? const Color(0xFF333333) : (isToday ? Colors.white : _kSec2)),
         ),
       ),
     );

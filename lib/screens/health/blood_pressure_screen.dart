@@ -135,41 +135,13 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _seedInstantData();
+
       _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
   }
 
-  void _seedInstantData() {
-    try {
-      final ble = context.read<BleProvider>();
-      final curSbp = ble.latestBpSbp > 0 ? ble.latestBpSbp : 120;
-      final curDbp = ble.latestBpDbp > 0 ? ble.latestBpDbp : 80;
 
-      final nowHour = DateTime.now().hour;
-      final slotsSbp = List<int>.filled(24, 0);
-      final slotsDbp = List<int>.filled(24, 0);
-      for (int h = 0; h <= nowHour; h++) {
-        final varSbp = ((h % 4) - 2) * 2;
-        final varDbp = ((h % 3) - 1) * 2;
-        slotsSbp[h] = (curSbp + varSbp).clamp(90, 180);
-        slotsDbp[h] = (curDbp + varDbp).clamp(60, 110);
-      }
-
-      setState(() {
-        _avgSbp = curSbp;
-        _minSbp = curSbp - 5;
-        _maxSbp = curSbp + 8;
-        _avgDbp = curDbp;
-        _minDbp = curDbp - 4;
-        _maxDbp = curDbp + 6;
-        _chartSbp = slotsSbp;
-        _chartDbp = slotsDbp;
-        _loading = false;
-      });
-    } catch (_) {}
-  }
 
   // ── Date selection ────────────────────────────────────────────────────────────
 
@@ -797,16 +769,24 @@ class _BPDateRow extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < dates.length; i++) ...[
-            if (i > 0) const SizedBox(width: 16),
-            _buildItem(dates[i], today),
-          ],
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (int i = 0; i < dates.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 16),
+                  _buildItem(dates[i], today),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -818,11 +798,11 @@ class _BPDateRow extends StatelessWidget {
       selectedDate.month,
       selectedDate.day,
     );
-    final isSelected = d == sel && !isToday;
+    final isSelected = d == sel;
 
-    if (isToday || isSelected) {
+    if (isSelected) {
       return GestureDetector(
-        onTap: isToday ? null : () => onDateSelected(d),
+        onTap: null,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
@@ -846,7 +826,7 @@ class _BPDateRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Text(
           '${d.day}',
-          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
+          style: _inter(15, color: isFuture ? const Color(0xFF333333) : (isToday ? Colors.white : _kSec2)),
         ),
       ),
     );

@@ -135,36 +135,14 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _seedInstantData();
+
       _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
     _loadTempUnit();
   }
 
-  void _seedInstantData() {
-    try {
-      final ble = context.read<BleProvider>();
-      final curTemp = ble.latestTempC > 0 ? ble.latestTempC : 36.6;
-      final minVal = (curTemp - 0.3).clamp(35.0, 42.0);
-      final maxVal = (curTemp + 0.4).clamp(35.0, 42.0);
 
-      final nowHour = DateTime.now().hour;
-      final slots = List<double>.filled(24, 0.0);
-      for (int h = 0; h <= nowHour; h++) {
-        final v = ((h % 3) - 1) * 0.1;
-        slots[h] = (curTemp + v).clamp(minVal, maxVal);
-      }
-
-      setState(() {
-        _avgTemp = curTemp;
-        _minTemp = minVal;
-        _maxTemp = maxVal;
-        _chartValues = slots;
-        _loading = false;
-      });
-    } catch (_) {}
-  }
 
   Future<void> _loadTempUnit() async {
     final unit = await UnitPrefs.loadTempUnit();
@@ -784,16 +762,24 @@ class _TempDateRow extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < dates.length; i++) ...[
-            if (i > 0) const SizedBox(width: 16),
-            _buildItem(dates[i], today),
-          ],
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (int i = 0; i < dates.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 16),
+                  _buildItem(dates[i], today),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -805,11 +791,11 @@ class _TempDateRow extends StatelessWidget {
       selectedDate.month,
       selectedDate.day,
     );
-    final isSelected = d == sel && !isToday;
+    final isSelected = d == sel;
 
-    if (isToday || isSelected) {
+    if (isSelected) {
       return GestureDetector(
-        onTap: isToday ? null : () => onDateSelected(d),
+        onTap: null,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
@@ -833,7 +819,7 @@ class _TempDateRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Text(
           '${d.day}',
-          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
+          style: _inter(15, color: isFuture ? const Color(0xFF333333) : (isToday ? Colors.white : _kSec2)),
         ),
       ),
     );

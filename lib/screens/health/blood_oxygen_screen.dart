@@ -109,34 +109,13 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _seedInstantData();
+
       _fetchToday();
       _load7DayTrend();
     });
   }
 
-  void _seedInstantData() {
-    try {
-      final ble = context.read<BleProvider>();
-      final curSpo2 = ble.todayAvgSpo2 > 0 ? ble.todayAvgSpo2 : 98;
-      final minVal = ble.todayMinSpo2 > 0 ? ble.todayMinSpo2 : (curSpo2 - 2).clamp(85, 100);
-      final maxVal = ble.todayMaxSpo2 > 0 ? ble.todayMaxSpo2 : 100;
 
-      final nowHour = DateTime.now().hour;
-      final slots = List<int>.filled(24, 0);
-      for (int h = 0; h <= nowHour; h++) {
-        slots[h] = (curSpo2 + (h % 3 == 0 ? -1 : 0)).clamp(minVal, maxVal);
-      }
-
-      setState(() {
-        _avgSpo2 = curSpo2;
-        _minSpo2 = minVal;
-        _maxSpo2 = maxVal;
-        _chartValues = slots;
-        _loading = false;
-      });
-    } catch (_) {}
-  }
 
   // ── Date selection ────────────────────────────────────────────────────────
 
@@ -741,16 +720,24 @@ class _Spo2DateRow extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < dates.length; i++) ...[
-            if (i > 0) const SizedBox(width: 16),
-            _buildItem(dates[i], today),
-          ],
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (int i = 0; i < dates.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 16),
+                  _buildItem(dates[i], today),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -762,11 +749,11 @@ class _Spo2DateRow extends StatelessWidget {
       selectedDate.month,
       selectedDate.day,
     );
-    final isSelected = d == sel && !isToday;
+    final isSelected = d == sel;
 
-    if (isToday || isSelected) {
+    if (isSelected) {
       return GestureDetector(
-        onTap: isToday ? null : () => onDateSelected(d),
+        onTap: null,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
@@ -790,7 +777,7 @@ class _Spo2DateRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Text(
           '${d.day}',
-          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
+          style: _inter(15, color: isFuture ? const Color(0xFF333333) : (isToday ? Colors.white : _kSec2)),
         ),
       ),
     );

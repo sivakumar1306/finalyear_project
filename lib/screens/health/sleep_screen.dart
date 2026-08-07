@@ -99,36 +99,13 @@ class _SleepScreenState extends State<SleepScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _seedInstantData();
+
       _init();
       _loadHistory();
     });
   }
 
-  void _seedInstantData() {
-    try {
-      final ble = context.read<BleProvider>();
-      final score = ble.todaySleepScore > 0 ? ble.todaySleepScore : 82;
-      const totalMins = 440; // ~7h 20m
-      const deepMins = 110;
-      const lightMins = 210;
-      const remMins = 90;
-      const awakeMins = 30;
 
-      setState(() {
-        _sleepScore = score;
-        _totalDuration = totalMins;
-        _deepDuration = deepMins;
-        _lightDuration = lightMins;
-        _remDuration = remMins;
-        _awakeDuration = awakeMins;
-        _avgHr = ble.todayAvgHr > 0 ? ble.todayAvgHr : 62;
-        _avgSpo2 = ble.todayAvgSpo2 > 0 ? ble.todayAvgSpo2 : 98;
-        _avgHrv = ble.todayAvgHrv > 0 ? ble.todayAvgHrv : 52;
-        _loading = false;
-      });
-    } catch (_) {}
-  }
 
   Future<void> _init() async {
     if (!mounted) return;
@@ -247,7 +224,21 @@ class _SleepScreenState extends State<SleepScreen> {
     setState(() => _dbOffline = false);
     try {
       final row = await SupabaseService.getSleepForDate(user.id, _selectedDate);
-      if (!mounted || row == null) return;
+      if (!mounted) return;
+      if (row == null) {
+        setState(() {
+          _totalDuration = 0;
+          _deepDuration = 0;
+          _lightDuration = 0;
+          _remDuration = 0;
+          _awakeDuration = 0;
+          _sleepTime = 0;
+          _wakeTime = 0;
+          _sleepScore = 0;
+          _segments = [];
+        });
+        return;
+      }
       setState(() {
         _totalDuration = (row['total_duration'] as num? ?? 0).toInt();
         _deepDuration = (row['deep_duration'] as num? ?? 0).toInt();
@@ -819,16 +810,24 @@ class _SleepDateRow extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < dates.length; i++) ...[
-            if (i > 0) const SizedBox(width: 16),
-            _buildItem(dates[i], today),
-          ],
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (int i = 0; i < dates.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 16),
+                  _buildItem(dates[i], today),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -840,11 +839,11 @@ class _SleepDateRow extends StatelessWidget {
       selectedDate.month,
       selectedDate.day,
     );
-    final isSelected = d == sel && !isToday;
+    final isSelected = d == sel;
 
-    if (isToday || isSelected) {
+    if (isSelected) {
       return GestureDetector(
-        onTap: isToday ? null : () => onDateSelected(d),
+        onTap: null,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
@@ -868,7 +867,7 @@ class _SleepDateRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Text(
           '${d.day}',
-          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
+          style: _inter(15, color: isFuture ? const Color(0xFF333333) : (isToday ? Colors.white : _kSec2)),
         ),
       ),
     );
