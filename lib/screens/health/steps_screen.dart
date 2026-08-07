@@ -12,6 +12,7 @@ import '../../widgets/screenshot_share.dart';
 import '../settings/card_settings_screen.dart';
 import 'activity_description_screen.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/date_scroll_row.dart';
 
 // ── Design tokens ───────────────────────────────────────────────────────────
 const _kBg = Color(0xFF050505);
@@ -599,7 +600,7 @@ class _StepsScreenState extends State<StepsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ── Interactive date strip ───────────────────────────────────
-                _DateStrip(
+                DateScrollRow(
                   selectedDate: _selectedDate,
                   onDateSelected: _onDateSelected,
                 ),
@@ -779,152 +780,6 @@ class _StepsScreenState extends State<StepsScreen> {
   static const _hourXLabels = ['12am', '6am', '12pm', '6pm', '12am'];
 }
 
-// ── Date strip ────────────────────────────────────────────────────────────────
-
-class _DateStrip extends StatefulWidget {
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onDateSelected;
-
-  const _DateStrip({required this.selectedDate, required this.onDateSelected});
-
-  @override
-  State<_DateStrip> createState() => _DateStripState();
-}
-
-class _DateStripState extends State<_DateStrip> {
-  static const int _pastDays = 6;
-  static const int _futureDays = 3;
-  static const int _itemCount = _pastDays + 1 + _futureDays;
-
-  final _scrollController = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
-  }
-
-  @override
-  void didUpdateWidget(covariant _DateStrip oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!_sameDay(oldWidget.selectedDate, widget.selectedDate)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  bool _sameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
-
-  DateTime get _today {
-    final n = DateTime.now();
-    return DateTime(n.year, n.month, n.day);
-  }
-
-  DateTime _dateAt(int index) => _today.add(Duration(days: index - _pastDays));
-
-  int get _selectedIndex {
-    final diff = _today
-        .difference(
-          DateTime(
-            widget.selectedDate.year,
-            widget.selectedDate.month,
-            widget.selectedDate.day,
-          ),
-        )
-        .inDays;
-    return (_pastDays - diff).clamp(0, _itemCount - 1);
-  }
-
-  void _scrollToSelected() {
-    if (!_scrollController.hasClients) return;
-    const approxItemWidth = 56.0;
-    final target =
-        (_selectedIndex * approxItemWidth) -
-        (_scrollController.position.viewportDimension / 2) +
-        (approxItemWidth / 2);
-    _scrollController.animateTo(
-      target.clamp(0.0, _scrollController.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 58,
-      child: ListView.builder(
-        controller: _scrollController,
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        itemCount: _itemCount,
-        itemBuilder: (_, i) {
-          final date = _dateAt(i);
-          final isToday = i == _pastDays;
-          final isSelected = _sameDay(date, widget.selectedDate);
-          final isFuture = i > _pastDays;
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: isFuture ? null : () => widget.onDateSelected(date),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeOut,
-                  alignment: Alignment.center,
-                  constraints: BoxConstraints(
-                    minWidth: isSelected ? 96 : 44,
-                    minHeight: 40,
-                  ),
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isSelected ? 16 : 12,
-                    vertical: 8,
-                  ),
-                  decoration: isSelected
-                      ? BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.12),
-                            width: 0.5,
-                          ),
-                        )
-                      : null,
-                  child: Text(
-                    isSelected
-                        ? (isToday
-                              ? 'Today, ${date.day} ${_monthAbbr[date.month - 1]}'
-                              : '${date.day} ${_monthAbbr[date.month - 1]}')
-                        : '${date.day}',
-                    style: _t(
-                      isSelected ? 13 : 14,
-                      w: isSelected ? FontWeight.w500 : FontWeight.w400,
-                      c: isFuture
-                          ? Colors.white.withValues(alpha: 0.18)
-                          : isSelected
-                          ? Colors.white.withValues(alpha: 0.95)
-                          : Colors.white.withValues(alpha: 0.45),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
 
 // ── Activity score ────────────────────────────────────────────────────────────
 
