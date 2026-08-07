@@ -9,14 +9,26 @@
 -- so the many pre-existing manual-flow rows (local_reading_id IS NULL) are unaffected —
 -- only rows where local_reading_id is actually set (the native push) get deduplicated.
 
-drop index if exists public.user_bp_local_reading_idx;
-alter table public.user_bp
-  add constraint user_bp_local_reading_key unique (user_id, local_reading_id);
+-- user_bp/user_stress/user_temp are created later by
+-- 20260806000000_missing_tables.sql; guard so a fresh migration-only DB does not
+-- fail on `relation does not exist` (the live DB already has these tables).
+do $$
+begin
+  if to_regclass('public.user_bp') is not null then
+    drop index if exists public.user_bp_local_reading_idx;
+    alter table public.user_bp
+      add constraint user_bp_local_reading_key unique (user_id, local_reading_id);
+  end if;
 
-drop index if exists public.user_stress_local_reading_idx;
-alter table public.user_stress
-  add constraint user_stress_local_reading_key unique (user_id, local_reading_id);
+  if to_regclass('public.user_stress') is not null then
+    drop index if exists public.user_stress_local_reading_idx;
+    alter table public.user_stress
+      add constraint user_stress_local_reading_key unique (user_id, local_reading_id);
+  end if;
 
-drop index if exists public.user_temp_local_reading_idx;
-alter table public.user_temp
-  add constraint user_temp_local_reading_key unique (user_id, local_reading_id);
+  if to_regclass('public.user_temp') is not null then
+    drop index if exists public.user_temp_local_reading_idx;
+    alter table public.user_temp
+      add constraint user_temp_local_reading_key unique (user_id, local_reading_id);
+  end if;
+end $$;

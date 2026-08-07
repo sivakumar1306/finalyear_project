@@ -1,8 +1,32 @@
 # 05 — Backend, Data Persistence & Sync Audit (Supabase + Room)
 
-## 5.1 Migration coverage — CRITICAL GAP (confirmed)
+> Refs are `file:line`. All confirmed by direct read.
+>
+> Status legend: ✅ fixed · 📋 addressed/documentary · ⏸️ deferred by decision · ❌ still open
+> Status as of **2026-08-07**.
 
-`supabase/migrations/` contains 6 files. Tables created by migrations:
+## 5.1 Migration coverage — CRITICAL GAP — ✅ fixed
+
+> **Fix (2026-08-06):** `supabase/migrations/20260806000000_missing_tables.sql` creates every
+> table the app reads/writes (`user_profiles`, `user_steps`, `user_hr`, `user_spo2`,
+> `user_hrv`, `user_bp`, `user_stress`, `user_temp`, `user_workouts`, `user_sleep`,
+> `user_cycles`, `user_symptoms`, `user_emergency_contacts`, `workouts`-prayer) with the
+> exact column shapes used by `supabase_service.dart` / `SupabaseSyncManager.kt`, plus RLS
+> and owner policies.
+>
+> **Fix (2026-08-07, fresh-DB reproducibility):** the older migrations
+> (`20260706000000`, `...0001`, `...0002`) contained unguarded `ALTER TABLE` /
+> `ADD CONSTRAINT` statements against `user_bp`/`user_stress`/`user_temp` — tables only
+> created by the *later* `missing_tables` migration (on the live DB they existed because
+> they were created manually in the dashboard). A fresh `supabase db push` therefore died
+> at migration #1 with `relation "public.user_bp" does not exist`. All three migrations
+> now guard those statements behind `to_regclass('public.user_bp') is not null` checks, and
+> `20260807000000_fix_delete_user_account.sql` adds the `(user_id, measured_at)` unique
+> constraints those tables need for the native `on_conflict` pushes (see 5.6) plus the
+> fixed delete function (5.10). A migration-only database now converges to the same schema
+> as the live DB.
+
+Tables created by migrations:
 
 | Table | Migration |
 |---|---|
@@ -12,84 +36,116 @@
 | `user_steps_snapshots` | same (RLS ✓) |
 | `firmware_updates` | `20260802010000_firmware_updates.sql` (RLS + public read ✓) |
 | `app_incidents` | `20260803000000_app_incidents.sql` (RLS, anon+auth insert, service full ✓) |
+| `user_profiles`, `user_steps`, `user_hr`, `user_spo2`, `user_hrv`, `user_bp`, `user_stress`, `user_temp`, `user_workouts`, `user_sleep`, `user_cycles`, `user_symptoms`, `user_emergency_contacts`, `workouts` | `20260806000000_missing_tables.sql` (all RLS + owner policies ✓) |
 
-**Tables the app reads/writes that NO migration creates:**
+Remaining note: the legacy tables listed in the original eval (`messages`, `conversations`,
+`vital_readings`, `sedentary_*`, `workout_analytics`, `sleep_sessions`, `ring_sync_cache`,
+`activity_goals`, `workout_sessions`, `medical_events`, `medications`, `lab_reports`,
+`user_blood_panels`) are **intentionally not created** — no current app code reads or
+writes them (chat history lives on the external Railway backend). They are only referenced
+by the old account-deletion function, which now skips missing tables (see 5.10).
 
-| Table | Where |
-|---|---|
-| `user_profiles` | `lib/services/supabase_service.dart:110,123` |
-| `user_steps` | `:146,164` |
-| `user_hr` | `:183-228` |
-| `user_spo2` | `:249-294` |
-| `user_bp` | `:312-337` |
-| `user_stress` | `:361-386` |
-| `user_hrv` | `:407-440` |
-| `user_temp` | `:463-510` |
-| `user_workouts` | `:535,561` |
-| `user_sleep` | `:586-623` |
-| `user_cycles` | `:639-653` |
-| `user_symptoms` | `:669-686` |
-| `user_emergency_contacts` | `:711-734` |
-| `workouts` (prayer) | `lib/screens/prayer/prayer_summary_screen.dart:40` |
-| `messages`, `conversations`, `vital_readings`, `sedentary_alerts`, `workout_analytics`, `sleep_sessions`, `ring_sync_cache`, `activity_goals`, `sedentary_logs`, `workout_sessions`, `medical_events`, `medications`, `lab_reports`, `user_blood_panels` | referenced by `20260802000000_account_deletion.sql:24-39` (DELETE statements) |
+## 5.2 Two naming eras — readings vs plain names — 📋 resolved by design
 
-**Impact:**
-- A fresh `supabase db push` yields a DB that 404s on every vitals/profile/contact write. Someone must have created ~14 tables manually in the dashboard (they are not in the repo) — the deployment is **non-reproducible**.
-- The account-deletion function `public.delete_user_account()` **deletes from tables that don't exist** → throws `relation "public.messages" does not exist` on first DELETE → account deletion is **broken** on a migration-only DB.
-- **RLS exists only for the 6 migrated tables.** If the ~14 others were created manually without RLS, all users can read all vitals (see 08.2). Even if RLS was enabled manually, the config isn't versioned.
+`user_hr_readings` / `user_spo2_readings` / `user_hrv_readings` / `user_steps_snapshots`
+(raw per-reading streaming tables, written by native `SupabaseSyncManager`) and
+`user_hr` / `user_spo2` / `user_hrv` / `user_steps` (daily aggregates, written by both
+native recompute-upsert and Dart `SupabaseService`) now coexist deliberately:
 
-**Fix:** write migrations for every table the code references (schema + RLS + owner policies), and make `delete_user_account` delete only tables that exist.
+- **Raw tables** (`_readings`/`_snapshots`) — the native Room streaming path,
+  idempotent on `(user_id, measured_at)` / `(user_id, captured_at)`.
+- **Daily aggregate tables** — the pre-existing Dart chart/history shape, keyed
+  `(user_id, date)`.
 
-## 5.2 Two naming eras — readings vs plain names — [MED]
+Not dead weight on either side; `SupabaseSyncManager.kt:142-318` documents the split
+(raw push + aggregate recompute per cycle).
 
-Migrations: `user_hr_readings` / `user_spo2_readings` / `user_hrv_readings` / `user_steps_snapshots`.
-App code: `user_hr` / `user_spo2` / `user_hrv` / `user_steps`.
+## 5.3 RLS on the migrated tables — ✅ confirmed
 
-Either the app is ahead (intended schema) or behind (stale). The migration naming and app naming must converge; one of the two is dead weight.
+All 20 tables now have `enable row level security` + an owner policy
+(`user_id = auth.uid()`, `id = auth.uid()` for `user_profiles`); `firmware_updates`
+public-read; `app_incidents` anon/auth insert + service full (see 08.4 for hardening).
 
-## 5.3 RLS on the migrated tables — CONFIRMED OK
+## 5.4 Incidents spam — ✅ fixed
 
-`ring_streaming_pipeline.sql:64-75`: `enable row level security` + owner policy (`user_id = auth.uid()`) on the 4 reading tables; `firmware_updates` public-read; `app_incidents` anon/auth insert + service full. Good — for the 6 tables that exist.
+> **Fix (2026-08-07):** `lib/services/incident_service.dart` now
+> * adds an `app_env` marker (`production` / `development` / `APP_ENV` dart-define override)
+>   inside `device_info`, so dev/test noise can be filtered,
+> * rate-limits per source (10 incidents / 60 s per process),
+> * dedupes identical `source|message` payloads (60 s window),
+> * caps message (2000 chars) and stack trace (8000 chars) lengths,
+> * scrubs PII (phone numbers, e-mails, JWTs, `Bearer` tokens) before upload.
 
-## 5.4 Incidents spam — [MED]
+`lib/main.dart:80-107,141-150` still reports every Flutter UI/async/zone error to
+`app_incidents` — intended, but now bounded. Dev/test builds report as
+`app_env: development`; release builds as `production`.
 
-`lib/main.dart:80-107,141-150` — every Flutter UI/async/zone error is reported to `app_incidents`. With `ErrorWidget.builder → SizedBox.shrink()` (line 104), errors also hide. No dev/test environment filter, no rate limit, no dedupe → the production incidents table fills with debug noise.
+## 5.5 Room (LocalVitalsService) vs native Room — TWO local DBs — 📋 resolved (single authority)
 
-## 5.5 Room (LocalVitalsService) vs native Room — TWO local DBs — [HIGH]
+> The eval draft assumed a Dart-side sqflite DB. **There is no sqflite dependency in
+> `pubspec.yaml`.** `lib/services/local_vitals_service.dart` is a thin proxy over the
+> `ble` method channel (`getDaySummary` / `getLocalHistory` / `getReadings` /
+> `cacheCloudDaySummary`) that reads and writes the **native Room DB
+> (`qring_local.db`)** — the single local authority for every metric.
+>
+> Authority per metric (all native Room via `ReadingRepository`):
+> raw vitals (HR/SpO₂/HRV/temp/BP/stress), daily rollups (`daily_vital_summary`), steps,
+> sleep, workouts, emergency contacts, fall events, phone-mode sessions.
+> Dart `SharedPreferences` holds only non-vital settings; cloud sync is
+> native → Supabase (`SupabaseSyncManager`) with Dart `SupabaseService` for profile /
+> women's health / prayer / manual measures.
 
-- **Dart side:** `lib/services/local_vitals_service.dart` — a Dart Room (sqflite) DB for vitals.
-- **Native side:** `android/.../data/SundrDatabase.kt` — Kotlin Room (`qring_local.db`), written by `MeasurementLoopManager`/`ReadingRepository`, with sync manager (`SupabaseSyncManager`).
+## 5.6 Sync conflict resolution — ✅ verified & guaranteed
 
-The BLE pipeline (native Room → native Supabase sync) is the primary path. The Dart-side local vitals service appears **duplicative** — verify which screens read from which, and whether the two DBs can disagree (e.g., native DB has readings the Dart DB lacks). At minimum document the authority per metric.
+- Raw pushes: `on_conflict=user_id,measured_at` (+ `Prefer: resolution=merge-duplicates`)
+  — last-write-wins per measurement timestamp (`SupabaseSyncManager.kt:153-203`).
+- Aggregate pushes: `on_conflict=user_id,date` (`:269-317`), recomputed from Room so both
+  writers converge on the same daily numbers.
+- Dedupe keys are now **guaranteed to exist on fresh DBs**:
+  `20260807000000_fix_delete_user_account.sql` adds the `(user_id, measured_at)` unique
+  constraints on `user_bp`/`user_stress`/`user_temp` that the native `on_conflict` targets
+  (previously present only on the live DB via `20260706000002`, so a fresh DB 400'd every
+  push with `42P10: no unique constraint matching the ON CONFLICT specification`).
 
-## 5.6 Sync conflict resolution — [MED]
+## 5.7 Prefs services — key hygiene — 📋 documented
 
-`SupabaseSyncManager` (native) upserts readings; Dart `SupabaseService` also upserts. On reconnect, both may push; there is no visible conflict-resolution policy (last-write-wins by `measured_at`?). Confirm dedupe keys (`measured_at` + `user_id`?) to avoid double rows — `20260706000002_fix_reinstall_collision_use_measured_at.sql` suggests this was partially addressed.
+`unit_prefs`, `goal_prefs`, `home_card_prefs`, `notification_prefs`, `prayer_schedule_prefs`
+stay in separate namespaces; no collisions found. `prayer_schedule_prefs.dart`'s
+ints-as-strings workaround remains documented and is a no-op until a native consumer
+exists (01.14).
 
-## 5.7 Prefs services — key hygiene — [LOW]
+## 5.8 Supabase client init — OK, but env-tied — 📋 documented decision
 
-`unit_prefs`, `goal_prefs`, `home_card_prefs`, `notification_prefs`, `prayer_schedule_prefs` — separate namespaces, no central registry; audit for collisions. `prayer_schedule_prefs.dart` stores ints as strings (documented native-getInt workaround) — no native consumer yet.
+`lib/config.dart:4-13` keeps the committed prod URL + anon key as `String.fromEnvironment`
+fallback. This is publishable **only because RLS is now versioned for every table** (5.1),
+which closes the loop on 08.1/08.2. Per-env projects remain a future option; tracked as a
+deployment concern, not a blocker.
 
-## 5.8 Supabase client init — OK, but env-tied — [MED]
+## 5.9 Chat/LLM backend — external service — ✅ verified
 
-`lib/services/supabase_service.dart` uses `AppConfig.supabaseUrl`/`supabaseAnonKey` (`lib/config.dart:4-9`), with `String.fromEnvironment` fallback to the committed prod URL/anon key. Works, but the committed fallback means every developer (and every build without `--dart-define`) talks to the same shared project. Consider per-env projects or at least a different anon key per env.
+`lib/services/chat_api_service.dart` → Railway (`config.dart:15-19`). No secrets
+committed; explicit timeouts on every call (`_chatTimeout` 60 s, `_insightsTimeout` 20 s,
+others 15 s — `chat_api_service.dart:12-24`); errors surface to the UI instead of hanging.
 
-## 5.9 Chat/LLM backend — external service — [MED]
+## 5.10 Account-deletion function — BROKEN on fresh DB — ✅ fixed
 
-`lib/services/chat_api_service.dart` → `https://vtialringbackendversion1-production.up.railway.app/api/v1` (`config.dart:18`). Verify: no secrets committed; 60s LLM timeout acceptable on cold Railway instances; error path doesn't hang the UI.
+> **Fix (2026-08-07):** `20260807000000_fix_delete_user_account.sql` rewrites
+> `public.delete_user_account()` to delete only from tables that exist **and** carry the
+> expected key column (`user_id`, or `id` for `user_profiles`), via `to_regclass` +
+> `information_schema` checks and dynamic SQL. It works identically on the live DB
+> (legacy tables present) and a migration-only DB (legacy tables absent) — no more
+> `relation "public.messages" does not exist` on the first DELETE. `messages` is still
+> wiped before `conversations` when both exist.
 
-## 5.10 Account-deletion function — BROKEN on fresh DB — [CRIT] (see 5.1)
-
-`20260802000000_account_deletion.sql:24-58` — deletes from 14+ tables that no migration creates → `delete_user_account()` raises on first missing table. Account deletion must be fixed and tested against the migration-only schema.
-
-## 5.11 Seed data — none in repo — [OK]
+## 5.11 Seed data — none in repo — ✅ OK
 
 No seed SQL found; fine.
 
 ---
 
-## Priority actions (backed by evidence)
-1. Migrations for all ~14 missing tables (+ RLS) and fix `delete_user_account` (5.1/5.10).
-2. Decide single local-DB authority (5.5).
-3. Dedupe sync writes between native SupabaseSyncManager and Dart SupabaseService (5.6).
-4. Env-filter incident reporting (5.4).
+## Priority actions (status)
+
+1. ✅ Migrations for all missing tables (+ RLS) and `delete_user_account` fixed (5.1/5.10) — *verify against the live dashboard once*.
+2. ✅ Single local-DB authority documented (5.5).
+3. ✅ Sync dedupe keys verified + guaranteed on fresh DBs (5.6).
+4. ✅ Incident reporting env-filtered, rate-limited, PII-scrubbed (5.4).
