@@ -2488,13 +2488,17 @@ class _AlarmModeInfo {
 const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
   PhoneMode.focus: _AlarmModeInfo(
     'Focus',
-    AppTheme.focus,
+    Color(0xFFE8A06B),
     Icons.adjust_rounded,
   ),
-  PhoneMode.base: _AlarmModeInfo('Base', AppTheme.gold, Icons.circle_outlined),
+  PhoneMode.base: _AlarmModeInfo(
+    'Base',
+    Color(0xFFC9A86E),
+    Icons.circle_outlined,
+  ),
   PhoneMode.prayer: _AlarmModeInfo(
     'Meditate',
-    AppTheme.success,
+    Color(0xFF5BAE85),
     Icons.self_improvement_rounded,
   ),
 };
@@ -2722,7 +2726,7 @@ class _AlarmCardState extends State<_AlarmCard> {
       orbAtTop: true,
       backgroundOverride: const _AlarmGlowBackground(),
       height: widget.expanded ? (hasBottomRow ? 275 : 195) : null,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -2881,7 +2885,7 @@ class _AlarmModeSelector extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(3),
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: _kBtnBg,
         borderRadius: BorderRadius.circular(100),
@@ -2939,52 +2943,19 @@ class _LiquidGlassThumb extends StatelessWidget {
       curve: Curves.easeOutCubic,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(100),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.lerp(Colors.white, color, 0.55)!.withValues(alpha: 0.28),
-            color.withValues(alpha: 0.18),
-            color.withValues(alpha: 0.10),
-          ],
-          stops: const [0.0, 0.45, 1.0],
-        ),
+        color: color.withValues(alpha: 0.18),
         border: Border.all(
-          color: Color.lerp(
-            Colors.white.withValues(alpha: 0.35),
-            color.withValues(alpha: 0.55),
-            0.5,
-          )!,
+          color: color.withValues(alpha: 0.35),
           width: 0.8,
         ),
         boxShadow: [
-          // Soft colored bloom — liquid glass glow
           BoxShadow(
-            color: color.withValues(alpha: 0.32),
-            blurRadius: 14,
-            spreadRadius: -2,
-            offset: const Offset(0, 2),
-          ),
-          // Specular top edge
-          BoxShadow(
-            color: Colors.white.withValues(alpha: 0.10),
-            blurRadius: 0.5,
-            offset: const Offset(0, -0.5),
+            color: color.withValues(alpha: 0.20),
+            blurRadius: 10,
+            spreadRadius: -1,
+            offset: const Offset(0, 1),
           ),
         ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(100),
-        child: const DecoratedBox(
-          decoration: BoxDecoration(
-            // Subtle top sheen
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.center,
-              colors: [Color(0x28FFFFFF), Color(0x00FFFFFF)],
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -3011,7 +2982,7 @@ class _AlarmSegment extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 2),
+        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 1),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,

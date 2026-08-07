@@ -4,7 +4,6 @@ import '../../providers/ble_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
-import 'profile_edit_screen.dart';
 import '../../widgets/app_typography.dart';
 
 class AccountSystemSettingsScreen extends StatelessWidget {
@@ -45,15 +44,6 @@ class AccountSystemSettingsScreen extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  _AccountRow(
-                    icon: Icons.person_outline_rounded,
-                    title: 'Edit Profile',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
-                    ),
-                  ),
-                  _divider(),
                   _AccountRow(
                     icon: Icons.person_rounded,
                     title: 'Account',
