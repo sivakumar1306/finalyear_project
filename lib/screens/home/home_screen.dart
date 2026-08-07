@@ -2504,48 +2504,53 @@ const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
 };
 
 class _AlarmGlowBackground extends StatelessWidget {
-  const _AlarmGlowBackground();
+  final Color color;
+  const _AlarmGlowBackground({this.color = const Color(0xFFE8A06B)});
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Ellipse 21
+        // Ellipse 21 (bottom-left glow)
         Positioned(
-          left: -70,
-          top: 90,
+          left: -80,
+          bottom: -40,
           child: ImageFiltered(
             imageFilter: ImageFilter.blur(
-              sigmaX: 40,
-              sigmaY: 40,
+              sigmaX: 45,
+              sigmaY: 45,
               tileMode: TileMode.decal,
             ),
-            child: Container(
-              width: 240,
-              height: 240,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 480),
+              curve: Curves.easeOutCubic,
+              width: 280,
+              height: 280,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFE08A4A).withValues(alpha: 0.15),
+                color: color.withValues(alpha: 0.18),
               ),
             ),
           ),
         ),
-        // Ellipse 20
+        // Ellipse 20 (top-right glow)
         Positioned(
-          right: -60,
+          right: -70,
           top: -70,
           child: ImageFiltered(
             imageFilter: ImageFilter.blur(
-              sigmaX: 40,
-              sigmaY: 40,
+              sigmaX: 45,
+              sigmaY: 45,
               tileMode: TileMode.decal,
             ),
-            child: Container(
-              width: 240,
-              height: 240,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 480),
+              curve: Curves.easeOutCubic,
+              width: 280,
+              height: 280,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFE08A4A).withValues(alpha: 0.25),
+                color: color.withValues(alpha: 0.28),
               ),
             ),
           ),
@@ -2724,9 +2729,8 @@ class _AlarmCardState extends State<_AlarmCard> {
     return _GlassCard(
       orbColor: info.color,
       orbAtTop: true,
-      backgroundOverride: const _AlarmGlowBackground(),
-      height: widget.expanded ? (hasBottomRow ? 275 : 195) : null,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      backgroundOverride: _AlarmGlowBackground(color: info.color),
+      padding: const EdgeInsets.fromLTRB(16, 13, 16, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
