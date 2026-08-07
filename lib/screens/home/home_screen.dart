@@ -1380,6 +1380,7 @@ class _GlassCard extends StatelessWidget {
   final double orbSize;
   final EdgeInsetsGeometry? padding;
   final Color? borderColor;
+  final Widget? backgroundOverride;
 
   const _GlassCard({
     required this.orbColor,
@@ -1393,6 +1394,7 @@ class _GlassCard extends StatelessWidget {
     this.orbSize = 240,
     this.padding,
     this.borderColor,
+    this.backgroundOverride,
   });
 
   @override
@@ -1420,13 +1422,16 @@ class _GlassCard extends StatelessWidget {
         child: Stack(
           fit: height != null ? StackFit.expand : StackFit.loose,
           children: [
-            Positioned(
-              top: orbAtTop ? resolvedOrbOffset : null,
-              bottom: orbAtTop ? null : resolvedOrbOffset,
-              right: orbOnRight ? resolvedOrbOffset : null,
-              left: orbOnRight ? null : resolvedOrbOffset,
-              child: _BlurOrb(color: orbColor, size: orbSize, alpha: orbAlpha),
-            ),
+            if (backgroundOverride != null)
+              Positioned.fill(child: backgroundOverride!)
+            else
+              Positioned(
+                top: orbAtTop ? resolvedOrbOffset : null,
+                bottom: orbAtTop ? null : resolvedOrbOffset,
+                right: orbOnRight ? resolvedOrbOffset : null,
+                left: orbOnRight ? null : resolvedOrbOffset,
+                child: _BlurOrb(color: orbColor, size: orbSize, alpha: orbAlpha),
+              ),
             // Fixed height: Positioned.fill gives Column tight constraints so Spacer works.
             // Auto height: plain Padding lets Stack size to content (and still
             // expands when the parent imposes a tight height via stretch).
@@ -2494,6 +2499,58 @@ const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
   ),
 };
 
+class _AlarmGlowBackground extends StatelessWidget {
+  const _AlarmGlowBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Ellipse 21
+        Positioned(
+          left: -70,
+          top: 90,
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(
+              sigmaX: 40,
+              sigmaY: 40,
+              tileMode: TileMode.decal,
+            ),
+            child: Container(
+              width: 240,
+              height: 240,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFE08A4A).withValues(alpha: 0.15),
+              ),
+            ),
+          ),
+        ),
+        // Ellipse 20
+        Positioned(
+          right: -60,
+          top: -70,
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(
+              sigmaX: 40,
+              sigmaY: 40,
+              tileMode: TileMode.decal,
+            ),
+            child: Container(
+              width: 240,
+              height: 240,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFE08A4A).withValues(alpha: 0.25),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _AlarmCard extends StatefulWidget {
   final bool expanded;
   const _AlarmCard({this.expanded = false});
@@ -2663,9 +2720,7 @@ class _AlarmCardState extends State<_AlarmCard> {
     return _GlassCard(
       orbColor: info.color,
       orbAtTop: true,
-      orbSize: 260,
-      orbOffset: -80,
-      orbAlpha: 0.4,
+      backgroundOverride: const _AlarmGlowBackground(),
       height: widget.expanded ? (hasBottomRow ? 275 : 195) : null,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
