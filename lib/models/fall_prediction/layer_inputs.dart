@@ -15,12 +15,16 @@ class Layer1Baselines {
   final double rolling28DayMeanHRV;
   final double rolling28DayStdDevHRV;
   final double baselineAdjustedTemp;
+  final double? baselineSys;
+  final double? baselineDia;
   
   const Layer1Baselines({
     required this.rolling14DayMedianHR,
     required this.rolling28DayMeanHRV,
     required this.rolling28DayStdDevHRV,
     required this.baselineAdjustedTemp,
+    this.baselineSys,
+    this.baselineDia,
   });
 }
 
@@ -51,6 +55,22 @@ class Layer1PhysiologyData {
   });
 }
 
+class Layer2Baselines {
+  final double baselineSlp;
+  final double baselineSlq;
+  final double baselineAct;
+  final double baselineWkl;
+  final double baselineStr;
+
+  const Layer2Baselines({
+    required this.baselineSlp,
+    required this.baselineSlq,
+    required this.baselineAct,
+    required this.baselineWkl,
+    required this.baselineStr,
+  });
+}
+
 // Layer 2 Inputs: Recovery raw inputs
 class Layer2RecoveryData {
   final double? slp; // Sleep duration
@@ -58,6 +78,7 @@ class Layer2RecoveryData {
   final ActivityRecovery? act; // Activity
   final double? wkl; // Workout load
   final double? str; // Stress
+  final Layer2Baselines? baselines; // Historical baselines
 
   Layer2RecoveryData({
     required this.slp,
@@ -65,6 +86,25 @@ class Layer2RecoveryData {
     required this.act,
     required this.wkl,
     required this.str,
+    this.baselines,
+  });
+}
+
+class Layer3Baselines {
+  final double baselineAcc;
+  final double baselineGyr;
+  final double baselineGait;
+  final double baselinePsw;
+  final double baselineOrtho;
+  final double baselinePlnt;
+
+  const Layer3Baselines({
+    required this.baselineAcc,
+    required this.baselineGyr,
+    required this.baselineGait,
+    required this.baselinePsw,
+    required this.baselineOrtho,
+    required this.baselinePlnt,
   });
 }
 
@@ -78,6 +118,7 @@ class Layer3MotionData {
   final double? plnt;  // Plantar pressure array signal
   final double? fh;    // Fall history (single home: Layer 3 only)
   final ActivityExposure? actExp; // Activity exposure (ambulation hours)
+  final Layer3Baselines? baselines; // Historical baselines
 
   Layer3MotionData({
     required this.acc,
@@ -88,6 +129,7 @@ class Layer3MotionData {
     required this.plnt,
     required this.fh,
     required this.actExp,
+    this.baselines,
   });
 }
 

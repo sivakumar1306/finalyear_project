@@ -151,7 +151,7 @@ class FallPredictionEngine {
     HsiAdj hsiAdj = HsiAdj(hsiAdjVal.clamp(0.0, 100.0));
 
     // 8. Calculate FRS (Inverted Formula)
-    double fhRateNormalized = ((mData.fh ?? 0.0) * 10.0).clamp(0.0, 100.0); // Placeholder
+    double fhRateNormalized = ((mData.fh ?? 0.0) * 10.0).clamp(0.0, 100.0);
     
     // FRS-24 Weights
     double lambda1_24 = 0.20; // MO
@@ -191,8 +191,61 @@ class FallPredictionEngine {
     // (Note: reasoning_engine.dart is obsolete, ExplainabilityPayload is used below)
     
     // 11. Prediction Horizon and Coverage
-    PredictionHorizon tau = PredictionHorizon(const Duration(days: 7)); // Example horizon
-    CoverageScore q = CoverageScore(100.0); // Assuming 100% data coverage for now
+    PredictionHorizon tau;
+    if (classification == RiskClassification.high) {
+      tau = PredictionHorizon(const Duration(days: 1));
+    } else if (classification == RiskClassification.moderate) {
+      tau = PredictionHorizon(const Duration(days: 3));
+    } else {
+      tau = PredictionHorizon(const Duration(days: 7));
+    }
+
+    double qNumerator = 0.0;
+    double qDenominator = 0.0;
+    if (pData.hr != null) qNumerator += hrWeight * baseAlpha;
+    qDenominator += hrWeight * baseAlpha;
+    if (pData.hrv != null) qNumerator += hrvWeight * baseAlpha;
+    qDenominator += hrvWeight * baseAlpha;
+    if (pData.bp != null) qNumerator += bpWeight * baseAlpha;
+    qDenominator += bpWeight * baseAlpha;
+    if (pData.spo2 != null) qNumerator += spo2Weight * baseAlpha;
+    qDenominator += spo2Weight * baseAlpha;
+    if (pData.temp != null) qNumerator += tempWeight * baseAlpha;
+    qDenominator += tempWeight * baseAlpha;
+
+    if (rData.slp != null) qNumerator += sleepDurWeight * baseBeta;
+    qDenominator += sleepDurWeight * baseBeta;
+    if (rData.slq != null) qNumerator += sleepQualWeight * baseBeta;
+    qDenominator += sleepQualWeight * baseBeta;
+    if (rData.act != null) qNumerator += activityWeight * baseBeta;
+    qDenominator += activityWeight * baseBeta;
+    if (rData.wkl != null) qNumerator += workoutWeight * baseBeta;
+    qDenominator += workoutWeight * baseBeta;
+    if (rData.str != null) qNumerator += stressWeight * baseBeta;
+    qDenominator += stressWeight * baseBeta;
+
+    if (mData.acc != null) qNumerator += accWeight * baseGamma;
+    qDenominator += accWeight * baseGamma;
+    if (mData.gyr != null) qNumerator += gyrWeight * baseGamma;
+    qDenominator += gyrWeight * baseGamma;
+    if (mData.gait != null) qNumerator += gaitWeight * baseGamma;
+    qDenominator += gaitWeight * baseGamma;
+    if (mData.psw != null) qNumerator += pswWeight * baseGamma;
+    qDenominator += pswWeight * baseGamma;
+    if (mData.ortho != null) qNumerator += orthoWeight * baseGamma;
+    qDenominator += orthoWeight * baseGamma;
+    if (mData.plnt != null) qNumerator += plntWeight * baseGamma;
+    qDenominator += plntWeight * baseGamma;
+    if (mData.fh != null) qNumerator += fhWeight * baseGamma;
+    qDenominator += fhWeight * baseGamma;
+
+    if (wData.isApplicable) {
+      qNumerator += baseDelta;
+      qDenominator += baseDelta;
+    }
+
+    double qVal = (qDenominator > 0) ? (qNumerator / qDenominator) * 100.0 : 100.0;
+    CoverageScore q = CoverageScore(qVal.clamp(0.0, 100.0));
 
     return PredictionResult(
       hsiBase: hsiBase,
@@ -252,7 +305,13 @@ class FallPredictionEngine {
     double rolling28DayMeanHRV = pData.baselines?.rolling28DayMeanHRV ?? 45.0;
     double rolling28DayStdDevHRV = pData.baselines?.rolling28DayStdDevHRV ?? 8.0;
     double baselineAdjustedTemp = pData.baselines?.baselineAdjustedTemp ?? 36.5;
-    BpBaseline? hospitalBaseline = const BpBaseline(sys: 115.0, dia: 75.0); // Retain hospital mock for now
+    
+    BpBaseline? hospitalBaseline;
+    if (pData.baselines?.baselineSys != null && pData.baselines?.baselineDia != null) {
+      hospitalBaseline = BpBaseline(sys: pData.baselines!.baselineSys!, dia: pData.baselines!.baselineDia!);
+    } else {
+      hospitalBaseline = const BpBaseline(sys: 115.0, dia: 75.0); // Fallback
+    }
 
     double? currentSys = pData.sys ?? pData.bp;
     double? currentDia = pData.dia ?? (pData.bp != null && pData.bp! > 40 ? pData.bp! - 40 : pData.bp);
@@ -354,11 +413,40 @@ class FallPredictionEngine {
       weights: pWeights,
     );
 
+    // Compute true recovery baseline
+    double rcBaseline = 90.0;
+    if (rData.baselines != null) {
+      final baseRData = Layer2RecoveryData(
+        slp: rData.baselines!.baselineSlp,
+        slq: rData.baselines!.baselineSlq,
+        act: ActivityRecovery(rData.baselines!.baselineAct),
+        wkl: rData.baselines!.baselineWkl,
+        str: rData.baselines!.baselineStr,
+      );
+      rcBaseline = Layer2Calculator.calculateRC(data: baseRData, wPrime: rWeights).value;
+    }
+
+    // Compute true motion baseline
+    double moBaseline = 90.0;
+    if (mData.baselines != null) {
+      final baseMData = Layer3MotionData(
+        acc: mData.baselines!.baselineAcc,
+        gyr: mData.baselines!.baselineGyr,
+        gait: mData.baselines!.baselineGait,
+        psw: mData.baselines!.baselinePsw,
+        ortho: mData.baselines!.baselineOrtho,
+        plnt: mData.baselines!.baselinePlnt,
+        fh: 0.0, // Baseline assumes 0 fall history
+        actExp: const ActivityExposure(100.0), // Standard exposure
+      );
+      moBaseline = layer3Svc.calculateMO(baseMData, wPrime: mWeights).value;
+    }
+
     // Provide personal baseline scores for the UI insight payload
     final baselineScores = {
       'p': baselinePResult.pScore.value,
-      'rc': 90.0, // Standard healthy recovery baseline
-      'mo': 90.0, // Standard healthy motion baseline
+      'rc': rcBaseline,
+      'mo': moBaseline,
       'wh': (wData.isApplicable && whScore != null) ? 95.0 : 0.0,
     };
     final baseWeightsForExplainability = {
@@ -500,7 +588,23 @@ class FallPredictionEngine {
     );
 
     // Prediction Horizon (Tau)
-    PredictionHorizon tau = PredictionHorizon(const Duration(days: 7));
+    RiskClassification riskLevel;
+    if (frs24Val <= 30) {
+      riskLevel = RiskClassification.low;
+    } else if (frs24Val <= 60) {
+      riskLevel = RiskClassification.moderate;
+    } else {
+      riskLevel = RiskClassification.high;
+    }
+
+    PredictionHorizon tau;
+    if (riskLevel == RiskClassification.high) {
+      tau = PredictionHorizon(const Duration(days: 1));
+    } else if (riskLevel == RiskClassification.moderate) {
+      tau = PredictionHorizon(const Duration(days: 3));
+    } else {
+      tau = PredictionHorizon(const Duration(days: 7));
+    }
 
     return FallRiskScoreV2Result(
       hsiBase: hsiBase,
