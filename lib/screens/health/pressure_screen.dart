@@ -15,11 +15,11 @@ import '../../widgets/app_typography.dart';
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
-const _kCard = Color(0xFF141414);
-const _kBorder = Color(0xFF242424);
+const _kCard = AppTheme.card;
+const _kBorder = AppTheme.div;
 const _kGrid = Color(0xFF222222);
 const _kSec = Color(0xFF666666);
-const _kSec2 = Color(0xFF888888);
+const _kSec2 = AppTheme.textSec;
 
 TextStyle _inter(
   double size, {

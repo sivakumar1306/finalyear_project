@@ -51,17 +51,13 @@ void main() {
       expect(find.text('HRV'), findsOneWidget);
       expect(find.text('67'), findsOneWidget);
       expect(find.text('ms'), findsOneWidget);
-      expect(find.text('know more >'), findsNothing);
     });
 
-    testWidgets('shows know-more link and fires callback', (tester) async {
-      var tapped = false;
+    testWidgets('has no dead know-more affordance', (tester) async {
       await tester.pumpWidget(_wrap(
-        StatCard(label: 'HRV', value: '67', unit: 'ms', onKnowMore: () => tapped = true),
+        const StatCard(label: 'HRV', value: '67', unit: 'ms'),
       ));
-      expect(find.text('know more >'), findsOneWidget);
-      await tester.tap(find.text('know more >'));
-      expect(tapped, isTrue);
+      expect(find.text('know more >'), findsNothing);
     });
   });
 }

@@ -77,3 +77,22 @@ Some screens show "0"/empty when the provider has no data, others render blank s
 | border | `div = 0xFF242424` | `_kBorder` |
 | spacing | none centralized | `12/14/16/20` scattered |
 | radius | none centralized | `14/16/20` mixed |
+
+---
+
+## Status (updated 2026-08-07)
+
+| Item | Status | Notes |
+|---|---|---|
+| 3.1 Health screens re-define tokens | FIXED | `_kCard`/`_kBorder`/`_kSec2` now derive from `AppTheme.card`/`AppTheme.div`/`AppTheme.textSec` in all 8 screens AND in shared `glass_card.dart` (`kCard`/`kBorder`/`kSec2`); theme changes now propagate. `_kSec`/`_kGrid` kept as local literals (no AppTheme counterpart). |
+| 3.2 Duplicate gold tokens | FIXED | `goldLight`, `base`, `goldAccent` removed; single `gold` + `goldBorder` remain. Usages re-pointed in chat_screen (10), insights_header (2), ota_screen (1), home_screen (2). |
+| 3.3 Hardcoded whites | FIXED | `explainable_ai_dashboard.dart` text colors routed to `AppTheme.textPrimary` (identical value). White-alpha glass overlays (_kCardBg etc.) kept — they are the DESIGN.md glass style layer. |
+| 3.4 Spacing/radius drift | PARTIAL | Added shared tokens `AppTheme.kPad` (16) + `AppTheme.kRadiusCard` (20) and wired the shared `GlassCard` to them (padding/radius now token-driven; GlassCard radius 16 -> 20, matching DESIGN.md "every card" radius). Residual 12/14px paddings and 14/16px radii in per-screen list rows/tiles remain as documented debt (not DESIGN "cards"). |
+| 3.5 Safe-area handling | VERIFIED | All top-level screens wrap bodies in SafeArea (home:819, main_shell:344, settings:101/225, records, sheets, workouts, auth); health detail screens use Scaffold+AppBar which owns the insets. Consistent — no change needed. |
+| 3.6 StatCard dead affordance | FIXED | Removed `onKnowMore` field and the `'know more >'` render block (no production caller ever supplied the callback). Widget test updated to assert the affordance is gone. |
+| 3.7 "AI Reasoning" label | ALREADY HONEST | Dashboard already renders "Risk Reasoning" (02.6); text now token-coloured via 3.3. |
+| 3.8 home_screen monolith | DEFERRED | 3,700-line extraction into lib/widgets is a structural refactor with visual-QA risk; tracked separately, not done in this pass. |
+| 3.9 Empty-state differences | DEFERRED | Needs a product decision on "no ring data" vs "integration failure" copy per screen; not a mechanical fix. |
+| 3.10 Consistent with DESIGN.md | CONFIRMED GOOD | Metric palette + card radius align with DESIGN.md; no action. |
+
+Verification: `dart analyze lib test` -> "No issues found!" | `flutter test --no-pub` -> 88/88 pass.

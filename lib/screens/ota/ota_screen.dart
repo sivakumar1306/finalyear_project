@@ -341,7 +341,7 @@ class _OtaScreenState extends State<OtaScreen> {
                     Text(
                       'New firmware available',
                       style: AppTypography.inter(
-                        color: AppTheme.goldAccent,
+                        color: AppTheme.gold,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
