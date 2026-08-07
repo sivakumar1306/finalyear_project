@@ -1,4 +1,4 @@
-# 02 — Stubs, Placeholders, and Fake/Demo Data
+﻿# 02 — Stubs, Placeholders, and Fake/Demo Data
 
 > Every item below was confirmed by direct read. Important correction vs. earlier notes: **the native layer is mostly real** — only the 7 methods in 2.1 are stubs. BLE scan/connect, HR/BP/SpO2/steps/sleep/HRV/stress/temperature, camera, phone control, DND, reminders, OTA (DfuHandle), Room persistence, emergency SMS/call, and sync are genuinely implemented against the Oudmon SDK (`com.oudmon.ble.base`).
 
@@ -82,3 +82,22 @@ Reachable from the UI; users see an empty placeholder screen plus a JSON dump in
 | Sugar/lipids | Dart placeholder | **PLACEHOLDER** |
 | Prayer summaries | writes to unmigrated table | **BROKEN at DB layer** |
 | Tests | — | **ABSENT** |
+## Status (updated 2026-08-07)
+
+| Item | Status | Notes |
+|---|---|---|
+| 2.1 Native stubs | IMPLEMENTED | All 7 stubs in BlePlugin.kt now call real Oudmon SDK classes: display (BrightnessSettingsReq, DisplayStyleReq, DisplayTimeReq, DisplayOrientationReq, TimeFormatReq), targets (TargetSettingReq/TargetSettingRsp), advanced (BatterySavingReq, AgpsReq, IntellReq, TouchControlReq, MuslimReq), notification (NotificationEventNotifyReq). User profile (age/height/weight/gender) is NOT writable by this SDK build (read-only via ReadPersonalizationSettingReq / UserProfileRsp) - surfaced honestly in target_profile_screen (fields disabled + note 'user profile is read-only on this ring model'). No silent successes remain. |
+| 2.2 Demo/sim side effects | FIXED (01 + 02) | Simulated fall pipelines no longer schedule SMS/auto-call. seedDemoData rows carry source='demo_seed' and are now excluded from every unsyncedBatch push query (ReadingDaos.kt, all 7 tables) so they cannot reach Supabase. |
+| 2.3 Sugar/Lipids screen | IMPLEMENTED | New native getHealthSettings/setHealthSettings handlers read/write the ring sugar/lipid monitor state (temperature / RRI / emotion channels via SugarLipidsSettingReq + BloodSugarLipidsSettingRsp). sugar_lipids_screen.dart rebuilt: no hardcoded '--' and no raw-JSON dump; shows real ring values + channel toggles with Save and honest empty states (matches DESIGN.md). |
+| 2.4 OTA screen | VERIFY ON DEVICE | Native DfuHandle path confirmed real. Firmware download from the firmware_updates table still needs a device smoke test. |
+| 2.5 Prayer -> workouts table | FIXED (in 01 pass) | supabase/migrations/20260806000000_missing_tables.sql creates the workouts table; prayer history ordering fixed. |
+| 2.6 Fall-prediction AI label | ALREADY HONEST | Explainable dashboard already renders 'Risk Reasoning'; the deterministic engine is disclosed. Settings -> 'AI Analysis' is the AI voice assistant (a real assistant product feature), not a medical claim - left as-is. |
+| 2.7 Womens-health thresholds | DISCLOSED | Added footnote on the AWHE card: 'Estimates from ring vitals plus cycle rules - informational only, not a medical diagnosis.' |
+| 2.8 Test suite | IMPLEMENTED | test/widget_test.dart replacement with real widget tests (StatusBadge connected/disconnected, DataCard label/value/unit/icon, StatCard label/value/unit + know-more callback). Full suite: 88 tests pass. |
+| 2.9 user_emergency_contacts migration | FIXED (in 01) | Table created in supabase/migrations/20260806000000_missing_tables.sql. |
+| 2.10 Health-connect | ON DEVICE VERIFY | No code change; confirm Android 14+ permission UX on a device. |
+
+## Verification (2026-08-07)
+- flutter analyze --no-pub  ->  "No issues found!"
+- flutter test --no-pub  ->  88 tests pass
+- gradlew :app:compileDebugKotlin  ->  BUILD SUCCESSFUL
