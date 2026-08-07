@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/ble_provider.dart';
 import 'providers/workout_provider.dart';
 import 'providers/alarm_mode_provider.dart';
+import 'providers/alarm_schedule_provider.dart';
 import 'providers/prayer_session_provider.dart';
 import 'providers/main_tab_provider.dart';
 import 'providers/home_card_provider.dart';
@@ -177,6 +178,7 @@ void main() async {
           ChangeNotifierProvider(create: (_) => BleProvider()),
           ChangeNotifierProvider(create: (_) => WorkoutProvider()),
           ChangeNotifierProvider(create: (_) => AlarmModeProvider()),
+          ChangeNotifierProvider(create: (_) => AlarmScheduleProvider()..load()),
           ChangeNotifierProvider(create: (_) => PrayerSessionProvider()),
           ChangeNotifierProvider(create: (_) => MainTabProvider()),
           ChangeNotifierProvider(create: (_) => HomeCardProvider()..load()),
