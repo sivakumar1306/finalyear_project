@@ -11,6 +11,7 @@ import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/date_scroll_row.dart';
 import '../../utils/bp_staging.dart';
 
 
@@ -581,7 +582,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               const SizedBox(height: 16),
 
               // ── 2. Date row ────────────────────────────────────────────────
-              _BPDateRow(
+              DateScrollRow(
                 selectedDate: _selectedDate,
                 onDateSelected: _onDateSelected,
               ),
@@ -741,97 +742,6 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
   }
 }
 
-// ── Date row ──────────────────────────────────────────────────────────────────
-
-class _BPDateRow extends StatelessWidget {
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onDateSelected;
-  const _BPDateRow({required this.selectedDate, required this.onDateSelected});
-
-  static const _months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (int i = 0; i < dates.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 16),
-                  _buildItem(dates[i], today),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildItem(DateTime d, DateTime today) {
-    final isToday = d == today;
-    final isFuture = d.isAfter(today);
-    final sel = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-    );
-    final isSelected = d == sel;
-
-    if (isSelected) {
-      return GestureDetector(
-        onTap: null,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: const Color(0xFF202020),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF363636)),
-          ),
-          child: Text(
-            isToday
-                ? 'Today, ${d.day} ${_months[d.month - 1]}'
-                : '${d.day} ${_months[d.month - 1]}',
-            style: _inter(13, weight: FontWeight.w500),
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: isFuture ? null : () => onDateSelected(d),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: Text(
-          '${d.day}',
-          style: _inter(15, color: isFuture ? const Color(0xFF333333) : (isToday ? Colors.white : _kSec2)),
-        ),
-      ),
-    );
-  }
-}
 
 // ── BP Chart Card (dual series: systolic + diastolic) ─────────────────────────
 
