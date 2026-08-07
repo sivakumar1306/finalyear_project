@@ -98,8 +98,9 @@ create table if not exists public.user_temp (
   measured_at timestamptz not null,
   source text not null default 'auto',
   local_reading_id bigint,
-  synced_at timestamptz not null default now(),
-  unique (user_id, measured_at)
+  synced_at timestamptz not null default now()
+  -- (user_id, measured_at) unique is added by 20260807000000_fix_delete_user_account.sql
+  -- so fresh and live DBs end up with the same constraint name.
 );
 
 -- Native sync upserts against (user_id, measured_at); Dart temp upserts use the
