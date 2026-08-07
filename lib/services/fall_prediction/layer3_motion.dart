@@ -14,8 +14,9 @@ class FallEvent {
 
 class FallHistoryRate {
   final double rate;
+  final bool isBelowAmbulationFloor;
 
-  FallHistoryRate(this.rate);
+  FallHistoryRate(this.rate, {this.isBelowAmbulationFloor = false});
 }
 
 class Layer3Result {
@@ -143,9 +144,8 @@ class Layer3MotionService {
     return MotionStabilityScore(mo);
   }
 
-  /// Calculates Exposure-Adjusted Fall History Rate (FH_rate)
   FallHistoryRate calculateFHRate(List<FallEvent> trailingFalls, double ambulationHours) {
-    if (ambulationHours <= 0) return FallHistoryRate(0.0);
+    if (ambulationHours <= 0) return FallHistoryRate(0.0, isBelowAmbulationFloor: true);
 
     final now = DateTime.now();
     double weightedFallsSum = 0.0;
@@ -159,6 +159,9 @@ class Layer3MotionService {
       weightedFallsSum += weight;
     }
 
-    return FallHistoryRate(weightedFallsSum / ambulationHours);
+    bool isBelowFloor = ambulationHours < 168.0;
+    double effectiveHours = max(ambulationHours, 168.0);
+
+    return FallHistoryRate(weightedFallsSum / effectiveHours, isBelowAmbulationFloor: isBelowFloor);
   }
 }

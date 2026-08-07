@@ -47,8 +47,8 @@ double normalizeHR(double currentHR, double rolling14DayMedianHR) {
   double deviationRatio = ((currentHR - rolling14DayMedianHR) / rolling14DayMedianHR).abs();
   
   // U-shape penalty: 0 deviation = 100 score. 
-  // A 40% deviation (e.g. 60bpm -> 84bpm) drops score to 0.
-  double score = 100.0 - (deviationRatio * 250.0); 
+  // A 30% deviation drops score to 0.
+  double score = 100.0 - (deviationRatio * (100.0 / 0.30)); 
   
   return score.clamp(0.0, 100.0);
 }
@@ -98,8 +98,8 @@ double normalizeTemp(double peripheralTemp, double ambientTemp, double baselineA
   
   double deviation = (adjustedCurrentTemp - baselineAdjustedTemp).abs();
   
-  // E.g., 2 degrees deviation drops score to 0
-  double score = 100.0 - (deviation * 50.0);
+  // 1.5 degrees deviation drops score to 0
+  double score = 100.0 - (deviation * (100.0 / 1.5));
   
   return score.clamp(0.0, 100.0);
 }

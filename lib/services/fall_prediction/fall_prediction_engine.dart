@@ -22,10 +22,10 @@ class FallPredictionEngine {
     required this.corroborationService,
   });
   // Layer Base Weights
-  static const double baseAlpha = 0.20; // Physiological
-  static const double baseBeta = 0.20;  // Recovery
-  static const double baseGamma = 0.40; // Motion
-  static const double baseDelta = 0.20; // Women's Health
+  static const double baseAlpha = 0.35; // Physiological
+  static const double baseBeta = 0.30;  // Recovery
+  static const double baseGamma = 0.20; // Motion
+  static const double baseDelta = 0.15; // Women's Health
 
   // Physiological Weights (Layer 1)
   static const double hrWeight = 0.20;
@@ -151,13 +151,13 @@ class FallPredictionEngine {
     HsiAdj hsiAdj = HsiAdj(hsiAdjVal.clamp(0.0, 100.0));
 
     // 8. Calculate FRS (Inverted Formula)
-    double fhRateNormalized = ((mData.fh ?? 0.0) * 10.0).clamp(0.0, 100.0);
+    double fhRateNormalized = ((mData.fh ?? 0.0) * 10000.0).clamp(0.0, 100.0);
     
     // FRS-24 Weights
-    double lambda1_24 = 0.20; // MO
-    double lambda2_24 = 0.30; // RC
-    double lambda3_24 = 0.40; // P
-    double lambda4_24 = 0.10; // FH
+    double lambda1_24 = 0.35; // MO
+    double lambda2_24 = 0.15; // RC
+    double lambda3_24 = 0.20; // P
+    double lambda4_24 = 0.30; // FH
 
     double frs24Val = (lambda1_24 * (100.0 - mScore.value)) +
                       (lambda2_24 * (100.0 - rScore.value)) +
@@ -166,10 +166,10 @@ class FallPredictionEngine {
     Frs24 frs24 = Frs24(frs24Val.clamp(0.0, 100.0));
 
     // FRS-30 Weights
-    double lambda1_30 = 0.40; // MO
-    double lambda2_30 = 0.10; // RC
-    double lambda3_30 = 0.10; // P
-    double lambda4_30 = 0.40; // FH
+    double lambda1_30 = 0.35; // MO
+    double lambda2_30 = 0.15; // RC
+    double lambda3_30 = 0.20; // P
+    double lambda4_30 = 0.30; // FH
 
     double frs30Val = (lambda1_30 * (100.0 - mScore.value)) +
                       (lambda2_30 * (100.0 - rScore.value)) +
@@ -464,13 +464,14 @@ class FallPredictionEngine {
     );
 
     // Final FRS (Inverted Formula)
-    double fhRateNormalized = (fhRate.rate * 10.0).clamp(0.0, 100.0); // Normalizing the calculated FH rate
+    // Fall History Normalization: anchor the "100" ceiling to 1 fall per 100 ambulation-hours (0.01 falls/hour)
+    double fhRateNormalized = (fhRate.rate * 10000.0).clamp(0.0, 100.0); 
 
     // FRS-24 Weights (Actionable Alert Horizon)
-    double lambda1_24 = 0.20; // MO
-    double lambda2_24 = 0.30; // RC
-    double lambda3_24 = 0.40; // P
-    double lambda4_24 = 0.10; // FH
+    double lambda1_24 = 0.35; // MO
+    double lambda2_24 = 0.15; // RC
+    double lambda3_24 = 0.20; // P
+    double lambda4_24 = 0.30; // FH
 
     double frs24Val = (lambda1_24 * (100.0 - moScore.value)) +
                       (lambda2_24 * (100.0 - rcScore.value)) +
@@ -479,10 +480,10 @@ class FallPredictionEngine {
     Frs24 frs24 = Frs24(frs24Val.clamp(0.0, 100.0));
 
     // FRS-30 Weights (Trend-Risk Profile)
-    double lambda1_30 = 0.40; // MO
-    double lambda2_30 = 0.10; // RC
-    double lambda3_30 = 0.10; // P
-    double lambda4_30 = 0.40; // FH
+    double lambda1_30 = 0.35; // MO
+    double lambda2_30 = 0.15; // RC
+    double lambda3_30 = 0.20; // P
+    double lambda4_30 = 0.30; // FH
 
     double frs30Val = (lambda1_30 * (100.0 - moScore.value)) +
                       (lambda2_30 * (100.0 - rcScore.value)) +
@@ -528,8 +529,12 @@ class FallPredictionEngine {
     qDenominator += orthoWeight * baseGamma;
     if (mData.plnt != null) qNumerator += plntWeight * baseGamma;
     qDenominator += plntWeight * baseGamma;
-    if (mData.fh != null) qNumerator += fhWeight * baseGamma;
-    qDenominator += fhWeight * baseGamma;
+    if (mData.fh != null) {
+      if (!fhRate.isBelowAmbulationFloor) {
+        qNumerator += fhWeight * baseGamma;
+      }
+      qDenominator += fhWeight * baseGamma;
+    }
 
     if (wData.isApplicable) {
       if (whScore != null) qNumerator += baseDelta;
@@ -550,6 +555,9 @@ class FallPredictionEngine {
     }
     if (pData.hrv == null) coverageDetails.add('Missing data: HRV');
     if (rData.slq == null) coverageDetails.add('Missing data: Sleep Quality');
+    if (fhRate.isBelowAmbulationFloor) {
+      coverageDetails.add('Sedentary user (Ambulation < 168h/yr). Fall Risk prediction confidence reduced.');
+    }
     if (coverageDetails.isEmpty) {
       coverageDetails.add('All inputs current and corroborated');
     }

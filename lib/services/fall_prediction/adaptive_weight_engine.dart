@@ -72,8 +72,8 @@ class AdaptiveWeightEngine {
   static Map<String, double> getMotionWeights(ContextFactors context, {bool hasSmartInsole = true}) {
     Map<String, double> baseWeights = {
       'MI': 0.25,
-      'MG': 0.25,
-      'MB': 0.25,
+      'MG': 0.35,
+      'MB': 0.40,
       'MP': 0.25,
     };
     Map<String, double> multipliers = {
@@ -88,10 +88,10 @@ class AdaptiveWeightEngine {
 
   static Map<String, double> getHsiGlobalWeights(ContextFactors context, {bool includeWomensHealth = true}) {
     Map<String, double> baseWeights = {
-      'physiological': 0.20,
-      'recovery': 0.20,
-      'motion': 0.40,
-      'womens_health': includeWomensHealth ? 0.20 : 0.0,
+      'physiological': 0.35,
+      'recovery': 0.30,
+      'motion': 0.20,
+      'womens_health': includeWomensHealth ? 0.15 : 0.0,
     };
     Map<String, double> multipliers = {
       'physiological': context.age,
