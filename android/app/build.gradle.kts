@@ -47,13 +47,11 @@ android {
 
     buildTypes {
         release {
-            if (!keystorePropertiesFile.exists()) {
-                throw GradleException(
-                    "Release builds require android/key.properties. " +
-                        "Refusing to sign with the debug keystore."
-                )
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                null
             }
-            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -63,6 +61,20 @@ android {
         }
     }
 }
+
+// Only enforce key.properties when an actual release task runs,
+// not during configuration of unrelated tasks like assembleDebug.
+tasks.matching { it.name.startsWith("assembleRelease") || it.name.startsWith("bundleRelease") }
+    .configureEach {
+        doFirst {
+            if (!keystorePropertiesFile.exists()) {
+                throw GradleException(
+                    "Release builds require android/key.properties. " +
+                        "Refusing to sign with the debug keystore."
+                )
+            }
+        }
+    }
 
 kotlin {
     compilerOptions {

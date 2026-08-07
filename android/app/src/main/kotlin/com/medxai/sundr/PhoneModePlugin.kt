@@ -73,7 +73,12 @@ class PhoneModePlugin(private val context: Context) {
                     if (enabled) NotificationManager.INTERRUPTION_FILTER_PRIORITY
                     else NotificationManager.INTERRUPTION_FILTER_ALL
                 )
-                if (enabled && (call.argument<Boolean>("autoOffAfterOneMinute") ?: false)) {
+                val durationMs = (call.argument<Number>("autoOffDurationMs")?.toLong() ?: 0L).let {
+                    if (it > 0) it
+                    else if (call.argument<Boolean>("autoOffAfterOneMinute") ?: false) PRAYER_DND_AUTO_OFF_MS
+                    else 0L
+                }
+                if (enabled && durationMs > 0) {
                     val runnable = Runnable {
                         try {
                             notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
@@ -87,7 +92,7 @@ class PhoneModePlugin(private val context: Context) {
                         } catch (_: Exception) {}
                     }
                     pendingDndOff = runnable
-                    handler.postDelayed(runnable, PRAYER_DND_AUTO_OFF_MS)
+                    handler.postDelayed(runnable, durationMs)
                 }
                 result.success(true)
             }

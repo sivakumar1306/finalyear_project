@@ -96,7 +96,10 @@ class _PrayerSessionScreenState extends State<PrayerSessionScreen> with SingleTi
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
         elevation: 0,
-        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
