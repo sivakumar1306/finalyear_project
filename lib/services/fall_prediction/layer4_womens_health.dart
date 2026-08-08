@@ -31,7 +31,13 @@ class Layer4WomensHealthCalculator {
   /// [WomensHealthScore]. The downstream HSI engine must catch this, set its context 
   /// factor (C_i) to 1 (neutral), and renormalize the remaining alpha/beta/gamma 
   /// weights without the WH delta weight.
-  static WomensHealthScore? calculateScore(Layer4WomensHealthData data, {DateTime? currentLpDate}) {
+  static WomensHealthScore? calculateScore(
+    Layer4WomensHealthData data, {
+    DateTime? currentLpDate,
+    double tempTrend = 0.0,
+    double hrvTrend = 0.0,
+    double slpTrend = 0.0,
+  }) {
     if (!data.hasConsentedToWomensHealth) {
       return null;
     }
@@ -46,11 +52,26 @@ class Layer4WomensHealthCalculator {
     // Higher score = lower hormonal-phase contribution to instability (better stability).
     double score = 100.0;
     
+    // Connect wearable-derived refinement
+    final lpDate = currentLpDate ?? DateTime.now().subtract(Duration(days: data.daysSinceLastPeriod));
+    final cycleDates = calculateCycleDates(lpDate, data.cycleLength);
+    final refined = refineOvulationDate(cycleDates.ovulationDate, tempTrend, hrvTrend, slpTrend, data.cycleState);
+    
+    double confidence = refined.confidence ?? 1.0;
+    
     if (data.isPMS) {
-      score = 80.0; // Reduce score during PMS as a basic heuristic
+      // Widen/narrow the penalty based on confidence. 
+      // If confidence is 1.0, score drops to 80.0 as a baseline penalty for PMS.
+      score = 100.0 - (20.0 * confidence);
+    } else {
+      final now = DateTime.now();
+      if (now.isAfter(refined.date.subtract(const Duration(days: 5))) && now.isBefore(refined.date.add(const Duration(days: 1)))) {
+        // slight heuristic adjustment during the fertile window
+        score = 95.0; 
+      }
     }
 
-    return WomensHealthScore(score.clamp(0.0, 100.0), confidence: 1.0);
+    return WomensHealthScore(score.clamp(0.0, 100.0), confidence: confidence);
   }
 
   /// 2. Implement Calendar-Based Date Math

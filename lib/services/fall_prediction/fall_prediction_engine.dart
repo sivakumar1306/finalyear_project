@@ -41,222 +41,7 @@ class FallPredictionEngine {
   static const double workoutWeight = 0.15;
   static const double stressWeight = 0.10;
   
-  // Motion Weights (Layer 3) - these are placeholders as no specific weights were given for new fields,
-  // we will divide evenly among the 7 fields or adapt existing logic.
-  static const double accWeight = 1/7;
-  static const double gyrWeight = 1/7;
-  static const double gaitWeight = 1/7;
-  static const double pswWeight = 1/7;
-  static const double orthoWeight = 1/7;
-  static const double plntWeight = 1/7;
-  static const double fhWeight = 1/7;
 
-  PhysiologicalScore _calculateLayer1(Layer1PhysiologyData data) {
-    double score = ((data.hr ?? 100.0) * hrWeight) +
-        ((data.hrv ?? 100.0) * hrvWeight) +
-        ((data.bp ?? 100.0) * bpWeight) +
-        ((data.spo2 ?? 100.0) * spo2Weight) +
-        ((data.temp ?? 100.0) * tempWeight);
-    return PhysiologicalScore(score.clamp(0.0, 100.0));
-  }
-  
-  RecoveryScore _calculateLayer2(Layer2RecoveryData data, Map<String, double>? wPrime) {
-    return Layer2Calculator.calculateRC(
-      data: data,
-      wPrime: wPrime ?? {},
-    );
-  }
-  
-  MotionStabilityScore _calculateLayer3(Layer3MotionData data) {
-    // Note: If fall history is high, it lowers stability, etc.
-    // Assuming normalized inputs where higher is better for stability, 
-    // except fh (Fall history) which should be inverted if it represents risk.
-    double score = ((data.acc ?? 100.0) * accWeight) +
-        ((data.gyr ?? 100.0) * gyrWeight) +
-        ((data.gait ?? 100.0) * gaitWeight) +
-        ((data.psw ?? 100.0) * pswWeight) +
-        ((data.ortho ?? 100.0) * orthoWeight) +
-        ((data.plnt ?? 0.0) * plntWeight) +
-        ((100 - (data.fh ?? 0.0)) * fhWeight);
-    return MotionStabilityScore(score.clamp(0.0, 100.0));
-  }
-  
-  WomensHealthScore _calculateLayer4(Layer4WomensHealthData data) {
-    // Attempt to compute the new Layer 4 score
-    final score = Layer4WomensHealthCalculator.calculateScore(data);
-    
-    // If it returns null due to privacy/edge-case gates, the HSI engine catches it 
-    // and we return a neutral WomensHealthScore for now (the HSI weights logic handles 
-    // renormalization via wData.isApplicable).
-    if (score == null) {
-      return WomensHealthScore(100.0, confidence: 1.0); // Neutral score
-    }
-
-    return score;
-  }
-
-  PredictionResult calculateRisk({
-    required Layer1PhysiologyData pData,
-    required Layer2RecoveryData rData,
-    required Layer3MotionData mData,
-    required Layer4WomensHealthData wData,
-    required ContextFactors context,
-  }) {
-    // 1. Calculate P (Physiological Stability)
-    final pScore = _calculateLayer1(pData);
-
-    // 2. Calculate R (Behavioral Recovery) 
-    final rScore = _calculateLayer2(rData, null);
-
-    // 3. Calculate M (Motion Intelligence)
-    final mScore = _calculateLayer3(mData);
-
-    // 4. Calculate W Context adjustments
-    final wScore = _calculateLayer4(wData);
-
-    // 5. Base HSI (Health Stability Index computed with fixed baseline weights)
-    double hsiBaseVal = (pScore.value * baseAlpha) +
-        (rScore.value * baseBeta) +
-        (mScore.value * baseGamma) +
-        (wScore.value * baseDelta);
-        
-    HsiBase hsiBase = HsiBase(hsiBaseVal.clamp(0.0, 100.0));
-
-    // 6. Adaptive Weight Engine
-    Map<String, double> initialWeights = {
-      'physiological': baseAlpha,
-      'recovery': baseBeta,
-      'motion': baseGamma,
-      'womens_health': wData.isApplicable ? baseDelta : 0.0,
-    };
-
-    if (!wData.isApplicable) {
-       double remaining = baseAlpha + baseBeta + baseGamma; 
-       initialWeights['physiological'] = baseAlpha + (baseDelta * (baseAlpha / remaining));
-       initialWeights['recovery'] = baseBeta + (baseDelta * (baseBeta / remaining));
-       initialWeights['motion'] = baseGamma + (baseDelta * (baseGamma / remaining));
-    }
-
-    Map<String, double> finalWeights = AdaptiveWeightEngine.calculateAdaptiveWeights(
-      initialWeights,
-      context,
-    );
-
-    // 7. Calculate HSI_adj
-    double hsiAdjVal = (pScore.value * (finalWeights['physiological'] ?? 0)) +
-        (rScore.value * (finalWeights['recovery'] ?? 0)) +
-        (mScore.value * (finalWeights['motion'] ?? 0)) +
-        (wScore.value * (finalWeights['womens_health'] ?? 0));
-        
-    HsiAdj hsiAdj = HsiAdj(hsiAdjVal.clamp(0.0, 100.0));
-
-    // 8. Calculate FRS (Inverted Formula)
-    double fhRateNormalized = ((mData.fh ?? 0.0) * 10000.0).clamp(0.0, 100.0);
-    
-    // FRS-24 Weights
-    double lambda1_24 = 0.35; // MO
-    double lambda2_24 = 0.15; // RC
-    double lambda3_24 = 0.20; // P
-    double lambda4_24 = 0.30; // FH
-
-    double frs24Val = (lambda1_24 * (100.0 - mScore.value)) +
-                      (lambda2_24 * (100.0 - rScore.value)) +
-                      (lambda3_24 * (100.0 - pScore.value)) +
-                      (lambda4_24 * fhRateNormalized);
-    Frs24 frs24 = Frs24(frs24Val.clamp(0.0, 100.0));
-
-    // FRS-30 Weights
-    double lambda1_30 = 0.35; // MO
-    double lambda2_30 = 0.15; // RC
-    double lambda3_30 = 0.20; // P
-    double lambda4_30 = 0.30; // FH
-
-    double frs30Val = (lambda1_30 * (100.0 - mScore.value)) +
-                      (lambda2_30 * (100.0 - rScore.value)) +
-                      (lambda3_30 * (100.0 - pScore.value)) +
-                      (lambda4_30 * fhRateNormalized);
-    Frs30 frs30 = Frs30(frs30Val.clamp(0.0, 100.0));
-
-    // 9. Risk Classification
-    RiskClassification classification;
-    if (frs24.value <= 30) {
-      classification = RiskClassification.low;
-    } else if (frs24.value <= 60) {
-      classification = RiskClassification.moderate;
-    } else {
-      classification = RiskClassification.high;
-    }
-
-    // 10. Generate XAI Reasoning Chain
-    // (Note: reasoning_engine.dart is obsolete, ExplainabilityPayload is used below)
-    
-    // 11. Prediction Horizon and Coverage
-    PredictionHorizon tau;
-    if (classification == RiskClassification.high) {
-      tau = PredictionHorizon(const Duration(days: 1));
-    } else if (classification == RiskClassification.moderate) {
-      tau = PredictionHorizon(const Duration(days: 3));
-    } else {
-      tau = PredictionHorizon(const Duration(days: 7));
-    }
-
-    double qNumerator = 0.0;
-    double qDenominator = 0.0;
-    if (pData.hr != null) qNumerator += hrWeight * baseAlpha;
-    qDenominator += hrWeight * baseAlpha;
-    if (pData.hrv != null) qNumerator += hrvWeight * baseAlpha;
-    qDenominator += hrvWeight * baseAlpha;
-    if (pData.bp != null) qNumerator += bpWeight * baseAlpha;
-    qDenominator += bpWeight * baseAlpha;
-    if (pData.spo2 != null) qNumerator += spo2Weight * baseAlpha;
-    qDenominator += spo2Weight * baseAlpha;
-    if (pData.temp != null) qNumerator += tempWeight * baseAlpha;
-    qDenominator += tempWeight * baseAlpha;
-
-    if (rData.slp != null) qNumerator += sleepDurWeight * baseBeta;
-    qDenominator += sleepDurWeight * baseBeta;
-    if (rData.slq != null) qNumerator += sleepQualWeight * baseBeta;
-    qDenominator += sleepQualWeight * baseBeta;
-    if (rData.act != null) qNumerator += activityWeight * baseBeta;
-    qDenominator += activityWeight * baseBeta;
-    if (rData.wkl != null) qNumerator += workoutWeight * baseBeta;
-    qDenominator += workoutWeight * baseBeta;
-    if (rData.str != null) qNumerator += stressWeight * baseBeta;
-    qDenominator += stressWeight * baseBeta;
-
-    if (mData.acc != null) qNumerator += accWeight * baseGamma;
-    qDenominator += accWeight * baseGamma;
-    if (mData.gyr != null) qNumerator += gyrWeight * baseGamma;
-    qDenominator += gyrWeight * baseGamma;
-    if (mData.gait != null) qNumerator += gaitWeight * baseGamma;
-    qDenominator += gaitWeight * baseGamma;
-    if (mData.psw != null) qNumerator += pswWeight * baseGamma;
-    qDenominator += pswWeight * baseGamma;
-    if (mData.ortho != null) qNumerator += orthoWeight * baseGamma;
-    qDenominator += orthoWeight * baseGamma;
-    if (mData.plnt != null) qNumerator += plntWeight * baseGamma;
-    qDenominator += plntWeight * baseGamma;
-    if (mData.fh != null) qNumerator += fhWeight * baseGamma;
-    qDenominator += fhWeight * baseGamma;
-
-    if (wData.isApplicable) {
-      qNumerator += baseDelta;
-      qDenominator += baseDelta;
-    }
-
-    double qVal = (qDenominator > 0) ? (qNumerator / qDenominator) * 100.0 : 100.0;
-    CoverageScore q = CoverageScore(qVal.clamp(0.0, 100.0));
-
-    return PredictionResult(
-      hsiBase: hsiBase,
-      hsi: hsiAdj,
-      frs24: frs24,
-      frs30: frs30,
-      riskLevel: classification,
-      tau: tau,
-      q: q,
-    );
-  }
 
   // Removed hardcoded v2 Pipeline Dependencies - baselines are now sourced from pData
 
@@ -345,7 +130,26 @@ class FallPredictionEngine {
     final fhRate = layer3Svc.calculateFHRate(trailingFalls, actExp.value);
 
     // --- Layer 4 Execution ---
-    final whScore = Layer4WomensHealthCalculator.calculateScore(wData);
+    double tempTrend = 0.0;
+    double hrvTrend = 0.0;
+    double slpTrend = 0.0;
+
+    if (pData.temp != null && pData.baselines != null) {
+      tempTrend = pData.temp! - pData.baselines!.baselineAdjustedTemp;
+    }
+    if (pData.hrv != null && pData.baselines != null && pData.baselines!.rolling28DayMeanHRV > 0) {
+      hrvTrend = (pData.hrv! - pData.baselines!.rolling28DayMeanHRV) / pData.baselines!.rolling28DayMeanHRV;
+    }
+    if (rData.slp != null && rData.baselines != null && rData.baselines!.baselineSlp > 0) {
+      slpTrend = (rData.slp! - rData.baselines!.baselineSlp) / rData.baselines!.baselineSlp;
+    }
+
+    final whScore = Layer4WomensHealthCalculator.calculateScore(
+      wData, 
+      tempTrend: tempTrend,
+      hrvTrend: hrvTrend,
+      slpTrend: slpTrend,
+    );
     double whVal = whScore != null ? whScore.value : 100.0;
 
     // Step E: Use the global HSI weights (Alpha, Beta, Gamma, Delta) to calculate HSI_adj from the outputs of Layers 1-4.
@@ -406,8 +210,8 @@ class FallPredictionEngine {
       peripheralTemp: baselineAdjustedTemp,
       ambientTemp: 22.0,
       baselineAdjustedTemp: baselineAdjustedTemp,
-      currentSys: hospitalBaseline?.sys ?? 120.0, // Standard healthy BP
-      currentDia: hospitalBaseline?.dia ?? 80.0,
+      currentSys: hospitalBaseline.sys, // Standard healthy BP
+      currentDia: hospitalBaseline.dia,
       bpSource: BpSource.hospitalBaseline,
       hospitalBaseline: hospitalBaseline,
       weights: pWeights,
@@ -480,14 +284,21 @@ class FallPredictionEngine {
     Frs24 frs24 = Frs24(frs24Val.clamp(0.0, 100.0));
 
     // FRS-30 Weights (Trend-Risk Profile)
+    // Uses rolling baseline scores to represent the 30-day longitudinal trend/slope
     double lambda1_30 = 0.35; // MO
     double lambda2_30 = 0.15; // RC
     double lambda3_30 = 0.20; // P
     double lambda4_30 = 0.30; // FH
 
-    double frs30Val = (lambda1_30 * (100.0 - moScore.value)) +
-                      (lambda2_30 * (100.0 - rcScore.value)) +
-                      (lambda3_30 * (100.0 - pScore.value)) +
+    // Explicit slope penalty: if current score is worse than baseline, risk increases.
+    // The penalty is half of the deviation, modeling a negative longitudinal trajectory.
+    double moSlopePenalty = (baselineScores['mo']! > moScore.value) ? (baselineScores['mo']! - moScore.value) * 0.5 : 0.0;
+    double rcSlopePenalty = (baselineScores['rc']! > rcScore.value) ? (baselineScores['rc']! - rcScore.value) * 0.5 : 0.0;
+    double pSlopePenalty = (baselineScores['p']! > pScore.value) ? (baselineScores['p']! - pScore.value) * 0.5 : 0.0;
+
+    double frs30Val = (lambda1_30 * (100.0 - baselineScores['mo']! + moSlopePenalty)) +
+                      (lambda2_30 * (100.0 - baselineScores['rc']! + rcSlopePenalty)) +
+                      (lambda3_30 * (100.0 - baselineScores['p']! + pSlopePenalty)) +
                       (lambda4_30 * fhRateNormalized);
     Frs30 frs30 = Frs30(frs30Val.clamp(0.0, 100.0));
 
@@ -517,23 +328,31 @@ class FallPredictionEngine {
     if (rData.str != null) qNumerator += stressWeight * baseBeta;
     qDenominator += stressWeight * baseBeta;
 
-    if (mData.acc != null) qNumerator += accWeight * baseGamma;
-    qDenominator += accWeight * baseGamma;
-    if (mData.gyr != null) qNumerator += gyrWeight * baseGamma;
-    qDenominator += gyrWeight * baseGamma;
-    if (mData.gait != null) qNumerator += gaitWeight * baseGamma;
-    qDenominator += gaitWeight * baseGamma;
-    if (mData.psw != null) qNumerator += pswWeight * baseGamma;
-    qDenominator += pswWeight * baseGamma;
-    if (mData.ortho != null) qNumerator += orthoWeight * baseGamma;
-    qDenominator += orthoWeight * baseGamma;
-    if (mData.plnt != null) qNumerator += plntWeight * baseGamma;
-    qDenominator += plntWeight * baseGamma;
+    double moNumerator = 0.0;
+    double moDenominator = 1.25; // Sum of base motion sub-weights (0.25 + 0.35 + 0.40 + 0.25)
+    
+    if (mData.acc != null) moNumerator += 0.25; // w_MI
+    if (mData.gait != null && mData.gyr != null) moNumerator += 0.35; // w_MG
+    else if (mData.gait != null || mData.gyr != null) moNumerator += 0.175; // partial w_MG
+    
+    if (mData.psw != null && mData.ortho != null && mData.gyr != null) moNumerator += 0.40; // w_MB
+    else {
+      if (mData.psw != null) moNumerator += 0.133;
+      if (mData.ortho != null) moNumerator += 0.133;
+      if (mData.gyr != null && mData.gait == null) moNumerator += 0.133; // partial w_MB
+    }
+    
+    if (mData.plnt != null) moNumerator += 0.25; // w_MP
+    
+    qNumerator += (moNumerator / moDenominator) * baseGamma;
+    qDenominator += baseGamma;
+
+    // Fall History is evaluated against its FRS weight (lambda4_24), independent of Motion
     if (mData.fh != null) {
       if (!fhRate.isBelowAmbulationFloor) {
-        qNumerator += fhWeight * baseGamma;
+        qNumerator += lambda4_24;
       }
-      qDenominator += fhWeight * baseGamma;
+      qDenominator += lambda4_24;
     }
 
     if (wData.isApplicable) {
@@ -542,8 +361,8 @@ class FallPredictionEngine {
     }
 
     double qVal = (qDenominator > 0) ? (qNumerator / qDenominator) * 100.0 : 100.0;
-    qVal -= layer1Result.bpStalenessPenalty;
-    CoverageScore q = CoverageScore(qVal.clamp(0.0, 100.0));
+    qVal = (qVal - layer1Result.bpStalenessPenalty).clamp(0.0, 100.0);
+    CoverageScore q = CoverageScore(qVal);
 
     // Coverage Details
     List<String> coverageDetails = [];
@@ -596,23 +415,9 @@ class FallPredictionEngine {
     );
 
     // Prediction Horizon (Tau)
-    RiskClassification riskLevel;
-    if (frs24Val <= 30) {
-      riskLevel = RiskClassification.low;
-    } else if (frs24Val <= 60) {
-      riskLevel = RiskClassification.moderate;
-    } else {
-      riskLevel = RiskClassification.high;
-    }
-
-    PredictionHorizon tau;
-    if (riskLevel == RiskClassification.high) {
-      tau = PredictionHorizon(const Duration(days: 1));
-    } else if (riskLevel == RiskClassification.moderate) {
-      tau = PredictionHorizon(const Duration(days: 3));
-    } else {
-      tau = PredictionHorizon(const Duration(days: 7));
-    }
+    // FRS-24 inherently has a 24-hour horizon; FRS-30 inherently has a 30-day horizon.
+    // The predictionHorizon on the result is fixed to the 24-hour actionable alert.
+    PredictionHorizon tau = PredictionHorizon(const Duration(days: 1));
 
     return FallRiskScoreV2Result(
       hsiBase: hsiBase,

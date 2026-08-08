@@ -30,10 +30,11 @@ class BpBaseline {
 }
 
 class BpResult {
-  final double score;
+  final double sysScore;
+  final double diaScore;
   final double stalenessPenalty; // Expose staleness metadata flag or penalty value
 
-  const BpResult({required this.score, required this.stalenessPenalty});
+  const BpResult({required this.sysScore, required this.diaScore, required this.stalenessPenalty});
 }
 
 /// 2. Build Specific Normalization Functions (f_x)
@@ -122,9 +123,8 @@ BpResult normalizeBP(double sys, double dia, BpSource source, {BpBaseline? hospi
   double sysDeviation = (sys - targetSys).abs() / targetSys;
   double diaDeviation = (dia - targetDia).abs() / targetDia;
   
-  double combinedDeviation = (sysDeviation + diaDeviation) / 2;
-  double score = 100.0 - (combinedDeviation * 300.0); 
-  score = score.clamp(0.0, 100.0);
+  double sysScore = (100.0 - (sysDeviation * 300.0)).clamp(0.0, 100.0);
+  double diaScore = (100.0 - (diaDeviation * 300.0)).clamp(0.0, 100.0);
   
   // Expose a staleness metadata flag or penalty value based on lastMeasured
   double stalenessPenalty = 0.0;
@@ -135,7 +135,7 @@ BpResult normalizeBP(double sys, double dia, BpSource source, {BpBaseline? hospi
     }
   }
   
-  return BpResult(score: score, stalenessPenalty: stalenessPenalty);
+  return BpResult(sysScore: sysScore, diaScore: diaScore, stalenessPenalty: stalenessPenalty);
 }
 
 /// 4. Implement the Layer 1 Aggregation Formula (P)
@@ -219,7 +219,8 @@ class Layer1Calculator {
         hospitalBaseline: hospitalBaseline, 
         lastMeasured: lastMeasuredBp,
       );
-      pRaw += weights.bp * bpResult.score;
+      pRaw += (weights.bp / 2.0) * bpResult.sysScore;
+      pRaw += (weights.bp / 2.0) * bpResult.diaScore;
       totalWeight += weights.bp;
       bpStalenessPenalty = bpResult.stalenessPenalty;
     }
