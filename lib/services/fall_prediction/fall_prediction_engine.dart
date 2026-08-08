@@ -331,12 +331,18 @@ class FallPredictionEngine {
     double moNumerator = 0.0;
     double moDenominator = 1.25; // Sum of base motion sub-weights (0.25 + 0.35 + 0.40 + 0.25)
     
-    if (mData.acc != null) moNumerator += 0.25; // w_MI
-    if (mData.gait != null && mData.gyr != null) moNumerator += 0.35; // w_MG
-    else if (mData.gait != null || mData.gyr != null) moNumerator += 0.175; // partial w_MG
+    if (mData.acc != null) {
+      moNumerator += 0.25; // w_MI
+    }
+    if (mData.gait != null && mData.gyr != null) {
+      moNumerator += 0.35; // w_MG
+    } else if (mData.gait != null || mData.gyr != null) {
+      moNumerator += 0.175; // partial w_MG
+    }
     
-    if (mData.psw != null && mData.ortho != null && mData.gyr != null) moNumerator += 0.40; // w_MB
-    else {
+    if (mData.psw != null && mData.ortho != null && mData.gyr != null) {
+      moNumerator += 0.40; // w_MB
+    } else {
       if (mData.psw != null) moNumerator += 0.133;
       if (mData.ortho != null) moNumerator += 0.133;
       if (mData.gyr != null && mData.gait == null) moNumerator += 0.133; // partial w_MB

@@ -21,7 +21,7 @@ void main() {
       expect(w['physiological'], closeTo(0.20, 1e-9));
     });
 
-    test('previousFallsFactor boosts motion after normalize', () {
+    test('age boosts physiological after normalize', () {
       final base = {
         'physiological': 0.25,
         'recovery': 0.25,
@@ -30,11 +30,11 @@ void main() {
       };
       final w = AdaptiveWeightEngine.calculateAdaptiveWeights(
         base,
-        ContextFactors(previousFallsFactor: 2.0),
+        ContextFactors(age: 2.0),
       );
       expect(w.values.fold(0.0, (a, b) => a + b), closeTo(1.0, 1e-9));
-      expect(w['motion']!, greaterThan(w['physiological']!));
-      expect(w['motion']!, greaterThan(w['recovery']!));
+      expect(w['physiological']!, greaterThan(w['motion']!));
+      expect(w['physiological']!, greaterThan(w['recovery']!));
     });
 
     test('zero total base yields zeros without divide-by-zero', () {
@@ -53,7 +53,7 @@ void main() {
       };
       final w = AdaptiveWeightEngine.calculateAdaptiveWeights(
         base,
-        ContextFactors(sleepDebtFactor: 2.0, stressTrendFactor: 1.0),
+        ContextFactors(sleepDebt: 2.0, stressTrend: 1.0),
       );
       expect(w['recovery']!, greaterThan(w['physiological']!));
       expect(w.values.fold(0.0, (a, b) => a + b), closeTo(1.0, 1e-9));
