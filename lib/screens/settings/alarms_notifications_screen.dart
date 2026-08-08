@@ -10,6 +10,7 @@ import 'focus_schedule_screen.dart';
 import 'prayer_schedule_screen.dart';
 import 'select_notifications_screen.dart';
 import 'sleep_schedule_screen.dart';
+import '../prayer/prayer_session_screen.dart';
 import '../../widgets/app_typography.dart';
 
 // Same "FlutterSharedPreferences" file / "flutter."-prefixed keys BleConnectionService
@@ -178,12 +179,32 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                         ? 'Active · ENDS ${_fmt24(_prayerEnd)}'
                         : 'Scheduled · ENDS ${_fmt24(_prayerEnd)}',
                     subtitleColor: prayerOn ? const Color(0xFF6BC99B) : null,
+                    onTap: () {
+                      if (prayerOn) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const PrayerSessionScreen(),
+                          ),
+                        );
+                      }
+                    },
                     trailing: _switch(
                       prayerOn,
-                      (v) => _setMode(
-                        alarmMode,
-                        v ? PhoneMode.prayer : PhoneMode.base,
-                      ),
+                      (v) async {
+                        await _setMode(
+                          alarmMode,
+                          v ? PhoneMode.prayer : PhoneMode.base,
+                        );
+                        if (v && context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PrayerSessionScreen(),
+                            ),
+                          );
+                        }
+                      },
                     ),
                   ),
                   _divider(),

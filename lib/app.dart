@@ -31,6 +31,7 @@ import 'screens/sugar_lipids/sugar_lipids_screen.dart';
 import 'screens/settings/account_system_settings_screen.dart';
 import 'screens/settings/profile_edit_screen.dart';
 import 'screens/settings/faq_screen.dart';
+import 'screens/prayer/prayer_session_screen.dart';
 import 'theme/app_theme.dart';
 import 'theme/app_scroll_behavior.dart';
 
@@ -78,6 +79,7 @@ class QRingApp extends StatelessWidget {
         '/account-system-settings': (_) => const AccountSystemSettingsScreen(),
         '/profile-edit': (_) => const ProfileEditScreen(),
         '/faq': (_) => const FaqScreen(),
+        '/prayer-session': (_) => const PrayerSessionScreen(),
       },
     );
   }

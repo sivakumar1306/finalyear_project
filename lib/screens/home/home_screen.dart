@@ -26,8 +26,9 @@ import '../settings/goal_setting_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/unit_prefs.dart';
 import '../main_shell.dart';
-import '../../widgets/app_typography.dart';
 import '../../utils/bp_staging.dart';
+import '../../widgets/app_typography.dart';
+import '../prayer/prayer_session_screen.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -2761,54 +2762,73 @@ class _AlarmCardState extends State<_AlarmCard> {
             ],
           ),
           const SizedBox(height: 10),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 420),
-            switchInCurve: const Cubic(0.34, 1.2, 0.64, 1.0),
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, anim) => FadeTransition(
-              opacity: anim,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.12),
-                  end: Offset.zero,
-                ).animate(anim),
-                child: child,
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              if (mode == PhoneMode.prayer) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PrayerSessionScreen()),
+                );
+              }
+            },
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 420),
+              switchInCurve: const Cubic(0.34, 1.2, 0.64, 1.0),
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.12),
+                    end: Offset.zero,
+                  ).animate(anim),
+                  child: child,
+                ),
               ),
-            ),
-            child: Column(
-              key: ValueKey(mode),
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _headline(mode, sched),
-                  style: AppTypography.inter(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w500,
-                    height: 1.2,
-                    color: info.color,
+              child: Column(
+                key: ValueKey(mode),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _headline(mode, sched),
+                    style: AppTypography.inter(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                      height: 1.2,
+                      color: info.color,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _subtext(mode, sched),
-                  style: _inter(
-                    12.5,
-                    color: Colors.white.withValues(alpha: 0.55),
-                    height: 1.3,
+                  const SizedBox(height: 4),
+                  Text(
+                    _subtext(mode, sched),
+                    style: _inter(
+                      12.5,
+                      color: Colors.white.withValues(alpha: 0.55),
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 14),
           _AlarmModeSelector(
             mode: mode,
-            onChanged: (m) => requestPhoneMode(context, provider, m),
+            onChanged: (m) async {
+              await requestPhoneMode(context, provider, m);
+              if (m == PhoneMode.prayer && context.mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PrayerSessionScreen()),
+                );
+              }
+            },
           ),
           if (hasBottomRow) ...[
             const SizedBox(height: 14),
@@ -2921,7 +2941,7 @@ class _AlarmModeSelector extends StatelessWidget {
                     mode: m,
                     selected: m == mode,
                     onTap: () {
-                      if (m == mode) return;
+                      if (m == mode && m != PhoneMode.prayer) return;
                       HapticFeedback.selectionClick();
                       onChanged(m);
                     },

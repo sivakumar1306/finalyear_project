@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_typography.dart';
@@ -30,22 +32,38 @@ class _PrayerSummaryScreenState extends State<PrayerSummaryScreen> {
   @override
   void initState() {
     super.initState();
-    _saveToSupabase();
+    _saveSession();
   }
 
-  Future<void> _saveToSupabase() async {
+  Future<void> _saveSession() async {
+    final sessionMap = {
+      'workout_type': 'Prayer',
+      'duration_seconds': widget.durationSeconds,
+      'avg_heart_rate': widget.avgHr,
+      'avg_hrv': widget.avgHrv,
+      'calmness_score': widget.peakCalmness,
+      'rating': widget.rating,
+      'created_at': DateTime.now().toIso8601String(),
+    };
+
+    // Save locally to SharedPreferences so history works offline & instantly
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final existingJsonList = prefs.getStringList('prayer_sessions_history') ?? [];
+      existingJsonList.insert(0, jsonEncode(sessionMap));
+      if (existingJsonList.length > 100) existingJsonList.removeLast();
+      await prefs.setStringList('prayer_sessions_history', existingJsonList);
+    } catch (e) {
+      debugPrint('Error saving local prayer session: $e');
+    }
+
+    // Save to Supabase
     try {
       final user = SupabaseService.currentUser;
       if (user != null) {
         await SupabaseService.client.from('workouts').insert({
           'user_id': user.id,
-          'workout_type': 'Prayer',
-          'duration_seconds': widget.durationSeconds,
-          'avg_heart_rate': widget.avgHr,
-          'avg_hrv': widget.avgHrv,
-          'calmness_score': widget.peakCalmness,
-          'rating': widget.rating,
-          'created_at': DateTime.now().toIso8601String(),
+          ...sessionMap,
         });
       }
     } catch (e) {
@@ -86,7 +104,8 @@ class _PrayerSummaryScreenState extends State<PrayerSummaryScreen> {
             const SizedBox(height: 10),
             // Glowing Serenity Badge
             Container(
-              padding: const EdgeInsets.all(24),
+              width: 165,
+              height: 165,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppTheme.gold.withValues(alpha: 0.15),
@@ -100,23 +119,27 @@ class _PrayerSummaryScreenState extends State<PrayerSummaryScreen> {
                 ],
               ),
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.self_improvement_rounded, color: AppTheme.gold, size: 42),
-                  const SizedBox(height: 6),
+                  const Icon(Icons.self_improvement_rounded, color: AppTheme.gold, size: 38),
+                  const SizedBox(height: 4),
                   Text(
                     '${widget.peakCalmness}%',
                     style: AppTypography.inter(
                       color: Colors.white,
-                      fontSize: 32,
+                      fontSize: 30,
                       fontWeight: FontWeight.bold,
+                      height: 1.1,
                     ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     'Calmness',
                     style: AppTypography.inter(
                       color: AppTheme.gold,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ],
