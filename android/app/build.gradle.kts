@@ -10,7 +10,6 @@ plugins {
 
 val appPackageName = "com.medxai.sundr"
 
-// Optional release signing: android/key.properties (local) or CI-generated.
 val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
@@ -19,7 +18,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = appPackageName
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = "28.2.13676358"
 
     compileOptions {
@@ -31,8 +30,8 @@ android {
         applicationId = appPackageName
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
     }
 
     signingConfigs {
@@ -45,10 +44,6 @@ android {
             }
         }
     }
-
-    // Do not set splits.abi or ndk.abiFilters here — conflicts with
-    // `flutter build apk --split-per-abi`. CI uses that flag for per-ABI APKs.
-    // AAB does not need Gradle ABI splits (Play splits on delivery).
 
     buildTypes {
         release {
@@ -66,6 +61,8 @@ android {
         }
     }
 }
+
+
 
 kotlin {
     compilerOptions {

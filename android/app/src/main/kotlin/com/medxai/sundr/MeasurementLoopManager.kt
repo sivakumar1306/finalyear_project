@@ -106,7 +106,11 @@ object MeasurementLoopManager {
             scheduleNext(DISCONNECTED_RECHECK_MS)
             return
         }
-        val connected = try { BleOperateManager.getInstance().isConnected } catch (_: Exception) { false }
+        if (com.medxai.sundr.sdk.SdkGuard.isOpen()) {
+            scheduleNext(DISCONNECTED_RECHECK_MS)
+            return
+        }
+        val connected = com.medxai.sundr.sdk.BleSdkLifecycle.isConnected()
         if (!connected) {
             scheduleNext(DISCONNECTED_RECHECK_MS)
             return
@@ -117,16 +121,20 @@ object MeasurementLoopManager {
         }
         val currentHolder = MeasurementCoordinator.currentOwner()
         if (MeasurementCoordinator.manualRequestPending || (currentHolder != null && currentHolder != OWNER)) {
-            // Manual measurement is using or about to use the ring — don't start a new cycle
-            // (and don't race it for the lock), just come back shortly.
             scheduleNext(WORKOUT_RECHECK_MS)
             return
         }
-        if (!runningCycle.compareAndSet(false, true)) return // a cycle is already in flight
+        if (!runningCycle.compareAndSet(false, true)) return
 
         repository.ioScope.launch {
-            val cycleId = repository.startCycle()
-            handler.post { walkSequence(cycleId, 0) }
+            try {
+                val cycleId = repository.startCycle()
+                handler.post { walkSequence(cycleId, 0) }
+            } catch (e: Exception) {
+                Log.e(TAG, "startCycle failed", e)
+                runningCycle.set(false)
+                scheduleNext(DISCONNECTED_RECHECK_MS)
+            }
         }
     }
 
@@ -135,7 +143,7 @@ object MeasurementLoopManager {
             finishCycle(cycleId, "COMPLETED", null)
             return
         }
-        val connected = try { BleOperateManager.getInstance().isConnected } catch (_: Exception) { false }
+        val connected = com.medxai.sundr.sdk.BleSdkLifecycle.isConnected()
         if (!connected) {
             // Deliberately restart at HEART_RATE on the next cycle rather than resuming here.
             finishCycle(cycleId, "ABORTED_DISCONNECT", sequence[index].name)
@@ -178,14 +186,23 @@ object MeasurementLoopManager {
     // ── Per-vital measurement, mirroring BlePlugin's proven wait-for-nonzero pattern ──
 
     private fun measure(vital: Vital, cycleId: Long, onDone: () -> Unit) {
-        when (vital) {
-            Vital.HEART_RATE -> measureHeartRate(cycleId, onDone)
-            Vital.SPO2 -> measureSpo2(cycleId, onDone)
-            Vital.STRESS -> measureStress(cycleId, onDone)
-            Vital.BLOOD_PRESSURE -> measureBloodPressure(cycleId, onDone)
-            Vital.STEPS -> measureSteps(cycleId, onDone)
-            Vital.HRV -> measureHrv(cycleId, onDone)
-            Vital.TEMPERATURE -> measureTemperature(cycleId, onDone)
+        try {
+            when (vital) {
+                Vital.HEART_RATE -> measureHeartRate(cycleId, onDone)
+                Vital.SPO2 -> measureSpo2(cycleId, onDone)
+                Vital.STRESS -> measureStress(cycleId, onDone)
+                Vital.BLOOD_PRESSURE -> measureBloodPressure(cycleId, onDone)
+                Vital.STEPS -> measureSteps(cycleId, onDone)
+                Vital.HRV -> measureHrv(cycleId, onDone)
+                Vital.TEMPERATURE -> measureTemperature(cycleId, onDone)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "measure($vital) failed", e)
+            try {
+                MeasurementCoordinator.release(OWNER)
+            } catch (_: Exception) {
+            }
+            onDone()
         }
     }
 
@@ -522,8 +539,12 @@ object MeasurementLoopManager {
 
     private fun persist(vital: Vital, cycleId: Long, primaryValue: Double, insert: suspend () -> Long) {
         repository.ioScope.launch {
-            val id = insert()
-            EventBus.getDefault().post(NewReadingEvent(vital, id, cycleId, System.currentTimeMillis(), primaryValue))
+            try {
+                val id = insert()
+                EventBus.getDefault().post(NewReadingEvent(vital, id, cycleId, System.currentTimeMillis(), primaryValue))
+            } catch (e: Exception) {
+                Log.e(TAG, "persist($vital) failed", e)
+            }
         }
     }
 }

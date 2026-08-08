@@ -15,6 +15,7 @@ import '../settings/card_settings_screen.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/date_scroll_row.dart';
 
 
 // Oudmon SDK sleep stage constants: 0=deep, 1=light, 2=awake, 3=REM
@@ -37,10 +38,10 @@ const _stageColors = {
 
 // ── Local design tokens — same system as heart_rate_screen.dart / blood_oxygen_screen.dart ──
 
-const _kCard = Color(0xFF141414);
-const _kBorder = Color(0xFF242424);
+const _kCard = AppTheme.card;
+const _kBorder = AppTheme.div;
 const _kSec = Color(0xFF666666);
-const _kSec2 = Color(0xFF888888);
+const _kSec2 = AppTheme.textSec;
 
 TextStyle _inter(
   double size, {
@@ -99,36 +100,13 @@ class _SleepScreenState extends State<SleepScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _seedInstantData();
+
       _init();
       _loadHistory();
     });
   }
 
-  void _seedInstantData() {
-    try {
-      final ble = context.read<BleProvider>();
-      final score = ble.todaySleepScore > 0 ? ble.todaySleepScore : 82;
-      const totalMins = 440; // ~7h 20m
-      const deepMins = 110;
-      const lightMins = 210;
-      const remMins = 90;
-      const awakeMins = 30;
 
-      setState(() {
-        _sleepScore = score;
-        _totalDuration = totalMins;
-        _deepDuration = deepMins;
-        _lightDuration = lightMins;
-        _remDuration = remMins;
-        _awakeDuration = awakeMins;
-        _avgHr = ble.todayAvgHr > 0 ? ble.todayAvgHr : 62;
-        _avgSpo2 = ble.todayAvgSpo2 > 0 ? ble.todayAvgSpo2 : 98;
-        _avgHrv = ble.todayAvgHrv > 0 ? ble.todayAvgHrv : 52;
-        _loading = false;
-      });
-    } catch (_) {}
-  }
 
   Future<void> _init() async {
     if (!mounted) return;
@@ -247,7 +225,21 @@ class _SleepScreenState extends State<SleepScreen> {
     setState(() => _dbOffline = false);
     try {
       final row = await SupabaseService.getSleepForDate(user.id, _selectedDate);
-      if (!mounted || row == null) return;
+      if (!mounted) return;
+      if (row == null) {
+        setState(() {
+          _totalDuration = 0;
+          _deepDuration = 0;
+          _lightDuration = 0;
+          _remDuration = 0;
+          _awakeDuration = 0;
+          _sleepTime = 0;
+          _wakeTime = 0;
+          _sleepScore = 0;
+          _segments = [];
+        });
+        return;
+      }
       setState(() {
         _totalDuration = (row['total_duration'] as num? ?? 0).toInt();
         _deepDuration = (row['deep_duration'] as num? ?? 0).toInt();
@@ -550,7 +542,7 @@ class _SleepScreenState extends State<SleepScreen> {
               const SizedBox(height: 16),
 
               // ── 1. Date row ────────────────────────────────────────────────
-              _SleepDateRow(
+              DateScrollRow(
                 selectedDate: _selectedDate,
                 onDateSelected: _onDateSelected,
               ),
@@ -788,92 +780,6 @@ class _SleepScreenState extends State<SleepScreen> {
   }
 }
 
-// ── Date row (same pattern as heart_rate_screen.dart's _HRDateRow) ───────────
-
-class _SleepDateRow extends StatelessWidget {
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onDateSelected;
-  const _SleepDateRow({
-    required this.selectedDate,
-    required this.onDateSelected,
-  });
-
-  static const _months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < dates.length; i++) ...[
-            if (i > 0) const SizedBox(width: 16),
-            _buildItem(dates[i], today),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItem(DateTime d, DateTime today) {
-    final isToday = d == today;
-    final isFuture = d.isAfter(today);
-    final sel = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-    );
-    final isSelected = d == sel && !isToday;
-
-    if (isToday || isSelected) {
-      return GestureDetector(
-        onTap: isToday ? null : () => onDateSelected(d),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: const Color(0xFF202020),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF363636)),
-          ),
-          child: Text(
-            isToday
-                ? 'Today, ${d.day} ${_months[d.month - 1]}'
-                : '${d.day} ${_months[d.month - 1]}',
-            style: _inter(13, weight: FontWeight.w500),
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: isFuture ? null : () => onDateSelected(d),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: Text(
-          '${d.day}',
-          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
-        ),
-      ),
-    );
-  }
-}
 
 // ── Chart card wrapper (same header/border pattern as _HRChartCard) ──────────
 

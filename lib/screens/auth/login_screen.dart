@@ -6,6 +6,27 @@ import 'forgot_password_screen.dart';
 import 'sign_up_screen.dart';
 import '../../widgets/glass_back_button.dart';
 
+String _friendlyAuthError(Object e) {
+  final raw = e.toString().replaceAll('Exception: ', '').trim();
+  final lower = raw.toLowerCase();
+  if (lower.contains('invalid login') ||
+      lower.contains('invalid credentials') ||
+      lower.contains('invalid_credentials')) {
+    return 'Incorrect email or password.';
+  }
+  if (lower.contains('email not confirmed') || lower.contains('not confirmed')) {
+    return 'Please confirm your email before logging in.';
+  }
+  if (lower.contains('network') || lower.contains('socket') || lower.contains('timeout')) {
+    return 'Network error. Check your connection and try again.';
+  }
+  final codeMatch = RegExp(r'\b[A-Z][A-Z0-9_]{2,}\b').firstMatch(raw);
+  if (codeMatch != null && raw.length > 80) {
+    return 'Something went wrong (${codeMatch.group(0)}). Please try again.';
+  }
+  if (raw.length > 120) return 'Something went wrong. Please try again.';
+  return raw.isEmpty ? 'Something went wrong. Please try again.' : raw;
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,6 +41,16 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   bool _obscure = true;
   String? _error;
+
+  bool get _fieldsFilled =>
+      _emailCtrl.text.trim().isNotEmpty && _passCtrl.text.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailCtrl.addListener(() => setState(() {}));
+    _passCtrl.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
@@ -44,7 +75,10 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _error = 'Please enter a valid email address.');
       return;
     }
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final res = await SupabaseService.signIn(email, pass);
       if (!mounted) return;
@@ -60,13 +94,14 @@ class _LoginScreenState extends State<LoginScreen> {
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(
-                builder: (_) => OnboardingNameScreen(data: OnboardingData())),
+              builder: (_) => OnboardingNameScreen(data: OnboardingData()),
+            ),
             (_) => false,
           );
         }
       }
     } catch (e) {
-      setState(() => _error = e.toString().replaceAll('Exception: ', ''));
+      setState(() => _error = _friendlyAuthError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -74,6 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canSubmit = _fieldsFilled && !_loading;
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -82,8 +118,8 @@ class _LoginScreenState extends State<LoginScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
-                children: [
-                  const GlassBackButton(),
+                children: const [
+                  GlassBackButton(),
                 ],
               ),
             ),
@@ -93,7 +129,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: Image.asset(
+                        'sundr_logo.png',
+                        width: 72,
+                        height: 72,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                     const Text(
                       'Welcome back',
                       style: TextStyle(
@@ -148,15 +192,22 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     if (_error != null) ...[
                       const SizedBox(height: 16),
-                      Text(_error!,
-                          style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
+                      Text(
+                        _error!,
+                        style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 13,
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 28),
                     Center(
                       child: GestureDetector(
                         onTap: () => Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(builder: (_) => const SignUpScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const SignUpScreen(),
+                          ),
                         ),
                         child: RichText(
                           text: const TextSpan(
@@ -166,8 +217,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               TextSpan(
                                 text: 'Sign up',
                                 style: TextStyle(
-                                    color: Color(0xFFC9A86E),
-                                    fontWeight: FontWeight.w600),
+                                  color: Color(0xFFC9A86E),
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           ),
@@ -185,12 +237,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _loading ? null : _login,
+                  onPressed: canSubmit ? _login : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC9A86E),
-                    foregroundColor: Colors.black,
+                    backgroundColor: canSubmit
+                        ? const Color(0xFFC9A86E)
+                        : const Color(0xFF2A2A2A),
+                    foregroundColor:
+                        canSubmit ? Colors.black : Colors.white38,
+                    disabledBackgroundColor: const Color(0xFF2A2A2A),
+                    disabledForegroundColor: Colors.white38,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30)),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
                     elevation: 0,
                   ),
                   child: _loading
@@ -198,11 +256,17 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.black),
+                            strokeWidth: 2,
+                            color: Colors.black,
+                          ),
                         )
-                      : const Text('Log in',
+                      : const Text(
+                          'Log in',
                           style: TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w600)),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
             ),

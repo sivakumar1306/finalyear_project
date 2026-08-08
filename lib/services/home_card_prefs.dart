@@ -81,10 +81,12 @@ class HomeCardPrefs {
   // ── Expanded size ──────────────────────────────────────────────────────────
 
   /// Returns the set of cards the user has expanded to full width.  Absent
-  /// from this set → normal half-width card.
+  /// from this set → normal half-width card. First launch defaults Alarms to
+  /// the enlarged view (Sundr design review).
   static Future<Set<HomeCardId>> loadExpanded() async {
     final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList(_expandedKey) ?? [];
+    final list = prefs.getStringList(_expandedKey);
+    if (list == null) return {HomeCardId.alarms};
     final Set<HomeCardId> expanded = {};
     for (final name in list) {
       try {

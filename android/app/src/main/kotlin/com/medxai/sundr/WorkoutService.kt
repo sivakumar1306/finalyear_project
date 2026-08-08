@@ -1,6 +1,5 @@
 package com.medxai.sundr
 
-import android.app.Application
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -71,42 +70,46 @@ class WorkoutService : Service() {
 
     private val tickRunnable = object : Runnable {
         override fun run() {
-            val now = System.currentTimeMillis()
-            val elapsedMs = now - workoutStartMs
-            updateNotification(workoutType, elapsedMs)
+            try {
+                val now = System.currentTimeMillis()
+                val elapsedMs = now - workoutStartMs
+                updateNotification(workoutType, elapsedMs)
 
-            if (now - lastStepsSyncMs >= STEPS_INTERVAL_MS) {
-                lastStepsSyncMs = now
-                syncSteps()
-            }
-            if (now - lastHrMs >= HR_INTERVAL_MS) {
-                lastHrMs = now
-                readLatestHr()
-            }
-            // Stagger SpO2 and BP so they don't overlap. SpO2 runs first.
-            // After workout starts, first SpO2 triggers at 5 min, BP at 10 min.
-            if (elapsedMs >= SPO2_INTERVAL_MS && now - lastSpo2Ms >= SPO2_INTERVAL_MS) {
-                if (spo2InProgress.compareAndSet(false, true)) {
-                    lastSpo2Ms = now
-                    measureSpo2()
+                if (now - lastStepsSyncMs >= STEPS_INTERVAL_MS) {
+                    lastStepsSyncMs = now
+                    try { syncSteps() } catch (_: Exception) {}
                 }
-            }
-            if (elapsedMs >= BP_INTERVAL_MS && now - lastBpMs >= BP_INTERVAL_MS) {
-                if (!spo2InProgress.get() && bpInProgress.compareAndSet(false, true)) {
-                    lastBpMs = now
-                    measureBp()
+                if (now - lastHrMs >= HR_INTERVAL_MS) {
+                    lastHrMs = now
+                    try { readLatestHr() } catch (_: Exception) {}
                 }
+                if (elapsedMs >= SPO2_INTERVAL_MS && now - lastSpo2Ms >= SPO2_INTERVAL_MS) {
+                    if (spo2InProgress.compareAndSet(false, true)) {
+                        lastSpo2Ms = now
+                        try { measureSpo2() } catch (_: Exception) {
+                            spo2InProgress.set(false)
+                        }
+                    }
+                }
+                if (elapsedMs >= BP_INTERVAL_MS && now - lastBpMs >= BP_INTERVAL_MS) {
+                    if (!spo2InProgress.get() && bpInProgress.compareAndSet(false, true)) {
+                        lastBpMs = now
+                        try { measureBp() } catch (_: Exception) {
+                            bpInProgress.set(false)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("WorkoutService", "tick failed", e)
+            } finally {
+                handler.postDelayed(this, TICK_MS)
             }
-
-            handler.postDelayed(this, TICK_MS)
         }
     }
 
     override fun onCreate() {
         super.onCreate()
-        try {
-            BleOperateManager.getInstance(applicationContext as Application)
-        } catch (_: Exception) {}
+        com.medxai.sundr.sdk.BleSdkLifecycle.ensureInitialized(applicationContext)
 
         MeasurementCoordinator.isWorkoutActive = true
         createNotificationChannel()

@@ -12,15 +12,16 @@ import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/date_scroll_row.dart';
 
 
 // ── Local design tokens — same system as heart_rate_screen.dart / blood_oxygen_screen.dart ──
 
-const _kCard = Color(0xFF141414);
-const _kBorder = Color(0xFF242424);
+const _kCard = AppTheme.card;
+const _kBorder = AppTheme.div;
 const _kGrid = Color(0xFF222222);
 const _kSec = Color(0xFF666666);
-const _kSec2 = Color(0xFF888888);
+const _kSec2 = AppTheme.textSec;
 
 TextStyle _inter(
   double size, {
@@ -135,36 +136,14 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _seedInstantData();
+
       _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
     _loadTempUnit();
   }
 
-  void _seedInstantData() {
-    try {
-      final ble = context.read<BleProvider>();
-      final curTemp = ble.latestTempC > 0 ? ble.latestTempC : 36.6;
-      final minVal = (curTemp - 0.3).clamp(35.0, 42.0);
-      final maxVal = (curTemp + 0.4).clamp(35.0, 42.0);
 
-      final nowHour = DateTime.now().hour;
-      final slots = List<double>.filled(24, 0.0);
-      for (int h = 0; h <= nowHour; h++) {
-        final v = ((h % 3) - 1) * 0.1;
-        slots[h] = (curTemp + v).clamp(minVal, maxVal);
-      }
-
-      setState(() {
-        _avgTemp = curTemp;
-        _minTemp = minVal;
-        _maxTemp = maxVal;
-        _chartValues = slots;
-        _loading = false;
-      });
-    } catch (_) {}
-  }
 
   Future<void> _loadTempUnit() async {
     final unit = await UnitPrefs.loadTempUnit();
@@ -608,7 +587,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
               const SizedBox(height: 16),
 
               // ── 1. Date row ────────────────────────────────────────────────
-              _TempDateRow(
+              DateScrollRow(
                 selectedDate: _selectedDate,
                 onDateSelected: _onDateSelected,
               ),
@@ -753,92 +732,6 @@ class _TempReading {
   const _TempReading({required this.time, required this.valueC});
 }
 
-// ── Date row ──────────────────────────────────────────────────────────────────
-
-class _TempDateRow extends StatelessWidget {
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onDateSelected;
-  const _TempDateRow({
-    required this.selectedDate,
-    required this.onDateSelected,
-  });
-
-  static const _months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < dates.length; i++) ...[
-            if (i > 0) const SizedBox(width: 16),
-            _buildItem(dates[i], today),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItem(DateTime d, DateTime today) {
-    final isToday = d == today;
-    final isFuture = d.isAfter(today);
-    final sel = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-    );
-    final isSelected = d == sel && !isToday;
-
-    if (isToday || isSelected) {
-      return GestureDetector(
-        onTap: isToday ? null : () => onDateSelected(d),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: const Color(0xFF202020),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF363636)),
-          ),
-          child: Text(
-            isToday
-                ? 'Today, ${d.day} ${_months[d.month - 1]}'
-                : '${d.day} ${_months[d.month - 1]}',
-            style: _inter(13, weight: FontWeight.w500),
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: isFuture ? null : () => onDateSelected(d),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: Text(
-          '${d.day}',
-          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
-        ),
-      ),
-    );
-  }
-}
 
 // ── Temperature chart card ──────────────────────────────────────────────────
 

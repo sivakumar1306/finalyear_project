@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/health_connect_service.dart';
+import '../../services/local_vitals_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_menu.dart';
@@ -13,15 +14,16 @@ import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/date_scroll_row.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
-const _kCard = Color(0xFF141414);
-const _kBorder = Color(0xFF242424);
+const _kCard = AppTheme.card;
+const _kBorder = AppTheme.div;
 const _kGrid = Color(0xFF222222);
 const _kSec = Color(0xFF666666);
-const _kSec2 = Color(0xFF888888);
+const _kSec2 = AppTheme.textSec;
 
 TextStyle _inter(
   double size, {
@@ -47,6 +49,7 @@ class HrvScreen extends StatefulWidget {
 
 class _HrvScreenState extends State<HrvScreen> {
   final _ble = BleService();
+  final _local = LocalVitalsService();
   final _moreButtonKey = GlobalKey();
   final _screenshotKey = GlobalKey();
 
@@ -136,36 +139,13 @@ class _HrvScreenState extends State<HrvScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _seedInstantData();
+
       _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
   }
 
-  void _seedInstantData() {
-    try {
-      final ble = context.read<BleProvider>();
-      final curHrv = ble.todayAvgHrv > 0 ? ble.todayAvgHrv : 48;
-      final minVal = (curHrv - 6).clamp(15, 150);
-      final maxVal = (curHrv + 10).clamp(15, 150);
 
-      const totalSlots = 48;
-      final nowSlot = (DateTime.now().hour * 60 + DateTime.now().minute) ~/ 30;
-      final slots = List<int>.filled(totalSlots, 0);
-      for (int i = 0; i <= nowSlot && i < totalSlots; i++) {
-        final v = ((i % 5) - 2) * 2;
-        slots[i] = (curHrv + v).clamp(minVal, maxVal);
-      }
-
-      setState(() {
-        _avgHrv = curHrv;
-        _minHrv = minVal;
-        _maxHrv = maxVal;
-        _chartValues = slots;
-        _loading = false;
-      });
-    } catch (_) {}
-  }
 
   // ── Date selection ────────────────────────────────────────────────────────
 
@@ -340,30 +320,21 @@ class _HrvScreenState extends State<HrvScreen> {
     } catch (_) {}
   }
 
-  // ── Supabase fetches ──────────────────────────────────────────────────────
+  // ── Local-first day / trend (cloud fills gaps + caches for offline) ────────
 
   Future<void> _loadDayFromSupabase(DateTime date) async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
     setState(() {
       _loadingDay = true;
       _dayOffline = false;
     });
     try {
-      final row = await SupabaseService.getHrvForDate(user.id, date);
-      
-      final dayStart = DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
-      final dayEnd = DateTime(date.year, date.month, date.day, 23, 59, 59, 999).millisecondsSinceEpoch;
-      final readingsJson = await _ble.getReadings('hrv', fromMs: dayStart, toMs: dayEnd, limit: 1000);
-      final decoded = jsonDecode(readingsJson);
-      final list = decoded is List ? decoded : <dynamic>[];
-      
+      final local = await _local.getDaySummary('hrv', date);
+      final list = await _local.getReadings('hrv', date);
       const totalSlots = 48;
       final slots = List<int>.filled(totalSlots, 0);
       final slotSums = List<int>.filled(totalSlots, 0);
       final slotCounts = List<int>.filled(totalSlots, 0);
-      for (final item in list) {
-        final m = item as Map<String, dynamic>;
+      for (final m in list) {
         final value = (m['valueMs'] as num? ?? 0).toInt();
         final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
         if (value <= 0 || measuredAt <= 0) continue;
@@ -379,62 +350,136 @@ class _HrvScreenState extends State<HrvScreen> {
       }
 
       if (!mounted) return;
-      if (row != null) {
+      if (_local.hasData(local)) {
         setState(() {
-          _dayAvg = (row['avg_hrv'] as num? ?? 0).toInt();
-          _dayMin = (row['min_hrv'] as num? ?? 0).toInt();
-          _dayMax = (row['max_hrv'] as num? ?? 0).toInt();
+          _dayAvg = (local['avg'] as num?)?.round() ?? 0;
+          _dayMin = (local['min'] as num?)?.toInt() ?? 0;
+          _dayMax = (local['max'] as num?)?.toInt() ?? 0;
+          if (_selectedDate == date) _chartValues = slots;
         });
+      } else if (slots.any((v) => v > 0) && _selectedDate == date) {
+        setState(() => _chartValues = slots);
       }
-      setState(() {
-        if (_selectedDate == date) _chartValues = slots;
-      });
-    } catch (e) {
-      if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
+
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      try {
+        final row = await SupabaseService.getHrvForDate(user.id, date);
+        if (!mounted || row == null) return;
+        final avg = (row['avg_hrv'] as num? ?? 0).toInt();
+        final minV = (row['min_hrv'] as num? ?? 0).toInt();
+        final maxV = (row['max_hrv'] as num? ?? 0).toInt();
+        if (!_local.hasData(local) || avg > 0) {
+          setState(() {
+            if (avg > 0) _dayAvg = avg;
+            if (minV > 0) _dayMin = minV;
+            if (maxV > 0) _dayMax = maxV;
+          });
+        }
+        await _local.cacheSimpleDay(
+          vital: 'hrv',
+          date: date,
+          avg: avg,
+          min: minV,
+          max: maxV,
+          count: (row['sample_count'] as num?)?.toInt() ?? 1,
+        );
+      } catch (e) {
+        if (mounted && isNetworkError(e) && !_local.hasData(local)) {
+          setState(() => _dayOffline = true);
+        }
+      }
+    } catch (_) {
     } finally {
       if (mounted) setState(() => _loadingDay = false);
     }
   }
 
   Future<void> _load7DayTrend() async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
     setState(() {
       _loadingTrend = true;
       _trendOffline = false;
     });
     try {
-      final now = DateTime.now();
-      final rows = await SupabaseService.getHrvHistory(
-        userId: user.id,
-        from: now.subtract(const Duration(days: 6)),
-        to: now,
-      );
-      final vals = List.generate(7, (i) {
-        final day = now.subtract(Duration(days: 6 - i));
-        final row = rows.firstWhere(
-          (r) => r['date'] == _fmt(day),
-          orElse: () => {},
-        );
-        return (row['avg_hrv'] as num? ?? 0).toInt();
-      });
-      final valid = rows.where((r) => r['min_hrv'] != null).toList();
+      final localRows = await _local.getHistory('hrv', days: 7);
+      final localVals = await _local.historyAvgSeries('hrv', days: 7);
+      final localValid = localRows.where((r) => r['min'] != null).toList();
       if (!mounted) return;
-      setState(() {
-        _trendValues = vals;
-        _trendMin = valid.isEmpty
-            ? 0
-            : valid
-                  .map((r) => (r['min_hrv'] as num).toInt())
+      if (localVals.any((v) => v > 0)) {
+        setState(() {
+          _trendValues = localVals;
+          _trendMin = localValid.isEmpty
+              ? 0
+              : localValid
+                  .map((r) => (r['min'] as num).toInt())
                   .reduce((a, b) => a < b ? a : b);
-        _trendMax = valid.isEmpty
-            ? 0
-            : valid
-                  .map((r) => (r['max_hrv'] as num).toInt())
+          _trendMax = localValid.isEmpty
+              ? 0
+              : localValid
+                  .map((r) => (r['max'] as num).toInt())
                   .reduce((a, b) => a > b ? a : b);
-      });
-    } catch (e) {
-      if (mounted && isNetworkError(e)) setState(() => _trendOffline = true);
+        });
+      }
+
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      try {
+        final now = DateTime.now();
+        final rows = await SupabaseService.getHrvHistory(
+          userId: user.id,
+          from: now.subtract(const Duration(days: 6)),
+          to: now,
+        );
+        final vals = List.generate(7, (i) {
+          final day = now.subtract(Duration(days: 6 - i));
+          final row = rows.firstWhere(
+            (r) => r['date'] == _fmt(day),
+            orElse: () => {},
+          );
+          return (row['avg_hrv'] as num? ?? 0).toInt();
+        });
+        final valid = rows.where((r) => r['min_hrv'] != null).toList();
+        if (!mounted) return;
+        if (vals.any((v) => v > 0)) {
+          setState(() {
+            _trendValues = vals;
+            _trendMin = valid.isEmpty
+                ? 0
+                : valid
+                    .map((r) => (r['min_hrv'] as num).toInt())
+                    .reduce((a, b) => a < b ? a : b);
+            _trendMax = valid.isEmpty
+                ? 0
+                : valid
+                    .map((r) => (r['max_hrv'] as num).toInt())
+                    .reduce((a, b) => a > b ? a : b);
+          });
+        }
+        for (final r in rows) {
+          final dateStr = r['date'] as String?;
+          if (dateStr == null) continue;
+          final parts = dateStr.split('-');
+          if (parts.length != 3) continue;
+          final day = DateTime(
+            int.parse(parts[0]),
+            int.parse(parts[1]),
+            int.parse(parts[2]),
+          );
+          await _local.cacheSimpleDay(
+            vital: 'hrv',
+            date: day,
+            avg: r['avg_hrv'] as num?,
+            min: r['min_hrv'] as num?,
+            max: r['max_hrv'] as num?,
+            count: (r['sample_count'] as num?)?.toInt() ?? 1,
+          );
+        }
+      } catch (e) {
+        if (mounted && isNetworkError(e) && !localVals.any((v) => v > 0)) {
+          setState(() => _trendOffline = true);
+        }
+      }
+    } catch (_) {
     } finally {
       if (mounted) setState(() => _loadingTrend = false);
     }
@@ -595,7 +640,7 @@ class _HrvScreenState extends State<HrvScreen> {
                 const SizedBox(height: 16),
 
                 // ── 1. Date row ────────────────────────────────────────────
-                _HRVDateRow(
+                DateScrollRow(
                   selectedDate: _selectedDate,
                   onDateSelected: _onDateSelected,
                 ),
@@ -853,89 +898,6 @@ class _HrvScreenState extends State<HrvScreen> {
   }
 }
 
-// ── Date row ──────────────────────────────────────────────────────────────────
-
-class _HRVDateRow extends StatelessWidget {
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onDateSelected;
-  const _HRVDateRow({required this.selectedDate, required this.onDateSelected});
-
-  static const _months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < dates.length; i++) ...[
-            if (i > 0) const SizedBox(width: 16),
-            _buildItem(dates[i], today),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItem(DateTime d, DateTime today) {
-    final isToday = d == today;
-    final isFuture = d.isAfter(today);
-    final sel = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-    );
-    final isSelected = d == sel && !isToday;
-
-    if (isToday || isSelected) {
-      return GestureDetector(
-        onTap: isToday ? null : () => onDateSelected(d),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: const Color(0xFF202020),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF363636)),
-          ),
-          child: Text(
-            isToday
-                ? 'Today, ${d.day} ${_months[d.month - 1]}'
-                : '${d.day} ${_months[d.month - 1]}',
-            style: _inter(13, weight: FontWeight.w500),
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: isFuture ? null : () => onDateSelected(d),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: Text(
-          '${d.day}',
-          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
-        ),
-      ),
-    );
-  }
-}
 
 // ── HRV Chart Card ────────────────────────────────────────────────────────────
 

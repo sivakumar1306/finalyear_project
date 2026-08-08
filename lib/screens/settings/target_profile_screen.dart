@@ -22,6 +22,7 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
   final _heightCtrl = TextEditingController(text: '170');
   final _weightCtrl = TextEditingController(text: '70');
   int _gender = 1;
+  bool _profileSupported = false;
 
   @override
   void initState() {
@@ -48,14 +49,17 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
       final json = await _ble.getTargetAndProfile();
       final m = jsonDecode(json) ?? {};
       setState(() {
-        _stepsCtrl.text = (m['stepTarget'] ?? 8000).toString();
-        _caloriesCtrl.text = (m['calorieTarget'] ?? 500).toString();
-        _sleepCtrl.text = (m['sleepTarget'] ?? 8).toString();
-        _distanceCtrl.text = (m['distanceTarget'] ?? 5).toString();
-        _ageCtrl.text = (m['age'] ?? 30).toString();
-        _heightCtrl.text = (m['height'] ?? 170).toString();
-        _weightCtrl.text = (m['weight'] ?? 70).toString();
-        _gender = m['gender'] ?? 1;
+        _stepsCtrl.text = _fmt((m['stepTarget'] ?? 8000) as num);
+        _caloriesCtrl.text = _fmt((m['calorieTarget'] ?? 500) as num);
+        _sleepCtrl.text = _fmt((((m['sleepTargetMin'] ?? 480) as num).toDouble() / 60).clamp(1, 24));
+        _distanceCtrl.text = _fmt((((m['distanceTargetM'] ?? 5000) as num).toDouble() / 1000).clamp(0.1, 1000));
+        _profileSupported = m['profileSupported'] == true;
+        if (_profileSupported) {
+          _ageCtrl.text = _fmt((m['age'] ?? 30) as num);
+          _heightCtrl.text = _fmt((m['height'] ?? 170) as num);
+          _weightCtrl.text = _fmt((m['weight'] ?? 70) as num);
+          _gender = m['gender'] ?? 1;
+        }
       });
     } catch (_) {
     } finally {
@@ -64,22 +68,29 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
   }
 
   Future<void> _save() async {
-    final data = {
+    final data = <String, dynamic>{
       'stepTarget': int.tryParse(_stepsCtrl.text) ?? 8000,
       'calorieTarget': int.tryParse(_caloriesCtrl.text) ?? 500,
-      'sleepTarget': int.tryParse(_sleepCtrl.text) ?? 8,
-      'distanceTarget': int.tryParse(_distanceCtrl.text) ?? 5,
-      'age': int.tryParse(_ageCtrl.text) ?? 30,
-      'height': int.tryParse(_heightCtrl.text) ?? 170,
-      'weight': int.tryParse(_weightCtrl.text) ?? 70,
-      'gender': _gender,
+      'sleepTarget': (double.tryParse(_sleepCtrl.text) ?? 8) * 60,
+      'distanceTarget': (double.tryParse(_distanceCtrl.text) ?? 5) * 1000,
+      'sportTargetMin': 60,
     };
+    if (_profileSupported) {
+      data['age'] = int.tryParse(_ageCtrl.text) ?? 30;
+      data['height'] = int.tryParse(_heightCtrl.text) ?? 170;
+      data['weight'] = int.tryParse(_weightCtrl.text) ?? 70;
+      data['gender'] = _gender;
+    }
     try {
       await _ble.setTargetAndProfile(jsonEncode(data));
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Profile saved')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            _profileSupported
+                ? 'Profile saved'
+                : 'Targets saved (user profile is read-only on this ring model)',
+          ),
+        ));
       }
     } catch (e) {
       if (mounted) {
@@ -88,6 +99,11 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
+  }
+
+  String _fmt(num v) {
+    final s = v is double ? v.toStringAsFixed(v % 1 == 0 ? 0 : 1) : v.toString();
+    return s;
   }
 
   @override
@@ -122,9 +138,18 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
                 ]),
                 const SizedBox(height: 16),
                 _sectionCard('User Profile', [
-                  _inputTile('Age', _ageCtrl, 'years'),
-                  _inputTile('Height', _heightCtrl, 'cm'),
-                  _inputTile('Weight', _weightCtrl, 'kg'),
+                  if (!_profileSupported) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: Text(
+                        'Not editable — user profile is read-only on this ring model. Targets above are saved.',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                  ],
+                  _inputTile('Age', _ageCtrl, 'years', enabled: _profileSupported),
+                  _inputTile('Height', _heightCtrl, 'cm', enabled: _profileSupported),
+                  _inputTile('Weight', _weightCtrl, 'kg', enabled: _profileSupported),
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -137,13 +162,17 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
                         ChoiceChip(
                           label: const Text('Male'),
                           selected: _gender == 1,
-                          onSelected: (_) => setState(() => _gender = 1),
+                          onSelected: _profileSupported
+                              ? (_) => setState(() => _gender = 1)
+                              : null,
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('Female'),
                           selected: _gender == 0,
-                          onSelected: (_) => setState(() => _gender = 0),
+                          onSelected: _profileSupported
+                              ? (_) => setState(() => _gender = 0)
+                              : null,
                         ),
                       ],
                     ),
@@ -172,7 +201,12 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
     ),
   );
 
-  Widget _inputTile(String label, TextEditingController ctrl, String unit) =>
+  Widget _inputTile(
+    String label,
+    TextEditingController ctrl,
+    String unit, {
+    bool enabled = true,
+  }) =>
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Row(
@@ -182,6 +216,7 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
               width: 80,
               child: TextField(
                 controller: ctrl,
+                enabled: enabled,
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.right,
                 decoration: InputDecoration(

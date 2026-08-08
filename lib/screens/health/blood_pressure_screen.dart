@@ -11,16 +11,17 @@ import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/date_scroll_row.dart';
+import '../../utils/bp_staging.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
-const _kCard = Color(0xFF141414);
-const _kBorder = Color(0xFF242424);
+const _kCard = AppTheme.card;
+const _kBorder = AppTheme.div;
 const _kGrid = Color(0xFF222222);
 const _kSec = Color(0xFF666666);
-const _kSec2 = Color(0xFF888888);
-// DBP uses a contrasting violet so both series are visually distinct.
+const _kSec2 = AppTheme.textSec;
 const _dbpColor = Color(0xFFC084FC);
 
 TextStyle _inter(
@@ -37,21 +38,10 @@ TextStyle _inter(
   height: height,
 );
 
-String _bpStatus(int sbp, int dbp) {
-  if (sbp <= 0 || dbp <= 0) return '';
-  if (sbp < 120 && dbp < 80) return 'Normal';
-  if (sbp < 130 && dbp < 80) return 'Elevated';
-  if (sbp < 140 || dbp < 90) return 'Stage 1';
-  return 'Stage 2';
-}
+String _bpStatus(int sbp, int dbp) => bpStatusLabel(sbp, dbp);
 
-Color _bpStatusColor(int sbp, int dbp) {
-  if (sbp <= 0 || dbp <= 0) return _kSec2;
-  if (sbp < 120 && dbp < 80) return AppTheme.success;
-  if (sbp < 130 && dbp < 80) return const Color(0xFFFBBF24);
-  if (sbp < 140 || dbp < 90) return AppTheme.stressColor;
-  return AppTheme.danger;
-}
+Color _bpStatusColor(int sbp, int dbp) =>
+    bpStatusColor(sbp, dbp, noDataColor: _kSec2);
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -146,41 +136,13 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _seedInstantData();
+
       _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
   }
 
-  void _seedInstantData() {
-    try {
-      final ble = context.read<BleProvider>();
-      final curSbp = ble.latestBpSbp > 0 ? ble.latestBpSbp : 120;
-      final curDbp = ble.latestBpDbp > 0 ? ble.latestBpDbp : 80;
 
-      final nowHour = DateTime.now().hour;
-      final slotsSbp = List<int>.filled(24, 0);
-      final slotsDbp = List<int>.filled(24, 0);
-      for (int h = 0; h <= nowHour; h++) {
-        final varSbp = ((h % 4) - 2) * 2;
-        final varDbp = ((h % 3) - 1) * 2;
-        slotsSbp[h] = (curSbp + varSbp).clamp(90, 180);
-        slotsDbp[h] = (curDbp + varDbp).clamp(60, 110);
-      }
-
-      setState(() {
-        _avgSbp = curSbp;
-        _minSbp = curSbp - 5;
-        _maxSbp = curSbp + 8;
-        _avgDbp = curDbp;
-        _minDbp = curDbp - 4;
-        _maxDbp = curDbp + 6;
-        _chartSbp = slotsSbp;
-        _chartDbp = slotsDbp;
-        _loading = false;
-      });
-    } catch (_) {}
-  }
 
   // ── Date selection ────────────────────────────────────────────────────────────
 
@@ -620,7 +582,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               const SizedBox(height: 16),
 
               // ── 2. Date row ────────────────────────────────────────────────
-              _BPDateRow(
+              DateScrollRow(
                 selectedDate: _selectedDate,
                 onDateSelected: _onDateSelected,
               ),
@@ -780,89 +742,6 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
   }
 }
 
-// ── Date row ──────────────────────────────────────────────────────────────────
-
-class _BPDateRow extends StatelessWidget {
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onDateSelected;
-  const _BPDateRow({required this.selectedDate, required this.onDateSelected});
-
-  static const _months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < dates.length; i++) ...[
-            if (i > 0) const SizedBox(width: 16),
-            _buildItem(dates[i], today),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItem(DateTime d, DateTime today) {
-    final isToday = d == today;
-    final isFuture = d.isAfter(today);
-    final sel = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-    );
-    final isSelected = d == sel && !isToday;
-
-    if (isToday || isSelected) {
-      return GestureDetector(
-        onTap: isToday ? null : () => onDateSelected(d),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: const Color(0xFF202020),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF363636)),
-          ),
-          child: Text(
-            isToday
-                ? 'Today, ${d.day} ${_months[d.month - 1]}'
-                : '${d.day} ${_months[d.month - 1]}',
-            style: _inter(13, weight: FontWeight.w500),
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: isFuture ? null : () => onDateSelected(d),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: Text(
-          '${d.day}',
-          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
-        ),
-      ),
-    );
-  }
-}
 
 // ── BP Chart Card (dual series: systolic + diastolic) ─────────────────────────
 

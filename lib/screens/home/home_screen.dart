@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/ble_provider.dart';
 import '../../providers/alarm_mode_provider.dart';
+import '../../providers/alarm_schedule_provider.dart';
 import '../../providers/home_card_provider.dart';
+import '../../services/prayer_schedule_prefs.dart';
 import '../../services/chat_api_service.dart';
 import '../../services/supabase_service.dart';
 import '../../models/womens_health_models.dart';
@@ -22,11 +25,14 @@ import 'card_settings_screen.dart';
 import '../settings/goal_setting_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/unit_prefs.dart';
+import '../main_shell.dart';
+import '../../utils/bp_staging.dart';
 import '../../widgets/app_typography.dart';
+import '../prayer/prayer_session_screen.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
-const _kSec2 = Color(0xFF888888);
+const _kSec2 = AppTheme.textSec;
 const _kCardBg = Color(0x0FFFFFFF); // rgba(255,255,255,0.06)
 const _kCardBorder = Color(0x17FFFFFF); // rgba(255,255,255,0.09)
 const _kBtnBg = Color(0x08FFFFFF); // rgba(255,255,255,0.03)
@@ -341,6 +347,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           hasData: true,
           steps: ble.todaySteps,
           calories: ble.todayCalories,
+          distanceM: ble.todayDistanceM,
           expanded: expanded,
           onTap: () => _navigateTo('/steps'),
         );
@@ -598,10 +605,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ble.todayDistanceM,
           ble.todayCalories,
         );
+        final dist = ble.todayDistanceM;
+        final distLabel = dist <= 0
+            ? _activityScoreLabel(score)
+            : dist >= 1000
+            ? '${(dist / 1000).toStringAsFixed(1)} km'
+            : '${dist.round()} m';
         return _MiniCard(
           label: 'Activity',
           value: '$score',
-          sub: _activityScoreLabel(score),
+          sub: distLabel,
           color: _kOrbActivity,
           icon: Icons.directions_walk,
           expanded: expanded,
@@ -1076,7 +1089,7 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
     }
     setState(() => _loading = true);
     try {
-      final result = await ChatApiService.getInsights('7D');
+      final result = await ChatApiService.getInsights();
       _cache = result;
       _cacheTime = DateTime.now();
       if (mounted) setState(() => _data = result);
@@ -1117,62 +1130,67 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0x0DC9A86E), // rgba(201,168,110,0.05)
-              border: Border.all(
-                color: const Color(0x26C9A86E), // rgba(201,168,110,0.15)
-                width: 0.5,
+      child: _ShrinkButton(
+        onTap: () {
+          final prompt = subtext != null && subtext.isNotEmpty
+              ? 'Expand on this insight: $headline $subtext'
+              : 'Expand on this insight: $headline';
+          Navigator.of(context).push(buildAiAssistRoute(initialPrompt: prompt));
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0x0DC9A86E),
+                border: Border.all(color: const Color(0x26C9A86E), width: 0.5),
+                borderRadius: BorderRadius.circular(18),
               ),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'AI SUMMARY',
-                  style: AppTypography.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.18 * 10,
-                    color: AppTheme.goldAccent,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'AI SUMMARY',
+                    style: AppTypography.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.18 * 10,
+                      color: AppTheme.gold,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  headline,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.inter(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w400,
-                    height: 1.30,
-                    letterSpacing: -0.02 * 19,
-                    color: Colors.white,
-                  ),
-                ),
-                if (subtext != null && subtext.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
-                    subtext,
+                    headline,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppTypography.inter(
-                      fontSize: 12.5,
+                      fontSize: 19,
                       fontWeight: FontWeight.w400,
-                      height: 1.50,
-                      letterSpacing: 0.02 * 12.5,
-                      color: Colors.white.withValues(alpha: 0.52),
+                      height: 1.30,
+                      letterSpacing: -0.02 * 19,
+                      color: Colors.white,
                     ),
                   ),
+                  if (subtext != null && subtext.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      subtext,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w400,
+                        height: 1.50,
+                        letterSpacing: 0.02 * 12.5,
+                        color: Colors.white.withValues(alpha: 0.52),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -1363,6 +1381,7 @@ class _GlassCard extends StatelessWidget {
   final double orbSize;
   final EdgeInsetsGeometry? padding;
   final Color? borderColor;
+  final Widget? backgroundOverride;
 
   const _GlassCard({
     required this.orbColor,
@@ -1376,6 +1395,7 @@ class _GlassCard extends StatelessWidget {
     this.orbSize = 240,
     this.padding,
     this.borderColor,
+    this.backgroundOverride,
   });
 
   @override
@@ -1403,13 +1423,20 @@ class _GlassCard extends StatelessWidget {
         child: Stack(
           fit: height != null ? StackFit.expand : StackFit.loose,
           children: [
-            Positioned(
-              top: orbAtTop ? resolvedOrbOffset : null,
-              bottom: orbAtTop ? null : resolvedOrbOffset,
-              right: orbOnRight ? resolvedOrbOffset : null,
-              left: orbOnRight ? null : resolvedOrbOffset,
-              child: _BlurOrb(color: orbColor, size: orbSize, alpha: orbAlpha),
-            ),
+            if (backgroundOverride != null)
+              Positioned.fill(child: backgroundOverride!)
+            else
+              Positioned(
+                top: orbAtTop ? resolvedOrbOffset : null,
+                bottom: orbAtTop ? null : resolvedOrbOffset,
+                right: orbOnRight ? resolvedOrbOffset : null,
+                left: orbOnRight ? null : resolvedOrbOffset,
+                child: _BlurOrb(
+                  color: orbColor,
+                  size: orbSize,
+                  alpha: orbAlpha,
+                ),
+              ),
             // Fixed height: Positioned.fill gives Column tight constraints so Spacer works.
             // Auto height: plain Padding lets Stack size to content (and still
             // expands when the parent imposes a tight height via stretch).
@@ -1896,7 +1923,10 @@ class _WomensHealthMiniCardState extends State<_WomensHealthMiniCard> {
           hasHistory: true,
         );
 
-        final phase = result.estimatedPhase.displayName.replaceAll(' Phase', '');
+        final phase = result.estimatedPhase.displayName.replaceAll(
+          ' Phase',
+          '',
+        );
         final score = result.confidenceScore.round();
 
         if (mounted) {
@@ -1907,12 +1937,19 @@ class _WomensHealthMiniCardState extends State<_WomensHealthMiniCard> {
         }
       } else {
         final metrics = HealthMetrics(
-          temperature: (widget.ble.todayAvgSpo2 > 0 ? widget.ble.todayAvgSpo2.toDouble() : 50.0).clamp(0, 100),
+          temperature:
+              (widget.ble.todayAvgSpo2 > 0
+                      ? widget.ble.todayAvgSpo2.toDouble()
+                      : 50.0)
+                  .clamp(0, 100),
           hrv: (widget.ble.todayAvgHrv.toDouble()).clamp(0, 100),
           heartRate: (widget.ble.todayAvgHr.toDouble()).clamp(0, 100),
           sleepQuality: (widget.ble.todaySleepScore.toDouble()).clamp(0, 100),
           stress: (widget.ble.todayAvgStress.toDouble()).clamp(0, 100),
-          activityLevel: ((widget.ble.todaySteps / 10000.0) * 100.0).clamp(0, 100),
+          activityLevel: ((widget.ble.todaySteps / 10000.0) * 100.0).clamp(
+            0,
+            100,
+          ),
         );
         final service = WomenHealthPredictionService();
         final result = service.predictCycle(
@@ -1921,7 +1958,10 @@ class _WomensHealthMiniCardState extends State<_WomensHealthMiniCard> {
           metrics: metrics,
           hasHistory: false,
         );
-        final phase = result.estimatedPhase.displayName.replaceAll(' Phase', '');
+        final phase = result.estimatedPhase.displayName.replaceAll(
+          ' Phase',
+          '',
+        );
         final score = result.confidenceScore.round();
         if (mounted) {
           setState(() {
@@ -2318,6 +2358,7 @@ class _ActivityScoreCard extends StatelessWidget {
   final bool hasData;
   final int steps;
   final int calories;
+  final double distanceM;
   final VoidCallback? onTap;
   final bool expanded;
 
@@ -2326,9 +2367,18 @@ class _ActivityScoreCard extends StatelessWidget {
     required this.hasData,
     this.steps = 0,
     this.calories = 0,
+    this.distanceM = 0,
     this.onTap,
     this.expanded = false,
   });
+
+  String get _distanceLabel {
+    if (distanceM <= 0) return 'No distance';
+    if (distanceM >= 1000) {
+      return '${(distanceM / 1000).toStringAsFixed(1)} km';
+    }
+    return '${distanceM.round()} m';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2354,7 +2404,7 @@ class _ActivityScoreCard extends StatelessWidget {
           ],
         ),
         chart: _ActivityProgressBar(fraction: steps / 10000.0),
-        footnoteLead: calories > 0 ? '${_formatInt(calories)} cal' : 'No data',
+        footnoteLead: distanceM > 0 ? _distanceLabel : 'No distance',
         footnoteRest: steps > 0
             ? ' · $activeMin min active · ${_formatInt(remaining)} to go'
             : '',
@@ -2362,7 +2412,7 @@ class _ActivityScoreCard extends StatelessWidget {
       );
     }
     // No fixed height — pairs with _AlarmCard via IntrinsicHeight so both
-    // grow together when text scale / font metrics need more room.  Expanded
+    // grow together when text scale / font metrics need more room. Expanded
     // cards switch to the fixed 1.5× height (240 = 1.5 × the standard 160).
     return _GlassCard(
       orbColor: _kOrbActivity,
@@ -2413,7 +2463,9 @@ class _ActivityScoreCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            _HomeScreenState._activityScoreLabel(score),
+            hasData && distanceM > 0
+                ? _distanceLabel
+                : _HomeScreenState._activityScoreLabel(score),
             style: _inter(
               13,
               weight: FontWeight.w500,
@@ -2429,163 +2481,411 @@ class _ActivityScoreCard extends StatelessWidget {
   }
 }
 
-// ── Alarms card ────────────────────────────────────────────────────────────────
+// ── Alarms card ────────────────────────────────────────────────────────────
 
 class _AlarmModeInfo {
-  final String title;
-  final String subtitle;
   final String segmentLabel;
   final Color color;
   final IconData icon;
-  const _AlarmModeInfo(
-    this.title,
-    this.subtitle,
-    this.segmentLabel,
-    this.color,
-    this.icon,
-  );
+  const _AlarmModeInfo(this.segmentLabel, this.color, this.icon);
 }
 
 const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
   PhoneMode.focus: _AlarmModeInfo(
     'Focus',
-    'Until 13:00',
-    'Focus',
-    AppTheme.focus,
+    Color(0xFFE08A4A),
     Icons.adjust_rounded,
   ),
   PhoneMode.base: _AlarmModeInfo(
-    'Normal',
-    'All alerts on',
     'Base',
-    AppTheme.base,
+    Color(0xFFC9A86E),
     Icons.circle_outlined,
   ),
   PhoneMode.prayer: _AlarmModeInfo(
-    'Prayer mode',
-    'Dhuhr 13:14',
-    'Prayer',
-    AppTheme.success,
+    'Meditate',
+    Color(0xFF5BAE85),
     Icons.self_improvement_rounded,
   ),
 };
 
-class _AlarmCard extends StatelessWidget {
-  final bool expanded;
+class _AlarmGlowBackground extends StatelessWidget {
+  final Color color;
+  const _AlarmGlowBackground({this.color = const Color(0xFFE08A4A)});
 
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Ellipse 21 (bottom-left glow: rgba(224, 138, 74, 0.15), blur 40px, 240x240, left -70, top 90)
+        Positioned(
+          left: -70,
+          top: 90,
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(
+              sigmaX: 40,
+              sigmaY: 40,
+              tileMode: TileMode.decal,
+            ),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 480),
+              curve: Curves.easeOutCubic,
+              width: 240,
+              height: 240,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withValues(alpha: 0.15),
+              ),
+            ),
+          ),
+        ),
+        // Ellipse 20 (top-right glow: rgba(224, 138, 74, 0.25), blur 40px, 240x240, right -60, top -70)
+        Positioned(
+          right: -60,
+          top: -70,
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(
+              sigmaX: 40,
+              sigmaY: 40,
+              tileMode: TileMode.decal,
+            ),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 480),
+              curve: Curves.easeOutCubic,
+              width: 240,
+              height: 240,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withValues(alpha: 0.25),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AlarmCard extends StatefulWidget {
+  final bool expanded;
   const _AlarmCard({this.expanded = false});
+
+  @override
+  State<_AlarmCard> createState() => _AlarmCardState();
+}
+
+class _AlarmCardState extends State<_AlarmCard> {
+  TimeOfDay _meditationEnd = PrayerSchedulePrefs.defaultEnd;
+  TimeOfDay? _sleepTime;
+  bool _hasSavedMeditation = false;
+  bool _sleepReminderEnabled = false;
+  bool _scheduleLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSchedules();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadSchedules();
+  }
+
+  Future<void> _loadSchedules() async {
+    final prefs = await SharedPreferences.getInstance();
+    final (_, end) = await PrayerSchedulePrefs.load();
+    final hasSavedMeditation =
+        prefs.containsKey('prayer_mode_end_hour') ||
+        prefs.containsKey('prayer_mode_start_hour');
+    final sleepEnabled = prefs.getBool('sleep_reminder_enabled') ?? false;
+    final h = int.tryParse(prefs.getString('sleep_reminder_hour') ?? '') ?? 22;
+    final m =
+        int.tryParse(prefs.getString('sleep_reminder_minute') ?? '') ?? 30;
+    final sleepTime = TimeOfDay(hour: h, minute: m);
+    if (!mounted) return;
+    setState(() {
+      _meditationEnd = end;
+      _hasSavedMeditation = hasSavedMeditation;
+      _sleepReminderEnabled = sleepEnabled;
+      _sleepTime = sleepTime;
+      _scheduleLoaded = true;
+    });
+  }
+
+  String _headline(PhoneMode mode, AlarmScheduleProvider sched) {
+    if (widget.expanded) {
+      switch (mode) {
+        case PhoneMode.focus:
+          return 'No Alarms, no calls till ${sched.label(sched.focusEnd)}';
+        case PhoneMode.prayer:
+          return 'Do Not Disturb until ${_fmt24(_meditationEnd)}';
+        case PhoneMode.base:
+          return 'All alarms and calls are on';
+      }
+    }
+    switch (mode) {
+      case PhoneMode.focus:
+        return 'Focus';
+      case PhoneMode.prayer:
+        return 'Prayer mode';
+      case PhoneMode.base:
+        return 'Normal';
+    }
+  }
+
+  String _subtext(PhoneMode mode, AlarmScheduleProvider sched) {
+    if (widget.expanded) {
+      switch (mode) {
+        case PhoneMode.focus:
+          return sched.pushingAppsCount > 0
+              ? '${sched.pushingAppsCount} apps still pushing · Calls from favourites only'
+              : 'Calls from favourites only';
+        case PhoneMode.prayer:
+          return 'Priority interruptions only · Auto-off at ${_fmt24(_meditationEnd)}';
+        case PhoneMode.base:
+          return 'Ringer normal · No restrictions';
+      }
+    }
+    switch (mode) {
+      case PhoneMode.focus:
+        return 'Until ${_fmt24(sched.focusEnd)}';
+      case PhoneMode.prayer:
+        return 'Until ${_fmt24(_meditationEnd)}';
+      case PhoneMode.base:
+        return 'All alerts on';
+    }
+  }
+
+  /// Formats a TimeOfDay as 24-hour "HH:mm" — matches "Until 13:00" / "Dhuhr 13:14".
+  String _fmt24(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AlarmModeProvider>();
+    final sched = context.watch<AlarmScheduleProvider>();
     final mode = provider.mode;
     final info = _kAlarmModeInfo[mode]!;
-    // No fixed height — content + text scale dictate size; IntrinsicHeight in
-    // the parent row keeps this paired with the Activity card.  Expanded
-    // cards switch to the fixed 1.5× height (240 = 1.5 × the standard 160).
+
+    if (!sched.isLoaded || !_scheduleLoaded) {
+      return const SizedBox(height: 160);
+    }
+
+    final isFocusSet = mode == PhoneMode.focus;
+    final isMeditationSet = mode == PhoneMode.prayer || _hasSavedMeditation;
+    final isSleepSet = _sleepReminderEnabled && _sleepTime != null;
+
+    final activeFields = <Widget>[];
+
+    if (isFocusSet) {
+      activeFields.add(
+        Expanded(
+          child: _AlarmTimeField(
+            timeLabel: sched.label(sched.focusEnd),
+            label: 'Focus ends',
+          ),
+        ),
+      );
+    }
+
+    if (isMeditationSet) {
+      if (activeFields.isNotEmpty) {
+        activeFields.add(
+          Container(
+            width: 1,
+            height: 34,
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            color: Colors.white.withValues(alpha: 0.08),
+          ),
+        );
+      }
+      activeFields.add(
+        Expanded(
+          child: _AlarmTimeField(
+            timeLabel: sched.label(_meditationEnd),
+            label: 'Meditation ends',
+          ),
+        ),
+      );
+    }
+
+    if (isSleepSet) {
+      if (activeFields.isNotEmpty) {
+        activeFields.add(
+          Container(
+            width: 1,
+            height: 34,
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            color: Colors.white.withValues(alpha: 0.08),
+          ),
+        );
+      }
+      activeFields.add(
+        Expanded(
+          child: _AlarmTimeField(
+            timeLabel: sched.label(_sleepTime!),
+            label: 'Wind-down Alarm',
+          ),
+        ),
+      );
+    }
+
+    final hasBottomRow = widget.expanded && activeFields.isNotEmpty;
+
     return _GlassCard(
       orbColor: info.color,
       orbAtTop: true,
-      orbSize: 260,
-      orbOffset: -80,
-      orbAlpha: 0.4,
-      height: expanded ? 240 : null,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      backgroundOverride: _AlarmGlowBackground(color: info.color),
+      padding: const EdgeInsets.fromLTRB(16, 13, 16, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Header + mode title (not wrapped in Expanded so intrinsic height
-          // measurement includes this content — critical for IntrinsicHeight).
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Text(
+                  'ALARMS',
+                  style: _inter(
+                    11,
+                    weight: FontWeight.w700,
+                    color: info.color,
+                    letterSpacing: 1.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              GestureDetector(
+                onTap: () async {
+                  await Navigator.pushNamed(context, '/alarms-notifications');
+                  _loadSchedules();
+                },
+                child: _chevron(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => Navigator.pushNamed(context, '/alarms-notifications'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        'ALARMS',
-                        style: _inter(
-                          11,
-                          weight: FontWeight.w700,
-                          color: info.color,
-                          letterSpacing: 1.2,
-                          height: 1.2,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    _chevron(),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 420),
-                  switchInCurve: const Cubic(0.34, 1.2, 0.64, 1.0),
-                  switchOutCurve: Curves.easeInCubic,
-                  layoutBuilder: (currentChild, previousChildren) {
-                    return Stack(
-                      alignment: Alignment.centerLeft,
-                      children: <Widget>[...previousChildren, ?currentChild],
-                    );
-                  },
-                  transitionBuilder: (child, anim) {
-                    final offset = Tween<Offset>(
-                      begin: const Offset(0, 0.18),
-                      end: Offset.zero,
-                    ).animate(anim);
-                    return FadeTransition(
-                      opacity: anim,
-                      child: SlideTransition(position: offset, child: child),
-                    );
-                  },
-                  child: Column(
-                    key: ValueKey(mode),
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        info.title,
-                        style: AppTypography.inter(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w500,
-                          height: 1.15,
-                          color: info.color,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        info.subtitle,
-                        style: _inter(
-                          13,
-                          color: Colors.white.withValues(alpha: 0.6),
-                          height: 1.2,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+            onTap: () {
+              if (mode == PhoneMode.prayer) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const PrayerSessionScreen(),
                   ),
+                );
+              }
+            },
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 420),
+              switchInCurve: const Cubic(0.34, 1.2, 0.64, 1.0),
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.12),
+                    end: Offset.zero,
+                  ).animate(anim),
+                  child: child,
                 ),
-              ],
+              ),
+              child: Column(
+                key: ValueKey(mode),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _headline(mode, sched),
+                    style: AppTypography.inter(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                      height: 1.2,
+                      color: info.color,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _subtext(mode, sched),
+                    style: _inter(
+                      12.5,
+                      color: Colors.white.withValues(alpha: 0.55),
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ),
-          // Fills leftover space once the row shares a height with Activity.
-          const Spacer(),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           _AlarmModeSelector(
             mode: mode,
-            onChanged: (m) => requestPhoneMode(context, provider, m),
+            onChanged: (m) async {
+              await requestPhoneMode(context, provider, m);
+              if (m == PhoneMode.prayer && context.mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const PrayerSessionScreen(),
+                  ),
+                );
+              }
+            },
           ),
+          if (hasBottomRow) ...[
+            const SizedBox(height: 14),
+            Container(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+            const SizedBox(height: 12),
+            Row(children: activeFields),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// One time column at the bottom of the enlarged Alarms card.
+class _AlarmTimeField extends StatelessWidget {
+  final String timeLabel;
+  final String label;
+
+  const _AlarmTimeField({required this.timeLabel, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          timeLabel,
+          style: AppTypography.inter(
+            fontSize: 17,
+            fontWeight: FontWeight.w400,
+            color: Colors.white.withValues(alpha: 0.95),
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: _inter(
+            11,
+            color: Colors.white.withValues(alpha: 0.45),
+            weight: FontWeight.w500,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
     );
   }
 }
@@ -2614,10 +2914,10 @@ class _AlarmModeSelector extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(3),
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: _kBtnBg,
-        borderRadius: BorderRadius.circular(23),
+        borderRadius: BorderRadius.circular(100),
         border: Border.all(color: _kBtnBorder, width: 0.5),
       ),
       // Row defines height; thumb fills that height and slides across segments.
@@ -2646,7 +2946,7 @@ class _AlarmModeSelector extends StatelessWidget {
                     mode: m,
                     selected: m == mode,
                     onTap: () {
-                      if (m == mode) return;
+                      if (m == mode && m != PhoneMode.prayer) return;
                       HapticFeedback.selectionClick();
                       onChanged(m);
                     },
@@ -2671,53 +2971,17 @@ class _LiquidGlassThumb extends StatelessWidget {
       duration: _AlarmModeSelector._kSlideDuration,
       curve: Curves.easeOutCubic,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.lerp(Colors.white, color, 0.55)!.withValues(alpha: 0.28),
-            color.withValues(alpha: 0.18),
-            color.withValues(alpha: 0.10),
-          ],
-          stops: const [0.0, 0.45, 1.0],
-        ),
-        border: Border.all(
-          color: Color.lerp(
-            Colors.white.withValues(alpha: 0.35),
-            color.withValues(alpha: 0.55),
-            0.5,
-          )!,
-          width: 0.8,
-        ),
+        borderRadius: BorderRadius.circular(100),
+        color: color.withValues(alpha: 0.18),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
         boxShadow: [
-          // Soft colored bloom — liquid glass glow
           BoxShadow(
-            color: color.withValues(alpha: 0.32),
-            blurRadius: 14,
-            spreadRadius: -2,
-            offset: const Offset(0, 2),
-          ),
-          // Specular top edge
-          BoxShadow(
-            color: Colors.white.withValues(alpha: 0.10),
-            blurRadius: 0.5,
-            offset: const Offset(0, -0.5),
+            color: color.withValues(alpha: 0.20),
+            blurRadius: 10,
+            spreadRadius: -1,
+            offset: const Offset(0, 1),
           ),
         ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: const DecoratedBox(
-          decoration: BoxDecoration(
-            // Subtle top sheen
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.center,
-              colors: [Color(0x28FFFFFF), Color(0x00FFFFFF)],
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -2744,54 +3008,55 @@ class _AlarmSegment extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-        child: AnimatedScale(
-          scale: selected ? 1.06 : 1.0,
-          duration: _AlarmModeSelector._kSlideDuration,
-          curve: _AlarmModeSelector._kSlideCurve,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 280),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, anim) {
-                  return FadeTransition(
-                    opacity: anim,
-                    child: ScaleTransition(
-                      scale: Tween<double>(begin: 0.85, end: 1.0).animate(anim),
-                      child: child,
-                    ),
-                  );
-                },
-                child: Icon(
-                  info.icon,
-                  key: ValueKey<bool>(selected),
-                  size: selected ? 15 : 14,
-                  color: selected ? active : idle,
+        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 1),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, anim) {
+                return FadeTransition(
+                  opacity: anim,
+                  child: ScaleTransition(
+                    scale: Tween<double>(begin: 0.85, end: 1.0).animate(anim),
+                    child: child,
+                  ),
+                );
+              },
+              child: Icon(
+                info.icon,
+                key: ValueKey<bool>(selected),
+                size: selected ? 17 : 16,
+                color: selected ? active : idle,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeOutCubic,
+                  style: _inter(
+                    11,
+                    weight: selected ? FontWeight.w600 : FontWeight.w500,
+                    color: selected ? active : idle,
+                    height: 1.1,
+                  ),
+                  child: Text(
+                    info.segmentLabel,
+                    maxLines: 1,
+                    softWrap: false,
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ),
-              const SizedBox(height: 2),
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 320),
-                curve: Curves.easeOutCubic,
-                style: _inter(
-                  10,
-                  weight: selected ? FontWeight.w600 : FontWeight.w500,
-                  color: selected ? active : idle,
-                  height: 1.1,
-                ),
-                child: Text(
-                  info.segmentLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -3037,21 +3302,10 @@ class _CompactBloodPressureCard extends StatelessWidget {
   final bool expanded;
   const _CompactBloodPressureCard({this.onTap, this.expanded = false});
 
-  String _bpCompactStatus(int sbp, int dbp) {
-    if (sbp <= 0 || dbp <= 0) return 'No data';
-    if (sbp < 120 && dbp < 80) return 'Normal';
-    if (sbp < 130 && dbp < 80) return 'Elevated';
-    if (sbp < 140 || dbp < 90) return 'Stage 1';
-    return 'Stage 2';
-  }
+  String _bpCompactStatus(int sbp, int dbp) => bpCompactStatusLabel(sbp, dbp);
 
-  Color _bpCompactStatusColor(int sbp, int dbp) {
-    if (sbp <= 0 || dbp <= 0) return _kSec2;
-    if (sbp < 120 && dbp < 80) return AppTheme.success;
-    if (sbp < 130 && dbp < 80) return const Color(0xFFFBBF24);
-    if (sbp < 140 || dbp < 90) return AppTheme.stressColor;
-    return AppTheme.danger;
-  }
+  Color _bpCompactStatusColor(int sbp, int dbp) =>
+      bpStatusColor(sbp, dbp, noDataColor: _kSec2);
 
   @override
   Widget build(BuildContext context) {
@@ -3237,7 +3491,9 @@ class _TemperatureCardState extends State<_TemperatureCard> {
           ),
           const SizedBox(height: 4),
           Text(
-            _tempStatus(widget.tempC), // status thresholds stay in Celsius (the canonical unit)
+            _tempStatus(
+              widget.tempC,
+            ), // status thresholds stay in Celsius (the canonical unit)
             style: _inter(
               12,
               weight: FontWeight.w500,

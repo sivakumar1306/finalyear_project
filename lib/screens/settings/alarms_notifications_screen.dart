@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/alarm_mode_provider.dart';
+import '../../providers/alarm_schedule_provider.dart';
 import '../../services/prayer_schedule_prefs.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
+import 'focus_schedule_screen.dart';
 import 'prayer_schedule_screen.dart';
 import 'select_notifications_screen.dart';
 import 'sleep_schedule_screen.dart';
+import '../prayer/prayer_session_screen.dart';
 import '../../widgets/app_typography.dart';
 
 // Same "FlutterSharedPreferences" file / "flutter."-prefixed keys BleConnectionService
@@ -30,7 +33,6 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
   bool _sms = false;
 
   TimeOfDay? _sleepReminderTime;
-  TimeOfDay _prayerStart = PrayerSchedulePrefs.defaultStart;
   TimeOfDay _prayerEnd = PrayerSchedulePrefs.defaultEnd;
 
   static const _socialApps = ['Whatsapp'];
@@ -42,11 +44,20 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
     _loadPrayerSchedule();
   }
 
+  Future<void> _editFocusEndTime() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const FocusScheduleScreen()),
+    );
+  }
+
+  String _fmt24(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
   Future<void> _loadPrayerSchedule() async {
-    final (start, end) = await PrayerSchedulePrefs.load();
+    final (_, end) = await PrayerSchedulePrefs.load();
     if (!mounted) return;
     setState(() {
-      _prayerStart = start;
       _prayerEnd = end;
     });
   }
@@ -141,16 +152,21 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
               ),
               child: Column(
                 children: [
-                  _AlarmRow(
-                    showEditIcon: true,
-                    title: 'Focus Mode',
-                    subtitle: focusOn ? 'Active · ENDS 13:00' : 'Off',
-                    subtitleColor: focusOn ? AppTheme.gold : null,
-                    trailing: _switch(
-                      focusOn,
-                      (v) => _setMode(
-                        alarmMode,
-                        v ? PhoneMode.focus : PhoneMode.base,
+                  Consumer<AlarmScheduleProvider>(
+                    builder: (context, sched, _) => _AlarmRow(
+                      showEditIcon: true,
+                      onEditTap: _editFocusEndTime,
+                      title: 'Focus Mode',
+                      subtitle: focusOn
+                          ? 'Active · ENDS ${_fmt24(sched.focusEnd)}'
+                          : 'Off',
+                      subtitleColor: focusOn ? AppTheme.gold : null,
+                      trailing: _switch(
+                        focusOn,
+                        (v) => _setMode(
+                          alarmMode,
+                          v ? PhoneMode.focus : PhoneMode.base,
+                        ),
                       ),
                     ),
                   ),
@@ -158,17 +174,37 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                   _AlarmRow(
                     showEditIcon: true,
                     onEditTap: _editPrayerSchedule,
-                    title: 'Prayer Mode',
+                    title: 'Meditation',
                     subtitle: prayerOn
-                        ? 'Active · Dhuhr 13:14'
-                        : 'Scheduled · ${_prayerStart.format(context)}-${_prayerEnd.format(context)}',
+                        ? 'Active · ENDS ${_fmt24(_prayerEnd)}'
+                        : 'Scheduled · ENDS ${_fmt24(_prayerEnd)}',
                     subtitleColor: prayerOn ? const Color(0xFF6BC99B) : null,
+                    onTap: () {
+                      if (prayerOn) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const PrayerSessionScreen(),
+                          ),
+                        );
+                      }
+                    },
                     trailing: _switch(
                       prayerOn,
-                      (v) => _setMode(
-                        alarmMode,
-                        v ? PhoneMode.prayer : PhoneMode.base,
-                      ),
+                      (v) async {
+                        await _setMode(
+                          alarmMode,
+                          v ? PhoneMode.prayer : PhoneMode.base,
+                        );
+                        if (v && context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PrayerSessionScreen(),
+                            ),
+                          );
+                        }
+                      },
                     ),
                   ),
                   _divider(),

@@ -2,6 +2,7 @@ package com.medxai.sundr.data
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 
 data class DailyAggregate(val avg: Double?, val min: Int?, val max: Int?, val count: Int)
@@ -33,7 +34,7 @@ interface HeartRateReadingDao {
     @Insert
     suspend fun insert(entity: HeartRateReadingEntity): Long
 
-    @Query("SELECT * FROM reading_heart_rate WHERE syncedAt IS NULL ORDER BY measuredAt ASC LIMIT :limit")
+    @Query("SELECT * FROM reading_heart_rate WHERE syncedAt IS NULL AND source != 'demo_seed' ORDER BY measuredAt ASC LIMIT :limit")
     suspend fun unsyncedBatch(limit: Int): List<HeartRateReadingEntity>
 
     @Query("SELECT COUNT(*) FROM reading_heart_rate WHERE syncedAt IS NULL")
@@ -61,7 +62,7 @@ interface Spo2ReadingDao {
     @Insert
     suspend fun insert(entity: Spo2ReadingEntity): Long
 
-    @Query("SELECT * FROM reading_spo2 WHERE syncedAt IS NULL ORDER BY measuredAt ASC LIMIT :limit")
+    @Query("SELECT * FROM reading_spo2 WHERE syncedAt IS NULL AND source != 'demo_seed' ORDER BY measuredAt ASC LIMIT :limit")
     suspend fun unsyncedBatch(limit: Int): List<Spo2ReadingEntity>
 
     @Query("SELECT COUNT(*) FROM reading_spo2 WHERE syncedAt IS NULL")
@@ -88,7 +89,7 @@ interface StressReadingDao {
     @Insert
     suspend fun insert(entity: StressReadingEntity): Long
 
-    @Query("SELECT * FROM reading_stress WHERE syncedAt IS NULL ORDER BY measuredAt ASC LIMIT :limit")
+    @Query("SELECT * FROM reading_stress WHERE syncedAt IS NULL AND source != 'demo_seed' ORDER BY measuredAt ASC LIMIT :limit")
     suspend fun unsyncedBatch(limit: Int): List<StressReadingEntity>
 
     @Query("SELECT COUNT(*) FROM reading_stress WHERE syncedAt IS NULL")
@@ -115,7 +116,7 @@ interface BloodPressureReadingDao {
     @Insert
     suspend fun insert(entity: BloodPressureReadingEntity): Long
 
-    @Query("SELECT * FROM reading_blood_pressure WHERE syncedAt IS NULL ORDER BY measuredAt ASC LIMIT :limit")
+    @Query("SELECT * FROM reading_blood_pressure WHERE syncedAt IS NULL AND source != 'demo_seed' ORDER BY measuredAt ASC LIMIT :limit")
     suspend fun unsyncedBatch(limit: Int): List<BloodPressureReadingEntity>
 
     @Query("SELECT COUNT(*) FROM reading_blood_pressure WHERE syncedAt IS NULL")
@@ -147,7 +148,7 @@ interface HrvReadingDao {
     @Insert
     suspend fun insert(entity: HrvReadingEntity): Long
 
-    @Query("SELECT * FROM reading_hrv WHERE syncedAt IS NULL ORDER BY measuredAt ASC LIMIT :limit")
+    @Query("SELECT * FROM reading_hrv WHERE syncedAt IS NULL AND source != 'demo_seed' ORDER BY measuredAt ASC LIMIT :limit")
     suspend fun unsyncedBatch(limit: Int): List<HrvReadingEntity>
 
     @Query("SELECT COUNT(*) FROM reading_hrv WHERE syncedAt IS NULL")
@@ -174,7 +175,7 @@ interface TemperatureReadingDao {
     @Insert
     suspend fun insert(entity: TemperatureReadingEntity): Long
 
-    @Query("SELECT * FROM reading_temperature WHERE syncedAt IS NULL ORDER BY measuredAt ASC LIMIT :limit")
+    @Query("SELECT * FROM reading_temperature WHERE syncedAt IS NULL AND source != 'demo_seed' ORDER BY measuredAt ASC LIMIT :limit")
     suspend fun unsyncedBatch(limit: Int): List<TemperatureReadingEntity>
 
     @Query("SELECT COUNT(*) FROM reading_temperature WHERE syncedAt IS NULL")
@@ -266,7 +267,7 @@ interface StepsSnapshotDao {
     @Insert
     suspend fun insert(entity: StepsSnapshotEntity): Long
 
-    @Query("SELECT * FROM reading_steps_snapshot WHERE syncedAt IS NULL ORDER BY capturedAt ASC LIMIT :limit")
+    @Query("SELECT * FROM reading_steps_snapshot WHERE syncedAt IS NULL AND source != 'demo_seed' ORDER BY capturedAt ASC LIMIT :limit")
     suspend fun unsyncedBatch(limit: Int): List<StepsSnapshotEntity>
 
     @Query("SELECT COUNT(*) FROM reading_steps_snapshot WHERE syncedAt IS NULL")
@@ -281,7 +282,7 @@ interface StepsSnapshotDao {
     @Query("SELECT * FROM reading_steps_snapshot ORDER BY capturedAt DESC LIMIT 1")
     suspend fun latest(): StepsSnapshotEntity?
 
-    // Steps/calories/distance are cumulative-to-date counters, not per-cycle deltas —
+    // Steps/calories/distance are cumulative-to-date counters, not per-cycle deltas â€”
     // the day total is the snapshot with the highest step count, never a SUM across snapshots.
     @Query("""
         SELECT steps, caloriesKcal, distanceM, capturedAt FROM reading_steps_snapshot
@@ -292,3 +293,35 @@ interface StepsSnapshotDao {
     @Query("DELETE FROM reading_steps_snapshot WHERE capturedAt < :cutoffMs AND syncedAt IS NOT NULL")
     suspend fun purgeSyncedOlderThan(cutoffMs: Long): Int
 }
+
+@Dao
+interface DailyVitalSummaryDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: DailyVitalSummaryEntity)
+
+    @Query("SELECT * FROM daily_vital_summary WHERE vital = :vital AND dayEpochMs = :dayEpochMs LIMIT 1")
+    suspend fun get(vital: String, dayEpochMs: Long): DailyVitalSummaryEntity?
+
+    @Query(
+        "SELECT * FROM daily_vital_summary WHERE vital = :vital AND dayEpochMs BETWEEN :fromMs AND :toMs " +
+            "ORDER BY dayEpochMs ASC"
+    )
+    suspend fun between(vital: String, fromMs: Long, toMs: Long): List<DailyVitalSummaryEntity>
+
+    @Query("SELECT COUNT(*) FROM daily_vital_summary")
+    suspend fun count(): Int
+
+    @Query("DELETE FROM daily_vital_summary WHERE dayEpochMs < :cutoffMs AND origin = 'cloud_cache'")
+    suspend fun purgeOldCloudCache(cutoffMs: Long): Int
+
+    // Keep local-origin rollups longer than raw readings so trends survive raw purge.
+    @Query("DELETE FROM daily_vital_summary WHERE dayEpochMs < :cutoffMs AND origin = 'local'")
+    suspend fun purgeOldLocal(cutoffMs: Long): Int
+}
+
+
+
+
+
+
+

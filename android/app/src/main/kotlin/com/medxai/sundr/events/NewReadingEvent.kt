@@ -11,5 +11,9 @@ data class NewReadingEvent(
     val readingId: Long,
     val cycleId: Long,
     val measuredAt: Long,
-    val primaryValue: Double?
+    val primaryValue: Double?,
+    // True when the reading was injected by a demo/simulation path (BlePlugin
+    // simulateFallRiskTrigger) — consumers must NOT trigger the real emergency
+    // SMS/call pipeline for these.
+    val simulated: Boolean = false
 )

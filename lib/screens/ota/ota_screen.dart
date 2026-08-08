@@ -34,7 +34,20 @@ class _OtaScreenState extends State<OtaScreen> {
   int _downloadProgress = 0;
   int _flashProgress = 0;
   String _statusMessage = '';
+  String _firstName = '';
   StreamSubscription? _eventSub;
+
+  String _simplifyVersion(String raw) {
+    if (raw.isEmpty || raw == '--') return 'V1';
+    final cleaned = raw.replaceAll(RegExp(r'^[vV]'), '').trim();
+    final parts = cleaned.split(RegExp(r'[.\-]'));
+    if (parts.isEmpty) return 'V1';
+    final major = int.tryParse(parts[0]) ?? 1;
+    if (parts.length == 1) return 'V$major';
+    final minor = int.tryParse(parts[1]) ?? 0;
+    if (minor == 0) return 'V$major';
+    return 'V$major.$minor';
+  }
 
   @override
   void initState() {
@@ -46,9 +59,9 @@ class _OtaScreenState extends State<OtaScreen> {
           setState(() {
             _flashProgress = (data['progress'] as num? ?? 0).toInt();
             if (_flashProgress > 0 && _flashProgress < 100) {
-              _statusMessage = 'Flashing Ring Firmware... $_flashProgress%';
+              _statusMessage = 'Updating firmware... $_flashProgress%';
             } else if (_flashProgress == 100) {
-              _statusMessage = 'Finalizing DFU installation...';
+              _statusMessage = 'Finishing update...';
             }
           });
         }
@@ -56,9 +69,21 @@ class _OtaScreenState extends State<OtaScreen> {
     });
 
     _fetchSupabaseReleases();
+    _loadUserName();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<BleProvider>().refreshFirmwareVersion();
     });
+  }
+
+  Future<void> _loadUserName() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      final profile = await SupabaseService.getProfile(user.id);
+      final fullName = profile?['full_name'] as String? ?? '';
+      if (!mounted || fullName.trim().isEmpty) return;
+      setState(() => _firstName = fullName.trim().split(' ').first);
+    } catch (_) {}
   }
 
   @override
@@ -121,11 +146,11 @@ class _OtaScreenState extends State<OtaScreen> {
         backgroundColor: AppTheme.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text(
-          'Start OTA Firmware Flash?',
+          'Update firmware?',
           style: AppTypography.inter(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         content: Text(
-          'Updating to $versionTag.\n\n• Keep your ring close to your phone.\n• Do not close the app or disconnect Bluetooth during the update.',
+          'Updating to ${_simplifyVersion(versionTag)}.\n\nDo not turn off or disconnect the ring while updating firmware.',
           style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13, height: 1.4),
         ),
         actions: [
@@ -139,7 +164,7 @@ class _OtaScreenState extends State<OtaScreen> {
               backgroundColor: AppTheme.gold,
               foregroundColor: Colors.black,
             ),
-            child: Text('Start Flash', style: AppTypography.inter(fontWeight: FontWeight.bold)),
+            child: Text('Update firmware', style: AppTypography.inter(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -244,7 +269,11 @@ class _OtaScreenState extends State<OtaScreen> {
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
     final isConnected = ble.isConnected;
-    final currentFirmware = ble.firmwareVersion['firmware'] ?? 'v1.0.0.55';
+    final currentFirmware = _simplifyVersion(
+      ble.firmwareVersion['firmware'] ?? 'V1',
+    );
+    final ringName = _firstName.isNotEmpty ? "$_firstName's Ring" : 'My Ring';
+    final hasUpdate = _supabaseReleases.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppTheme.bg,
@@ -252,7 +281,7 @@ class _OtaScreenState extends State<OtaScreen> {
         backgroundColor: AppTheme.bg,
         leading: const GlassBackButton(),
         title: Text(
-          'OTA Firmware Update',
+          'Firmware upgrade',
           style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
@@ -267,8 +296,8 @@ class _OtaScreenState extends State<OtaScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Device Status Banner ─────────────────────────────────────────
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: AppTheme.card,
@@ -279,58 +308,53 @@ class _OtaScreenState extends State<OtaScreen> {
                 ),
               ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isConnected ? Colors.greenAccent : Colors.redAccent,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: (isConnected ? Colors.greenAccent : Colors.redAccent)
-                                      .withValues(alpha: 0.5),
-                                  blurRadius: 8,
-                                )
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            isConnected ? 'Ring Connected' : 'Ring Disconnected',
-                            style: AppTypography.inter(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        ble.deviceName.isNotEmpty ? ble.deviceName : 'Vital Ring',
-                        style: AppTypography.inter(
-                          color: AppTheme.gold,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    isConnected ? 'Ring connected' : 'Ring disconnected',
+                    style: AppTypography.inter(
+                      color: isConnected ? AppTheme.success : AppTheme.danger,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    ringName,
+                    style: AppTypography.inter(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    currentFirmware,
+                    style: AppTypography.inter(
+                      color: AppTheme.gold,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (hasUpdate) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'New firmware available',
+                      style: AppTypography.inter(
+                        color: AppTheme.gold,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 14),
-                  const Divider(color: Color(0x14FFFFFF), height: 1),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _StatColumn(label: 'Installed Firmware', value: currentFirmware),
-                      _StatColumn(label: 'Hardware Model', value: ble.firmwareVersion['hardware'] ?? 'QRing V1'),
-                      _StatColumn(label: 'Battery', value: ble.battery >= 0 ? '${ble.battery}%' : '--'),
-                    ],
+                  Text(
+                    'Do not turn off or disconnect the ring while updating firmware.',
+                    style: AppTypography.inter(
+                      color: AppTheme.textSec,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
                   ),
                 ],
               ),
@@ -338,12 +362,11 @@ class _OtaScreenState extends State<OtaScreen> {
 
             const SizedBox(height: 24),
 
-            // ── Supabase Server Releases Section ─────────────────────────────
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Supabase Server Releases',
+                  'Available updates',
                   style: AppTypography.inter(
                     color: Colors.white,
                     fontSize: 16,
@@ -367,9 +390,11 @@ class _OtaScreenState extends State<OtaScreen> {
             if (_supabaseReleases.isNotEmpty) ...[
               ..._supabaseReleases.map((release) {
                 final isSelected = _selectedRelease == release;
-                final version = release['version'] ?? 'v1.0.0';
-                final notes = release['release_notes'] ?? 'General performance and stability enhancements.';
-                final fileUrl = release['file_url'] ?? '';
+                final version = _simplifyVersion(
+                  (release['version'] as String?) ?? 'V1',
+                );
+                final notes = release['release_notes'] as String? ??
+                    'Performance and stability improvements.';
 
                 return GestureDetector(
                   onTap: () {
@@ -404,34 +429,13 @@ class _OtaScreenState extends State<OtaScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    version,
-                                    style: AppTypography.inter(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  if (release['is_mandatory'] == true)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.redAccent.withValues(alpha: 0.2),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        'Recommended',
-                                        style: AppTypography.inter(
-                                          color: Colors.redAccent,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                ],
+                              Text(
+                                version,
+                                style: AppTypography.inter(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                               const SizedBox(height: 6),
                               Text(
@@ -440,14 +444,6 @@ class _OtaScreenState extends State<OtaScreen> {
                                   color: AppTheme.textSec,
                                   fontSize: 12,
                                   height: 1.3,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                fileUrl.isNotEmpty ? 'Server URL: Supabase Storage' : 'No file link attached',
-                                style: AppTypography.inter(
-                                  color: AppTheme.gold.withValues(alpha: 0.8),
-                                  fontSize: 11,
                                 ),
                               ),
                             ],
@@ -468,8 +464,8 @@ class _OtaScreenState extends State<OtaScreen> {
                 ),
                 child: Text(
                   _isLoadingReleases
-                      ? 'Checking Supabase server for firmware releases...'
-                      : 'No official releases posted on Supabase table `firmware_updates`. You can paste a custom URL or select a local file below.',
+                      ? 'Checking for firmware updates...'
+                      : 'No new firmware available. You can still install from a file or URL below.',
                   style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
                 ),
               ),
@@ -599,7 +595,7 @@ class _OtaScreenState extends State<OtaScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          _isDownloading ? 'Downloading from Supabase' : 'Flashing Ring Firmware',
+                          _isDownloading ? 'Downloading firmware' : 'Updating firmware',
                           style: AppTypography.inter(
                             color: Colors.white,
                             fontSize: 14,
@@ -665,8 +661,10 @@ class _OtaScreenState extends State<OtaScreen> {
                   _isDownloading
                       ? 'Downloading...'
                       : _isUpdating
-                          ? 'Updating Firmware...'
-                          : 'Download & Update Firmware',
+                          ? 'Updating...'
+                          : hasUpdate
+                              ? 'Update firmware'
+                              : 'Update firmware',
                   style: AppTypography.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
@@ -692,34 +690,4 @@ class _OtaScreenState extends State<OtaScreen> {
   }
 }
 
-class _StatColumn extends StatelessWidget {
-  final String label;
-  final String value;
 
-  const _StatColumn({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: AppTypography.inter(
-            color: AppTheme.textSec,
-            fontSize: 11,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: AppTypography.inter(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-}

@@ -1,4 +1,3 @@
-import '../../providers/alarm_mode_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
@@ -11,13 +10,14 @@ import '../ota/ota_screen.dart';
 import 'background_protection_screen.dart';
 import 'find_device_screen.dart';
 import 'health_connect_screen.dart';
-import 'profile_edit_screen.dart';
 import 'ring_camera_screen.dart';
 import '../main_shell.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/glass_back_button.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final bool showBackButton;
+  const SettingsScreen({super.key, this.showBackButton = false});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -218,11 +218,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final ringTitle = !hasDevice
         ? 'No Device Paired'
         : (_firstName.isNotEmpty ? "$_firstName's Ring" : 'My Ring');
-    final mac = ble.deviceAddress;
     final battery = ble.battery;
-    final firmware = ble.firmwareVersion['firmware'] ?? '--';
+    final rawFw = ble.firmwareVersion['firmware'] ?? '';
+    final firmware = _simplifyFirmwareVersion(rawFw);
 
-    return SafeArea(
+    final body = SafeArea(
       bottom: false,
       child: SingleChildScrollView(
         physics: const BouncingScrollPhysics(
@@ -232,16 +232,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 24),
-            Text(
-              'Settings',
-              style: AppTypography.inter(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
+            if (!widget.showBackButton) ...[
+              const SizedBox(height: 24),
+              Text(
+                'Settings',
+                style: AppTypography.inter(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
+            ] else
+              const SizedBox(height: 8),
 
             // Ring info card
             Container(
@@ -264,42 +267,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        if (hasDevice) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            ble.deviceName,
-                            style: AppTypography.inter(
-                              color: AppTheme.textSec,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                        if (mac.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            mac,
-                            style: AppTypography.inter(
-                              color: AppTheme.textSec,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 4),
-                        Text(
-                          firmware,
-                          style: AppTypography.inter(
-                            color: AppTheme.textSec,
-                            fontSize: 12,
-                          ),
-                        ),
                         const SizedBox(height: 4),
                         Text(
                           connected ? 'Connected' : 'Disconnected',
                           style: AppTypography.inter(
-                            color: AppTheme.textSec,
+                            color: connected
+                                ? AppTheme.success
+                                : AppTheme.textSec,
                             fontSize: 12,
                           ),
                         ),
+                        if (firmware.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            firmware,
+                            style: AppTypography.inter(
+                              color: AppTheme.textSec,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                         if (battery >= 0) ...[
                           const SizedBox(height: 4),
                           Text(
@@ -372,29 +359,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: Column(
                 children: [
-                  // Profile now lives here instead of as its own bottom-nav tab —
-                  // pushed with showBackButton: true so it can pop back to Settings
-                  // (the old IndexedStack tab usage used showBackButton: false
-                  // since there was no route to pop to there).
-                  _SettingsRow.arrow(
-                    icon: Icons.person_outline_rounded,
-                    title: 'User Profile',
-                    onTap: () =>
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const ProfileEditScreen(showBackButton: true),
-                          ),
-                        ).then((_) {
-                          // Refresh the ring-card first name in case it was edited.
-                          if (mounted) _loadUserProfile();
-                        }),
-                  ),
-                  _divider(),
-                  // Ring-side wrist-flip/palm-screen wake gesture (PalmScreenReq).
-                  // See BleProvider.gestureEnabled/setGestureEnabled() and
-                  // BlePlugin.kt's getGestureSetting/setGestureSetting.
                   _SettingsRow.toggle(
                     icon: Icons.pan_tool_alt_outlined,
                     title: 'Gesture Controls',
@@ -477,20 +441,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   _divider(),
-                  _SettingsRow.toggle(
-                    icon: Icons.self_improvement_rounded,
-                    title: 'Prayer Mode',
-                    subtitle: 'Silences calls and enables Do Not Disturb',
-                    value:
-                        context.watch<AlarmModeProvider>().mode ==
-                        PhoneMode.prayer,
-                    onChanged: (v) => requestPhoneMode(
-                      context,
-                      context.read<AlarmModeProvider>(),
-                      v ? PhoneMode.prayer : PhoneMode.base,
-                    ),
-                  ),
-                  _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.security_rounded,
                     title: 'Background operation protection guide',
@@ -565,6 +515,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+
+    if (!widget.showBackButton) return body;
+
+    return Scaffold(
+      backgroundColor: AppTheme.bg,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bg,
+        elevation: 0,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 16),
+          child: Center(child: GlassBackButton()),
+        ),
+        title: Text(
+          'Settings',
+          style: AppTypography.inter(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: body,
+    );
+  }
+
+  String _simplifyFirmwareVersion(String raw) {
+    if (raw.isEmpty || raw == '--') return '';
+    final cleaned = raw.replaceAll(RegExp(r'^[vV]'), '').trim();
+    final parts = cleaned.split(RegExp(r'[.\-]'));
+    if (parts.isEmpty) return 'V1';
+    final major = int.tryParse(parts[0]) ?? 1;
+    if (parts.length == 1) return 'V$major';
+    final minor = int.tryParse(parts[1]) ?? 0;
+    if (minor == 0) return 'V$major';
+    return 'V$major.$minor';
   }
 
   Widget _divider() =>

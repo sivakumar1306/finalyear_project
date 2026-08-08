@@ -1,13 +1,15 @@
 package com.medxai.sundr
 
 import android.app.Application
-import android.content.pm.ApplicationInfo
+import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.medxai.sundr.analysis.EmergencySmsSender
 import com.medxai.sundr.analysis.FallRiskAnalyzer
+import com.medxai.sundr.sdk.BleSdkLifecycle
+import com.medxai.sundr.sdk.CrashStore
+import com.medxai.sundr.sdk.ProcessRestarter
 import com.oudmon.ble.base.bluetooth.BleAction
-import com.oudmon.ble.base.bluetooth.BleOperateManager
 
 /**
  * Registers the SDK's required in-app broadcast receiver before anything else touches
@@ -20,35 +22,57 @@ class QRingApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
+        CrashStore.init(this)
+        installUncaughtHandler()
+
+        try {
+            ContextCompat.registerReceiver(
+                applicationContext,
+                QRingBluetoothReceiver(),
+                BleAction.getIntentFilter(),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+
+            ContextCompat.registerReceiver(
+                applicationContext,
+                QRingSystemBluetoothReceiver(),
+                BleAction.getDeviceIntentFilter(),
+                ContextCompat.RECEIVER_EXPORTED
+            )
+        } catch (e: Exception) {
+            Log.e("SundrApp", "BLE receiver registration failed", e)
+            CrashStore.record("receiver_register", e)
+        }
+
+        BleSdkLifecycle.ensureInitialized(this)
+
+        try {
+            FallRiskAnalyzer.init(this)
+            EmergencySmsSender.restoreIfNeeded(this)
+        } catch (e: Exception) {
+            Log.e("SundrApp", "Fall/SMS restore init failed", e)
+            CrashStore.record("fall_sms_init", e)
+        }
+    }
+
+    private fun installUncaughtHandler() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             Log.e("SundrCrash", "Uncaught on ${thread.name}", throwable)
-            previous?.uncaughtException(thread, throwable)
+            try {
+                CrashStore.record("uncaught:${thread.name}", throwable)
+            } catch (_: Exception) {
+            }
+
+            val isMain = thread == Looper.getMainLooper().thread
+            if (isMain) {
+                try {
+                    ProcessRestarter.scheduleRelaunch(this, "main:${throwable.javaClass.simpleName}")
+                } catch (_: Exception) {
+                }
+                previous?.uncaughtException(thread, throwable)
+            }
+            // Background: already logged — swallow so BLE callbacks don't take the UI down.
         }
-
-        ContextCompat.registerReceiver(
-            applicationContext,
-            QRingBluetoothReceiver(),
-            BleAction.getIntentFilter(),
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
-
-        ContextCompat.registerReceiver(
-            applicationContext,
-            QRingSystemBluetoothReceiver(),
-            BleAction.getDeviceIntentFilter(),
-            ContextCompat.RECEIVER_EXPORTED
-        )
-
-        BleOperateManager.getInstance(this)
-        BleOperateManager.getInstance().init()
-        // On for `flutter build apk --debug`, off for release — mirrors the SDK sample's
-        // BuildConfig.DEBUG gate without requiring the buildConfig Gradle feature.
-        BleOperateManager.getInstance().isBleLogEnabled =
-            (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-
-        FallRiskAnalyzer.init(this)
-        // If the process died mid-countdown, resume ticking (or send if the window elapsed).
-        EmergencySmsSender.restoreIfNeeded(this)
     }
 }

@@ -32,7 +32,7 @@ extension GestureActionExt on GestureAction {
       case GestureAction.playPause:
         return 'Play / Pause Media 🎵';
       case GestureAction.prayerDnd:
-        return 'Toggle Prayer DND Mode 🌙';
+        return 'Toggle Meditation DND';
       case GestureAction.none:
         return 'None';
     }
@@ -223,7 +223,7 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
       case GestureAction.prayerDnd:
         final alarmProvider = context.read<AlarmModeProvider>();
         requestPhoneMode(context, alarmProvider, PhoneMode.prayer);
-        _showActionToast('Toggled Prayer DND Mode');
+        _showActionToast('Toggled Meditation DND');
         break;
       case GestureAction.none:
         break;
@@ -368,7 +368,7 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
                     const Divider(color: Colors.white12),
                     _buildMappingTile(
                       title: 'Long Press Gesture',
-                      subtitle: 'Decline call, toggle Prayer DND, or execute action',
+                      subtitle: 'Decline call, toggle Meditation DND, or execute action',
                       value: _longPressAction,
                       onChanged: (act) {
                         if (act != null) {

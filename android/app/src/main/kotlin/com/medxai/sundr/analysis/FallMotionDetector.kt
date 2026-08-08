@@ -104,17 +104,24 @@ object FallMotionDetector : SensorEventListener {
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
     override fun onSensorChanged(event: SensorEvent) {
-        when (event.sensor.type) {
-            Sensor.TYPE_GYROSCOPE -> {
-                lastGyro = floatArrayOf(event.values[0], event.values[1], event.values[2])
-                hasGyro = true
+        try {
+            when (event.sensor.type) {
+                Sensor.TYPE_GYROSCOPE -> {
+                    if (event.values.size < 3) return
+                    lastGyro = floatArrayOf(event.values[0], event.values[1], event.values[2])
+                    hasGyro = true
+                }
+                Sensor.TYPE_ACCELEROMETER -> appendSample(event.values)
             }
-            Sensor.TYPE_ACCELEROMETER -> appendSample(event.values)
+        } catch (_: Exception) {
+            // Sensor callbacks must never crash the process.
         }
     }
 
     private fun appendSample(accel: FloatArray) {
+        if (accel.size < 3 || capacity <= 0) return
         val idx = writeIndex
+        if (idx !in 0 until capacity) return
         accelX[idx] = accel[0]
         accelY[idx] = accel[1]
         accelZ[idx] = accel[2]
@@ -130,7 +137,10 @@ object FallMotionDetector : SensorEventListener {
         if (filled < capacity) return
         if (now - lastAnalysisMs < ANALYSIS_INTERVAL_MS) return
         lastAnalysisMs = now
-        analyzeWindow(now)
+        try {
+            analyzeWindow(now)
+        } catch (_: Exception) {
+        }
     }
 
     private fun analyzeWindow(nowMs: Long) {

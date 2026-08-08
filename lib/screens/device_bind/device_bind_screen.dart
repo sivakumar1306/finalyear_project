@@ -15,10 +15,12 @@ class _DeviceBindScreenState extends State<DeviceBindScreen> {
   Timer? _scanTimer;
   String? _connectingAddress;
   String? _permissionError;
+  late final BleProvider _ble;
 
   @override
   void initState() {
     super.initState();
+    _ble = context.read<BleProvider>();
     WidgetsBinding.instance.addPostFrameCallback((_) => _startScan());
   }
 
@@ -26,7 +28,7 @@ class _DeviceBindScreenState extends State<DeviceBindScreen> {
   void dispose() {
     _scanTimer?.cancel();
     _filterController.dispose();
-    context.read<BleProvider>().stopScan();
+    _ble.stopScan();
     super.dispose();
   }
 
@@ -54,18 +56,16 @@ class _DeviceBindScreenState extends State<DeviceBindScreen> {
   Future<void> _startScan() async {
     if (!await _requestPermissions()) return;
     if (!mounted) return;
-    final ble = context.read<BleProvider>();
-    await ble.startScan(filterName: _filterController.text.trim());
+    await _ble.startScan(filterName: _filterController.text.trim());
     _scanTimer?.cancel();
     _scanTimer = Timer(const Duration(seconds: 20), () {
-      if (mounted) ble.stopScan();
+      if (mounted) _ble.stopScan();
     });
   }
 
   Future<void> _connect(ScannedDevice device) async {
     setState(() => _connectingAddress = device.address);
-    final ble = context.read<BleProvider>();
-    final ok = await ble.connect(device);
+    final ok = await _ble.connect(device);
     if (!mounted) return;
     setState(() => _connectingAddress = null);
     if (ok) {

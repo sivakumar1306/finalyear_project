@@ -35,16 +35,26 @@ import com.oudmon.ble.base.communication.entity.BleStepDetails
 import com.oudmon.ble.base.communication.entity.StartEndTimeEntity
 import com.oudmon.ble.base.communication.file.FileHandle
 import com.oudmon.ble.base.communication.file.SimpleCallback
+import com.oudmon.ble.base.communication.req.AgpsReq
+import com.oudmon.ble.base.communication.req.BaseReqCmd
+import com.oudmon.ble.base.communication.req.BatterySavingReq
 import com.oudmon.ble.base.communication.req.BloodOxygenSettingReq
 import com.oudmon.ble.base.communication.req.BpSettingReq
+import com.oudmon.ble.base.communication.req.BrightnessSettingsReq
 import com.oudmon.ble.base.communication.req.CameraReq
 import com.oudmon.ble.base.communication.req.DeviceSupportReq
+import com.oudmon.ble.base.communication.req.DisplayOrientationReq
+import com.oudmon.ble.base.communication.req.DisplayStyleReq
+import com.oudmon.ble.base.communication.req.DisplayTimeReq
 import com.oudmon.ble.base.communication.req.DndReq
 import com.oudmon.ble.base.communication.req.FindDeviceReq
 import com.oudmon.ble.base.communication.req.HRVReq
 import com.oudmon.ble.base.communication.req.HeartRateSettingReq
 import com.oudmon.ble.base.communication.req.HrvSettingReq
+import com.oudmon.ble.base.communication.req.IntellReq
 import com.oudmon.ble.base.communication.req.MusicSwitchReq
+import com.oudmon.ble.base.communication.req.MuslimReq
+import com.oudmon.ble.base.communication.req.NotificationEventNotifyReq
 import com.oudmon.ble.base.communication.req.PalmScreenReq
 import com.oudmon.ble.base.communication.req.PressureReq
 import com.oudmon.ble.base.communication.req.PressureSettingReq
@@ -57,15 +67,25 @@ import com.oudmon.ble.base.communication.req.SetTimeReq
 import com.oudmon.ble.base.communication.req.SimpleKeyPowerOffReq
 import com.oudmon.ble.base.communication.req.SimpleKeyReq
 import com.oudmon.ble.base.communication.req.SugarLipidsSettingReq
+import com.oudmon.ble.base.communication.req.TargetSettingReq
+import com.oudmon.ble.base.communication.req.TimeFormatReq
 import com.oudmon.ble.base.communication.req.TouchControlReq
 import com.oudmon.ble.base.communication.responseImpl.DeviceNotifyListener
+import com.oudmon.ble.base.communication.rsp.AgpsRsp
 import com.oudmon.ble.base.communication.rsp.BaseRspCmd
 import com.oudmon.ble.base.communication.rsp.BatteryRsp
+import com.oudmon.ble.base.communication.rsp.BatterySavingRsp
+import com.oudmon.ble.base.communication.rsp.BloodSugarLipidsSettingRsp
+import com.oudmon.ble.base.communication.rsp.BrightnessSettingsRsp
 import com.oudmon.ble.base.communication.rsp.CameraNotifyRsp
 import com.oudmon.ble.base.communication.rsp.DeviceNotifyRsp
 import com.oudmon.ble.base.communication.rsp.DeviceSupportFunctionRsp
+import com.oudmon.ble.base.communication.rsp.DisplayOrientationRsp
+import com.oudmon.ble.base.communication.rsp.DisplayStyleRsp
+import com.oudmon.ble.base.communication.rsp.DisplayTimeRsp
 import com.oudmon.ble.base.communication.rsp.HRVRsp
 import com.oudmon.ble.base.communication.rsp.HeartRateSettingRsp
+import com.oudmon.ble.base.communication.rsp.IntellRsp
 import com.oudmon.ble.base.communication.rsp.PalmScreenRsp
 import com.oudmon.ble.base.communication.rsp.PressureRsp
 import com.oudmon.ble.base.communication.rsp.ReadDetailSportDataRsp
@@ -73,6 +93,8 @@ import com.oudmon.ble.base.communication.rsp.ReadHeartRateRsp
 import com.oudmon.ble.base.communication.rsp.SetTimeRsp
 import com.oudmon.ble.base.communication.rsp.SleepNewProtoResp
 import com.oudmon.ble.base.communication.rsp.StartHeartRateRsp
+import com.oudmon.ble.base.communication.rsp.TargetSettingRsp
+import com.oudmon.ble.base.communication.rsp.TimeFormatRsp
 import com.oudmon.ble.base.communication.rsp.TouchControlResp
 import com.oudmon.ble.base.communication.sport.SportPlusHandle
 import com.oudmon.ble.base.scan.BleScannerHelper
@@ -164,14 +186,26 @@ class BlePlugin(private val context: Context) {
     }
 
     init {
+        com.medxai.sundr.sdk.CrashStore.init(context.applicationContext)
+        com.medxai.sundr.sdk.BleSdkLifecycle.ensureInitialized(context.applicationContext)
         try {
-            BleOperateManager.getInstance(context.applicationContext as Application)
-            BleOperateManager.getInstance().init()
-        } catch (_: Exception) {}
-        registerDeviceListener()
-        MeasurementConfig.init(context.applicationContext)
-        SupabaseConfig.init(context.applicationContext)
-        EventBus.getDefault().register(this)
+            registerDeviceListener()
+        } catch (e: Exception) {
+            Log.e(TAG, "registerDeviceListener failed", e)
+        }
+        try {
+            MeasurementConfig.init(context.applicationContext)
+            SupabaseConfig.init(context.applicationContext)
+        } catch (e: Exception) {
+            Log.e(TAG, "config init failed", e)
+        }
+        try {
+            if (!EventBus.getDefault().isRegistered(this)) {
+                EventBus.getDefault().register(this)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "EventBus register failed", e)
+        }
         instance = this
     }
 
@@ -194,45 +228,41 @@ class BlePlugin(private val context: Context) {
             NOTIFY_KEY,
             object : DeviceNotifyListener() {
                 override fun onDataResponse(resultEntity: DeviceNotifyRsp?) {
-                    resultEntity ?: return
+                    try {
+                        resultEntity ?: return
 
-                    // CMD_BIND_SUCCESS (0x10) echoes back through this generic notify path even
-                    // though the SDK has no registered response parser for it (it silently runs
-                    // the command as NO_ACK, so ICommandResponse<BaseRspCmd> never fires for it —
-                    // see sendBindSuccessWithRetry()). Treat this raw echo as the real ack.
-                    if (resultEntity.dataType == (Constants.CMD_BIND_SUCCESS.toInt() and 0xFF)) {
-                        if (bindConfirmed.compareAndSet(false, true)) {
-                            Log.d(TAG, "CMD_BIND_SUCCESS confirmed via raw notify echo")
-                            val confirm = pendingBindConfirmation
-                            pendingBindConfirmation = null
-                            confirm?.let { mainHandler.post(it) }
+                        if (resultEntity.dataType == (Constants.CMD_BIND_SUCCESS.toInt() and 0xFF)) {
+                            if (bindConfirmed.compareAndSet(false, true)) {
+                                Log.d(TAG, "CMD_BIND_SUCCESS confirmed via raw notify echo")
+                                val confirm = pendingBindConfirmation
+                                pendingBindConfirmation = null
+                                confirm?.let { mainHandler.post(it) }
+                            }
                         }
-                    }
 
-                    // Proactive battery/charging push (0x0c) — per SDK section 2.3.9:
-                    // loadData[1] = battery percent (0-100), loadData[2] = charging flag (>0 = charging).
-                    // Forwarded as its own event so BleProvider can drive the phone-side
-                    // "Low battery prompt" toggle without polling getBattery().
-                    if (resultEntity.dataType == DATA_TYPE_BATTERY_PUSH) {
-                        val loadData = resultEntity.loadData
-                        if (loadData != null && loadData.size >= 3) {
-                            val batteryPercent = loadData[1].toInt() and 0xFF
-                            val charging = (loadData[2].toInt() and 0xFF) > 0
-                            sendEvent(
-                                "batteryPush",
-                                mapOf("batteryPercent" to batteryPercent, "charging" to charging)
+                        if (resultEntity.dataType == DATA_TYPE_BATTERY_PUSH) {
+                            val loadData = resultEntity.loadData
+                            if (loadData != null && loadData.size >= 3) {
+                                val batteryPercent = loadData[1].toInt() and 0xFF
+                                val charging = (loadData[2].toInt() and 0xFF) > 0
+                                sendEvent(
+                                    "batteryPush",
+                                    mapOf("batteryPercent" to batteryPercent, "charging" to charging)
+                                )
+                            }
+                        }
+
+                        sendEvent(
+                            "deviceNotification",
+                            mapOf(
+                                "dataType" to resultEntity.dataType,
+                                "status" to resultEntity.status,
+                                "loadData" to (resultEntity.loadData?.map { it.toInt() and 0xFF } ?: emptyList<Int>())
                             )
-                        }
-                    }
-
-                    sendEvent(
-                        "deviceNotification",
-                        mapOf(
-                            "dataType" to resultEntity.dataType,
-                            "status" to resultEntity.status,
-                            "loadData" to (resultEntity.loadData?.map { it.toInt() and 0xFF } ?: emptyList<Int>())
                         )
-                    )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "onDataResponse failed", e)
+                    }
                 }
             }
         )
@@ -309,18 +339,20 @@ class BlePlugin(private val context: Context) {
             "syncManualTemperature"      -> syncManualTemperature(result)
             "testManualTemperature"      -> testManualTemperature(result)
             "syncSportRecords"           -> syncSportRecords(result)
+            "getHealthSettings"          -> getHealthSettings(result)
+            "setHealthSettings"          -> setHealthSettings(call, result)
             "getNotificationSettings"    -> getNotificationSettings(result)
             "setNotificationSetting"     -> setNotificationSetting(call, result)
             "getDndSetting"              -> getDndSetting(result)
             "setDndSetting"              -> setDndSetting(call, result)
             "getMusicSwitch"             -> getMusicSwitch(result)
             "setMusicSwitch"             -> setMusicSwitch(call, result)
-            "getDisplaySettings"         -> result.success("{}")
-            "setDisplaySetting"          -> result.success(true)
-            "getTargetAndProfile"        -> result.success("{}")
-            "setTargetAndProfile"        -> result.success(true)
-            "getAdvancedSettings"        -> result.success("{}")
-            "setAdvancedSetting"         -> result.success(true)
+            "getDisplaySettings"         -> getDisplaySettings(result)
+            "setDisplaySetting"          -> setDisplaySetting(call, result)
+            "getTargetAndProfile"        -> getTargetAndProfile(result)
+            "setTargetAndProfile"        -> setTargetAndProfile(call, result)
+            "getAdvancedSettings"        -> getAdvancedSettings(result)
+            "setAdvancedSetting"         -> setAdvancedSetting(call, result)
             "getGestureSetting"          -> getGestureSetting(result)
             "setGestureSetting"          -> setGestureSetting(call, result)
             "getTouchControlSetting"     -> getTouchControlSetting(result)
@@ -331,17 +363,25 @@ class BlePlugin(private val context: Context) {
             "getDrinkReminder"           -> getDrinkReminder(result)
             "getSedentaryReminder"       -> getSedentaryReminder(result)
             "startOta"                   -> startOta(call, result)
-            "sendNotification"           -> result.success(true)
+            "sendNotification"           -> sendRingNotification(call, result)
             "takePicture"                -> takePicture(result)
             "exitCameraMode"             -> exitCameraMode(result)
             "factoryReset"               -> factoryReset(result)
             "shutDownRing"               -> shutDownRing(result)
             "startForegroundService"     -> {
-                try {
-                    BleOperateManager.getInstance(context.applicationContext as Application)
-                    BleOperateManager.getInstance().init()
-                } catch (_: Exception) {}
+                com.medxai.sundr.sdk.BleSdkLifecycle.ensureInitialized(context.applicationContext)
                 BleConnectionService.start(context)
+                result.success(true)
+            }
+            "getLastNativeCrash"         -> {
+                result.success(com.medxai.sundr.sdk.CrashStore.peek())
+            }
+            "clearLastNativeCrash"       -> {
+                com.medxai.sundr.sdk.CrashStore.clear()
+                result.success(true)
+            }
+            "softResetBleSdk"            -> {
+                com.medxai.sundr.sdk.BleSdkLifecycle.requestSoftReset("flutter_request")
                 result.success(true)
             }
             "startWorkout"               -> {
@@ -354,6 +394,10 @@ class BlePlugin(private val context: Context) {
             }
             "getReadings"                -> getReadings(call, result)
             "getTodaySummary"            -> getTodaySummary(call, result)
+            "getDaySummary"              -> getDaySummary(call, result)
+            "getLocalHistory"            -> getLocalHistory(call, result)
+            "cacheCloudDaySummary"       -> cacheCloudDaySummary(call, result)
+            "getLocalDbStats"            -> getLocalDbStats(result)
             "getLatestReading"           -> getLatestReading(call, result)
             "getStepsToday"              -> getStepsToday(result)
             "saveStepsSnapshot"          -> saveStepsSnapshot(call, result)
@@ -569,9 +613,12 @@ class BlePlugin(private val context: Context) {
             result.error("INVALID_ARG", "address required", null); return
         }
         deviceAddress = address
-        BleScannerHelper.getInstance().stopScan(context)
+        try {
+            BleScannerHelper.getInstance().stopScan(context)
+        } catch (_: Exception) {
+        }
 
-        if (BleOperateManager.getInstance().isConnected) {
+        if (com.medxai.sundr.sdk.BleSdkLifecycle.isConnected()) {
             _isConnected = true
             mainHandler.post { result.success(true) }
             return
@@ -580,13 +627,13 @@ class BlePlugin(private val context: Context) {
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         pendingConnectResult = result
         mainHandler.postDelayed(connectTimeoutRunnable, CONNECT_TIMEOUT_MS)
-        BleOperateManager.getInstance().connectDirectly(address)
+        com.medxai.sundr.sdk.BleSdkLifecycle.connectDirectly(address)
     }
 
     private fun disconnect(result: MethodChannel.Result) {
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         pendingConnectResult = null
-        BleOperateManager.getInstance().unBindDevice()
+        com.medxai.sundr.sdk.BleSdkLifecycle.unBindDevice()
         _isConnected = false
         sendEvent("connectionState", mapOf("connected" to false))
         result.success(null)
@@ -2071,6 +2118,283 @@ class BlePlugin(private val context: Context) {
     }
 
     // ─────────────────────────────────────────────────────────────────
+    // Ring display settings (brightness / clock style / time format /
+    // orientation / screen-on duration) — real SDK reads & writes
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun <T : BaseRspCmd> readSetting(
+        req: BaseReqCmd,
+        rspClass: Class<T>,
+        onDone: (T?) -> Unit
+    ) {
+        try {
+            CommandHandle.getInstance().executeReqCmd(
+                req,
+                ICommandResponse<T> { rsp ->
+                    mainHandler.post { onDone(rsp) }
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "readSetting error: ${e.message}")
+            mainHandler.post { onDone(null) }
+        }
+    }
+
+    private fun getDisplaySettings(result: MethodChannel.Result) {
+        val out = HashMap<String, Any?>()
+        readSetting(BrightnessSettingsReq.getReadInstance(), BrightnessSettingsRsp::class.java) { b ->
+            if (b != null) out["brightness"] = b.level
+            readSetting(DisplayStyleReq.getReadInstance(), DisplayStyleRsp::class.java) { s ->
+                if (s != null) out["clockStyle"] = s.styleIndex
+                readSetting(DisplayTimeReq.getReadInstance(), DisplayTimeRsp::class.java) { t ->
+                    if (t != null) out["screenOnDuration"] = t.displayTime
+                    readSetting(DisplayOrientationReq.getReadInstance(), DisplayOrientationRsp::class.java) { o ->
+                        if (o != null) out["orientation"] = if (o.isLeft) 0 else 1
+                        readSetting(TimeFormatReq.getReadInstance(), TimeFormatRsp::class.java) { f ->
+                            if (f != null) out["is24h"] = f.is24
+                            mainHandler.post { result.success(gson.toJson(out)) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun setDisplaySetting(call: MethodCall, result: MethodChannel.Result) {
+        val m = try {
+            gson.fromJson(call.argument<String>("data"), Map::class.java)
+        } catch (e: Exception) {
+            Log.e(TAG, "setDisplaySetting parse error: ${e.message}")
+            null
+        } ?: run { result.success(false); return }
+        (m["brightness"] as? Number)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(BrightnessSettingsReq.getWriteInstance(v.toInt()), null)
+        }
+        (m["clockStyle"] as? Number)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(DisplayStyleReq.getWriteInstance(v.toInt()), null)
+        }
+        (m["is24h"] as? Boolean)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(TimeFormatReq.getWriteInstance(v, 1), null)
+        }
+        (m["orientation"] as? Number)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(
+                DisplayOrientationReq.getWriteInstance(true, v.toInt() == 0),
+                null
+            )
+        }
+        (m["screenOnDuration"] as? Number)?.let { v ->
+            readSetting(DisplayTimeReq.getReadInstance(), DisplayTimeRsp::class.java) { cur ->
+                CommandHandle.getInstance().executeReqCmd(
+                    DisplayTimeReq.getWriteInstanceNew(
+                        v.toInt(),
+                        cur?.displayType ?: 1,
+                        cur?.alpha ?: 5,
+                        cur?.total ?: 5,
+                        cur?.alwaysOn ?: 5,
+                        true
+                    ),
+                    null
+                )
+                mainHandler.post { result.success(true) }
+            }
+            return
+        }
+        result.success(true)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Targets & user profile (read-only on this ring model)
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun getTargetAndProfile(result: MethodChannel.Result) {
+        readSetting(TargetSettingReq.getReadInstance(), TargetSettingRsp::class.java) { r ->
+            val out = HashMap<String, Any?>()
+            if (r != null) {
+                out["stepTarget"] = r.step
+                out["calorieTarget"] = r.calorie
+                out["distanceTargetM"] = r.distance
+                out["sleepTargetMin"] = r.getmSleep()
+                out["sportTargetMin"] = r.getmSport()
+            }
+            out["profileSupported"] = false
+            mainHandler.post { result.success(gson.toJson(out)) }
+        }
+    }
+
+    private fun setTargetAndProfile(call: MethodCall, result: MethodChannel.Result) {
+        val m = try {
+            gson.fromJson(call.argument<String>("data"), Map::class.java)
+        } catch (e: Exception) {
+            Log.e(TAG, "setTargetAndProfile parse error: ${e.message}")
+            null
+        } ?: run { result.success(false); return }
+        val step = (m["stepTarget"] as? Number)?.toInt() ?: 8000
+        val calorie = (m["calorieTarget"] as? Number)?.toInt() ?: 500
+        val distanceM = ((m["distanceTarget"] as? Number)?.toDouble() ?: 5.0).let { (it * 1000).toInt() }
+        val sportMin = (m["sportTargetMin"] as? Number)?.toInt() ?: 60
+        val sleepMin = ((m["sleepTarget"] as? Number)?.toDouble() ?: 8.0).let { (it * 60).toInt() }
+        CommandHandle.getInstance().executeReqCmd(
+            TargetSettingReq.getWriteInstance(step, calorie, distanceM, sportMin, sleepMin),
+            ICommandResponse<BaseRspCmd> { _ ->
+                mainHandler.post { result.success(true) }
+            }
+        )
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Advanced settings (battery saving / AGPS / intelligent / touch)
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun getAdvancedSettings(result: MethodChannel.Result) {
+        val out = HashMap<String, Any?>()
+        readSetting(BatterySavingReq.getReadInstance(), BatterySavingRsp::class.java) { b ->
+            if (b != null) out["batterySaving"] = b.isOpen
+            readSetting(AgpsReq.getReadInstance(), AgpsRsp::class.java) { a ->
+                if (a != null) out["agpsEnable"] = a.isEnable
+                readSetting(IntellReq.getReadInstance(), IntellRsp::class.java) { i ->
+                    if (i != null) out["intellSettings"] = i.isEnable
+                    readSetting(TouchControlReq.getReadInstance(true), TouchControlResp::class.java) { t ->
+                        if (t != null) out["touchControl"] = t.isTouch
+                        mainHandler.post { result.success(gson.toJson(out)) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun setAdvancedSetting(call: MethodCall, result: MethodChannel.Result) {
+        val m = try {
+            gson.fromJson(call.argument<String>("data"), Map::class.java)
+        } catch (e: Exception) {
+            Log.e(TAG, "setAdvancedSetting parse error: ${e.message}")
+            null
+        } ?: run { result.success(false); return }
+        (m["batterySaving"] as? Boolean)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(BatterySavingReq.getWriteInstance(v), null)
+        }
+        (m["agpsEnable"] as? Boolean)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(AgpsReq.getWriteInstance(v), null)
+        }
+        (m["intellSettings"] as? Boolean)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(IntellReq.getWriteInstance(v, 0), null)
+        }
+        (m["touchControl"] as? Boolean)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(
+                TouchControlReq.getWriteInstance(if (v) 9 else 0, true, 5),
+                null
+            )
+        }
+        (m["muslimMode"] as? Boolean)?.let { v ->
+            CommandHandle.getInstance().executeReqCmd(MuslimReq.getWriteInstance(v), null)
+        }
+        result.success(true)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Ring event notification (fixed ring-side events; title/content
+    // are accepted for API compatibility but not part of the protocol)
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun sendRingNotification(call: MethodCall, result: MethodChannel.Result) {
+        val type = call.argument<Int>("type") ?: NotificationEventNotifyReq.EVENT_NONE
+        val event = when (type) {
+            1 -> NotificationEventNotifyReq.EVENT_DOUBLE_CLICK_BUTTON
+            2 -> NotificationEventNotifyReq.EVENT_PAIRING
+            3 -> NotificationEventNotifyReq.EVENT_MISS_YOU
+            4 -> NotificationEventNotifyReq.EVENT_LOVE_YOU
+            5 -> NotificationEventNotifyReq.EVENT_NEED_YOU
+            6 -> NotificationEventNotifyReq.EVENT_SAD
+            7 -> NotificationEventNotifyReq.EVENT_LOVE_LETTER
+            else -> NotificationEventNotifyReq.EVENT_NONE
+        }
+        CommandHandle.getInstance().executeReqCmd(NotificationEventNotifyReq.getEventInstance(event), null)
+        result.success(true)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Health settings — sugar/lipids measurement state on the ring
+    // (temperature / RRI / emotion auto-measure toggles)
+    // ─────────────────────────────────────────────────────────────────
+
+    private fun getHealthSettings(result: MethodChannel.Result) {
+        readSetting(
+            SugarLipidsSettingReq.getReadTemperatureInstance(),
+            BloodSugarLipidsSettingRsp::class.java
+        ) { t ->
+            readSetting(
+                SugarLipidsSettingReq.getReadRriInstance(),
+                BloodSugarLipidsSettingRsp::class.java
+            ) { rri ->
+                readSetting(
+                    SugarLipidsSettingReq.getReadEmotionInstance(),
+                    BloodSugarLipidsSettingRsp::class.java
+                ) { em ->
+                    fun toMap(r: BloodSugarLipidsSettingRsp?) = r?.let {
+                        mapOf(
+                            "enabled" to it.isEnable,
+                            "value" to it.value,
+                            "type" to it.type,
+                            "read" to it.isRead,
+                            "startInterval" to it.startInterval,
+                            "interval" to it.interval,
+                            "rriAutoMeasureEnable" to it.isRriAutoMeasureEnable
+                        )
+                    }
+                    mainHandler.post {
+                        result.success(
+                            gson.toJson(
+                                mapOf(
+                                    "sugarLipids" to mapOf(
+                                        "temperature" to toMap(t),
+                                        "rri" to toMap(rri),
+                                        "emotion" to toMap(em)
+                                    )
+                                )
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun setHealthSettings(call: MethodCall, result: MethodChannel.Result) {
+        val m = try {
+            gson.fromJson(call.argument<String>("data"), Map::class.java)
+        } catch (e: Exception) {
+            Log.e(TAG, "setHealthSettings parse error: ${e.message}")
+            null
+        } ?: run { result.success(false); return }
+        val sugarLipids = m["sugarLipids"] as? Map<*, *>
+        (sugarLipids?.get("temperature") as? Map<*, *>)?.let { t ->
+            (t["enabled"] as? Boolean)?.let { en ->
+                val interval = (t["interval"] as? Number)?.toInt() ?: 60
+                CommandHandle.getInstance().executeReqCmd(
+                    SugarLipidsSettingReq.getWriteTemperatureInstance(en, interval),
+                    null
+                )
+            }
+        }
+        (sugarLipids?.get("rri") as? Map<*, *>)?.let { r ->
+            (r["enabled"] as? Boolean)?.let { en ->
+                CommandHandle.getInstance().executeReqCmd(
+                    SugarLipidsSettingReq.getWriteRriInstance(en),
+                    null
+                )
+            }
+        }
+        (sugarLipids?.get("emotion") as? Map<*, *>)?.let { e ->
+            (e["enabled"] as? Boolean)?.let { en ->
+                CommandHandle.getInstance().executeReqCmd(
+                    SugarLipidsSettingReq.getWriteEmotionInstance(en),
+                    null
+                )
+            }
+        }
+        result.success(true)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
     // Touch Control
     // ─────────────────────────────────────────────────────────────────
 
@@ -2268,53 +2592,114 @@ class BlePlugin(private val context: Context) {
         val (dayStart, dayEnd) = todayBoundsMs()
         repo().ioScope.launch {
             val map: Map<String, Any?> = try {
-                when (vital) {
-                    Vital.HEART_RATE -> {
-                        val agg = repo().heartRateAggregate(dayStart, dayEnd)
-                        val last = repo().latestHeartRate()
-                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
-                            "lastValue" to last?.valueBpm, "lastMeasuredAt" to last?.measuredAt)
-                    }
-                    Vital.SPO2 -> {
-                        val agg = repo().spo2Aggregate(dayStart, dayEnd)
-                        val last = repo().latestSpo2()
-                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
-                            "lastValue" to last?.valuePct, "lastMeasuredAt" to last?.measuredAt)
-                    }
-                    Vital.STRESS -> {
-                        val agg = repo().stressAggregate(dayStart, dayEnd)
-                        val last = repo().latestStress()
-                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
-                            "lastValue" to last?.value, "lastMeasuredAt" to last?.measuredAt)
-                    }
-                    Vital.BLOOD_PRESSURE -> {
-                        val agg = repo().bpAggregate(dayStart, dayEnd)
-                        val last = repo().latestBloodPressure()
-                        mapOf(
-                            "avgSbp" to agg.avgSbp, "minSbp" to agg.minSbp, "maxSbp" to agg.maxSbp,
-                            "avgDbp" to agg.avgDbp, "minDbp" to agg.minDbp, "maxDbp" to agg.maxDbp,
-                            "count" to agg.count,
-                            "lastSbp" to last?.systolic, "lastDbp" to last?.diastolic, "lastMeasuredAt" to last?.measuredAt
-                        )
-                    }
-                    Vital.HRV -> {
-                        val agg = repo().hrvAggregate(dayStart, dayEnd)
-                        val last = repo().latestHrv()
-                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
-                            "lastValue" to last?.valueMs, "lastMeasuredAt" to last?.measuredAt)
-                    }
-                    Vital.TEMPERATURE -> {
-                        val agg = repo().temperatureAggregate(dayStart, dayEnd)
-                        val last = repo().latestTemperature()
-                        mapOf("avg" to agg.avg, "min" to agg.min, "max" to agg.max, "count" to agg.count,
-                            "lastValue" to last?.valueC, "lastMeasuredAt" to last?.measuredAt)
-                    }
-                    Vital.STEPS -> {
-                        val agg = repo().stepsAggregate(dayStart, dayEnd)
-                        mapOf("steps" to agg?.steps, "caloriesKcal" to agg?.caloriesKcal,
-                            "distanceM" to agg?.distanceM, "capturedAt" to agg?.capturedAt)
-                    }
-                }
+                // Unified path: daySummary prefers raw Room then daily_vital_summary cache.
+                repo().daySummary(vitalChannelKey(vital), dayStart, dayEnd)
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(gson.toJson(map)) }
+        }
+    }
+
+    private fun vitalChannelKey(vital: Vital): String = when (vital) {
+        Vital.HEART_RATE -> "heart_rate"
+        Vital.SPO2 -> "spo2"
+        Vital.STRESS -> "stress"
+        Vital.BLOOD_PRESSURE -> "blood_pressure"
+        Vital.HRV -> "hrv"
+        Vital.TEMPERATURE -> "temperature"
+        Vital.STEPS -> "steps"
+    }
+
+    private fun getDaySummary(call: MethodCall, result: MethodChannel.Result) {
+        val vitalKey = call.argument<String>("vital")
+        if (vitalKey.isNullOrBlank()) {
+            result.error("BAD_ARGS", "vital is required", null)
+            return
+        }
+        val dayStartMs = (call.argument<Number>("dayStartMs") ?: 0L).toLong()
+        val dayEndMs = (call.argument<Number>("dayEndMs")
+            ?: (dayStartMs + ReadingRepository.DAY_MS - 1)).toLong()
+        if (dayStartMs <= 0L) {
+            result.error("BAD_ARGS", "dayStartMs is required", null)
+            return
+        }
+        repo().ioScope.launch {
+            val map = try {
+                repo().daySummary(vitalKey, dayStartMs, dayEndMs)
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(gson.toJson(map)) }
+        }
+    }
+
+    private fun getLocalHistory(call: MethodCall, result: MethodChannel.Result) {
+        val vitalKey = call.argument<String>("vital")
+        if (vitalKey.isNullOrBlank()) {
+            result.error("BAD_ARGS", "vital is required", null)
+            return
+        }
+        val fromDayStartMs = (call.argument<Number>("fromDayStartMs") ?: 0L).toLong()
+        val toDayStartMs = (call.argument<Number>("toDayStartMs")
+            ?: System.currentTimeMillis()).toLong()
+        repo().ioScope.launch {
+            val list = try {
+                repo().localHistory(vitalKey, fromDayStartMs, toDayStartMs)
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(gson.toJson(list)) }
+        }
+    }
+
+    private fun cacheCloudDaySummary(call: MethodCall, result: MethodChannel.Result) {
+        val vitalKey = call.argument<String>("vital")
+        val dayStartMs = (call.argument<Number>("dayStartMs") ?: 0L).toLong()
+        if (vitalKey.isNullOrBlank() || dayStartMs <= 0L) {
+            result.error("BAD_ARGS", "vital and dayStartMs are required", null)
+            return
+        }
+        val avg = call.argument<Number>("avg")?.toDouble()
+        val min = call.argument<Number>("min")?.toDouble()
+        val max = call.argument<Number>("max")?.toDouble()
+        val count = call.argument<Number>("count")?.toInt() ?: 0
+        val avgSecondary = call.argument<Number>("avgSecondary")?.toDouble()
+        val minSecondary = call.argument<Number>("minSecondary")?.toDouble()
+        val maxSecondary = call.argument<Number>("maxSecondary")?.toDouble()
+        val steps = call.argument<Number>("steps")?.toInt()
+        val caloriesKcal = call.argument<Number>("caloriesKcal")?.toInt()
+        val distanceM = call.argument<Number>("distanceM")?.toDouble()
+        repo().ioScope.launch {
+            try {
+                repo().cacheCloudDaySummary(
+                    vital = vitalKey,
+                    dayStartMs = dayStartMs,
+                    avg = avg,
+                    min = min,
+                    max = max,
+                    count = count,
+                    avgSecondary = avgSecondary,
+                    minSecondary = minSecondary,
+                    maxSecondary = maxSecondary,
+                    steps = steps,
+                    caloriesKcal = caloriesKcal,
+                    distanceM = distanceM
+                )
+                mainHandler.post { result.success(true) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("CACHE_FAILED", e.message, null) }
+            }
+        }
+    }
+
+    private fun getLocalDbStats(result: MethodChannel.Result) {
+        repo().ioScope.launch {
+            val map = try {
+                repo().localDbStats()
             } catch (e: Exception) {
                 mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
                 return@launch
@@ -2427,15 +2812,15 @@ class BlePlugin(private val context: Context) {
                         detectedAt = System.currentTimeMillis(),
                     )
                 )
-                FallAlertNotifier.notifyFall(context, confidence, source)
+                // Demo only — never schedule SMS or place a call from a simulation.
+                FallAlertNotifier.notifyFall(context, confidence, source, simulated = true)
                 SafetyLiveUpdate.showFall(
                     context,
                     (confidence * 100).toInt(),
                     EmergencySmsSender.COUNTDOWN_SECONDS,
                     EmergencyAutoCaller.isEnabled(context),
+                    simulated = true,
                 )
-                EmergencySmsSender.schedule(context, reason = "fall")
-                EmergencyAutoCaller.placeIfEnabled(context)
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
@@ -2459,7 +2844,10 @@ class BlePlugin(private val context: Context) {
                 val bpm = 135
                 val id = repo().insertHeartRate(bpm, cycleId, "demo_seed")
                 EventBus.getDefault().post(
-                    NewReadingEvent(Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(), bpm.toDouble())
+                    NewReadingEvent(
+                        Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(),
+                        bpm.toDouble(), simulated = true,
+                    )
                 )
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
@@ -2475,10 +2863,13 @@ class BlePlugin(private val context: Context) {
                 val bpm = 122
                 val id = repo().insertHeartRate(bpm, cycleId, "demo_seed")
                 EventBus.getDefault().post(
-                    NewReadingEvent(Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(), bpm.toDouble())
+                    NewReadingEvent(
+                        Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(),
+                        bpm.toDouble(), simulated = true,
+                    )
                 )
-                FallPredictionNotifier.notifyPrediction(context, bpm)
-                EmergencySmsSender.schedule(context, reason = "prediction")
+                // Demo only — never schedule SMS from a simulation.
+                FallPredictionNotifier.notifyPrediction(context, bpm, simulated = true)
 
                 // Persist so it shows up in Fall History, same as the real
                 // FallRiskAnalyzer.maybeAlert() path.
@@ -2706,6 +3097,7 @@ class BlePlugin(private val context: Context) {
     }
 
     private fun getSyncStatus(result: MethodChannel.Result) {
+        // Enriched below with pending queue + local DB stats for offline diagnostics.
         repo().ioScope.launch {
             val pending = try { repo().pendingRowCount() } catch (_: Exception) { 0 }
             val status = SupabaseSyncManager.getSyncStatus() + mapOf("pendingRowCount" to pending)
@@ -2753,7 +3145,13 @@ class BlePlugin(private val context: Context) {
 
     private fun sendEvent(type: String, data: Map<String, Any>) {
         mainHandler.post {
-            eventSink?.success(mapOf("type" to type, "data" to data))
+            try {
+                eventSink?.success(mapOf("type" to type, "data" to data))
+            } catch (e: Exception) {
+                // Channel already closed / engine detaching — drop the event rather than crash.
+                Log.w(TAG, "sendEvent($type) dropped: ${e.message}")
+                eventSink = null
+            }
         }
     }
 
@@ -2816,11 +3214,26 @@ class BlePlugin(private val context: Context) {
     }
 
     fun onDestroy() {
-        mainHandler.removeCallbacks(connectTimeoutRunnable)
-        stopCameraKeepAlive()
-        BleScannerHelper.getInstance().stopScan(context)
-        BleOperateManager.getInstance().removeNotifyListener(NOTIFY_KEY)
-        EventBus.getDefault().unregister(this)
+        try {
+            mainHandler.removeCallbacks(connectTimeoutRunnable)
+            stopCameraKeepAlive()
+        } catch (_: Exception) {
+        }
+        try {
+            BleScannerHelper.getInstance().stopScan(context)
+        } catch (_: Exception) {
+        }
+        try {
+            BleOperateManager.getInstance().removeNotifyListener(NOTIFY_KEY)
+        } catch (_: Exception) {
+        }
+        try {
+            if (EventBus.getDefault().isRegistered(this)) {
+                EventBus.getDefault().unregister(this)
+            }
+        } catch (_: Exception) {
+        }
+        eventSink = null
         if (instance === this) instance = null
     }
 }

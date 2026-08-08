@@ -33,8 +33,6 @@ class StatCard extends StatelessWidget {
               Text(unit, style: AppTypography.inter(fontSize: 11, color: kSec)),
             ],
           ),
-          const SizedBox(height: 6),
-          Text('know more >', style: AppTypography.inter(fontSize: 11, color: kSec)),
         ],
       ),
     );

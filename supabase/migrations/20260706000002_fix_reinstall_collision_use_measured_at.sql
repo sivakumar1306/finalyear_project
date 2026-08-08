@@ -33,17 +33,31 @@ alter table public.user_steps_snapshots
 alter table public.user_steps_snapshots
   add constraint user_steps_snapshots_user_captured_key unique (user_id, captured_at);
 
-alter table public.user_bp
-  drop constraint if exists user_bp_local_reading_key;
-alter table public.user_bp
-  add constraint user_bp_user_measured_key unique (user_id, measured_at);
+-- The four raw-reading tables above are created by 20260706000000, so their
+-- constraint swap is unconditional. user_bp/user_stress/user_temp are created
+-- later by 20260806000000_missing_tables.sql (live DB only), so their swaps are
+-- guarded; the (user_id, measured_at) unique constraints they need for the
+-- native on_conflict pushes are re-asserted in 20260807000000_fix_delete_user_account.sql.
+do $$
+begin
+  if to_regclass('public.user_bp') is not null then
+    alter table public.user_bp
+      drop constraint if exists user_bp_local_reading_key;
+    alter table public.user_bp
+      add constraint user_bp_user_measured_key unique (user_id, measured_at);
+  end if;
 
-alter table public.user_stress
-  drop constraint if exists user_stress_local_reading_key;
-alter table public.user_stress
-  add constraint user_stress_user_measured_key unique (user_id, measured_at);
+  if to_regclass('public.user_stress') is not null then
+    alter table public.user_stress
+      drop constraint if exists user_stress_local_reading_key;
+    alter table public.user_stress
+      add constraint user_stress_user_measured_key unique (user_id, measured_at);
+  end if;
 
-alter table public.user_temp
-  drop constraint if exists user_temp_local_reading_key;
-alter table public.user_temp
-  add constraint user_temp_user_measured_key unique (user_id, measured_at);
+  if to_regclass('public.user_temp') is not null then
+    alter table public.user_temp
+      drop constraint if exists user_temp_local_reading_key;
+    alter table public.user_temp
+      add constraint user_temp_user_measured_key unique (user_id, measured_at);
+  end if;
+end $$;

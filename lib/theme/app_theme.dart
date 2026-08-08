@@ -7,7 +7,6 @@ class AppTheme {
   static const Color card = Color(0xFF111111);
   static const Color card2 = Color(0xFF1A1A1A);
   static const Color gold = Color(0xFFC9A86E);
-  static const Color goldLight = Color(0xFFC9A86E);
   static const Color goldBorder = Color(0xFF3A2A08);
   static const Color textPrimary = Colors.white;
   static const Color textSec = Color(0xFF888888);
@@ -15,9 +14,11 @@ class AppTheme {
   static const Color success = Color(0xFF34D399);
   static const Color danger = Color(0xFFEF4444);
   static const Color focus = Color(0xFFE08A4A);
-  static const Color base = Color(0xFFC9A86E);
 
-  static const Color goldAccent = Color(0xFFC9A86E);
+  // BASE spacing / radius tokens (DESIGN.md: padding 16px, card radius 20px)
+  static const double kPad = 16;
+  static const double kRadiusCard = 20;
+
   static const Color sleepAwake = Color(0xFFFFE99C);
   static const Color sleepLight = Color(0xFF9B85FF);
   static const Color sleepDeep = Color(0xFF6719FE);

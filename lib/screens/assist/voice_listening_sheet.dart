@@ -140,6 +140,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
   }
 
   void _onResult(SpeechRecognitionResult result) {
+    if (_disposed || !mounted) return;
     _resetSilenceTimer();
     setState(() {
       if (result.finalResult) {
@@ -151,6 +152,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
   }
 
   void _onStatus(String status) {
+    if (_disposed || !mounted) return;
     if (status == 'notListening' && _isListening) {
       _stopAndReturn();
     }
@@ -273,8 +275,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                       RichText(
                                         text: const TextSpan(
                                           style: TextStyle(
-                                            fontFamily: 'Inter',
-                                            fontSize: 17,
+                                                                                        fontSize: 17,
                                             fontWeight: FontWeight.w600,
                                           ),
                                           children: [
@@ -355,8 +356,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                                 maxLines: 3,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: const TextStyle(
-                                                  fontFamily: 'Inter',
-                                                  fontSize: 13.5,
+                                                                                                    fontSize: 13.5,
                                                   fontWeight: FontWeight.w400,
                                                   height: 1.4,
                                                   color: Color(0xEEFFFFFF),
@@ -380,8 +380,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                             'Speak now... listening for your voice',
                                             textAlign: TextAlign.center,
                                             style: TextStyle(
-                                              fontFamily: 'Inter',
-                                              fontSize: 13,
+                                                                                            fontSize: 13,
                                               fontWeight: FontWeight.w400,
                                               fontStyle: FontStyle.italic,
                                               color: Color(0x80FFFFFF),
@@ -440,8 +439,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                       child: const Text(
                                         'Cancel',
                                         style: TextStyle(
-                                          fontFamily: 'Inter',
-                                          fontSize: 13,
+                                                                                    fontSize: 13,
                                           fontWeight: FontWeight.w500,
                                           color: Color(0xD9FFFFFF),
                                         ),
@@ -482,8 +480,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                           const Text(
                                             'Done',
                                             style: TextStyle(
-                                              fontFamily: 'Inter',
-                                              fontSize: 13,
+                                                                                            fontSize: 13,
                                               fontWeight: FontWeight.w700,
                                               color: Color(0xFF050505),
                                             ),
@@ -502,8 +499,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                 'Tap Done when finished or stop speaking for 4s',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 11,
+                                                                    fontSize: 11,
                                   fontWeight: FontWeight.w400,
                                   color: Color(0x70FFFFFF),
                                 ),

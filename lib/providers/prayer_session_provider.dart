@@ -69,6 +69,9 @@ class PrayerSessionProvider extends ChangeNotifier {
   final _bleService = BleService();
 
   void startSession(BleProvider ble) {
+    if (_isSessionActive && _timer != null && _timer!.isActive) {
+      return;
+    }
     _isSessionActive = true;
     _elapsedSeconds = 0;
     _snapshots.clear();

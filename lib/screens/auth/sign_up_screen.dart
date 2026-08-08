@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../services/supabase_service.dart';
 import '../../models/onboarding_data.dart';
@@ -7,6 +6,27 @@ import '../settings/faq_screen.dart';
 import 'login_screen.dart';
 import '../../widgets/glass_back_button.dart';
 
+String _friendlyAuthError(Object e) {
+  final raw = e.toString().replaceAll('Exception: ', '').trim();
+  final lower = raw.toLowerCase();
+  if (lower.contains('already registered') ||
+      lower.contains('user already') ||
+      lower.contains('already exists')) {
+    return 'An account with this email already exists.';
+  }
+  if (lower.contains('password') && lower.contains('weak')) {
+    return 'Password is too weak. Use at least 6 characters.';
+  }
+  if (lower.contains('network') || lower.contains('socket') || lower.contains('timeout')) {
+    return 'Network error. Check your connection and try again.';
+  }
+  final codeMatch = RegExp(r'\b[A-Z][A-Z0-9_]{2,}\b').firstMatch(raw);
+  if (codeMatch != null && raw.length > 80) {
+    return 'Something went wrong (${codeMatch.group(0)}). Please try again.';
+  }
+  if (raw.length > 120) return 'Something went wrong. Please try again.';
+  return raw.isEmpty ? 'Something went wrong. Please try again.' : raw;
+}
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -23,6 +43,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _obscurePass = true;
   bool _obscureConfirm = true;
   String? _error;
+
+  bool get _fieldsFilled =>
+      _emailCtrl.text.trim().isNotEmpty &&
+      _passCtrl.text.isNotEmpty &&
+      _confirmCtrl.text.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailCtrl.addListener(() => setState(() {}));
+    _passCtrl.addListener(() => setState(() {}));
+    _confirmCtrl.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
@@ -68,7 +101,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         setState(() => _error = 'Sign up failed. Please try again.');
       }
     } catch (e) {
-      setState(() => _error = e.toString().replaceAll('Exception: ', ''));
+      setState(() => _error = _friendlyAuthError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -76,6 +109,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canSubmit = _fieldsFilled && !_loading;
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -103,7 +137,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: Image.asset(
+                        'sundr_logo.png',
+                        width: 72,
+                        height: 72,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                     const Text(
                       'Create an account',
                       style: TextStyle(
@@ -206,46 +248,40 @@ class _SignUpScreenState extends State<SignUpScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(28, 0, 28, 24),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(30),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _loading ? null : _signUp,
-                      child: Container(
-                        width: double.infinity,
-                        height: 52,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.03),
-                          borderRadius: BorderRadius.circular(30),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.08),
-                            width: 0.5,
+              child: SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: canSubmit ? _signUp : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: canSubmit
+                        ? const Color(0xFFC9A86E)
+                        : const Color(0xFF2A2A2A),
+                    foregroundColor:
+                        canSubmit ? Colors.black : Colors.white38,
+                    disabledBackgroundColor: const Color(0xFF2A2A2A),
+                    disabledForegroundColor: Colors.white38,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.black,
+                          ),
+                        )
+                      : const Text(
+                          'Create an account',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        child: _loading
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text(
-                                'Create an account',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
                 ),
               ),
             ),

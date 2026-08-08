@@ -80,13 +80,28 @@ create policy "user_steps_snapshots_owner" on public.user_steps_snapshots
 -- column null and are completely unaffected; only the native SupabaseSyncManager's
 -- push sets it, relying on the partial unique index below for idempotent retries.
 
-alter table public.user_bp add column if not exists local_reading_id bigint;
-alter table public.user_stress add column if not exists local_reading_id bigint;
-alter table public.user_temp add column if not exists local_reading_id bigint;
+-- user_bp/user_stress/user_temp are created later by
+-- 20260806000000_missing_tables.sql (they were only ever present on the live DB
+-- because they were created manually in the dashboard). Guard every statement
+-- against missing tables so a fresh `supabase db push` (migrations run in
+-- order) does not fail with `relation does not exist`.
+do $$
+begin
+  if to_regclass('public.user_bp') is not null then
+    alter table public.user_bp add column if not exists local_reading_id bigint;
+    create unique index if not exists user_bp_local_reading_idx
+      on public.user_bp (user_id, local_reading_id) where local_reading_id is not null;
+  end if;
 
-create unique index if not exists user_bp_local_reading_idx
-  on public.user_bp (user_id, local_reading_id) where local_reading_id is not null;
-create unique index if not exists user_stress_local_reading_idx
-  on public.user_stress (user_id, local_reading_id) where local_reading_id is not null;
-create unique index if not exists user_temp_local_reading_idx
-  on public.user_temp (user_id, local_reading_id) where local_reading_id is not null;
+  if to_regclass('public.user_stress') is not null then
+    alter table public.user_stress add column if not exists local_reading_id bigint;
+    create unique index if not exists user_stress_local_reading_idx
+      on public.user_stress (user_id, local_reading_id) where local_reading_id is not null;
+  end if;
+
+  if to_regclass('public.user_temp') is not null then
+    alter table public.user_temp add column if not exists local_reading_id bigint;
+    create unique index if not exists user_temp_local_reading_idx
+      on public.user_temp (user_id, local_reading_id) where local_reading_id is not null;
+  end if;
+end $$;

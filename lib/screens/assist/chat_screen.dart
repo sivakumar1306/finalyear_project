@@ -24,7 +24,8 @@ import '../../widgets/app_typography.dart';
 String _conversationPrefsKey(String userId) => 'chat_conversation_id_$userId';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final String? initialPrompt;
+  const ChatScreen({super.key, this.initialPrompt});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -33,9 +34,6 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  // Lets pull-to-refresh reach into InsightsHeader and re-fetch its data —
-  // see InsightsHeaderState.refresh(). The toggle/refresh-icon UI was removed
-  // from that header in favor of this gesture.
   final GlobalKey<InsightsHeaderState> _insightsKey =
       GlobalKey<InsightsHeaderState>();
   final List<Map<String, dynamic>> _messages = [];
@@ -45,6 +43,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _conversationId;
   String _errorMessage = '';
   int _scrollTimerId = 0;
+  bool _sentInitialPrompt = false;
 
   @override
   void initState() {
@@ -101,11 +100,26 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
     } catch (_) {
-      // Silently fall back to a fresh chat if history can't be loaded — no
-      // need to block the screen with an error for a background restore.
     } finally {
-      if (mounted) setState(() => _isRestoring = false);
+      if (mounted) {
+        setState(() => _isRestoring = false);
+        _maybeSendInitialPrompt();
+      }
     }
+  }
+
+  void _maybeSendInitialPrompt() {
+    final prompt = widget.initialPrompt?.trim();
+    if (prompt == null || prompt.isEmpty || _sentInitialPrompt) return;
+    if (_messages.isNotEmpty) {
+      _controller.text = prompt;
+      setState(() => _hasText = true);
+      return;
+    }
+    _sentInitialPrompt = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _sendMessage(prompt);
+    });
   }
 
   @override
@@ -159,7 +173,7 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Text(
               'Start new',
               style: AppTypography.inter(
-                color: AppTheme.goldAccent,
+                color: AppTheme.gold,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -329,7 +343,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: _isRestoring
                     ? const Center(
                         child: CircularProgressIndicator(
-                          color: AppTheme.goldAccent,
+                          color: AppTheme.gold,
                           strokeWidth: 2,
                         ),
                       )
@@ -337,7 +351,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ? _buildEmptyState()
                     : RefreshIndicator(
                         onRefresh: _onPullToRefresh,
-                        color: AppTheme.goldAccent,
+                        color: AppTheme.gold,
                         backgroundColor: const Color(0xFF141414),
                         child: ListView.builder(
                           controller: _scrollController,
@@ -458,7 +472,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                           const Icon(
                                             Icons.add_comment_outlined,
                                             size: 14,
-                                            color: AppTheme.goldAccent,
+                                            color: AppTheme.gold,
                                           ),
                                           const SizedBox(width: 6),
                                           Text(
@@ -488,6 +502,8 @@ class _ChatScreenState extends State<ChatScreen> {
                           } else {
                             final String content = msg['content'] ?? '';
                             final card = msg['card'];
+                            final cardWidget =
+                                card != null ? _buildChatCard(context, card) : null;
                             return Align(
                               alignment: Alignment.centerLeft,
                               child: Column(
@@ -495,68 +511,12 @@ class _ChatScreenState extends State<ChatScreen> {
                                 children: [
                                   if (content.isNotEmpty)
                                     _buildAssistantBubble(context, content),
-                                  if (card != null) ...[
+                                  if (cardWidget != null) ...[
                                     const SizedBox(height: 8),
                                     // Cache the blurred card layer so scrolling
                                     // doesn't re-blur the backdrop each frame.
                                     RepaintBoundary(
-                                      child:
-                                          card['type'] == 'sleep_highlights'
-                                              ? SleepHighlightsCard(
-                                                  data: card['data'],
-                                                  onTap: () =>
-                                                      Navigator.pushNamed(
-                                                          context, '/sleep'),
-                                                )
-                                              : card['type'] ==
-                                                      'heart_rate_trend'
-                                                  ? HeartRateChatCard(
-                                                      data: card['data'],
-                                                      onTap: () =>
-                                                          Navigator.pushNamed(
-                                                              context,
-                                                              '/heart-rate'),
-                                                    )
-                                                  : card['type'] == 'spo2_trend'
-                                                      ? BloodOxygenChatCard(
-                                                          data: card['data'],
-                                                          onTap: () =>
-                                                              Navigator
-                                                                  .pushNamed(
-                                                                      context,
-                                                                      '/blood-oxygen'),
-                                                        )
-                                                      : card['type'] ==
-                                                              'hrv_trend'
-                                                          ? HrvChatCard(
-                                                              data:
-                                                                  card['data'],
-                                                              onTap: () =>
-                                                                  Navigator
-                                                                      .pushNamed(
-                                                                          context,
-                                                                          '/hrv'),
-                                                            )
-                                                          : card['type'] ==
-                                                                  'bp_trend'
-                                                              ? BloodPressureChatCard(
-                                                                  data:
-                                                                      card[
-                                                                          'data'],
-                                                                  onTap: () =>
-                                                                      Navigator.pushNamed(
-                                                                          context,
-                                                                          '/blood-pressure'),
-                                                                )
-                                                              : StepsChatCard(
-                                                                  data:
-                                                                      card[
-                                                                          'data'],
-                                                                  onTap: () =>
-                                                                      Navigator.pushNamed(
-                                                                          context,
-                                                                          '/steps'),
-                                                                ),
+                                      child: cardWidget,
                                     ),
                                   ],
                                 ],
@@ -580,7 +540,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildEmptyState() {
     return RefreshIndicator(
       onRefresh: _onPullToRefresh,
-      color: AppTheme.goldAccent,
+      color: AppTheme.gold,
       backgroundColor: const Color(0xFF141414),
       child: ListView(
         controller: _scrollController,
@@ -607,7 +567,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: const Icon(
                   Icons.smart_toy_rounded,
                   size: 48,
-                  color: AppTheme.goldAccent,
+                  color: AppTheme.gold,
                 ),
               ),
               const SizedBox(height: 16),
@@ -680,6 +640,47 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     );
+  }
+
+  Widget? _buildChatCard(BuildContext context, Map<String, dynamic> card) {
+    final type = card['type'];
+    final data = card['data'];
+    if (data == null) return null;
+
+    switch (type) {
+      case 'sleep_highlights':
+        return SleepHighlightsCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/sleep'),
+        );
+      case 'heart_rate_trend':
+        return HeartRateChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/heart-rate'),
+        );
+      case 'spo2_trend':
+        return BloodOxygenChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/blood-oxygen'),
+        );
+      case 'hrv_trend':
+        return HrvChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/hrv'),
+        );
+      case 'bp_trend':
+        return BloodPressureChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
+        );
+      case 'steps_trend':
+        return StepsChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/steps'),
+        );
+      default:
+        return null;
+    }
   }
 
   Widget _buildAssistantBubble(BuildContext context, String content) {
@@ -803,7 +804,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         onTap: _isLoading ? null : _startVoiceInput,
                         child: const Icon(
                           Icons.mic_none_rounded,
-                          color: AppTheme.goldAccent,
+                          color: AppTheme.gold,
                           size: 28,
                         ),
                       ),
@@ -826,7 +827,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             decoration: BoxDecoration(
                               color: _isLoading
                                   ? Colors.transparent
-                                  : AppTheme.goldAccent,
+                                  : AppTheme.gold,
                               shape: BoxShape.circle,
                               border: _isLoading
                                   ? Border.all(
@@ -841,7 +842,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                       width: 20,
                                       height: 20,
                                       child: CircularProgressIndicator(
-                                        color: AppTheme.goldAccent,
+                                        color: AppTheme.gold,
                                         strokeWidth: 2,
                                       ),
                                     )
@@ -939,7 +940,7 @@ class _ChatLoadingIndicatorState extends State<_ChatLoadingIndicator>
   Widget _buildDot(int index) {
     final double size = index == 1 ? 12.0 : 8.0;
     final Color color = index == 1
-        ? AppTheme.goldAccent
+        ? AppTheme.gold
         : const Color(0xB2C9A86E); // rgba(201,168,110,0.7)
 
     return AnimatedBuilder(

@@ -4,12 +4,9 @@ import '../../services/prayer_schedule_prefs.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/analog_clock_picker.dart';
 import '../../widgets/glass_header.dart';
-import '../../widgets/glass_icon_button.dart';
 import '../../widgets/app_typography.dart';
 
-/// Prayer Mode's quiet-hours scheduler — a clean drag-to-set analog clock
-/// for the start and end time, reached via the pencil icon on the Prayer
-/// Mode row in Alarms & Notifications.
+/// Meditation quiet-hours scheduler — drag-to-set analog clock for end time.
 class PrayerScheduleScreen extends StatefulWidget {
   const PrayerScheduleScreen({super.key});
 
@@ -18,9 +15,7 @@ class PrayerScheduleScreen extends StatefulWidget {
 }
 
 class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
-  TimeOfDay _start = PrayerSchedulePrefs.defaultStart;
   TimeOfDay _end = PrayerSchedulePrefs.defaultEnd;
-  bool _editingStart = true;
   bool _loaded = false;
 
   @override
@@ -30,28 +25,22 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
   }
 
   Future<void> _load() async {
-    final (start, end) = await PrayerSchedulePrefs.load();
+    final (_, end) = await PrayerSchedulePrefs.load();
     if (!mounted) return;
     setState(() {
-      _start = start;
       _end = end;
       _loaded = true;
     });
   }
 
   void _onClockChanged(TimeOfDay t) {
-    // Draft only — persisted when the user taps the check button.
     setState(() {
-      if (_editingStart) {
-        _start = t;
-      } else {
-        _end = t;
-      }
+      _end = t;
     });
   }
 
   Future<void> _confirm() async {
-    await PrayerSchedulePrefs.save(_start, _end);
+    await PrayerSchedulePrefs.save(PrayerSchedulePrefs.defaultStart, _end);
     if (!mounted) return;
     Navigator.pop(context);
   }
@@ -67,7 +56,7 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
           Positioned(
             left: 83,
             top: -100,
-            child: _GlowBlob(width: 280, height: 200),
+            child: const _GlowBlob(width: 280, height: 200),
           ),
           Positioned(
             left: -227,
@@ -91,14 +80,10 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
   }
 
   Widget _buildContent() {
-    final current = _editingStart ? _start : _end;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GlassHeader(
-          title: 'Prayer Mode Schedule',
-          trailing: GlassIconButton(icon: Icons.check_rounded, onTap: _confirm),
-        ),
+        const GlassHeader(title: 'Schedule meditation'),
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 18, 28, 12),
           child: Text(
@@ -114,7 +99,8 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.03),
               borderRadius: BorderRadius.circular(18),
@@ -123,27 +109,24 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
                 width: 0.5,
               ),
             ),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: _PeriodTab(
-                    label: 'Start',
-                    value: _fmt(_start),
-                    selected: _editingStart,
-                    onTap: () => setState(() => _editingStart = true),
+                Text(
+                  'ENDS AT',
+                  style: AppTypography.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2,
+                    color: AppTheme.gold,
                   ),
                 ),
-                Container(
-                  width: 0.5,
-                  height: 34,
-                  color: Colors.white.withValues(alpha: 0.08),
-                ),
-                Expanded(
-                  child: _PeriodTab(
-                    label: 'End',
-                    value: _fmt(_end),
-                    selected: !_editingStart,
-                    onTap: () => setState(() => _editingStart = false),
+                const SizedBox(height: 3),
+                Text(
+                  _fmt(_end),
+                  style: AppTypography.inter(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.95),
                   ),
                 ),
               ],
@@ -157,7 +140,7 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  _fmt(current),
+                  _fmt(_end),
                   style: AppTypography.inter(
                     fontSize: 34,
                     fontWeight: FontWeight.w300,
@@ -166,13 +149,12 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
                 ),
                 const SizedBox(height: 20),
                 AnalogClockPicker(
-                  key: ValueKey(_editingStart),
-                  initialTime: current,
+                  initialTime: _end,
                   onChanged: _onClockChanged,
                 ),
                 const SizedBox(height: 28),
                 Text(
-                  'Notifications stay silent from ${_fmt(_start)} to ${_fmt(_end)}',
+                  'Notifications stay silent until ${_fmt(_end)}',
                   style: AppTypography.inter(
                     fontSize: 12,
                     color: Colors.white.withValues(alpha: 0.42),
@@ -182,60 +164,32 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
             ),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _confirm,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.gold,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                'Confirm',
+                style: AppTypography.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ),
       ],
-    );
-  }
-}
-
-class _PeriodTab extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _PeriodTab({
-    required this.label,
-    required this.value,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 6),
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? Colors.white.withValues(alpha: 0.06) : null,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          children: [
-            Text(
-              label.toUpperCase(),
-              style: AppTypography.inter(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.2,
-                color: selected
-                    ? AppTheme.gold
-                    : Colors.white.withValues(alpha: 0.4),
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              value,
-              style: AppTypography.inter(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: Colors.white.withValues(alpha: selected ? 0.95 : 0.55),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

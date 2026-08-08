@@ -87,8 +87,11 @@ class ChatApiService {
   }
 
   /// Dynamic AI-assist header data: headline, subtext, and key-change cards,
-  /// computed server-side from real DB trends for the given range.
-  static Future<Map<String, dynamic>> getInsights(String range) async {
+  /// computed server-side from real DB trends over a fixed window (backend
+  /// caps at MAX_INSIGHT_DAYS — see health.py). No range param anymore: the
+  /// app has no range selector, and the backend reports how many days of
+  /// real data it actually used via the `days_used` field in the response.
+  static Future<Map<String, dynamic>> getInsights() async {
     final userId = _userId;
     final token = SupabaseService.accessToken;
     if (userId == null || token == null) {
@@ -102,7 +105,7 @@ class ChatApiService {
     }
     final response = await http
         .get(
-          Uri.parse('$baseUrl/insights/$userId?range=$range'),
+          Uri.parse('$baseUrl/insights/$userId'),
           headers: _authHeaders,
         )
         .timeout(_insightsTimeout);
