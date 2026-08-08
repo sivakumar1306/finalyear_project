@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:health/health.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -50,6 +51,11 @@ enum HealthSyncType {
     'Temperature',
     'Body temperature',
     [HealthDataType.BODY_TEMPERATURE],
+  ),
+  menstruation(
+    'Menstruation',
+    'Menstrual flow data',
+    [HealthDataType.MENSTRUATION_FLOW],
   );
 
   const HealthSyncType(this.label, this.subtitle, this.dataTypes);
@@ -74,6 +80,8 @@ class HealthConnectToday {
   final int? bpSystolic;
   final int? bpDiastolic;
   final double? avgTemperatureC;
+  final int? daysSinceLastPeriod;
+  final bool hasMenstruationData;
 
   const HealthConnectToday({
     required this.fetchedAt,
@@ -89,6 +97,8 @@ class HealthConnectToday {
     this.bpSystolic,
     this.bpDiastolic,
     this.avgTemperatureC,
+    this.daysSinceLastPeriod,
+    this.hasMenstruationData = false,
   });
 
   bool get hasData =>
@@ -474,6 +484,25 @@ class HealthConnectService {
     int sumMinutes(HealthDataType t) =>
         ptsOf(t).fold(0, (sum, p) => sum + (_numValue(p)?.round().toInt() ?? 0));
 
+    int? daysSinceLastPeriod;
+    bool hasMenstruationData = false;
+    if (types.contains(HealthSyncType.menstruation)) {
+      try {
+        final startMenstruation = now.subtract(const Duration(days: 45));
+        final mPoints = await _health.getHealthDataFromTypes(
+          types: [HealthDataType.MENSTRUATION_FLOW],
+          startTime: startMenstruation,
+          endTime: now,
+        );
+        if (mPoints.isNotEmpty) {
+          hasMenstruationData = true;
+          mPoints.sort((a, b) => a.dateFrom.compareTo(b.dateFrom));
+          final lastPeriod = mPoints.last.dateFrom;
+          daysSinceLastPeriod = now.difference(lastPeriod).inDays;
+        }
+      } catch (_) {}
+    }
+
     return HealthConnectToday(
       fetchedAt: DateTime.now(),
       steps: steps,
@@ -490,7 +519,78 @@ class HealthConnectService {
       bpSystolic: bpSystolic,
       bpDiastolic: bpDiastolic,
       avgTemperatureC: avgOf(HealthDataType.BODY_TEMPERATURE),
+      daysSinceLastPeriod: daysSinceLastPeriod,
+      hasMenstruationData: hasMenstruationData,
     );
+  }
+
+  /// Fetches historical baselines for Layer 1 Fall Risk Engine
+  Future<Map<String, double>> fetchHistoricalBaselines() async {
+    await _ensureConfigured();
+    final now = DateTime.now();
+    
+    // Default values if data isn't available
+    double medianHR = 70.0;
+    double meanHRV = 50.0;
+    double stdDevHRV = 10.0;
+    double baselineTemp = 36.5;
+
+    try {
+      final start14 = now.subtract(const Duration(days: 14));
+      final hrPoints = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.HEART_RATE],
+        startTime: start14,
+        endTime: now,
+      );
+      if (hrPoints.isNotEmpty) {
+        final hrValues = hrPoints.map(_numValue).whereType<double>().toList();
+        if (hrValues.isNotEmpty) {
+          hrValues.sort();
+          medianHR = hrValues[hrValues.length ~/ 2];
+        }
+      }
+
+      final start28 = now.subtract(const Duration(days: 28));
+      final hrvPoints = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.HEART_RATE_VARIABILITY_RMSSD],
+        startTime: start28,
+        endTime: now,
+      );
+      if (hrvPoints.isNotEmpty) {
+        final hrvValues = hrvPoints.map(_numValue).whereType<double>().toList();
+        if (hrvValues.isNotEmpty) {
+          final sum = hrvValues.reduce((a, b) => a + b);
+          meanHRV = sum / hrvValues.length;
+          
+          if (hrvValues.length > 1) {
+            double sumSqDiffs = 0.0;
+            for (final v in hrvValues) {
+              sumSqDiffs += (v - meanHRV) * (v - meanHRV);
+            }
+            stdDevHRV = sqrt(sumSqDiffs / (hrvValues.length - 1));
+          }
+        }
+      }
+
+      final tempPoints = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.BODY_TEMPERATURE],
+        startTime: start14,
+        endTime: now,
+      );
+      if (tempPoints.isNotEmpty) {
+        final tempValues = tempPoints.map(_numValue).whereType<double>().toList();
+        if (tempValues.isNotEmpty) {
+          baselineTemp = tempValues.reduce((a, b) => a + b) / tempValues.length;
+        }
+      }
+    } catch (_) {}
+
+    return {
+      'rolling14DayMedianHR': medianHR,
+      'rolling28DayMeanHRV': meanHRV,
+      'rolling28DayStdDevHRV': stdDevHRV,
+      'baselineAdjustedTemp': baselineTemp,
+    };
   }
 
   static double? _numValue(HealthDataPoint p) {
