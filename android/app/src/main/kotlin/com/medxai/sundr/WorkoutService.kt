@@ -109,7 +109,6 @@ class WorkoutService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        com.medxai.sundr.sdk.BleSdkLifecycle.ensureInitialized(applicationContext)
 
         MeasurementCoordinator.isWorkoutActive = true
         createNotificationChannel()
@@ -131,6 +130,9 @@ class WorkoutService : Service() {
             stopSelf()
             return
         }
+
+        com.medxai.sundr.sdk.BleSdkLifecycle.ensureInitialized(applicationContext)
+
         handler.postDelayed(tickRunnable, TICK_MS)
     }
 

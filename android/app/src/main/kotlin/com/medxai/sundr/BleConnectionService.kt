@@ -148,19 +148,11 @@ class BleConnectionService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        BleSdkLifecycle.ensureInitialized(applicationContext)
 
         createNotificationChannel()
+        startForeground(NOTIFICATION_ID, buildNotification(false))
 
-        try {
-            startForeground(NOTIFICATION_ID, buildNotification(false))
-        } catch (_: Exception) {
-            handler.postDelayed({
-                try {
-                    startForeground(NOTIFICATION_ID, buildNotification(false))
-                } catch (_: Exception) {}
-            }, 5_000L)
-        }
+        BleSdkLifecycle.ensureInitialized(applicationContext)
 
         handler.postDelayed(checkRunnable, 4_000L)
 
