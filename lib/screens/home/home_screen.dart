@@ -1431,7 +1431,11 @@ class _GlassCard extends StatelessWidget {
                 bottom: orbAtTop ? null : resolvedOrbOffset,
                 right: orbOnRight ? resolvedOrbOffset : null,
                 left: orbOnRight ? null : resolvedOrbOffset,
-                child: _BlurOrb(color: orbColor, size: orbSize, alpha: orbAlpha),
+                child: _BlurOrb(
+                  color: orbColor,
+                  size: orbSize,
+                  alpha: orbAlpha,
+                ),
               ),
             // Fixed height: Positioned.fill gives Column tight constraints so Spacer works.
             // Auto height: plain Padding lets Stack size to content (and still
@@ -2591,11 +2595,13 @@ class _AlarmCardState extends State<_AlarmCard> {
   Future<void> _loadSchedules() async {
     final prefs = await SharedPreferences.getInstance();
     final (_, end) = await PrayerSchedulePrefs.load();
-    final hasSavedMeditation = prefs.containsKey('prayer_mode_end_hour') ||
+    final hasSavedMeditation =
+        prefs.containsKey('prayer_mode_end_hour') ||
         prefs.containsKey('prayer_mode_start_hour');
     final sleepEnabled = prefs.getBool('sleep_reminder_enabled') ?? false;
     final h = int.tryParse(prefs.getString('sleep_reminder_hour') ?? '') ?? 22;
-    final m = int.tryParse(prefs.getString('sleep_reminder_minute') ?? '') ?? 30;
+    final m =
+        int.tryParse(prefs.getString('sleep_reminder_minute') ?? '') ?? 30;
     final sleepTime = TimeOfDay(hour: h, minute: m);
     if (!mounted) return;
     setState(() {
@@ -2768,7 +2774,9 @@ class _AlarmCardState extends State<_AlarmCard> {
               if (mode == PhoneMode.prayer) {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const PrayerSessionScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const PrayerSessionScreen(),
+                  ),
                 );
               }
             },
@@ -2825,7 +2833,9 @@ class _AlarmCardState extends State<_AlarmCard> {
               if (m == PhoneMode.prayer && context.mounted) {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const PrayerSessionScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const PrayerSessionScreen(),
+                  ),
                 );
               }
             },
@@ -2834,9 +2844,7 @@ class _AlarmCardState extends State<_AlarmCard> {
             const SizedBox(height: 14),
             Container(height: 1, color: Colors.white.withValues(alpha: 0.08)),
             const SizedBox(height: 12),
-            Row(
-              children: activeFields,
-            ),
+            Row(children: activeFields),
           ],
         ],
       ),
@@ -2849,10 +2857,7 @@ class _AlarmTimeField extends StatelessWidget {
   final String timeLabel;
   final String label;
 
-  const _AlarmTimeField({
-    required this.timeLabel,
-    required this.label,
-  });
+  const _AlarmTimeField({required this.timeLabel, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -2968,10 +2973,7 @@ class _LiquidGlassThumb extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(100),
         color: color.withValues(alpha: 0.18),
-        border: Border.all(
-          color: color.withValues(alpha: 0.35),
-          width: 0.8,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: 0.20),
