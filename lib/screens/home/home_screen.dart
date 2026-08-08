@@ -2489,7 +2489,7 @@ class _AlarmModeInfo {
 const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
   PhoneMode.focus: _AlarmModeInfo(
     'Focus',
-    Color(0xFFE8A06B),
+    Color(0xFFE08A4A),
     Icons.adjust_rounded,
   ),
   PhoneMode.base: _AlarmModeInfo(
@@ -2506,52 +2506,52 @@ const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
 
 class _AlarmGlowBackground extends StatelessWidget {
   final Color color;
-  const _AlarmGlowBackground({this.color = const Color(0xFFE8A06B)});
+  const _AlarmGlowBackground({this.color = const Color(0xFFE08A4A)});
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Ellipse 21 (bottom-left glow)
+        // Ellipse 21 (bottom-left glow: rgba(224, 138, 74, 0.15), blur 40px, 240x240, left -70, top 90)
         Positioned(
-          left: -80,
-          bottom: -40,
+          left: -70,
+          top: 90,
           child: ImageFiltered(
             imageFilter: ImageFilter.blur(
-              sigmaX: 45,
-              sigmaY: 45,
+              sigmaX: 40,
+              sigmaY: 40,
               tileMode: TileMode.decal,
             ),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 480),
               curve: Curves.easeOutCubic,
-              width: 280,
-              height: 280,
+              width: 240,
+              height: 240,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: color.withValues(alpha: 0.18),
+                color: color.withValues(alpha: 0.15),
               ),
             ),
           ),
         ),
-        // Ellipse 20 (top-right glow)
+        // Ellipse 20 (top-right glow: rgba(224, 138, 74, 0.25), blur 40px, 240x240, right -60, top -70)
         Positioned(
-          right: -70,
+          right: -60,
           top: -70,
           child: ImageFiltered(
             imageFilter: ImageFilter.blur(
-              sigmaX: 45,
-              sigmaY: 45,
+              sigmaX: 40,
+              sigmaY: 40,
               tileMode: TileMode.decal,
             ),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 480),
               curve: Curves.easeOutCubic,
-              width: 280,
-              height: 280,
+              width: 240,
+              height: 240,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: color.withValues(alpha: 0.28),
+                color: color.withValues(alpha: 0.25),
               ),
             ),
           ),
