@@ -11,9 +11,15 @@ void main() {
         'motion': 0.40,
         'womens_health': 0.20,
       };
-      final w = AdaptiveWeightEngine.calculateAdaptiveWeights(
+      final multipliers = {
+        'physiological': 1.0,
+        'recovery': 1.0,
+        'motion': 1.0,
+        'womens_health': 1.0,
+      };
+      final w = AdaptiveWeightEngine.renormalizeWeights(
         base,
-        ContextFactors(),
+        multipliers,
       );
       final sum = w.values.fold(0.0, (a, b) => a + b);
       expect(sum, closeTo(1.0, 1e-9));
@@ -22,40 +28,28 @@ void main() {
     });
 
     test('age boosts physiological after normalize', () {
-      final base = {
-        'physiological': 0.25,
-        'recovery': 0.25,
-        'motion': 0.25,
-        'womens_health': 0.25,
-      };
-      final w = AdaptiveWeightEngine.calculateAdaptiveWeights(
-        base,
+      final w = AdaptiveWeightEngine.getHsiGlobalWeights(
         ContextFactors(age: 2.0),
       );
       expect(w.values.fold(0.0, (a, b) => a + b), closeTo(1.0, 1e-9));
+      expect(w['physiological']!, greaterThan(0.35)); // Base is 0.35, should increase
       expect(w['physiological']!, greaterThan(w['motion']!));
-      expect(w['physiological']!, greaterThan(w['recovery']!));
     });
 
     test('zero total base yields zeros without divide-by-zero', () {
-      final w = AdaptiveWeightEngine.calculateAdaptiveWeights(
-        {'physiological': 0, 'recovery': 0},
-        ContextFactors(),
+      final w = AdaptiveWeightEngine.renormalizeWeights(
+        {'physiological': 0.0, 'recovery': 0.0},
+        {'physiological': 1.0, 'recovery': 1.0},
       );
-      expect(w['physiological'], 0);
-      expect(w['recovery'], 0);
+      expect(w['physiological'], 0.0);
+      expect(w['recovery'], 0.0);
     });
 
     test('sleep debt multiplies recovery only', () {
-      final base = {
-        'physiological': 0.5,
-        'recovery': 0.5,
-      };
-      final w = AdaptiveWeightEngine.calculateAdaptiveWeights(
-        base,
+      final w = AdaptiveWeightEngine.getHsiGlobalWeights(
         ContextFactors(sleepDebt: 2.0, stressTrend: 1.0),
       );
-      expect(w['recovery']!, greaterThan(w['physiological']!));
+      expect(w['recovery']!, greaterThan(0.30)); // Base is 0.30, should increase
       expect(w.values.fold(0.0, (a, b) => a + b), closeTo(1.0, 1e-9));
     });
   });
