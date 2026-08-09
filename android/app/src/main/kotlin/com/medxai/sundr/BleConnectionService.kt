@@ -150,7 +150,24 @@ class BleConnectionService : Service() {
         super.onCreate()
 
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification(false))
+
+        // startForeground() must be called immediately — before any slow SDK setup — or
+        // Android force-kills the app with ForegroundServiceDidNotStartInTimeException if
+        // the notification isn't posted within 5 seconds of the service starting.
+        //
+        // It's also wrapped in try/catch: startForeground() can throw SecurityException /
+        // InvalidForegroundServiceTypeException (e.g. a missing FOREGROUND_SERVICE_* manifest
+        // permission for a declared foregroundServiceType, or a type Android 14+ rejects at
+        // runtime). Without this catch, that exception is unhandled and crashes the whole
+        // process on every launch — so on failure we log it and stop the service cleanly
+        // instead of taking the app down.
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification(false))
+        } catch (e: Exception) {
+            android.util.Log.e("BleConnectionService", "startForeground failed", e)
+            stopSelf()
+            return
+        }
 
         BleSdkLifecycle.ensureInitialized(applicationContext)
 
