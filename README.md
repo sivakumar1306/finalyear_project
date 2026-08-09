@@ -14,7 +14,7 @@
 * **Vitals Visualization:** Upgraded calmness and heart rate charts to feature dynamic Y-axis scaling, cubic spline curves, and ambient glow effects.
 * **UI Refinements:** Expanded the "serenity circle" badge to prevent text truncation and aligned Alarms screen styling with core design tokens.
 
-**Date:** 2026-08-08
+**Date:** 2026-08-09
 `<Sundr-Aug09-R1>`
 *FSR pipeline updated and crash fixes enabled*
  
