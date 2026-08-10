@@ -111,9 +111,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     final canSubmit = _fieldsFilled && !_loading;
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const SplashScreen(),
+          ),
+          (_) => false,
+        );
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
         child: Column(
           children: [
             Padding(
@@ -297,8 +309,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _DarkField extends StatelessWidget {

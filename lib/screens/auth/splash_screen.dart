@@ -107,24 +107,7 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF050505),
-      body: Stack(
-        children: [
-          Positioned(
-            top: -120,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFFC7A56A).withValues(alpha: 0.04),
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
+      body: SafeArea(
             child: _checking
                 ? Center(
                     child: _buildLogo(iconSize: 34, fontSize: 28),
@@ -166,8 +149,6 @@ class _SplashScreenState extends State<SplashScreen> {
                     ),
                   ),
           ),
-        ],
-      ),
     );
   }
 }
