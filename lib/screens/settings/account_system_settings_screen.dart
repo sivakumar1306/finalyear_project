@@ -5,6 +5,7 @@ import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../auth/recovery_code_screen.dart';
 
 class AccountSystemSettingsScreen extends StatelessWidget {
   const AccountSystemSettingsScreen({super.key});
@@ -59,6 +60,7 @@ class AccountSystemSettingsScreen extends StatelessWidget {
                   _AccountRow(
                     icon: Icons.edit_outlined,
                     title: 'Change Password',
+                    onTap: () => _onChangePassword(context, email),
                   ),
                 ],
               ),
@@ -133,6 +135,36 @@ class AccountSystemSettingsScreen extends StatelessWidget {
       );
 
   Widget _divider() => const Divider(height: 1, color: AppTheme.div);
+
+  Future<void> _onChangePassword(BuildContext context, String email) async {
+    if (email.isEmpty) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: AppTheme.gold)),
+    );
+    
+    try {
+      await SupabaseService.resetPassword(email);
+      if (context.mounted) {
+        Navigator.pop(context); // close loading dialog
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RecoveryCodeScreen(email: email),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}')),
+        );
+      }
+    }
+  }
 
   Future<void> _confirmLogout(BuildContext context) async {
     final ok = await showDialog<bool>(

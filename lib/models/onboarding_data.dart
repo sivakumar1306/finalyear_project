@@ -6,6 +6,7 @@ class OnboardingData {
   double weightKg;
   String? emergencyContactName;
   String? emergencyContactPhone;
+  bool isEditMode;
 
   OnboardingData({
     this.name = '',
@@ -15,5 +16,6 @@ class OnboardingData {
     this.weightKg = 70.0,
     this.emergencyContactName,
     this.emergencyContactPhone,
+    this.isEditMode = false,
   });
 }

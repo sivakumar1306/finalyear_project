@@ -504,8 +504,14 @@ class _ChatScreenState extends State<ChatScreen> {
                           } else {
                             final String content = msg['content'] ?? '';
                             final card = msg['card'];
+                            
+                            // Guard against hallucinated cards when the AI acknowledges no data
+                            final bool hasNoData = content.toLowerCase().contains('not available right now') || 
+                                                   content.toLowerCase().contains('no data is available') ||
+                                                   content.toLowerCase().contains('no sleep metrics were found');
+                            
                             final cardWidget =
-                                card != null ? _buildChatCard(context, card) : null;
+                                (card != null && !hasNoData) ? _buildChatCard(context, card) : null;
                             return Align(
                               alignment: Alignment.centerLeft,
                               child: Column(

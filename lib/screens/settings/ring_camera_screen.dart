@@ -228,13 +228,30 @@ class _RingCameraScreenState extends State<RingCameraScreen>
               left: 0,
               right: 0,
               child: Center(
-                child: Text(
-                  'Use your ring to take a photo',
-                  style: AppTypography.inter(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Use your ring to take a photo',
+                      style: AppTypography.inter(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (!context.select<BleProvider, bool>((b) => b.gestureEnabled))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text(
+                          'turn on gestures in settings to use your ring to take photos',
+                          style: AppTypography.inter(
+                            color: Colors.white54,
+                            fontSize: 11,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),

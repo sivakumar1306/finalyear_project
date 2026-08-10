@@ -23,6 +23,7 @@ import 'side_panel.dart';
 import '../settings/about_screen.dart';
 import 'card_settings_screen.dart';
 import '../settings/goal_setting_screen.dart';
+import '../settings/settings_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/unit_prefs.dart';
 import '../main_shell.dart';
@@ -976,8 +977,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: Text('Home', style: _inter(16, weight: FontWeight.w600)),
             ),
           ),
-          // Balances the leading menu IconButton's tap target so 'Home' stays centered.
-          const SizedBox(width: 48),
+          // Settings button matching the layout size of the menu button
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: Center(
+              child: GlassIconButton(
+                icon: Icons.settings_rounded,
+                iconSize: 20,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SettingsScreen(showBackButton: true),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -2518,7 +2536,7 @@ const Map<PhoneMode, _AlarmModeInfo> _kAlarmModeInfo = {
     Icons.circle_outlined,
   ),
   PhoneMode.prayer: _AlarmModeInfo(
-    'Meditate',
+    'Meditation',
     Color(0xFF5BAE85),
     Icons.self_improvement_rounded,
   ),
@@ -2633,7 +2651,9 @@ class _AlarmCardState extends State<_AlarmCard> {
     if (widget.expanded) {
       switch (mode) {
         case PhoneMode.focus:
-          return 'No Alarms, no calls till ${sched.label(sched.focusEnd)}';
+          return sched.isFocusScheduled
+              ? 'No Alarms, no calls till ${sched.label(sched.focusEnd)}'
+              : 'No Alarms, no calls';
         case PhoneMode.prayer:
           return 'Do Not Disturb until ${_fmt24(_meditationEnd)}';
         case PhoneMode.base:
@@ -2665,7 +2685,9 @@ class _AlarmCardState extends State<_AlarmCard> {
     }
     switch (mode) {
       case PhoneMode.focus:
-        return 'Until ${_fmt24(sched.focusEnd)}';
+        return sched.isFocusScheduled
+            ? 'Until ${_fmt24(sched.focusEnd)}'
+            : 'Silent mode active';
       case PhoneMode.prayer:
         return 'Until ${_fmt24(_meditationEnd)}';
       case PhoneMode.base:
@@ -2688,7 +2710,7 @@ class _AlarmCardState extends State<_AlarmCard> {
       return const SizedBox(height: 160);
     }
 
-    final isFocusSet = mode == PhoneMode.focus;
+    final isFocusSet = mode == PhoneMode.focus && sched.isFocusScheduled;
     final isMeditationSet = mode == PhoneMode.prayer || _hasSavedMeditation;
     final isSleepSet = _sleepReminderEnabled && _sleepTime != null;
 
@@ -2844,9 +2866,12 @@ class _AlarmCardState extends State<_AlarmCard> {
           const SizedBox(height: 14),
           _AlarmModeSelector(
             mode: mode,
-            onChanged: (m) async {
-              await requestPhoneMode(context, provider, m);
-              if (m == PhoneMode.prayer && context.mounted) {
+            onChanged: (m) {
+              if (m != PhoneMode.focus) {
+                context.read<AlarmScheduleProvider>().clearFocusSchedule();
+              }
+              requestPhoneMode(context, provider, m);
+              if (m == PhoneMode.prayer) {
                 Navigator.push(
                   context,
                   MaterialPageRoute(

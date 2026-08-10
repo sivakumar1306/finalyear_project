@@ -61,22 +61,23 @@ class OnboardingShell extends StatelessWidget {
                       child: _StepDots(current: step, total: totalSteps),
                     ),
                   ),
-                  TextButton(
-                    onPressed: () => Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const LoginScreen(),
+                  if (!data.isEditMode)
+                    TextButton(
+                      onPressed: () => Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const LoginScreen(),
+                        ),
+                      ),
+                      child: const Text(
+                        'LOG IN',
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 13,
+                          letterSpacing: 1,
+                        ),
                       ),
                     ),
-                    child: const Text(
-                      'LOG IN',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 13,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
