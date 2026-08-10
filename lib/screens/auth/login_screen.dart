@@ -4,6 +4,7 @@ import '../../models/onboarding_data.dart';
 import '../onboarding/onboarding_name_screen.dart';
 import 'forgot_password_screen.dart';
 import 'sign_up_screen.dart';
+import 'splash_screen.dart';
 import '../../widgets/glass_back_button.dart';
 
 String _friendlyAuthError(Object e) {
@@ -118,8 +119,16 @@ class _LoginScreenState extends State<LoginScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
-                children: const [
-                  GlassBackButton(),
+                children: [
+                  GlassBackButton(
+                    onTap: () => Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SplashScreen(),
+                      ),
+                      (_) => false,
+                    ),
+                  ),
                 ],
               ),
             ),

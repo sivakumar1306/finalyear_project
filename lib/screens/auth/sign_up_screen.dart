@@ -4,6 +4,7 @@ import '../../models/onboarding_data.dart';
 import '../onboarding/onboarding_name_screen.dart';
 import '../settings/faq_screen.dart';
 import 'login_screen.dart';
+import 'splash_screen.dart';
 import '../../widgets/glass_back_button.dart';
 
 String _friendlyAuthError(Object e) {
@@ -119,7 +120,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  const GlassBackButton(),
+                  GlassBackButton(
+                    onTap: () => Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SplashScreen(),
+                      ),
+                      (_) => false,
+                    ),
+                  ),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.help_outline, color: Colors.white54),
