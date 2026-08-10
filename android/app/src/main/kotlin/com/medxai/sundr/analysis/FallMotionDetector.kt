@@ -89,8 +89,12 @@ object FallMotionDetector : SensorEventListener {
         if (accelerometer == null) return // nothing to detect with — degrade silently
 
         active = true
-        sm.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI)
-        gyroscope?.let { sm.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
+        // Use 50Hz (20,000us) sampling with 5s (5,000,000us) batching latency to allow the CPU to sleep
+        val samplingPeriodUs = 20_000
+        val maxReportLatencyUs = 5_000_000
+        sm.registerListener(this, accelerometer, samplingPeriodUs, maxReportLatencyUs)
+        // Disable gyroscope to save battery. Calculations remain unchanged and will default to no-spike.
+        // gyroscope?.let { sm.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
     }
 
     fun stop() {
@@ -111,14 +115,14 @@ object FallMotionDetector : SensorEventListener {
                     lastGyro = floatArrayOf(event.values[0], event.values[1], event.values[2])
                     hasGyro = true
                 }
-                Sensor.TYPE_ACCELEROMETER -> appendSample(event.values)
+                Sensor.TYPE_ACCELEROMETER -> appendSample(event.values, event.timestamp)
             }
         } catch (_: Exception) {
             // Sensor callbacks must never crash the process.
         }
     }
 
-    private fun appendSample(accel: FloatArray) {
+    private fun appendSample(accel: FloatArray, timestampNanos: Long) {
         if (accel.size < 3 || capacity <= 0) return
         val idx = writeIndex
         if (idx !in 0 until capacity) return
@@ -133,7 +137,8 @@ object FallMotionDetector : SensorEventListener {
         writeIndex = (writeIndex + 1) % capacity
         filled = minOf(filled + 1, capacity)
 
-        val now = SystemClock.elapsedRealtime()
+        // timestampNanos is in nanoseconds since boot; convert to milliseconds
+        val now = timestampNanos / 1_000_000L
         if (filled < capacity) return
         if (now - lastAnalysisMs < ANALYSIS_INTERVAL_MS) return
         lastAnalysisMs = now

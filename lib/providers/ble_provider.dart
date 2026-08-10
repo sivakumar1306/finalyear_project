@@ -285,6 +285,7 @@ class BleProvider extends ChangeNotifier {
     _loadTodayHrvFromSupabase();
     _loadTodaySleepFromSupabase();
     _loadLatestTempFromSupabase();
+    _syncContactsToCloud();
     loadLowBatteryPromptSetting();
   }
 
@@ -825,17 +826,17 @@ class BleProvider extends ChangeNotifier {
 
   Future<void> addEmergencyContact(String name, String phone) async {
     await _ble.addEmergencyContact(name, phone);
-    _syncContactsToCloud();
+    await _syncContactsToCloud();
   }
 
   Future<void> updateEmergencyContact(int id, String name, String phone) async {
     await _ble.updateEmergencyContact(id, name, phone);
-    _syncContactsToCloud();
+    await _syncContactsToCloud();
   }
 
   Future<void> deleteEmergencyContact(int id) async {
     await _ble.deleteEmergencyContact(id);
-    _deleteContactFromCloud(id);
+    await _deleteContactFromCloud(id);
   }
 
   Future<void> _syncContactsToCloud() async {

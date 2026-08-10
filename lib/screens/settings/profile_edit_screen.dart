@@ -113,6 +113,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         heightCm: _heightCm,
         weightKg: _weightKg,
         address: _address,
+        phone: _phone,
         additionalInstructions: _instructions,
       );
     } catch (e) {

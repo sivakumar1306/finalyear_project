@@ -118,6 +118,7 @@ class SupabaseService {
     required int heightCm,
     required double weightKg,
     String? address,
+    String? phone,
     String? additionalInstructions,
   }) async {
     await client.from('user_profiles').upsert({
@@ -127,8 +128,9 @@ class SupabaseService {
       'gender': gender,
       'height_cm': heightCm,
       'weight_kg': weightKg,
-      'address': ?address,
-      'additional_instructions': ?additionalInstructions,
+      if (address != null) 'address': address,
+      if (phone != null) 'phone': phone,
+      if (additionalInstructions != null) 'additional_instructions': additionalInstructions,
     });
   }
 
@@ -708,12 +710,26 @@ class SupabaseService {
     required String name,
     required String phone,
   }) async {
-    await client.from('user_emergency_contacts').upsert({
-      'user_id': userId,
-      'local_id': localId,
-      'name': name,
-      'phone': phone,
-    }, onConflict: 'user_id,local_id');
+    final existing = await client
+        .from('user_emergency_contacts')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('local_id', localId)
+        .maybeSingle();
+
+    if (existing != null) {
+      await client.from('user_emergency_contacts').update({
+        'name': name,
+        'phone': phone,
+      }).eq('id', existing['id']);
+    } else {
+      await client.from('user_emergency_contacts').insert({
+        'user_id': userId,
+        'local_id': localId,
+        'name': name,
+        'phone': phone,
+      });
+    }
   }
 
   static Future<void> deleteEmergencyContactByLocalId({

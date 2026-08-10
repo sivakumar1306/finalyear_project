@@ -49,7 +49,11 @@ class FallPredictionProvider extends ChangeNotifier {
 
   StreamSubscription<UserAccelerometerEvent>? _accelSubscription;
   Timer? _healthSyncTimer;
+  Timer? _recalcDebounce;
   int _sensorRefCount = 0;
+
+  List<FallEvent>? _cachedTrailingFalls;
+  DateTime? _lastFallsFetch;
 
   double _lastMagnitude = 0.0;
   ActivityExposure _lastActExp = const ActivityExposure(100.0);
@@ -212,8 +216,15 @@ class FallPredictionProvider extends ChangeNotifier {
           sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
       _lastMagnitude = magnitude;
       if (magnitude > 15.0) {
-        _recalculate();
+        _debounceRecalculate();
       }
+    });
+  }
+
+  void _debounceRecalculate() {
+    if (_recalcDebounce?.isActive ?? false) return;
+    _recalcDebounce = Timer(const Duration(seconds: 2), () {
+      _recalculate();
     });
   }
 
@@ -221,8 +232,15 @@ class FallPredictionProvider extends ChangeNotifier {
     final userId = SupabaseService.currentUser?.id;
     List<FallEvent> trailingFalls = [];
     if (userId != null) {
-      final layer3Svc = Layer3MotionService(SupabaseService.client);
-      trailingFalls = await layer3Svc.fetchTrailing12MonthFalls(userId);
+      final now = DateTime.now();
+      if (_cachedTrailingFalls == null || 
+          _lastFallsFetch == null || 
+          now.difference(_lastFallsFetch!).inHours >= 24) {
+        final layer3Svc = Layer3MotionService(SupabaseService.client);
+        _cachedTrailingFalls = await layer3Svc.fetchTrailing12MonthFalls(userId);
+        _lastFallsFetch = now;
+      }
+      trailingFalls = _cachedTrailingFalls!;
     }
 
     final mData = Layer3MotionData(
@@ -265,6 +283,7 @@ class FallPredictionProvider extends ChangeNotifier {
   void dispose() {
     _healthSyncTimer?.cancel();
     _accelSubscription?.cancel();
+    _recalcDebounce?.cancel();
     _sensorRefCount = 0;
     super.dispose();
   }
