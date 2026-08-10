@@ -7,12 +7,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// edit screens (PrayerScheduleScreen, SleepScheduleScreen).
 class AlarmScheduleProvider extends ChangeNotifier {
   static const _kFocusEndKey = 'alarm_focus_end';
+  static const _kFocusScheduledKey = 'alarm_focus_scheduled';
   static const _kPushingAppsCountKey = 'alarm_pushing_apps_count';
 
   TimeOfDay _focusEnd = const TimeOfDay(hour: 13, minute: 0);
+  bool _isFocusScheduled = false;
   int _pushingAppsCount = 0;
 
   TimeOfDay get focusEnd => _focusEnd;
+  bool get isFocusScheduled => _isFocusScheduled;
   int get pushingAppsCount => _pushingAppsCount;
 
   bool _loaded = false;
@@ -21,6 +24,7 @@ class AlarmScheduleProvider extends ChangeNotifier {
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     _focusEnd = _parse(prefs.getString(_kFocusEndKey)) ?? _focusEnd;
+    _isFocusScheduled = prefs.getBool(_kFocusScheduledKey) ?? false;
     _pushingAppsCount = prefs.getInt(_kPushingAppsCountKey) ?? 0;
     _loaded = true;
     notifyListeners();
@@ -41,9 +45,18 @@ class AlarmScheduleProvider extends ChangeNotifier {
 
   Future<void> setFocusEnd(TimeOfDay t) async {
     _focusEnd = t;
+    _isFocusScheduled = true;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kFocusEndKey, _fmt(t));
+    await prefs.setBool(_kFocusScheduledKey, true);
+  }
+
+  Future<void> clearFocusSchedule() async {
+    _isFocusScheduled = false;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kFocusScheduledKey, false);
   }
 
   /// Formats a [TimeOfDay] as "1:00 pm" (lowercase am/pm, no leading zero).

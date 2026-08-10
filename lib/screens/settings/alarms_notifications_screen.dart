@@ -156,15 +156,20 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                       onEditTap: _editFocusEndTime,
                       title: 'Focus Mode',
                       subtitle: focusOn
-                          ? 'Active · ENDS ${_fmt24(sched.focusEnd)}'
+                          ? (sched.isFocusScheduled ? 'Active · ENDS ${_fmt24(sched.focusEnd)}' : 'Active')
                           : 'Off',
                       subtitleColor: focusOn ? AppTheme.gold : null,
                       trailing: _switch(
                         focusOn,
-                        (v) => _setMode(
-                          alarmMode,
-                          v ? PhoneMode.focus : PhoneMode.base,
-                        ),
+                        (v) {
+                          if (!v) {
+                            context.read<AlarmScheduleProvider>().clearFocusSchedule();
+                          }
+                          _setMode(
+                            alarmMode,
+                            v ? PhoneMode.focus : PhoneMode.base,
+                          );
+                        },
                       ),
                     ),
                   ),

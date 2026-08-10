@@ -220,7 +220,12 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     try {
-      final result = await ChatApiService.chat(text, _conversationId);
+      String payloadText = text;
+      if (!InsightsHeaderState.hasData) {
+        payloadText += '\n\n[System Context: The user currently has NO data available (0 days of readings). Do not hallucinate or invent any metrics, scores, or charts. Inform the user they need to wear their ring longer to gather data.]';
+      }
+
+      final result = await ChatApiService.chat(payloadText, _conversationId);
       setState(() {
         _messages.add({
           'role': 'assistant',
@@ -504,8 +509,13 @@ class _ChatScreenState extends State<ChatScreen> {
                           } else {
                             final String content = msg['content'] ?? '';
                             final card = msg['card'];
+                            
+                            // Guard against hallucinated cards when there's actually no data,
+                            // rather than relying on unreliable string matching of the LLM's text.
+                            final bool hasNoData = !InsightsHeaderState.hasData;
+                            
                             final cardWidget =
-                                card != null ? _buildChatCard(context, card) : null;
+                                (card != null && !hasNoData) ? _buildChatCard(context, card) : null;
                             return Align(
                               alignment: Alignment.centerLeft,
                               child: Column(
