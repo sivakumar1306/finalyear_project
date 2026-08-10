@@ -158,6 +158,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  final GlobalKey<_HomeAiInsightSnippetState> _snippetKey =
+      GlobalKey<_HomeAiInsightSnippetState>();
   String _firstName = '';
   String _gender = '';
   @override
@@ -812,6 +814,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onRefresh: () async {
         await ble.checkConnection();
         await _loadUserProfile();
+        await _snippetKey.currentState?.reload(force: true);
       },
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(
@@ -828,7 +831,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   children: [
                     _buildTopBar(context),
                     _buildGreetingRow(ble),
-                    const _HomeAiInsightSnippet(),
+                    _HomeAiInsightSnippet(key: _snippetKey),
                     _buildSectionLabel(),
                   ],
                 ),
@@ -1059,7 +1062,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 // cache (small duplicate network call at most once per 5 min) to avoid
 // coupling the two screens' widget lifecycles together.
 class _HomeAiInsightSnippet extends StatefulWidget {
-  const _HomeAiInsightSnippet();
+  const _HomeAiInsightSnippet({super.key});
 
   @override
   State<_HomeAiInsightSnippet> createState() => _HomeAiInsightSnippetState();
@@ -1079,23 +1082,35 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> reload({bool force = false}) async {
+    await _load(force: force);
+  }
+
+  Future<void> _load({bool force = false}) async {
+    if (force) {
+      _cache = null;
+      _cacheTime = null;
+    }
     final isFresh =
         _cacheTime != null &&
         DateTime.now().difference(_cacheTime!) < _cacheTtl;
-    if (_cache != null && isFresh) {
-      setState(() => _data = _cache);
+    if (!force && _cache != null && isFresh) {
+      if (mounted) setState(() => _data = _cache);
       return;
     }
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       final result = await ChatApiService.getInsights();
-      _cache = result;
-      _cacheTime = DateTime.now();
+      final headlineParts = result['headline_parts'] as List?;
+      final hasHeadline = headlineParts != null && headlineParts.isNotEmpty;
+      if (result['error'] == null && hasHeadline) {
+        _cache = result;
+        _cacheTime = DateTime.now();
+      }
       if (mounted) setState(() => _data = result);
     } catch (_) {
-      // Silent — this is a supplementary snippet, not worth an error banner
-      // on the home screen if the fetch fails.
+      // Silent — supplementary snippet, keep previous state or clear on force
+      if (force && mounted) setState(() => _data = null);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
