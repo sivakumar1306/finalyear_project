@@ -1545,7 +1545,8 @@ class BleProvider extends ChangeNotifier {
           .maybeSingle();
       if (data != null) {
         _todaySteps = (data['steps'] as num? ?? 0).toInt();
-        _todayCalories = (data['calories'] as num? ?? 0).toInt();
+        final rawCal = (data['calories'] as num? ?? 0).toInt();
+        _todayCalories = (rawCal >= 500 && _todaySteps < 4000) ? rawCal ~/ 1000 : rawCal;
         _todayDistanceM = (data['distance_m'] as num? ?? 0).toDouble();
         notifyListeners();
       }
