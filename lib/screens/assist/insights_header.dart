@@ -21,6 +21,11 @@ class InsightsHeaderState extends State<InsightsHeader>
   static DateTime? _cacheTime;
   static const _cacheTtl = Duration(minutes: 5);
 
+  static bool get hasData {
+    final daysUsed = (_cache?['days_used'] as num?)?.toInt();
+    return daysUsed != null && daysUsed > 0;
+  }
+
   Future<Map<String, dynamic>>? _insightsFuture;
   Map<String, dynamic>? _cachedData;
 
