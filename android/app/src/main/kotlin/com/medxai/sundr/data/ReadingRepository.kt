@@ -638,6 +638,18 @@ class ReadingRepository private constructor(context: Context) {
     private fun dateStrOf(dayStartMs: Long): String =
         Instant.ofEpochMilli(dayStartMs).atZone(zone).toLocalDate().format(dateFmt)
 
+    suspend fun clearMockData() = withContext(Dispatchers.IO) {
+        val wdb = db.openHelper.writableDatabase
+        wdb.execSQL("DELETE FROM reading_heart_rate WHERE source = 'demo_seed'")
+        wdb.execSQL("DELETE FROM reading_spo2 WHERE source = 'demo_seed'")
+        wdb.execSQL("DELETE FROM reading_hrv WHERE source = 'demo_seed'")
+        wdb.execSQL("DELETE FROM reading_stress WHERE source = 'demo_seed'")
+        wdb.execSQL("DELETE FROM reading_blood_pressure WHERE source = 'demo_seed'")
+        wdb.execSQL("DELETE FROM reading_temperature WHERE source = 'demo_seed'")
+        wdb.execSQL("DELETE FROM reading_steps_snapshot WHERE source = 'demo_seed'")
+        wdb.execSQL("DELETE FROM daily_vital_summary")
+    }
+
     companion object {
         private const val TAG = "ReadingRepository"
         const val DAY_MS = 24L * 60L * 60L * 1000L

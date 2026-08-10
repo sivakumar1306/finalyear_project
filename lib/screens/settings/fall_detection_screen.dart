@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -207,6 +208,53 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   }
 
   Future<void> _ignoreWarning() async {
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppTheme.card2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Why are you ignoring this?',
+                style: AppTypography.inter(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _ActionRow(
+                icon: Icons.check_circle_outline,
+                label: 'I\'m okay (False Alarm)',
+                onTap: () => Navigator.pop(context, 'false_alarm'),
+              ),
+              const SizedBox(height: 8),
+              _ActionRow(
+                icon: Icons.sports_martial_arts,
+                label: 'I was just exercising',
+                onTap: () => Navigator.pop(context, 'exercising'),
+              ),
+              const SizedBox(height: 8),
+              _ActionRow(
+                icon: Icons.cancel_outlined,
+                label: 'Cancel',
+                onTap: () => Navigator.pop(context, null),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (reason == null) return;
+
     setState(() => _ignoredForTier = _FallTier.high);
     await context.read<BleProvider>().cancelEmergencySms();
   }
@@ -327,10 +375,71 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     await prefs.setString(_kInstructionsPrefKey, _instructions);
   }
 
+  Future<void> _onAutoCallToggle(bool enabled) async {
+    final ble = context.read<BleProvider>();
+    if (enabled) {
+      final status = await Permission.phone.request();
+      if (!status.isGranted) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Phone permission is required to auto-call your emergency contact',
+            ),
+          ),
+        );
+        await ble.setAutoCallOnFallEnabled(false);
+        return;
+      }
+    }
+    await ble.setAutoCallOnFallEnabled(enabled);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          enabled
+              ? 'Auto-call on fall detection enabled'
+              : 'Auto-call on fall detection disabled',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onAutoCallPredictionToggle(bool enabled) async {
+    final ble = context.read<BleProvider>();
+    if (enabled) {
+      final status = await Permission.phone.request();
+      if (!status.isGranted) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Phone permission is required to auto-call your emergency contact',
+            ),
+          ),
+        );
+        await ble.setAutoCallOnFallPredictionEnabled(false);
+        return;
+      }
+    }
+    await ble.setAutoCallOnFallPredictionEnabled(enabled);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          enabled
+              ? 'Auto-call on fall prediction enabled'
+              : 'Auto-call on fall prediction disabled',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
-    final realScore = (_realRisk?['score'] as num?)?.toInt() ?? 0;
+    final fallProvider = context.watch<FallPredictionProvider>();
+    final realScore = fallProvider.currentResult?.frs24.value.toInt() ?? 0;
     final tier = _debugTier ?? _tierFromScore(realScore);
     final isDemo = _debugTier != null && _debugTier != _FallTier.low;
 
@@ -346,7 +455,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
         backgroundColor: AppTheme.bg,
         leading: const GlassBackButton(),
         title: Text(
-          'Fall Prediction',
+          'Fall Detection',
           style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
@@ -362,22 +471,35 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
             onSelected: (value) {
               switch (value) {
                 case 'high':
+                  context.read<FallPredictionProvider>().simulateTier('high');
                   setState(() {
                     _debugTier = _FallTier.high;
                     _ignoredForTier = null;
                   });
                   break;
                 case 'medium':
+                  context.read<FallPredictionProvider>().simulateTier('medium');
                   setState(() {
                     _debugTier = _FallTier.medium;
                     _ignoredForTier = null;
                   });
                   break;
                 case 'clear':
+                  context.read<FallPredictionProvider>().simulateTier('clear');
                   setState(() {
                     _debugTier = null;
                     _ignoredForTier = null;
                   });
+                  break;
+                case 'clear_mock_data':
+                  context.read<BleProvider>().clearMockVitals();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Mock data cleared! Restart the app to refresh all UI.',
+                      ),
+                    ),
+                  );
                   break;
                 case 'notify':
                   context.read<BleProvider>().simulateFallEvent();
@@ -496,32 +618,66 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
               ),
             const SizedBox(height: 20),
           ],
-          const _SectionLabel('FALL RISK SCORE (LIVE)'),
-          const SizedBox(height: 8),
-          const FallRiskScoreCard(),
-          const SizedBox(height: 16),
-          const ExplainableAIDashboard(),
-          const SizedBox(height: 16),
-          if (tier == _FallTier.high)
-            IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: _HeartRateCard(hr: hr, compact: true)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _TemperatureCard(temp: temp)),
-                ],
-              ),
-            )
-          else
-            _HeartRateCard(hr: hr, compact: false),
-          const SizedBox(height: 16),
           _ActionRow(
             icon: Icons.directions_run_rounded,
             label: 'View Fall history',
             onTap: _openFallHistory,
           ),
+          const SizedBox(height: 12),
+          _ToggleRow(
+            icon: Icons.phone_in_talk_rounded,
+            title: 'Auto-call on fall detection',
+            value: ble.autoCallOnFallEnabled,
+            onChanged: _onAutoCallToggle,
+          ),
+          const SizedBox(height: 12),
+          _ToggleRow(
+            icon: Icons.phone_in_talk_rounded,
+            title: 'Auto call on fall prediction',
+            subtitle:
+                'Call emergency contact when fall risk score hits 9.0 or higher',
+            value: ble.autoCallOnFallPredictionEnabled,
+            onChanged: _onAutoCallPredictionToggle,
+          ),
           const SizedBox(height: 20),
+          if (ble.isConnected) ...[
+            const _SectionLabel('FALL RISK SCORE (LIVE)'),
+            const SizedBox(height: 8),
+            const FallRiskScoreCard(),
+            const SizedBox(height: 16),
+            const ExplainableAIDashboard(),
+            const SizedBox(height: 20),
+          ] else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    color: Colors.amber,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'connect ring to enable fall detection',
+                      style: AppTypography.inter(
+                        color: Colors.amber,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
           const _SectionLabel('EMERGENCY DETAILS'),
           const SizedBox(height: 8),
           if (_loadingContacts)
@@ -679,20 +835,6 @@ class _HeroCard extends StatelessWidget {
                   letterSpacing: 1.0,
                 ),
               ),
-              const Spacer(),
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.chevron_right_rounded,
-                  color: Colors.white,
-                  size: 18,
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -755,7 +897,6 @@ class _HeroCard extends StatelessWidget {
     );
   }
 }
-
 
 class _HeartRateCard extends StatelessWidget {
   final int hr;
@@ -1060,7 +1201,10 @@ class _EditableRow extends StatelessWidget {
               child: Text(
                 value,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
+                style: AppTypography.inter(
+                  color: AppTheme.textSec,
+                  fontSize: 13,
+                ),
               ),
             ),
           ],
@@ -1273,10 +1417,14 @@ class _FallHistorySheet extends StatelessWidget {
                           Icon(
                             isPrediction
                                 ? Icons.trending_up_rounded
-                                : (corroborated ? Icons.warning_amber_rounded : Icons.help_outline_rounded),
+                                : (corroborated
+                                      ? Icons.warning_amber_rounded
+                                      : Icons.help_outline_rounded),
                             color: isPrediction
                                 ? AppTheme.tempColor
-                                : (corroborated ? AppTheme.hrColor : AppTheme.textSec),
+                                : (corroborated
+                                      ? AppTheme.hrColor
+                                      : AppTheme.textSec),
                             size: 20,
                           ),
                           const SizedBox(width: 12),
@@ -1301,7 +1449,9 @@ class _FallHistorySheet extends StatelessWidget {
                                 Text(
                                   isPrediction
                                       ? 'Predicted fall risk'
-                                      : (corroborated ? 'Confirmed by $source' : 'Not confirmed'),
+                                      : (corroborated
+                                            ? 'Confirmed by $source'
+                                            : 'Not confirmed'),
                                   style: AppTypography.inter(
                                     color: AppTheme.textSec,
                                     fontSize: 11,
@@ -1324,6 +1474,81 @@ class _FallHistorySheet extends StatelessWidget {
                   },
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ToggleRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _ToggleRow({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.div),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AppTheme.card2,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: const Color(0xFFAAAAAA), size: 17),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: AppTypography.inter(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: AppTypography.inter(
+                        color: AppTheme.textSec,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Transform.scale(
+              scale: 0.85,
+              child: Switch(value: value, onChanged: onChanged),
+            ),
           ],
         ),
       ),

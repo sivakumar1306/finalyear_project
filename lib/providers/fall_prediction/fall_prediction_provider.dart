@@ -7,6 +7,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import '../../models/fall_prediction/layer_inputs.dart';
 import '../../models/fall_prediction/context_factors.dart';
 import '../../models/fall_prediction/prediction_result.dart';
+import '../../models/fall_prediction/engine_outputs.dart';
 import '../../services/fall_prediction/fall_prediction_engine.dart';
 import '../../services/fall_prediction/layer2_recovery.dart';
 import '../../services/fall_prediction/layer1_physiology.dart' show BpSource;
@@ -23,7 +24,10 @@ class _RealEscalationService extends EscalationService {
   _RealEscalationService({this.onAlert});
 
   @override
-  void triggerAlert({required EscalationLadder ladder, required String reason}) {
+  void triggerAlert({
+    required EscalationLadder ladder,
+    required String reason,
+  }) {
     onAlert?.call(reason);
   }
 }
@@ -96,8 +100,10 @@ class FallPredictionProvider extends ChangeNotifier {
       corroborationService: _MockCorroborationService(),
     );
     _fetchHealthData();
-    _healthSyncTimer =
-        Timer.periodic(const Duration(minutes: 5), (_) => _fetchHealthData());
+    _healthSyncTimer = Timer.periodic(
+      const Duration(minutes: 5),
+      (_) => _fetchHealthData(),
+    );
   }
 
   void acquireSensors() {
@@ -128,7 +134,7 @@ class FallPredictionProvider extends ChangeNotifier {
     final today = await healthService.fetchToday(types);
 
     final historicalBaselines = await healthService.fetchHistoricalBaselines();
-    
+
     _pData = Layer1PhysiologyData(
       hr: today.avgHeartRate,
       hrv: today.avgHrv,
@@ -138,15 +144,19 @@ class FallPredictionProvider extends ChangeNotifier {
       sys: today.bpSystolic?.toDouble(),
       dia: today.bpDiastolic?.toDouble(),
       baselines: Layer1Baselines(
-        rolling14DayMedianHR: historicalBaselines['rolling14DayMedianHR'] ?? 65.0,
+        rolling14DayMedianHR:
+            historicalBaselines['rolling14DayMedianHR'] ?? 65.0,
         rolling28DayMeanHRV: historicalBaselines['rolling28DayMeanHRV'] ?? 45.0,
-        rolling28DayStdDevHRV: historicalBaselines['rolling28DayStdDevHRV'] ?? 8.0,
-        baselineAdjustedTemp: historicalBaselines['baselineAdjustedTemp'] ?? 36.5,
+        rolling28DayStdDevHRV:
+            historicalBaselines['rolling28DayStdDevHRV'] ?? 8.0,
+        baselineAdjustedTemp:
+            historicalBaselines['baselineAdjustedTemp'] ?? 36.5,
       ),
     );
 
     if (today.hasMenstruationData && today.daysSinceLastPeriod != null) {
-      bool isPMS = today.daysSinceLastPeriod! >= 21 && today.daysSinceLastPeriod! <= 28;
+      bool isPMS =
+          today.daysSinceLastPeriod! >= 21 && today.daysSinceLastPeriod! <= 28;
       CycleState state = CycleState.active;
       _wData = Layer4WomensHealthData(
         isApplicable: true,
@@ -187,12 +197,15 @@ class FallPredictionProvider extends ChangeNotifier {
 
     double? stressScore;
     if (today.avgHrv != null) {
-      stressScore = (100.0 - (today.avgHrv! / 60.0 * 100.0).clamp(0.0, 100.0)).clamp(0.0, 100.0);
+      stressScore = (100.0 - (today.avgHrv! / 60.0 * 100.0).clamp(0.0, 100.0))
+          .clamp(0.0, 100.0);
     }
 
     ActivityRecovery? actRecovery;
     if (activityScore != null) {
-      final activitySplit = ActivityDataTransformer.splitRawActivity(activityScore);
+      final activitySplit = ActivityDataTransformer.splitRawActivity(
+        activityScore,
+      );
       _lastActExp = activitySplit.$2;
       actRecovery = activitySplit.$1;
     }
@@ -210,10 +223,12 @@ class FallPredictionProvider extends ChangeNotifier {
 
   void _startSensorListeners() {
     _accelSubscription?.cancel();
-    _accelSubscription =
-        userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
-      final magnitude =
-          sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+    _accelSubscription = userAccelerometerEventStream().listen((
+      UserAccelerometerEvent event,
+    ) {
+      final magnitude = sqrt(
+        event.x * event.x + event.y * event.y + event.z * event.z,
+      );
       _lastMagnitude = magnitude;
       if (magnitude > 15.0) {
         _debounceRecalculate();
@@ -233,11 +248,13 @@ class FallPredictionProvider extends ChangeNotifier {
     List<FallEvent> trailingFalls = [];
     if (userId != null) {
       final now = DateTime.now();
-      if (_cachedTrailingFalls == null || 
-          _lastFallsFetch == null || 
+      if (_cachedTrailingFalls == null ||
+          _lastFallsFetch == null ||
           now.difference(_lastFallsFetch!).inHours >= 24) {
         final layer3Svc = Layer3MotionService(SupabaseService.client);
-        _cachedTrailingFalls = await layer3Svc.fetchTrailing12MonthFalls(userId);
+        _cachedTrailingFalls = await layer3Svc.fetchTrailing12MonthFalls(
+          userId,
+        );
         _lastFallsFetch = now;
       }
       trailingFalls = _cachedTrailingFalls!;
@@ -270,13 +287,58 @@ class FallPredictionProvider extends ChangeNotifier {
         hsi: v2Result.hsiAdj,
         frs24: v2Result.frs24,
         frs30: v2Result.frs30,
-        riskLevel: RiskClassification.low, // Deprecated in UI, UI uses frs24.value.riskBand
+        riskLevel: RiskClassification
+            .low, // Deprecated in UI, UI uses frs24.value.riskBand
         tau: v2Result.predictionHorizon,
         q: v2Result.coverageScore,
         explainability: v2Result.explainability,
       );
       notifyListeners();
     }
+  }
+
+  void simulateTier(String tier) {
+    if (tier == 'clear') {
+      _recalculate();
+      return;
+    }
+
+    double score = 10.0;
+    if (tier == 'high') {
+      score = 75.0;
+      _bleProvider?.simulateFallPrediction();
+    }
+    if (tier == 'medium') {
+      score = 45.0;
+    }
+
+    _currentResult = PredictionResult(
+      hsiBase: HsiBase(80.0),
+      hsi: HsiAdj(70.0),
+      frs24: Frs24(score),
+      frs30: Frs30(score - 5.0),
+      riskLevel: tier == 'high'
+          ? RiskClassification.high
+          : RiskClassification.moderate,
+      tau: PredictionHorizon(const Duration(hours: 24)),
+      q: CoverageScore(95.0),
+      explainability: ExplainabilityPayload(
+        hsiBase: 80,
+        hsiBaseline: 85,
+        hsiAdj: 70,
+        attributionDeltas: AttributionDeltas(
+          contextShiftDelta: -5,
+          physiologicalDelta: -10,
+        ),
+        frs24Score: score.toInt(),
+        frs24Band: score >= 60.0 ? FrsRiskBand.high : FrsRiskBand.moderate,
+        topContributors: ['Heart Rate Variability', 'Activity Exposure'],
+        coverageScoreQ: 95.0,
+        coverageDetails: ['Good coverage'],
+        recommendationAction: 'Take a rest',
+      ),
+    );
+    notifyListeners();
   }
 
   @override
@@ -288,4 +350,3 @@ class FallPredictionProvider extends ChangeNotifier {
     super.dispose();
   }
 }
-

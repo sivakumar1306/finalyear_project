@@ -18,7 +18,9 @@ class BleService {
     try {
       return await _methodChannel.invokeMethod<T>(method, arguments);
     } on PlatformException catch (e) {
-      debugPrint('[BleService] $method PlatformException: ${e.code} ${e.message}');
+      debugPrint(
+        '[BleService] $method PlatformException: ${e.code} ${e.message}',
+      );
       rethrow;
     } on MissingPluginException catch (e) {
       debugPrint('[BleService] $method MissingPluginException: $e');
@@ -41,9 +43,7 @@ class BleService {
 
   // ── Connection ─────────────────────────────────────────────────────
   Future<bool> connect(String address) async {
-    final result = await _invoke<bool>('connect', {
-      'address': address,
-    });
+    final result = await _invoke<bool>('connect', {'address': address});
     return result ?? false;
   }
 
@@ -57,7 +57,9 @@ class BleService {
   /// Last native crash/SDK failure recorded before a process death (or soft fail).
   Future<Map<String, dynamic>?> getLastNativeCrash() async {
     try {
-      final result = await _methodChannel.invokeMethod<dynamic>('getLastNativeCrash');
+      final result = await _methodChannel.invokeMethod<dynamic>(
+        'getLastNativeCrash',
+      );
       if (result is Map) {
         return Map<String, dynamic>.from(result);
       }
@@ -102,11 +104,10 @@ class BleService {
     required int calories,
     required double distanceM,
   }) async {
-    final result = await _methodChannel.invokeMethod<bool>('saveStepsSnapshot', {
-      'steps': steps,
-      'calories': calories,
-      'distanceM': distanceM,
-    });
+    final result = await _methodChannel.invokeMethod<bool>(
+      'saveStepsSnapshot',
+      {'steps': steps, 'calories': calories, 'distanceM': distanceM},
+    );
     return result ?? false;
   }
 
@@ -505,6 +506,7 @@ class BleService {
       return false;
     }
   }
+
   Future<String> getDrinkReminder() async =>
       await _methodChannel.invokeMethod<String>('getDrinkReminder') ?? '{}';
 
@@ -736,6 +738,9 @@ class BleService {
 
   /// Dev/testing only — posts a real NewReadingEvent so FallRiskAnalyzer's compute-and-log
   /// pipeline can be verified without a real ring connected (seedDemoData bypasses this path).
+  Future<bool> clearMockVitals() async =>
+      await _methodChannel.invokeMethod<bool>('clearMockVitals') ?? false;
+
   Future<bool> simulateFallRiskTrigger() async =>
       await _methodChannel.invokeMethod<bool>('simulateFallRiskTrigger') ??
       false;

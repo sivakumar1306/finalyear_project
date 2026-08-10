@@ -61,8 +61,12 @@ class FallRiskScoreCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  '24-Hour Risk (FRS-24)',
-                  style: AppTypography.inter(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                  'Fall Risk Score',
+                  style: AppTypography.inter(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -76,11 +80,17 @@ class FallRiskScoreCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   '30-Day Trend (FRS-30): ${result.frs30.value.toStringAsFixed(1)}',
-                  style: AppTypography.inter(color: AppTheme.textSec, fontSize: 14),
+                  style: AppTypography.inter(
+                    color: AppTheme.textSec,
+                    fontSize: 14,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: riskColor.withAlpha(25),
                     borderRadius: BorderRadius.circular(20),
@@ -99,7 +109,10 @@ class FallRiskScoreCard extends StatelessWidget {
                 const SizedBox(height: 16),
                 Text(
                   'Data Confidence: ${result.q.q.toStringAsFixed(0)}%',
-                  style: AppTypography.inter(color: AppTheme.textSec, fontSize: 14),
+                  style: AppTypography.inter(
+                    color: AppTheme.textSec,
+                    fontSize: 14,
+                  ),
                 ),
                 if (result.q.q < 70.0) ...[
                   const SizedBox(height: 12),
@@ -113,12 +126,19 @@ class FallRiskScoreCard extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 20),
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.amber,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Data confidence is low. Fall Risk Score may be inaccurate. Please ensure your wearables (Ring/Insole) are connected and synced.',
-                            style: AppTypography.inter(color: Colors.amber, fontSize: 12),
+                            style: AppTypography.inter(
+                              color: Colors.amber,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ],

@@ -212,8 +212,11 @@ class BleProvider extends ChangeNotifier {
   /// When true, a corroborated fall *detection* immediately calls the first emergency contact.
   bool _autoCallOnFallEnabled = false;
   bool _autoCallOnFallHasPermission = false;
+  bool _autoCallOnFallPredictionEnabled = false;
+
   bool get autoCallOnFallEnabled => _autoCallOnFallEnabled;
   bool get autoCallOnFallHasPermission => _autoCallOnFallHasPermission;
+  bool get autoCallOnFallPredictionEnabled => _autoCallOnFallPredictionEnabled;
 
   // ── Manual update methods (called by individual screens) ──────────────────
 
@@ -644,6 +647,8 @@ class BleProvider extends ChangeNotifier {
 
   /// Dev/testing only — posts a real vital reading through the exact same event path a
   /// genuine ring reading takes, so FallRiskAnalyzer can be verified end-to-end.
+  Future<void> clearMockVitals() => _ble.clearMockVitals();
+
   Future<void> simulateFallRiskTrigger() => _ble.simulateFallRiskTrigger();
 
   /// Client-demo only — see FallPredictionNotifier.kt / BlePlugin.simulateFallPrediction.
@@ -788,6 +793,9 @@ class BleProvider extends ChangeNotifier {
       if (decoded is! Map) return;
       _autoCallOnFallEnabled = decoded['enabled'] == true;
       _autoCallOnFallHasPermission = decoded['hasPermission'] == true;
+      final prefs = await SharedPreferences.getInstance();
+      _autoCallOnFallPredictionEnabled =
+          prefs.getBool('autoCallOnFallPrediction') ?? false;
       notifyListeners();
     } catch (e) {
       debugPrint('[FallDetection] load auto-call setting failed: $e');
@@ -809,6 +817,13 @@ class BleProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('[FallDetection] set auto-call setting failed: $e');
     }
+  }
+
+  Future<void> setAutoCallOnFallPredictionEnabled(bool enabled) async {
+    _autoCallOnFallPredictionEnabled = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('autoCallOnFallPrediction', enabled);
+    notifyListeners();
   }
 
   /// Emergency contacts — persisted natively (Room), not Flutter widget state.
@@ -1546,7 +1561,9 @@ class BleProvider extends ChangeNotifier {
       if (data != null) {
         _todaySteps = (data['steps'] as num? ?? 0).toInt();
         final rawCal = (data['calories'] as num? ?? 0).toInt();
-        _todayCalories = (rawCal >= 500 && _todaySteps < 4000) ? rawCal ~/ 1000 : rawCal;
+        _todayCalories = (rawCal >= 500 && _todaySteps < 4000)
+            ? rawCal ~/ 1000
+            : rawCal;
         _todayDistanceM = (data['distance_m'] as num? ?? 0).toDouble();
         notifyListeners();
       }
