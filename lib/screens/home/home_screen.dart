@@ -197,7 +197,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   bool get _isFemale {
     final g = _gender.trim().toLowerCase();
-    return g == 'female' || g == 'f';
+    if (g.isEmpty) return true;
+    return g != 'male' && g != 'm';
   }
 
   Future<void> _loadUserProfile() async {
