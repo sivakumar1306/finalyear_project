@@ -128,9 +128,9 @@ class SupabaseService {
       'gender': gender,
       'height_cm': heightCm,
       'weight_kg': weightKg,
-      if (address != null) 'address': address,
-      if (phone != null) 'phone': phone,
-      if (additionalInstructions != null) 'additional_instructions': additionalInstructions,
+      '?address': address,
+      '?phone': phone,
+      '?additional_instructions': additionalInstructions,
     });
   }
 

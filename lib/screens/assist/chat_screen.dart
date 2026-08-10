@@ -16,6 +16,8 @@ import 'blood_oxygen_chat_card.dart';
 import 'hrv_chat_card.dart';
 import 'blood_pressure_chat_card.dart';
 import 'steps_chat_card.dart';
+import 'temperature_chat_card.dart';
+import 'stress_chat_card.dart';
 import '../../widgets/app_typography.dart';
 
 // Persist the active conversation id per-user so the thread survives an
@@ -677,6 +679,16 @@ class _ChatScreenState extends State<ChatScreen> {
         return StepsChatCard(
           data: data,
           onTap: () => Navigator.pushNamed(context, '/steps'),
+        );
+      case 'temperature_trend':
+        return TemperatureChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/temperature'),
+        );
+      case 'stress_trend':
+        return StressChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/pressure'),
         );
       default:
         return null;
