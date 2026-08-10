@@ -928,18 +928,24 @@ class BleProvider extends ChangeNotifier {
     _beginNotifyBatch();
     try {
       await Future.wait([
-        _refreshHrFromLocal()
-            .then((ok) => ok ? null : _loadTodayHrFromSupabase()),
-        _refreshSpo2FromLocal()
-            .then((ok) => ok ? null : _loadTodaySpo2FromSupabase()),
-        _refreshStressFromLocal()
-            .then((ok) => ok ? null : _loadLatestStressFromSupabase()),
-        _refreshBpFromLocal()
-            .then((ok) => ok ? null : _loadLatestBpFromSupabase()),
-        _refreshStepsFromLocal()
-            .then((ok) => ok ? null : _loadTodayFromSupabase()),
-        _refreshTempFromLocal()
-            .then((ok) => ok ? null : _loadLatestTempFromSupabase()),
+        _refreshHrFromLocal().then(
+          (ok) => ok ? null : _loadTodayHrFromSupabase(),
+        ),
+        _refreshSpo2FromLocal().then(
+          (ok) => ok ? null : _loadTodaySpo2FromSupabase(),
+        ),
+        _refreshStressFromLocal().then(
+          (ok) => ok ? null : _loadLatestStressFromSupabase(),
+        ),
+        _refreshBpFromLocal().then(
+          (ok) => ok ? null : _loadLatestBpFromSupabase(),
+        ),
+        _refreshStepsFromLocal().then(
+          (ok) => ok ? null : _loadTodayFromSupabase(),
+        ),
+        _refreshTempFromLocal().then(
+          (ok) => ok ? null : _loadLatestTempFromSupabase(),
+        ),
       ]);
     } finally {
       _endNotifyBatch();
@@ -1539,7 +1545,8 @@ class BleProvider extends ChangeNotifier {
           .maybeSingle();
       if (data != null) {
         _todaySteps = (data['steps'] as num? ?? 0).toInt();
-        _todayCalories = (data['calories'] as num? ?? 0).toInt();
+        final rawCal = (data['calories'] as num? ?? 0).toInt();
+        _todayCalories = (rawCal >= 500 && _todaySteps < 4000) ? rawCal ~/ 1000 : rawCal;
         _todayDistanceM = (data['distance_m'] as num? ?? 0).toDouble();
         notifyListeners();
       }

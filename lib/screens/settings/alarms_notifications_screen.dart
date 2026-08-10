@@ -35,8 +35,6 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
   TimeOfDay? _sleepReminderTime;
   TimeOfDay _prayerEnd = PrayerSchedulePrefs.defaultEnd;
 
-  static const _socialApps = ['Whatsapp'];
-
   @override
   void initState() {
     super.initState();
@@ -289,19 +287,6 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                     title: 'SMS',
                     trailing: _switch(_sms, (v) => setState(() => _sms = v)),
                   ),
-                  for (final app in _socialApps) ...[
-                    _divider(),
-                    _AlarmRow(
-                      title: app,
-                      trailing: Text(
-                        'set up',
-                        style: AppTypography.inter(
-                          color: AppTheme.textSec,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),

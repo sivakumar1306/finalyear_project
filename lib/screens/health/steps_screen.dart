@@ -232,9 +232,9 @@ class _StepsScreenState extends State<StepsScreen> {
       if (list.isEmpty) return null;
 
       final stepSlots = List<int>.filled(96, 0);
-      final calSlots = List<int>.filled(96, 0);
+      final calSlotsRaw = List<int>.filled(96, 0);
       final distSlots = List<double>.filled(96, 0.0);
-      int totalSteps = 0, totalCal = 0;
+      int totalSteps = 0, totalCalRaw = 0;
       double totalDist = 0.0;
 
       for (final item in list) {
@@ -252,21 +252,23 @@ class _StepsScreenState extends State<StepsScreen> {
         final stepTotal = steps + runSteps;
         final calRaw =
             (m['e'] as num?)?.toInt() ?? (m['calorie'] as num?)?.toInt() ?? 0;
-        final cal = calRaw >= 1000 ? calRaw ~/ 1000 : calRaw;
         final dist =
             (m['g'] as num?)?.toDouble() ??
             (m['distance'] as num?)?.toDouble() ??
             0.0;
 
         totalSteps += stepTotal;
-        totalCal += cal;
+        totalCalRaw += calRaw;
         totalDist += dist;
         if (slot >= 0 && slot < 96) {
           stepSlots[slot] += stepTotal;
-          calSlots[slot] += cal;
+          calSlotsRaw[slot] += calRaw;
           distSlots[slot] += dist;
         }
       }
+
+      final totalCal = totalCalRaw >= 1000 ? totalCalRaw ~/ 1000 : (totalCalRaw > 0 ? 1 : 0);
+      final calSlots = calSlotsRaw.map((c) => c >= 1000 ? c ~/ 1000 : (c > 0 ? 1 : 0)).toList();
 
       if (totalSteps <= 0 && totalCal <= 0 && totalDist <= 0) return null;
       return _DaySnapshot(
@@ -340,9 +342,13 @@ class _StepsScreenState extends State<StepsScreen> {
     );
     if (rows.isEmpty) return _DaySnapshot.empty();
     final row = rows.first;
+    final stepsCount = (row['steps'] as num? ?? 0).toInt();
+    final rawCal = (row['calories'] as num? ?? 0).toInt();
+    // Normalize if historical row stored un-converted small calories (e.g. 2142 for 547 steps)
+    final cal = (rawCal >= 500 && stepsCount < 4000) ? rawCal ~/ 1000 : rawCal;
     return _DaySnapshot(
-      steps: (row['steps'] as num? ?? 0).toInt(),
-      cal: (row['calories'] as num? ?? 0).toInt(),
+      steps: stepsCount,
+      cal: cal,
       distM: (row['distance_m'] as num? ?? 0.0).toDouble(),
       stepSlots: List.filled(96, 0),
       calSlots: List.filled(96, 0),
