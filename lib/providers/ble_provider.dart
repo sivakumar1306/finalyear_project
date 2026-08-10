@@ -928,18 +928,24 @@ class BleProvider extends ChangeNotifier {
     _beginNotifyBatch();
     try {
       await Future.wait([
-        _refreshHrFromLocal()
-            .then((ok) => ok ? null : _loadTodayHrFromSupabase()),
-        _refreshSpo2FromLocal()
-            .then((ok) => ok ? null : _loadTodaySpo2FromSupabase()),
-        _refreshStressFromLocal()
-            .then((ok) => ok ? null : _loadLatestStressFromSupabase()),
-        _refreshBpFromLocal()
-            .then((ok) => ok ? null : _loadLatestBpFromSupabase()),
-        _refreshStepsFromLocal()
-            .then((ok) => ok ? null : _loadTodayFromSupabase()),
-        _refreshTempFromLocal()
-            .then((ok) => ok ? null : _loadLatestTempFromSupabase()),
+        _refreshHrFromLocal().then(
+          (ok) => ok ? null : _loadTodayHrFromSupabase(),
+        ),
+        _refreshSpo2FromLocal().then(
+          (ok) => ok ? null : _loadTodaySpo2FromSupabase(),
+        ),
+        _refreshStressFromLocal().then(
+          (ok) => ok ? null : _loadLatestStressFromSupabase(),
+        ),
+        _refreshBpFromLocal().then(
+          (ok) => ok ? null : _loadLatestBpFromSupabase(),
+        ),
+        _refreshStepsFromLocal().then(
+          (ok) => ok ? null : _loadTodayFromSupabase(),
+        ),
+        _refreshTempFromLocal().then(
+          (ok) => ok ? null : _loadLatestTempFromSupabase(),
+        ),
       ]);
     } finally {
       _endNotifyBatch();
