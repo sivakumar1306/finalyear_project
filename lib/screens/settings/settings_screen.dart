@@ -361,6 +361,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _SettingsRow.arrow(
                     icon: Icons.camera_alt_outlined,
                     title: 'Take picture',
+                    subtitle: ble.gestureEnabled
+                        ? null
+                        : 'Turn on Gesture Controls in settings to use your ring to take photos',
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -580,11 +583,13 @@ class _SettingsRow extends StatelessWidget {
   factory _SettingsRow.arrow({
     required IconData icon,
     required String title,
+    String? subtitle,
     VoidCallback? onTap,
   }) => _SettingsRow._(
     icon: icon,
     title: title,
     type: _RowType.arrow,
+    subtitle: subtitle,
     onTap: onTap,
   );
 

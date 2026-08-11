@@ -141,9 +141,14 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
       );
     } catch (e) {
       if (mounted) {
-        setState(
-          () => _error = e.toString().replaceAll('Exception: ', ''),
-        );
+        final errStr = e.toString();
+        final displayErr =
+            (errStr.contains('otp_expired') ||
+                errStr.contains('invalid') ||
+                errStr.contains('AuthApiException'))
+            ? 'Invalid or expired recovery code. Please try again.'
+            : errStr.replaceAll('Exception: ', '');
+        setState(() => _error = displayErr);
       }
     } finally {
       if (mounted) setState(() => _loading = false);
