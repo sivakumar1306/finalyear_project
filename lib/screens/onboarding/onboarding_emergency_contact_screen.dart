@@ -72,13 +72,13 @@ class _OnboardingEmergencyContactScreenState extends State<OnboardingEmergencyCo
               );
               final contactName = widget.data.emergencyContactName;
               final contactPhone = widget.data.emergencyContactPhone;
-              if (contactName != null && contactName.isNotEmpty && mounted) {
+              if (contactName != null && contactName.isNotEmpty && context.mounted) {
                 final ble = context.read<BleProvider>();
                 await ble.addEmergencyContact(contactName, contactPhone ?? '');
               }
             } catch (_) {}
           }
-          if (mounted) {
+          if (context.mounted) {
             for (int i = 0; i < 6; i++) {
               if (Navigator.canPop(context)) {
                 Navigator.pop(context);

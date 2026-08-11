@@ -86,16 +86,7 @@ class AttributionReportCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _buildStatBox(
-                          'HSI Base', 
-                          '${payload.hsiBase}', 
-                          'Baseline: ${payload.hsiBaseline}', 
-                          AppTheme.textSec,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildStatBox(
-                          'HSI Adjusted', 
+                          'Overall Health Score', 
                           '${payload.hsiAdj}', 
                           'Today\'s Score', 
                           AppTheme.gold,
@@ -122,68 +113,51 @@ class AttributionReportCard extends StatelessWidget {
                     _buildDeltaRow(
                       icon: Icons.swap_horiz_rounded,
                       color: AppTheme.textSec,
-                      text: '${payload.attributionDeltas.contextShiftDelta} points attributable to context shifts (e.g. environmental).',
+                      text: '${payload.attributionDeltas.contextShiftDelta} points due to daily routine or environment.',
                     ),
                     const SizedBox(height: 12),
                     _buildDeltaRow(
                       icon: Icons.trending_down_rounded,
                       color: AppTheme.danger,
-                      text: '${payload.attributionDeltas.physiologicalDelta} points attributable to genuine physiological/behavioral decline.',
+                      text: '${payload.attributionDeltas.physiologicalDelta} points due to real changes in your health or physical activity.',
                     ),
                     const SizedBox(height: 24),
                   ] else ...[
                     _buildDeltaRow(
                       icon: Icons.check_circle_outline_rounded,
                       color: AppTheme.success,
-                      text: 'Score is stable or improving. No significant negative physiological decline.',
+                      text: 'Your health is stable and improving.',
                     ),
                     const SizedBox(height: 24),
                   ],
                   
                   // Top Contributors
-                  const Text(
-                    'Top Contributors',
-                    style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: payload.topContributors.map((c) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppTheme.card2,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppTheme.div),
-                      ),
-                      child: Text(
-                        c,
-                        style: const TextStyle(color: AppTheme.textSec, fontSize: 12, fontWeight: FontWeight.w500),
-                      ),
-                    )).toList(),
-                  ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Coverage
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Data Coverage (Q)',
-                        style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        '${payload.coverageScoreQ.toStringAsFixed(0)}%',
-                        style: TextStyle(
-                          color: payload.coverageScoreQ > 80 ? AppTheme.success : (payload.coverageScoreQ > 50 ? AppTheme.focus : AppTheme.danger),
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+                  if (!(payload.topContributors.length == 1 && payload.topContributors.first == 'Stable metrics')) ...[
+                    const Text(
+                      'Top Contributors',
+                      style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: payload.topContributors.map((c) => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppTheme.card2,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppTheme.div),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
+                        child: Text(
+                          c,
+                          style: const TextStyle(color: AppTheme.textSec, fontSize: 12, fontWeight: FontWeight.w500),
+                        ),
+                      )).toList(),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                  
+                  // Coverage Details
                   ...payload.coverageDetails.map((detail) => Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
                     child: Row(

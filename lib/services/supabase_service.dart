@@ -128,8 +128,11 @@ class SupabaseService {
       'gender': gender,
       'height_cm': heightCm,
       'weight_kg': weightKg,
+      // ignore: use_null_aware_elements
       if (address != null) 'address': address,
+      // ignore: use_null_aware_elements
       if (phone != null) 'phone': phone,
+      // ignore: use_null_aware_elements
       if (additionalInstructions != null) 'additional_instructions': additionalInstructions,
     });
   }

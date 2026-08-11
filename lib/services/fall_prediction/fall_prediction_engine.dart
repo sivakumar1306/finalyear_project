@@ -375,13 +375,11 @@ class FallPredictionEngine {
     if (layer1Result.bpStalenessPenalty > 0) {
       coverageDetails.add('BP sourced from last hospital visit (older than 14 days)');
     }
-    if (!hasSmartInsole) {
-      coverageDetails.add('Smart Insole disconnected, relying on phone motion only');
-    }
-    if (pData.hrv == null) coverageDetails.add('Missing data: HRV');
-    if (rData.slq == null) coverageDetails.add('Missing data: Sleep Quality');
+
+    if (pData.hrv == null) coverageDetails.add('Wear your ring more often to track Heart Rate Variability (HRV).');
+    if (rData.slq == null) coverageDetails.add('Wear your ring to bed to track your sleep quality.');
     if (fhRate.isBelowAmbulationFloor) {
-      coverageDetails.add('Sedentary user (Ambulation < 168h/yr). Fall Risk prediction confidence reduced.');
+      coverageDetails.add('Low walking activity. We need more movement data to accurately predict fall risk.');
     }
     if (coverageDetails.isEmpty) {
       coverageDetails.add('All inputs current and corroborated');
@@ -398,7 +396,7 @@ class FallPredictionEngine {
     List<String> topContributors = sortedDeviations.where((e) => e.value > 2).take(2).map((e) => e.key).toList();
     if (topContributors.isEmpty) topContributors.add('Stable metrics');
 
-    String recommendationAction = 'Monitor vitals closely.';
+    String recommendationAction = 'Let\'s get your devices connected so we can give you better insights!';
     if (topContributors.any((c) => c.contains('Recovery'))) {
       recommendationAction = 'Prioritize sleep recovery today; avoid high-exertion activity until Recovery Score returns above personal baseline.';
     } else if (topContributors.any((c) => c.contains('Motion'))) {

@@ -45,6 +45,8 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   _FallTier? _debugTier;
   _FallTier? _ignoredForTier;
 
+  bool _simulateConnection = false;
+
   // Persisted natively (Room), not widget state — fetched on load, seeded with two
   // defaults the first time the table is empty.
   List<_EmergencyContact> _contacts = [];
@@ -52,10 +54,6 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
 
   String _address = _kDefaultAddress;
   String _instructions = '';
-
-  // Real score from the native FallRiskAnalyzer — null until it has logged at
-  // least one computation (i.e. a vital reading has actually been saved).
-  Map<String, dynamic>? _realRisk;
 
   FallPredictionProvider? _fallPrediction;
   bool _sensorsAcquired = false;
@@ -94,11 +92,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   }
 
   Future<void> _loadRealRisk() async {
-    final risk = await context.read<BleProvider>().getFallRiskScore();
-    if (!mounted) return;
-    setState(() {
-      _realRisk = risk;
-    });
+    await context.read<BleProvider>().getFallRiskScore();
   }
 
   Future<void> _loadContacts() async {
@@ -256,6 +250,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     if (reason == null) return;
 
     setState(() => _ignoredForTier = _FallTier.high);
+    if (!mounted) return;
     await context.read<BleProvider>().cancelEmergencySms();
   }
 
@@ -446,7 +441,6 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     final int hr = isDemo
         ? (tier == _FallTier.high ? 122 : 118)
         : ble.todayMaxHr;
-    final double temp = isDemo ? 36.0 : ble.latestTempC;
     final showAlert = tier != _FallTier.low && _ignoredForTier != tier;
 
     return Scaffold(
@@ -640,14 +634,40 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
             onChanged: _onAutoCallPredictionToggle,
           ),
           const SizedBox(height: 20),
-          if (ble.isConnected) ...[
+          if (ble.isConnected || _simulateConnection) ...[
+            if (_simulateConnection)
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.gold.withAlpha(25),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.gold.withAlpha(100)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.science, color: AppTheme.gold, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Simulation Mode: UI is shown as if ring is connected.',
+                        style: AppTypography.inter(color: AppTheme.gold, fontSize: 13),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _simulateConnection = false),
+                      child: const Icon(Icons.close, color: AppTheme.gold, size: 20),
+                    )
+                  ],
+                ),
+              ),
             const _SectionLabel('FALL RISK SCORE (LIVE)'),
             const SizedBox(height: 8),
             const FallRiskScoreCard(),
             const SizedBox(height: 16),
             const ExplainableAIDashboard(),
             const SizedBox(height: 20),
-          ] else ...[
+          ] else if (!ble.isConnected && !_simulateConnection) ...[
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -675,6 +695,12 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 12),
+            _ActionRow(
+              icon: Icons.visibility_outlined,
+              label: 'Simulate Connected UI',
+              onTap: () => setState(() => _simulateConnection = true),
             ),
             const SizedBox(height: 20),
           ],
@@ -898,159 +924,6 @@ class _HeroCard extends StatelessWidget {
   }
 }
 
-class _HeartRateCard extends StatelessWidget {
-  final int hr;
-  final bool compact;
-  const _HeartRateCard({required this.hr, required this.compact});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.div),
-      ),
-      // When shown beside Temperature, stretch to that card's height (IntrinsicHeight row).
-      // Extra vertical room goes into the sparkline so HR matches Temperature.
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Heart Rate',
-                style: AppTypography.inter(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => Navigator.pushNamed(context, '/heart-rate'),
-                child: Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (compact)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: CustomPaint(
-                  size: Size.infinite,
-                  painter: _SparklinePainter(color: AppTheme.hrColor),
-                ),
-              ),
-            )
-          else
-            SizedBox(
-              height: 46,
-              child: CustomPaint(
-                size: Size.infinite,
-                painter: _SparklinePainter(color: AppTheme.hrColor),
-              ),
-            ),
-          Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: '$hr ',
-                  style: AppTypography.inter(
-                    color: AppTheme.hrColor,
-                    fontSize: compact ? 26 : 34,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                TextSpan(
-                  text: 'bpm',
-                  style: AppTypography.inter(
-                    color: AppTheme.hrColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TemperatureCard extends StatelessWidget {
-  final double temp;
-  const _TemperatureCard({required this.temp});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.div),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Temperature',
-            style: AppTypography.inter(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 26),
-          Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: temp.toStringAsFixed(0),
-                  style: AppTypography.inter(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                TextSpan(
-                  text: ' °C',
-                  style: AppTypography.inter(
-                    color: Colors.white.withValues(alpha: 0.6),
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '-1 °C in the last 30 seconds',
-            style: AppTypography.inter(color: AppTheme.hrColor, fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ActionRow extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1261,38 +1134,6 @@ class _FormDialog extends StatelessWidget {
   }
 }
 
-class _SparklinePainter extends CustomPainter {
-  final Color color;
-  _SparklinePainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path();
-    final w = size.width;
-    final h = size.height;
-    final points = [0.6, 0.5, 0.55, 0.3, 0.45, 0.2, 0.4, 0.35, 0.5, 0.42];
-    for (var i = 0; i < points.length; i++) {
-      final x = w * i / (points.length - 1);
-      final y = h * points[i];
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SparklinePainter oldDelegate) =>
-      oldDelegate.color != color;
-}
 
 class _AlertContactSheet extends StatelessWidget {
   final _EmergencyContact contact;

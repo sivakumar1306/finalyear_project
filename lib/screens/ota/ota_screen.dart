@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
@@ -26,7 +25,6 @@ class _OtaScreenState extends State<OtaScreen> {
   Map<String, dynamic>? _selectedRelease;
 
   String? _selectedFilePath;
-  String? _selectedFileName;
   bool _isDownloading = false;
   bool _isUpdating = false;
 

@@ -135,11 +135,15 @@ class FallPredictionProvider extends ChangeNotifier {
 
     final historicalBaselines = await healthService.fetchHistoricalBaselines();
 
+    final bleHr = _bleProvider?.todayAvgHr;
+    final bleHrv = _bleProvider?.todayAvgHrv;
+    final bleSpo2 = _bleProvider?.todayAvgSpo2;
+    
     _pData = Layer1PhysiologyData(
-      hr: today.avgHeartRate,
-      hrv: today.avgHrv,
+      hr: today.avgHeartRate ?? (bleHr != null && bleHr > 0 ? bleHr.toDouble() : null),
+      hrv: today.avgHrv ?? (bleHrv != null && bleHrv > 0 ? bleHrv.toDouble() : null),
       bp: null, // We'll pass sys and dia directly
-      spo2: today.avgSpo2,
+      spo2: today.avgSpo2 ?? (bleSpo2 != null && bleSpo2 > 0 ? bleSpo2.toDouble() : null),
       temp: today.avgTemperatureC,
       sys: today.bpSystolic?.toDouble(),
       dia: today.bpDiastolic?.toDouble(),
@@ -177,27 +181,35 @@ class FallPredictionProvider extends ChangeNotifier {
       );
     }
 
+    final bleSleepSecs = _bleProvider?.todaySleepDuration;
+    final bleSleepDeepSecs = _bleProvider?.todaySleepDeepSecs;
+    final bleSteps = _bleProvider?.todaySteps;
+    
     double? sleepDurScore;
-    if (today.sleepMinutes != null) {
-      sleepDurScore = (today.sleepMinutes! / 480.0 * 100.0).clamp(0.0, 100.0);
+    final finalSleepMinutes = today.sleepMinutes ?? (bleSleepSecs != null && bleSleepSecs > 0 ? bleSleepSecs / 60.0 : null);
+    if (finalSleepMinutes != null) {
+      sleepDurScore = (finalSleepMinutes / 480.0 * 100.0).clamp(0.0, 100.0);
     }
 
     double? sleepQualScore = sleepDurScore;
-    if (today.deepMinutes != null &&
-        today.sleepMinutes != null &&
-        today.sleepMinutes! > 0) {
-      final deepPct = today.deepMinutes! / today.sleepMinutes!;
+    final finalDeepMinutes = today.deepMinutes ?? (bleSleepDeepSecs != null && bleSleepDeepSecs > 0 ? bleSleepDeepSecs / 60.0 : null);
+    if (finalDeepMinutes != null &&
+        finalSleepMinutes != null &&
+        finalSleepMinutes > 0) {
+      final deepPct = finalDeepMinutes / finalSleepMinutes;
       sleepQualScore = (deepPct / 0.2 * 100.0).clamp(0.0, 100.0);
     }
 
     double? activityScore;
-    if (today.steps != null) {
-      activityScore = (today.steps! / 10000.0 * 100.0).clamp(0.0, 100.0);
+    final finalSteps = today.steps ?? (bleSteps != null && bleSteps > 0 ? bleSteps : null);
+    if (finalSteps != null) {
+      activityScore = (finalSteps / 10000.0 * 100.0).clamp(0.0, 100.0);
     }
 
     double? stressScore;
-    if (today.avgHrv != null) {
-      stressScore = (100.0 - (today.avgHrv! / 60.0 * 100.0).clamp(0.0, 100.0))
+    final finalAvgHrv = today.avgHrv ?? (bleHrv != null && bleHrv > 0 ? bleHrv.toDouble() : null);
+    if (finalAvgHrv != null) {
+      stressScore = (100.0 - (finalAvgHrv / 60.0 * 100.0).clamp(0.0, 100.0))
           .clamp(0.0, 100.0);
     }
 
