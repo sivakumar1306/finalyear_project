@@ -61,70 +61,81 @@ class FallRiskScoreCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  '24-Hour Risk (FRS-24)',
-                  style: AppTypography.inter(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  result.frs24.value.toStringAsFixed(1),
+                  'Fall Risk Score',
                   style: AppTypography.inter(
-                    fontSize: 48,
-                    fontWeight: FontWeight.w300,
                     color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '30-Day Trend (FRS-30): ${result.frs30.value.toStringAsFixed(1)}',
-                  style: AppTypography.inter(color: AppTheme.textSec, fontSize: 14),
                 ),
                 const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: riskColor.withAlpha(25),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: riskColor.withAlpha(76)),
-                  ),
-                  child: Text(
-                    riskText,
+                if (result.q.q < 10.0)
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 20),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.card2,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.div),
+                    ),
+                    child: Text(
+                      'We don\'t have enough data to calculate your score today.',
+                      textAlign: TextAlign.center,
+                      style: AppTypography.inter(
+                        color: AppTheme.textSec,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  )
+                else ...[
+                  Text(
+                    result.frs24.value.toStringAsFixed(1),
                     style: AppTypography.inter(
-                      color: riskColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.0,
+                      fontSize: 48,
+                      fontWeight: FontWeight.w300,
+                      color: Colors.white,
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Data Confidence: ${result.q.q.toStringAsFixed(0)}%',
-                  style: AppTypography.inter(color: AppTheme.textSec, fontSize: 14),
-                ),
-                if (result.q.q < 70.0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '30-Day Trend: ${result.frs30.value.toStringAsFixed(1)}',
+                    style: AppTypography.inter(
+                      color: AppTheme.textSec,
+                      fontSize: 14,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withAlpha(25),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.amber),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Data confidence is low. Fall Risk Score may be inaccurate. Please ensure your wearables (Ring/Insole) are connected and synced.',
-                            style: AppTypography.inter(color: Colors.amber, fontSize: 12),
-                          ),
-                        ),
-                      ],
+                    decoration: BoxDecoration(
+                      color: riskColor.withAlpha(25),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: riskColor.withAlpha(76)),
+                    ),
+                    child: Text(
+                      riskText,
+                      style: AppTypography.inter(
+                        color: riskColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.0,
+                      ),
                     ),
                   ),
                 ],
+                const SizedBox(height: 16),
+                Text(
+                  'Data Confidence: ${result.q.q.toStringAsFixed(0)}%',
+                  style: AppTypography.inter(
+                    color: AppTheme.textSec,
+                    fontSize: 14,
+                  ),
+                ),
+
               ],
             ),
           ),

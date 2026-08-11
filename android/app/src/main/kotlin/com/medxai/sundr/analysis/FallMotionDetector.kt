@@ -10,6 +10,10 @@ import com.google.gson.Gson
 import com.medxai.sundr.data.FallEventEntity
 import com.medxai.sundr.data.ReadingRepository
 import kotlinx.coroutines.launch
+import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
+import com.medxai.sundr.events.RiskTierChangeEvent
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.sqrt
@@ -71,6 +75,7 @@ object FallMotionDetector : SensorEventListener {
     private var lastAnalysisMs = 0L
     private var lastEventMs = 0L
     private var active = false
+    private var sensorsActive = false
 
     private var sensorManager: SensorManager? = null
     private var repository: ReadingRepository? = null
@@ -80,29 +85,53 @@ object FallMotionDetector : SensorEventListener {
         if (active) return
         val appCtx = context.applicationContext
         appContext = appCtx
-        val sm = appCtx.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        sensorManager = sm
+        sensorManager = appCtx.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         repository = ReadingRepository.getInstance(appCtx)
-
-        val accelerometer = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        val gyroscope = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
-        if (accelerometer == null) return // nothing to detect with — degrade silently
-
         active = true
-        // Use 50Hz (20,000us) sampling with 5s (5,000,000us) batching latency to allow the CPU to sleep
-        val samplingPeriodUs = 20_000
-        val maxReportLatencyUs = 5_000_000
-        sm.registerListener(this, accelerometer, samplingPeriodUs, maxReportLatencyUs)
-        // Disable gyroscope to save battery. Calculations remain unchanged and will default to no-spike.
-        // gyroscope?.let { sm.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
+        EventBus.getDefault().register(this)
     }
 
     fun stop() {
         if (!active) return
         active = false
+        EventBus.getDefault().unregister(this)
+        stopSensors()
+        sensorManager = null
+        repository = null
+        appContext = null
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    fun onRiskTierChange(event: RiskTierChangeEvent) {
+        if (!active) return
+        if (event.tier == "HIGH" || event.tier == "CRITICAL" || event.tier == "OVERRIDE") {
+            startSensors()
+        } else {
+            stopSensors()
+        }
+    }
+
+    private fun startSensors() {
+        if (sensorsActive) return
+        val sm = sensorManager ?: return
+        val accelerometer = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return
+        val gyroscope = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+
+        sensorsActive = true
+        // Use 50Hz (20,000us) sampling with 5s (5,000,000us) batching latency to allow the CPU to sleep
+        val samplingPeriodUs = 20_000
+        val maxReportLatencyUs = 5_000_000
+        sm.registerListener(this, accelerometer, samplingPeriodUs, maxReportLatencyUs)
+        gyroscope?.let { sm.registerListener(this, it, samplingPeriodUs, maxReportLatencyUs) }
+    }
+
+    private fun stopSensors() {
+        if (!sensorsActive) return
+        sensorsActive = false
         sensorManager?.unregisterListener(this)
         writeIndex = 0
         filled = 0
+        hasGyro = false
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit

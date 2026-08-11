@@ -6,6 +6,7 @@ import com.medxai.sundr.data.FallEventEntity
 import com.medxai.sundr.data.FallRiskLogEntity
 import com.medxai.sundr.data.ReadingRepository
 import com.medxai.sundr.events.NewReadingEvent
+import com.medxai.sundr.events.RiskTierChangeEvent
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
@@ -58,6 +59,7 @@ object FallRiskAnalyzer {
                         computedAt = event.measuredAt,
                     )
                 )
+                EventBus.getDefault().post(RiskTierChangeEvent(result.tier))
                 maybeAlert(result, event.measuredAt, event.simulated)
             } catch (_: Exception) {
                 // Must never affect the rest of the vitals pipeline.
@@ -119,8 +121,15 @@ object FallRiskAnalyzer {
         val sedentary = recentSteps.size < 2 ||
             (recentSteps.maxOf { it.steps } - recentSteps.minOf { it.steps }) < 20
         val recentHr = repo.heartRateBetween(since, now, 200)
+        var hr: Int? = null
         if (recentHr.isNotEmpty()) {
-            val hr = recentHr.last().valueBpm
+            hr = recentHr.last().valueBpm
+        }
+        if (event.simulated && event.vital == com.medxai.sundr.data.Vital.HEART_RATE && event.primaryValue != null) {
+            hr = event.primaryValue.toInt()
+        }
+
+        if (hr != null) {
             components["hr"] = hr
             components["sedentary"] = sedentary
             signals += when {

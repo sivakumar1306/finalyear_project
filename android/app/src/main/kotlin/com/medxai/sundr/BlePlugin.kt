@@ -2842,10 +2842,9 @@ class BlePlugin(private val context: Context) {
             try {
                 val cycleId = repo().startCycle()
                 val bpm = 135
-                val id = repo().insertHeartRate(bpm, cycleId, "demo_seed")
                 EventBus.getDefault().post(
                     NewReadingEvent(
-                        Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(),
+                        Vital.HEART_RATE, -1L, cycleId, System.currentTimeMillis(),
                         bpm.toDouble(), simulated = true,
                     )
                 )
@@ -2861,10 +2860,9 @@ class BlePlugin(private val context: Context) {
             try {
                 val cycleId = repo().startCycle()
                 val bpm = 122
-                val id = repo().insertHeartRate(bpm, cycleId, "demo_seed")
                 EventBus.getDefault().post(
                     NewReadingEvent(
-                        Vital.HEART_RATE, id, cycleId, System.currentTimeMillis(),
+                        Vital.HEART_RATE, -1L, cycleId, System.currentTimeMillis(),
                         bpm.toDouble(), simulated = true,
                     )
                 )
