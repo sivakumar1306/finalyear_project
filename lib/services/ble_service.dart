@@ -557,6 +557,14 @@ class BleService {
   Future<bool> exitCameraMode() async =>
       await _methodChannel.invokeMethod<bool>('exitCameraMode') ?? false;
 
+  Future<bool> scanMediaFile(String path) async {
+    try {
+      return await _methodChannel.invokeMethod<bool>('scanMediaFile', {'path': path}) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ── Workout ────────────────────────────────────────────────────────
   Future<void> startWorkout(String type, int startTimeMs) => _methodChannel
       .invokeMethod('startWorkout', {'type': type, 'startTimeMs': startTimeMs});

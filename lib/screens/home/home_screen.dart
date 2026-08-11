@@ -175,6 +175,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ble.checkPendingFallPrediction();
       // Auto-SMS countdown may already be running (fall while app was backgrounded).
       ble.refreshEmergencySmsStatus();
+      ble.syncTodayStepsFromRing();
     });
     _loadUserProfile();
   }
@@ -187,6 +188,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final ble = context.read<BleProvider>();
       ble.checkPendingFallPrediction();
       ble.refreshEmergencySmsStatus();
+      ble.syncTodayStepsFromRing();
     }
   }
 
@@ -342,13 +344,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       case HomeCardId.alarms:
         return _AlarmCard(expanded: expanded);
       case HomeCardId.activity:
+        final hasActivityData =
+            ble.isConnected ||
+            ble.todaySteps > 0 ||
+            ble.todayCalories > 0 ||
+            ble.todayDistanceM > 0;
         return _ActivityScoreCard(
           score: _computeActivityScore(
             ble.todaySteps,
             ble.todayDistanceM,
             ble.todayCalories,
           ),
-          hasData: true,
+          hasData: hasActivityData,
           steps: ble.todaySteps,
           calories: ble.todayCalories,
           distanceM: ble.todayDistanceM,
@@ -989,7 +996,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const SettingsScreen(showBackButton: true),
+                      builder: (_) =>
+                          const SettingsScreen(showBackButton: true),
                     ),
                   );
                 },
@@ -2418,29 +2426,33 @@ class _ActivityScoreCard extends StatelessWidget {
   Widget build(BuildContext context) {
     if (expanded) {
       final activeMin = steps ~/ 100;
-      final remaining = (10000 - steps).clamp(0, 10000).toInt();
+      final showData = hasData && (steps > 0 || calories > 0 || distanceM > 0);
       return _FigmaExpandedCard(
         orbColor: _kOrbActivity,
         height: 158,
         icon: Icons.directions_walk,
         title: 'ACTIVITY',
-        status: steps > 0
-            ? (steps >= 10000 ? 'On Target' : 'Below Target')
+        status: showData
+            ? _HomeScreenState._activityScoreLabel(score)
             : 'No data',
-        value: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            _figmaValue(steps > 0 ? _formatInt(steps) : '--'),
-            const SizedBox(width: 3),
-            _figmaUnit('/ 10K'),
-          ],
+        value: showData
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  _figmaValue('$score'),
+                  const SizedBox(width: 3),
+                  _figmaUnit('pts'),
+                ],
+              )
+            : _figmaValue('--'),
+        chart: _ActivityProgressBar(
+          fraction: (steps / 10000.0).clamp(0.0, 1.0),
         ),
-        chart: _ActivityProgressBar(fraction: steps / 10000.0),
-        footnoteLead: distanceM > 0 ? _distanceLabel : 'No distance',
-        footnoteRest: steps > 0
-            ? ' · $activeMin min active · ${_formatInt(remaining)} to go'
+        footnoteLead: steps > 0 ? '${_formatInt(steps)} / 10K steps' : 'No activity',
+        footnoteRest: distanceM > 0
+            ? ' · $_distanceLabel · $activeMin min active'
             : '',
         onTap: onTap,
       );

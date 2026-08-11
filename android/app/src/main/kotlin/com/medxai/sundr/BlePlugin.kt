@@ -399,6 +399,7 @@ class BlePlugin(private val context: Context) {
             "cacheCloudDaySummary"       -> cacheCloudDaySummary(call, result)
             "getLocalDbStats"            -> getLocalDbStats(result)
             "getLatestReading"           -> getLatestReading(call, result)
+            "scanMediaFile"              -> scanMediaFile(call, result)
             "getStepsToday"              -> getStepsToday(result)
             "saveStepsSnapshot"          -> saveStepsSnapshot(call, result)
             "getSyncStatus"              -> getSyncStatus(result)
@@ -3134,6 +3135,18 @@ class BlePlugin(private val context: Context) {
         val userId = call.argument<String>("userId") ?: run { result.error("INVALID_ARG", "userId required", null); return }
         val accessToken = call.argument<String>("accessToken")
         SupabaseConfig.configure(url, anonKey, userId, accessToken)
+        result.success(true)
+    }
+
+    private fun scanMediaFile(call: MethodCall, result: MethodChannel.Result) {
+        val path = call.argument<String>("path")
+        if (path != null) {
+            try {
+                android.media.MediaScannerConnection.scanFile(context, arrayOf(path), null, null)
+            } catch (e: Exception) {
+                Log.e(TAG, "scanMediaFile failed: ${e.message}")
+            }
+        }
         result.success(true)
     }
 

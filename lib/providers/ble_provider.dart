@@ -1104,11 +1104,34 @@ class BleProvider extends ChangeNotifier {
 
   Future<bool> _refreshStepsFromLocal() async {
     try {
-      final m = jsonDecode(await _ble.getStepsToday());
-      if (m is! Map<String, dynamic>) return false;
-      _todaySteps = (m['steps'] as num?)?.toInt() ?? 0;
-      _todayCalories = (m['caloriesKcal'] as num?)?.toInt() ?? 0;
-      _todayDistanceM = (m['distanceM'] as num?)?.toDouble() ?? 0.0;
+      Map<String, dynamic>? m;
+      try {
+        final summaryJson = await _ble.getTodaySummary('steps');
+        final decoded = jsonDecode(summaryJson);
+        if (decoded is Map<String, dynamic> &&
+            ((decoded['steps'] as num? ?? 0) > 0 ||
+                (decoded['count'] as num? ?? 0) > 0)) {
+          m = decoded;
+        }
+      } catch (_) {}
+
+      if (m == null) {
+        final rawJson = await _ble.getStepsToday();
+        final decoded = jsonDecode(rawJson);
+        if (decoded is Map<String, dynamic>) {
+          m = decoded;
+        }
+      }
+
+      if (m == null) return false;
+      final steps = (m['steps'] as num?)?.toInt() ?? 0;
+      final calories = (m['caloriesKcal'] as num?)?.toInt() ?? 0;
+      final distanceM = (m['distanceM'] as num?)?.toDouble() ?? 0.0;
+      if (steps <= 0 && calories <= 0) return false;
+
+      _todaySteps = steps;
+      _todayCalories = calories;
+      _todayDistanceM = distanceM;
       notifyListeners();
       _saveStepsToDb(_todaySteps, _todayCalories, _todayDistanceM);
       final goal = await _loadCachedGoal();
@@ -1685,15 +1708,71 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  // ── Steps refresh (also called from StepsScreen for pull-to-refresh) ──────
-  // Steps are now captured every measurement cycle by the native loop and stored
-  // locally — this just re-reads that local snapshot rather than re-fetching the
-  // ring/upserting Supabase itself (the native SupabaseSyncManager owns that now).
+  void _parseAndSaveTodaySteps(String jsonStr) {
+    try {
+      final decoded = jsonDecode(jsonStr);
+      final list = decoded is List ? decoded : <dynamic>[];
+      if (list.isEmpty) return;
+
+      final stepSlots = List<int>.filled(96, 0);
+      int totalSteps = 0;
+      int totalCalRaw = 0;
+      double totalDist = 0.0;
+
+      for (final item in list) {
+        if (item is! Map) continue;
+        final m = Map<String, dynamic>.from(item);
+        final slot =
+            (m['d'] as num?)?.toInt() ??
+            (m['timeIndex'] as num?)?.toInt() ??
+            -1;
+        final steps =
+            (m['f'] as num?)?.toInt() ?? (m['walkSteps'] as num?)?.toInt() ?? 0;
+        final runSteps = (m['runSteps'] as num?)?.toInt() ?? 0;
+        final stepTotal = steps + runSteps;
+        final calRaw =
+            (m['e'] as num?)?.toInt() ?? (m['calorie'] as num?)?.toInt() ?? 0;
+        final dist =
+            (m['g'] as num?)?.toDouble() ??
+            (m['distance'] as num?)?.toDouble() ??
+            0.0;
+
+        totalSteps += stepTotal;
+        totalCalRaw += calRaw;
+        totalDist += dist;
+        if (slot >= 0 && slot < 96) {
+          stepSlots[slot] += stepTotal;
+        }
+      }
+
+      final totalCal = totalCalRaw >= 1000 ? totalCalRaw ~/ 1000 : (totalCalRaw > 0 ? 1 : 0);
+
+      if (totalSteps > 0 || totalCal > 0 || totalDist > 0) {
+        _todaySteps = totalSteps;
+        _todayCalories = totalCal;
+        _todayDistanceM = totalDist;
+        _todayStepsByInterval = stepSlots;
+        notifyListeners();
+        _saveStepsToDb(totalSteps, totalCal, totalDist);
+      }
+    } catch (e, st) {
+      _recordError(e, st);
+    }
+  }
+
   Future<void> syncTodayStepsFromRing() async {
     if (_syncingSteps) return;
     _syncingSteps = true;
     notifyListeners();
-    await _refreshStepsFromLocal();
+    try {
+      final jsonStr = await _ble.getTodaySteps();
+      _parseAndSaveTodaySteps(jsonStr);
+    } catch (e, st) {
+      _recordError(e, st);
+    }
+    if (_todaySteps <= 0) {
+      await _refreshStepsFromLocal();
+    }
     _syncingSteps = false;
     notifyListeners();
   }

@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/ble_provider.dart';
+import '../../services/ble_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_typography.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// Ring-controlled camera screen.
 ///
@@ -84,6 +86,35 @@ class _RingCameraScreenState extends State<RingCameraScreen>
     }
   }
 
+  Future<void> _saveToGallery(String srcPath) async {
+    try {
+      final srcFile = File(srcPath);
+      if (!await srcFile.exists()) return;
+
+      Directory? targetDir;
+      if (Platform.isAndroid) {
+        final picturesDir = Directory('/storage/emulated/0/Pictures/SUNDR');
+        if (!await picturesDir.exists()) {
+          await picturesDir.create(recursive: true);
+        }
+        targetDir = picturesDir;
+      } else if (Platform.isIOS) {
+        targetDir = await getApplicationDocumentsDirectory();
+      }
+
+      if (targetDir != null) {
+        final fileName = 'IMG_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final destPath = '${targetDir.path}/$fileName';
+        await srcFile.copy(destPath);
+        if (Platform.isAndroid) {
+          BleService().scanMediaFile(destPath);
+        }
+      }
+    } catch (e) {
+      debugPrint('Save to gallery error: $e');
+    }
+  }
+
   Future<void> _capturePhoto() async {
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized || _isCapturing) {
@@ -96,6 +127,7 @@ class _RingCameraScreenState extends State<RingCameraScreen>
       final file = await capture;
       if (!mounted) return;
       setState(() => _lastPhotoPath = file.path);
+      _saveToGallery(file.path);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Photo captured')));
@@ -241,12 +273,17 @@ class _RingCameraScreenState extends State<RingCameraScreen>
                     ),
                     if (!context.select<BleProvider, bool>((b) => b.gestureEnabled))
                       Padding(
-                        padding: const EdgeInsets.only(top: 4.0),
+                        padding: const EdgeInsets.only(
+                          top: 6.0,
+                          left: 20.0,
+                          right: 20.0,
+                        ),
                         child: Text(
-                          'turn on gestures in settings to use your ring to take photos',
+                          'Turn on Gesture Controls in settings to use your ring to take photos',
                           style: AppTypography.inter(
-                            color: Colors.white54,
-                            fontSize: 11,
+                            color: Colors.amberAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                           ),
                           textAlign: TextAlign.center,
                         ),
