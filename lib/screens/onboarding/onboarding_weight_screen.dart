@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/onboarding_data.dart';
 import '../../services/unit_prefs.dart';
-import '../../widgets/ruler_picker.dart';
 import 'onboarding_shell.dart';
 import 'onboarding_emergency_contact_screen.dart';
 
