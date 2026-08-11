@@ -138,7 +138,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (_) => _InputDialog(
-        title: 'Nickname',
+        title: 'Name',
         controller: ctrl,
         keyboardType: TextInputType.name,
       ),
@@ -442,7 +442,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       children: [
                         _ProfileRow(
                           icon: Icons.person_outline_rounded,
-                          label: 'Nickname',
+                          label: 'Name',
                           value: _name.isNotEmpty ? _name : 'Sundr',
                           onTap: _editName,
                         ),
