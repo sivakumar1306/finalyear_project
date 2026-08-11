@@ -14,123 +14,58 @@ class OnboardingWeightScreen extends StatefulWidget {
 }
 
 class _OnboardingWeightScreenState extends State<OnboardingWeightScreen> {
-  // Canonical value, always kg — matches widget.data.weightKg / the DB
-  // column. _useLbs only changes what's displayed/entered here.
   late double _weight;
   bool _useLbs = false;
+  FixedExtentScrollController? _ctrl;
 
   @override
   void initState() {
     super.initState();
     _weight = widget.data.weightKg;
+    _initController();
     UnitPrefs.loadSystem().then((system) {
-      if (mounted) setState(() => _useLbs = system == UnitSystem.us);
+      if (mounted && system == UnitSystem.us && !_useLbs) {
+        final oldCtrl = _ctrl;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          oldCtrl?.dispose();
+        });
+        setState(() {
+          _useLbs = true;
+          _initController();
+        });
+      }
     });
+  }
+
+  void _initController() {
+    final initialItem = _useLbs
+        ? UnitPrefs.kgToLbs(_weight).round() - 44
+        : _weight.round() - 20;
+    _ctrl = FixedExtentScrollController(initialItem: initialItem);
   }
 
   void _setUnit(bool useLbs) {
     if (useLbs == _useLbs) return;
-    setState(() => _useLbs = useLbs);
+    
+    final oldCtrl = _ctrl;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      oldCtrl?.dispose();
+    });
+
+    setState(() {
+      _useLbs = useLbs;
+      _initController();
+    });
     UnitPrefs.saveSystem(useLbs ? UnitSystem.us : UnitSystem.metric);
   }
 
-  Future<void> _editWeight() async {
-    // Editing is always done in the unit currently on screen, then
-    // converted back to the canonical kg value.
-    final controller = TextEditingController(
-      text: (_useLbs ? UnitPrefs.kgToLbs(_weight) : _weight).toStringAsFixed(0),
-    );
-    final result = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: const Color(0xFF121212),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Enter weight (${_useLbs ? 'lbs' : 'kg'})',
-                style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 13,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 40,
-                  fontWeight: FontWeight.w300,
-                ),
-                decoration: const InputDecoration(
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white24),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: kGold, width: 2),
-                  ),
-                ),
-                onSubmitted: (v) => Navigator.pop(ctx, v),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx, controller.text),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kGold,
-                    foregroundColor: const Color(0xFF16130E),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'Done',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (result == null) return;
-    final entered = double.tryParse(result.trim());
-    if (entered == null) return;
-
-    setState(() {
-      if (_useLbs) {
-        final clampedLbs = entered.clamp(
-          UnitPrefs.kgToLbs(20),
-          UnitPrefs.kgToLbs(250),
-        );
-        _weight = UnitPrefs.lbsToKg(clampedLbs);
-      } else {
-        _weight = entered.clamp(20, 250);
-      }
-    });
+  @override
+  void dispose() {
+    _ctrl?.dispose();
+    super.dispose();
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -156,46 +91,58 @@ class _OnboardingWeightScreenState extends State<OnboardingWeightScreen> {
               '',
               'Used for body composition and effort estimates.',
             ),
-            const Spacer(),
-            Center(
+            const SizedBox(height: 24),
+            Expanded(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  GestureDetector(
-                    onTap: _editWeight,
-                    behavior: HitTestBehavior.opaque,
-                    child: Text(
-                      (_useLbs ? UnitPrefs.kgToLbs(_weight) : _weight)
-                          .toStringAsFixed(0),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 72,
-                        fontWeight: FontWeight.w300,
+                  SizedBox(
+                    width: 140,
+                    child: _ctrl == null ? const SizedBox() : ListWheelScrollView.useDelegate(
+                      key: ValueKey(_useLbs),
+                      controller: _ctrl,
+                      itemExtent: 60,
+                      physics: const FixedExtentScrollPhysics(),
+                      perspective: 0.004,
+                      onSelectedItemChanged: (i) {
+                        setState(() {
+                          _weight = _useLbs
+                              ? UnitPrefs.lbsToKg((44 + i).toDouble())
+                              : (20 + i).toDouble();
+                        });
+                      },
+                      childDelegate: ListWheelChildBuilderDelegate(
+                        childCount: _useLbs ? (551 - 44 + 1) : (250 - 20 + 1),
+                        builder: (ctx, i) {
+                          final currentVal = _useLbs ? 44 + i : 20 + i;
+                          final selected = _useLbs 
+                              ? currentVal == UnitPrefs.kgToLbs(_weight).round()
+                              : currentVal == _weight.round();
+                              
+                          return Center(
+                            child: Text(
+                              '$currentVal',
+                              style: TextStyle(
+                                color: selected
+                                    ? Colors.white
+                                    : Colors.white.withValues(alpha: 0.2),
+                                fontSize: selected ? 52 : 28,
+                                fontWeight: selected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   _UnitToggle(useLbs: _useLbs, onChanged: _setUnit),
                 ],
               ),
             ),
-            const SizedBox(height: 32),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: RulerPicker(
-                key: ValueKey(_useLbs),
-                value: _useLbs ? UnitPrefs.kgToLbs(_weight) : _weight,
-                min: _useLbs ? UnitPrefs.kgToLbs(20) : 20,
-                max: _useLbs ? UnitPrefs.kgToLbs(250) : 250,
-                isInteger: false,
-                onChanged: (v) => setState(
-                  () => _weight = _useLbs ? UnitPrefs.lbsToKg(v) : v,
-                ),
-              ),
-            ),
-            const Spacer(),
           ],
         ),
       ),

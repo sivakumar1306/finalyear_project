@@ -55,9 +55,6 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   String _address = _kDefaultAddress;
   String _instructions = '';
 
-  FallPredictionProvider? _fallPrediction;
-  bool _sensorsAcquired = false;
-
   @override
   void initState() {
     super.initState();
@@ -68,18 +65,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<BleProvider>().refreshEmergencySmsStatus();
-      _fallPrediction = context.read<FallPredictionProvider>();
-      _fallPrediction!.acquireSensors();
-      _sensorsAcquired = true;
     });
-  }
-
-  @override
-  void dispose() {
-    if (_sensorsAcquired) {
-      _fallPrediction?.releaseSensors();
-    }
-    super.dispose();
   }
 
   Future<void> _loadAddressAndInstructions() async {
