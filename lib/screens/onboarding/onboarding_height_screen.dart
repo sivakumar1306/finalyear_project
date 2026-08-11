@@ -14,24 +14,55 @@ class OnboardingHeightScreen extends StatefulWidget {
 }
 
 class _OnboardingHeightScreenState extends State<OnboardingHeightScreen> {
-  // Canonical value, always cm — matches widget.data.heightCm / the DB
-  // column. _useInches only changes what's displayed/entered here.
   late int _height;
   bool _useInches = false;
+  FixedExtentScrollController? _ctrl;
 
   @override
   void initState() {
     super.initState();
     _height = widget.data.heightCm;
+    _initController();
     UnitPrefs.loadSystem().then((system) {
-      if (mounted) setState(() => _useInches = system == UnitSystem.us);
+      if (mounted && system == UnitSystem.us && !_useInches) {
+        final oldCtrl = _ctrl;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          oldCtrl?.dispose();
+        });
+        setState(() {
+          _useInches = true;
+          _initController();
+        });
+      }
     });
+  }
+
+  void _initController() {
+    final initialItem = _useInches
+        ? UnitPrefs.cmToInches(_height.toDouble()).round() - 39
+        : _height - 100;
+    _ctrl = FixedExtentScrollController(initialItem: initialItem);
   }
 
   void _setUnit(bool useInches) {
     if (useInches == _useInches) return;
-    setState(() => _useInches = useInches);
+    
+    final oldCtrl = _ctrl;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      oldCtrl?.dispose();
+    });
+
+    setState(() {
+      _useInches = useInches;
+      _initController();
+    });
     UnitPrefs.saveSystem(useInches ? UnitSystem.us : UnitSystem.metric);
+  }
+
+  @override
+  void dispose() {
+    _ctrl?.dispose();
+    super.dispose();
   }
 
   @override
@@ -62,46 +93,62 @@ class _OnboardingHeightScreenState extends State<OnboardingHeightScreen> {
               ' are you?',
               'Affects how some of your health metrics are interpreted.',
             ),
-            const Spacer(),
-            Center(
+            const SizedBox(height: 24),
+            Expanded(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    _useInches
-                        ? UnitPrefs.formatHeightCm(_height, UnitSystem.us)
-                        : '$_height',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: _useInches ? 56 : 72,
-                      fontWeight: FontWeight.w300,
+                  SizedBox(
+                    width: 160,
+                    child: _ctrl == null ? const SizedBox() : ListWheelScrollView.useDelegate(
+                      key: ValueKey(_useInches),
+                      controller: _ctrl,
+                      itemExtent: 60,
+                      physics: const FixedExtentScrollPhysics(),
+                      perspective: 0.004,
+                      onSelectedItemChanged: (i) {
+                        setState(() {
+                          _height = _useInches
+                              ? UnitPrefs.inchesToCm((39 + i).toDouble()).round()
+                              : 100 + i;
+                        });
+                      },
+                      childDelegate: ListWheelChildBuilderDelegate(
+                        childCount: _useInches ? (98 - 39 + 1) : (250 - 100 + 1),
+                        builder: (ctx, i) {
+                          final currentVal = _useInches ? 39 + i : 100 + i;
+                          final selected = _useInches 
+                              ? currentVal == UnitPrefs.cmToInches(_height.toDouble()).round()
+                              : currentVal == _height;
+                              
+                          final text = _useInches 
+                              ? UnitPrefs.formatHeightCm(UnitPrefs.inchesToCm(currentVal.toDouble()), UnitSystem.us)
+                              : '$currentVal';
+
+                          return Center(
+                            child: Text(
+                              text,
+                              style: TextStyle(
+                                color: selected
+                                    ? Colors.white
+                                    : Colors.white.withValues(alpha: 0.2),
+                                fontSize: selected ? (_useInches ? 48 : 52) : 28,
+                                fontWeight: selected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   _UnitToggle(useInches: _useInches, onChanged: _setUnit),
                 ],
               ),
             ),
-            const SizedBox(height: 32),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: RulerPicker(
-                key: ValueKey(_useInches),
-                value: _useInches
-                    ? UnitPrefs.cmToInches(_height.toDouble())
-                    : _height.toDouble(),
-                min: _useInches ? UnitPrefs.cmToInches(100) : 100,
-                max: _useInches ? UnitPrefs.cmToInches(250) : 250,
-                onChanged: (v) => setState(
-                  () => _height = _useInches
-                      ? UnitPrefs.inchesToCm(v).round()
-                      : v.round(),
-                ),
-              ),
-            ),
-            const Spacer(),
           ],
         ),
       ),

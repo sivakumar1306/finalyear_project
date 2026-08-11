@@ -257,7 +257,7 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Select what notifications to recieve',
+                          'Select what notifications to receive',
                           style: AppTypography.inter(
                             color: Colors.white,
                             fontSize: 14,

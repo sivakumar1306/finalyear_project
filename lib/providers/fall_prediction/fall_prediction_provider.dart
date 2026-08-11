@@ -1,8 +1,5 @@
 import 'dart:async';
-import 'dart:math';
-
 import 'package:flutter/material.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 
 import '../../models/fall_prediction/layer_inputs.dart';
 import '../../models/fall_prediction/context_factors.dart';
@@ -51,15 +48,12 @@ class FallPredictionProvider extends ChangeNotifier {
   PredictionResult? _currentResult;
   PredictionResult? get currentResult => _currentResult;
 
-  StreamSubscription<UserAccelerometerEvent>? _accelSubscription;
   Timer? _healthSyncTimer;
   Timer? _recalcDebounce;
-  int _sensorRefCount = 0;
 
   List<FallEvent>? _cachedTrailingFalls;
   DateTime? _lastFallsFetch;
 
-  double _lastMagnitude = 0.0;
   ActivityExposure _lastActExp = const ActivityExposure(100.0);
 
   Layer1PhysiologyData _pData = Layer1PhysiologyData(
@@ -104,22 +98,6 @@ class FallPredictionProvider extends ChangeNotifier {
       const Duration(minutes: 5),
       (_) => _fetchHealthData(),
     );
-  }
-
-  void acquireSensors() {
-    _sensorRefCount++;
-    if (_sensorRefCount == 1) {
-      _startSensorListeners();
-    }
-  }
-
-  void releaseSensors() {
-    if (_sensorRefCount <= 0) return;
-    _sensorRefCount--;
-    if (_sensorRefCount == 0) {
-      _accelSubscription?.cancel();
-      _accelSubscription = null;
-    }
   }
 
   Future<void> _fetchHealthData() async {
@@ -233,27 +211,7 @@ class FallPredictionProvider extends ChangeNotifier {
     _recalculate();
   }
 
-  void _startSensorListeners() {
-    _accelSubscription?.cancel();
-    _accelSubscription = userAccelerometerEventStream().listen((
-      UserAccelerometerEvent event,
-    ) {
-      final magnitude = sqrt(
-        event.x * event.x + event.y * event.y + event.z * event.z,
-      );
-      _lastMagnitude = magnitude;
-      if (magnitude > 15.0) {
-        _debounceRecalculate();
-      }
-    });
-  }
 
-  void _debounceRecalculate() {
-    if (_recalcDebounce?.isActive ?? false) return;
-    _recalcDebounce = Timer(const Duration(seconds: 2), () {
-      _recalculate();
-    });
-  }
 
   void _recalculate() async {
     final userId = SupabaseService.currentUser?.id;
@@ -273,7 +231,7 @@ class FallPredictionProvider extends ChangeNotifier {
     }
 
     final mData = Layer3MotionData(
-      acc: _lastMagnitude,
+      acc: null,
       gyr: null,
       gait: null,
       psw: null,
@@ -356,9 +314,7 @@ class FallPredictionProvider extends ChangeNotifier {
   @override
   void dispose() {
     _healthSyncTimer?.cancel();
-    _accelSubscription?.cancel();
     _recalcDebounce?.cancel();
-    _sensorRefCount = 0;
     super.dispose();
   }
 }

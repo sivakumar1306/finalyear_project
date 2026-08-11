@@ -12,6 +12,7 @@ class FallAlertDismissReceiver : BroadcastReceiver() {
         NotificationManagerCompat.from(context).cancel(FallAlertNotifier.NOTIFICATION_ID)
         NotificationManagerCompat.from(context).cancel(EmergencySmsSender.NOTIFICATION_ID)
         NotificationManagerCompat.from(context).cancel(FallPredictionNotifier.NOTIFICATION_ID)
+        FallPredictionNotifier.clearPending(context)
         SafetyLiveUpdate.clear(context)
     }
 }
