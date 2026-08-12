@@ -2814,14 +2814,16 @@ class BlePlugin(private val context: Context) {
                     )
                 )
                 // Demo only — never schedule SMS or place a call from a simulation.
-                FallAlertNotifier.notifyFall(context, confidence, source, simulated = true)
-                SafetyLiveUpdate.showFall(
+                val skipStandard = SafetyLiveUpdate.showFall(
                     context,
                     (confidence * 100).toInt(),
                     EmergencySmsSender.COUNTDOWN_SECONDS,
                     EmergencyAutoCaller.isEnabled(context),
                     simulated = true,
                 )
+                if (!skipStandard) {
+                    FallAlertNotifier.notifyFall(context, confidence, source, simulated = true)
+                }
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }

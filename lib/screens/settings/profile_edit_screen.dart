@@ -500,7 +500,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  _sectionHeader('EMERGENCY DETAILS'),
+                  _sectionHeader('EMERGENCY DETAILS', showEdit: false),
                   const SizedBox(height: 10),
                   Container(
                     decoration: BoxDecoration(
@@ -511,7 +511,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       children: [
                         const _ProfileRow(
                           icon: Icons.local_hospital_outlined,
-                          label: 'Default Emergency (Default)',
+                          label: 'Default Emergency Contact',
                           value: '101',
                         ),
                         for (var i = 0; i < _contacts.length; i++) ...[

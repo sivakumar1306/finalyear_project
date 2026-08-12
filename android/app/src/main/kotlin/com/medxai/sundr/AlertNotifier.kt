@@ -45,8 +45,10 @@ object AlertNotifier {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .build()
-        context.getSystemService(NotificationManager::class.java)
-            .notify(nextNotificationId++, notification)
-        SafetyLiveUpdate.showAnomaly(context, title, message)
+        val skipStandard = SafetyLiveUpdate.showAnomaly(context, title, message)
+        if (!skipStandard) {
+            context.getSystemService(NotificationManager::class.java)
+                .notify(nextNotificationId++, notification)
+        }
     }
 }

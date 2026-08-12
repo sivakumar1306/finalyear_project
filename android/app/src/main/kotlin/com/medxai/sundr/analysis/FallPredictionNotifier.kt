@@ -83,9 +83,12 @@ object FallPredictionNotifier {
             .addAction(0, "Open app", launchIntent(1))
             .build()
 
-        NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+        var skipStandard = false
         if (!simulated) {
-            SafetyLiveUpdate.showPrediction(context, countdown)
+            skipStandard = SafetyLiveUpdate.showPrediction(context, countdown)
+        }
+        if (!skipStandard) {
+            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
         }
     }
 

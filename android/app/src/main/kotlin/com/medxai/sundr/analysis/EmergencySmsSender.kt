@@ -303,7 +303,7 @@ object EmergencySmsSender {
                 errSummary ?: "Failed to send SMS"
             },
         )
-        SafetyLiveUpdate.showSent(context, sent)
+
 
         Log.i(TAG, "SMS send complete: sent=$sent failed=$failed")
         return mapOf(
@@ -356,16 +356,19 @@ object EmergencySmsSender {
             .setProgress(COUNTDOWN_SECONDS, COUNTDOWN_SECONDS - remaining, false)
             .build()
 
-        try {
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
-        } catch (_: SecurityException) {
-            // POST_NOTIFICATIONS denied — countdown still runs; Flutter UI can still cancel.
-        }
         // Mirror the remaining countdown onto the Android 16 live update.
-        SafetyLiveUpdate.updateCountdown(context, reason, remaining)
+        val skipStandard = SafetyLiveUpdate.updateCountdown(context, reason, remaining)
+        if (!skipStandard) {
+            try {
+                NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+            } catch (_: SecurityException) {
+                // POST_NOTIFICATIONS denied — countdown still runs; Flutter UI can still cancel.
+            }
+        }
     }
 
     private fun notifySendResult(context: Context, success: Boolean, count: Int, detail: String) {
+        if (SafetyLiveUpdate.showSent(context, count)) return
         ensureChannel(context)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle(if (success) "Emergency contacts alerted" else "Emergency SMS failed")

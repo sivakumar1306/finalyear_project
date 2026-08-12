@@ -28,8 +28,8 @@ object SafetyLiveUpdate {
     private const val CHANNEL_ID = "qring_safety_live"
     const val NOTIFICATION_ID = 2010
 
-    fun showPrediction(context: Context, countdownSeconds: Int) {
-        show(
+    fun showPrediction(context: Context, countdownSeconds: Int): Boolean {
+        return show(
             context = context,
             title = "You might fall soon...",
             text = "Fall risk is elevated. SMS will be sent to your emergency contacts in " +
@@ -45,9 +45,9 @@ object SafetyLiveUpdate {
         countdownSeconds: Int,
         autoCall: Boolean,
         simulated: Boolean = false,
-    ) {
+    ): Boolean {
         val callLine = if (autoCall) " Calling your emergency contact now." else ""
-        show(
+        return show(
             context = context,
             title = if (simulated) "SIMULATION — possible fall" else "Possible fall detected",
             text = if (simulated) {
@@ -60,8 +60,8 @@ object SafetyLiveUpdate {
         )
     }
 
-    fun showAnomaly(context: Context, title: String, message: String) {
-        show(
+    fun showAnomaly(context: Context, title: String, message: String): Boolean {
+        return show(
             context = context,
             title = title,
             text = message,
@@ -76,14 +76,14 @@ object SafetyLiveUpdate {
         reason: String,
         remainingSeconds: Int,
         totalSeconds: Int = EmergencySmsSender.COUNTDOWN_SECONDS,
-    ) {
+    ): Boolean {
         val title = when (reason) {
             "fall" -> "Possible fall detected"
             "prediction" -> "Fall prediction"
             else -> "Emergency alert"
         }
         val pct = ((remainingSeconds.toFloat() / totalSeconds.coerceAtLeast(1)) * 100).toInt().coerceIn(0, 100)
-        show(
+        return show(
             context = context,
             title = title,
             text = "SMS to emergency contacts in $remainingSeconds s — tap I'm okay to cancel.",
@@ -94,8 +94,8 @@ object SafetyLiveUpdate {
     }
 
     /** Flip the live update to the SMS result once the countdown has fired. */
-    fun showSent(context: Context, sentCount: Int) {
-        show(
+    fun showSent(context: Context, sentCount: Int): Boolean {
+        return show(
             context = context,
             title = if (sentCount > 0) "Emergency SMS sent" else "Emergency SMS failed",
             text = if (sentCount > 0) {
@@ -120,10 +120,10 @@ object SafetyLiveUpdate {
         shortText: String,
         okAction: Boolean,
         progress: Int = 100,
-    ) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.BAKLAVA) return
+    ): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.BAKLAVA) return false
         val manager = context.getSystemService(NotificationManager::class.java)
-        if (!manager.canPostPromotedNotifications()) return
+        if (!manager.canPostPromotedNotifications()) return false
         ensureChannel(manager)
 
         val launchIntent = PendingIntent.getActivity(
@@ -170,6 +170,7 @@ object SafetyLiveUpdate {
         val notification = builder.build()
         notification.flags = notification.flags or Notification.FLAG_PROMOTED_ONGOING
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+        return true
     }
 
     private fun ensureChannel(manager: NotificationManager) {

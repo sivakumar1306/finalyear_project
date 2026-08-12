@@ -513,7 +513,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           final hrv = ble.todayAvgHrv;
           return _FigmaExpandedCard(
             orbColor: _kOrbHr,
-            height: 152,
+            height: 158,
             icon: Icons.favorite,
             title: 'HEART RATE',
             status: hr > 0 ? _hrStatus(hr) : 'No data',
@@ -2213,7 +2213,7 @@ class _StressCard extends StatelessWidget {
         icon: Icons.monitor_heart,
         title: 'STRESS',
         status: value > 0 ? status : 'No data',
-        value: _figmaValue(hrv > 0 ? 'HRV $hrv' : '--'),
+        value: _figmaValue(value > 0 ? '$value' : '--'),
         chart: CustomPaint(
           painter: _StressMiniBarsPainter(_bars40),
           child: const SizedBox.expand(),
