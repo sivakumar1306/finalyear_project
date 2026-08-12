@@ -14,7 +14,7 @@ class ChatApiService {
   // getInsights() does heavier server-side aggregation (7/30/90-day trend
   // computation across several vitals) than the other endpoints, so it needs
   // more headroom.
-  static const _insightsTimeout = Duration(seconds: 20);
+  static const _insightsTimeout = Duration(seconds: 120);
 
   // /chat runs an LLM agent that decides which tool(s) to call, waits on
   // those tool results, then generates the final reply — confirmed via
