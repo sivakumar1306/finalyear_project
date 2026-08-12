@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/home_card_provider.dart';
+import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_header.dart';
 import '../../widgets/glass_icon_button.dart';
@@ -33,13 +34,45 @@ const _kCardItems = [
   _CardItem(HomeCardId.temperature, 'Temperature', Color(0xFFE3B76A), Icons.device_thermostat),
 ];
 
-class CardSettingsScreen extends StatelessWidget {
+class CardSettingsScreen extends StatefulWidget {
   final VoidCallback? onClose;
   const CardSettingsScreen({super.key, this.onClose});
 
+  @override
+  State<CardSettingsScreen> createState() => _CardSettingsScreenState();
+}
+
+class _CardSettingsScreenState extends State<CardSettingsScreen> {
+  String _gender = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final user = SupabaseService.currentUser;
+      if (user != null) {
+        final profile = await SupabaseService.getProfile(user.id);
+        if (mounted && profile != null) {
+          setState(() {
+            _gender = profile['gender'] as String? ?? '';
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  bool get _showWomensHealth {
+    final g = _gender.trim().toLowerCase();
+    return g != 'male' && g != 'm';
+  }
+
   void _finish(BuildContext context) {
-    if (onClose != null) {
-      onClose!();
+    if (widget.onClose != null) {
+      widget.onClose!();
     } else {
       Navigator.pop(context);
     }
@@ -59,7 +92,12 @@ class CardSettingsScreen extends StatelessWidget {
     final hidden = provider.hiddenCards;
     final expanded = provider.expandedCards;
 
-    final visibleItems = _kCardItems.where((item) => order.contains(item.id)).toList()
+    final visibleItems = _kCardItems.where((item) {
+      if (item.id == HomeCardId.womensHealth && !_showWomensHealth) {
+        return false;
+      }
+      return order.contains(item.id);
+    }).toList()
       ..sort((a, b) => order.indexOf(a.id).compareTo(order.indexOf(b.id)));
 
     return PopScope(
