@@ -324,7 +324,7 @@ class BleProvider extends ChangeNotifier {
                 _bindReadyCompleter = Completer<void>();
                 _onConnected(delay: _connectDelaySeconds);
               } else {
-                _battery = -1;
+                // Retain last known battery level on temporary connection drops
               }
               notifyListeners();
               break;
@@ -482,6 +482,7 @@ class BleProvider extends ChangeNotifier {
     final charging = data['charging'] as bool? ?? false;
     if (percent < 0) return;
     _battery = percent;
+    SharedPreferences.getInstance().then((prefs) => prefs.setInt('last_battery', percent));
     notifyListeners();
     if (!charging) {
       _maybeAlert(
@@ -1191,6 +1192,7 @@ class BleProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _deviceName = prefs.getString('device_name') ?? '';
     _deviceAddress = prefs.getString('device_address') ?? '';
+    _battery = prefs.getInt('last_battery') ?? -1;
     notifyListeners();
     if (_deviceAddress.isNotEmpty) {
       _isConnected = await _ble.isConnected();
@@ -1781,7 +1783,12 @@ class BleProvider extends ChangeNotifier {
 
   Future<void> refreshBattery() async {
     try {
-      _battery = await _ble.getBattery();
+      final b = await _ble.getBattery();
+      if (b > 0) {
+        _battery = b;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('last_battery', b);
+      }
       notifyListeners();
       if (_battery > 0) {
         _maybeAlert(
@@ -1901,6 +1908,7 @@ class BleProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('device_name');
     await prefs.remove('device_address');
+    await prefs.remove('last_battery');
     notifyListeners();
   }
 

@@ -605,8 +605,8 @@ class _VitalsDrawerSheet extends StatelessWidget {
                         color: Colors.purpleAccent,
                       ),
                       _VitalCard(
-                        title: '8. Stillness / Steps',
-                        value: session.snapshots.isNotEmpty ? '${session.snapshots.last.steps} steps' : '--',
+                        title: '8. Daily Steps',
+                        value: '${ble.todaySteps} steps',
                         icon: Icons.directions_walk_rounded,
                         color: Colors.greenAccent,
                       ),

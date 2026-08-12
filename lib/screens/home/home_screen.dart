@@ -1188,20 +1188,33 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: const Color(0x0DC9A86E),
-                border: Border.all(color: const Color(0x26C9A86E), width: 0.5),
+                border: Border.all(
+                  color: AppTheme.gold.withValues(alpha: 0.55),
+                  width: 1.2,
+                ),
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'AI SUMMARY',
-                    style: AppTypography.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.18 * 10,
-                      color: AppTheme.gold,
-                    ),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.auto_awesome_rounded,
+                        color: AppTheme.gold,
+                        size: 13,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'AI SUMMARY',
+                        style: AppTypography.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.18 * 10,
+                          color: AppTheme.gold,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Text(
