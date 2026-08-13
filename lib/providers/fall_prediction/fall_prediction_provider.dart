@@ -303,9 +303,14 @@ class FallPredictionProvider extends ChangeNotifier {
         frs24Score: score.toInt(),
         frs24Band: score >= 60.0 ? FrsRiskBand.high : FrsRiskBand.moderate,
         topContributors: ['Heart Rate Variability', 'Activity Exposure'],
+        frsContributors: ['Motion Instability', 'Recent Fall History'],
         coverageScoreQ: 95.0,
         coverageDetails: ['Good coverage'],
         recommendationAction: 'Take a rest',
+        frsBreakdown: {
+          'Motion Instability': 25,
+          'Recovery Deficit': 10,
+        },
       ),
     );
     notifyListeners();

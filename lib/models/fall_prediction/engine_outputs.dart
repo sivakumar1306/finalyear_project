@@ -72,9 +72,12 @@ class ExplainabilityPayload {
   final int frs24Score;
   final FrsRiskBand frs24Band;
   final List<String> topContributors;
+  final List<String> frsContributors;
   final double coverageScoreQ;
   final List<String> coverageDetails;
   final String recommendationAction;
+
+  final Map<String, int> frsBreakdown;
 
   ExplainabilityPayload({
     required this.hsiBase,
@@ -84,8 +87,10 @@ class ExplainabilityPayload {
     required this.frs24Score,
     required this.frs24Band,
     required this.topContributors,
+    required this.frsContributors,
     required this.coverageScoreQ,
     required this.coverageDetails,
     required this.recommendationAction,
+    required this.frsBreakdown,
   });
 }

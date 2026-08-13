@@ -34,9 +34,6 @@ class AttributionReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totalDrop = payload.hsiBaseline - payload.hsiAdj;
-    final isDrop = totalDrop > 0;
-    
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.card,
@@ -55,17 +52,9 @@ class AttributionReportCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Top Section - HSI Stats
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: AppTheme.div)),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [AppTheme.card2, AppTheme.card],
-                ),
-              ),
+            // Top Section - Fall Risk Score Breakdown
+            Padding(
+              padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -73,80 +62,34 @@ class AttributionReportCard extends StatelessWidget {
                     children: [
                       const Icon(Icons.analytics_rounded, color: AppTheme.gold, size: 22),
                       const SizedBox(width: 8),
-                      const Text(
-                        'Attribution Report',
-                        style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
+                      const Expanded(
+                        child: Text(
+                          'Fall Risk Score Breakdown',
+                          style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
+                        ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 12),
                       _buildRiskBadge(payload.frs24Band),
                     ],
                   ),
                   const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatBox(
-                          'Overall Health Score', 
-                          '${payload.hsiAdj}', 
-                          'Today\'s Score', 
-                          AppTheme.gold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            
-            // Middle Section - Breakdown
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Score Breakdown',
-                    style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 16),
-                  if (isDrop) ...[
-                    _buildDeltaRow(
-                      icon: Icons.swap_horiz_rounded,
-                      color: AppTheme.textSec,
-                      text: '${payload.attributionDeltas.contextShiftDelta} points due to daily routine or environment.',
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDeltaRow(
-                      icon: Icons.trending_down_rounded,
-                      color: AppTheme.danger,
-                      text: '${payload.attributionDeltas.physiologicalDelta} points due to real changes in your health or physical activity.',
-                    ),
-                    const SizedBox(height: 24),
-                  ] else ...[
-                    _buildDeltaRow(
-                      icon: Icons.check_circle_outline_rounded,
-                      color: AppTheme.success,
-                      text: 'Your health is stable and improving.',
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                  
-                  // Top Contributors
-                  if (!(payload.topContributors.length == 1 && payload.topContributors.first == 'Stable metrics')) ...[
+
+                  // Fall Risk Factors
+                  if (!(payload.frsContributors.length == 1 && payload.frsContributors.first == 'Low Risk Factors')) ...[
                     const Text(
-                      'Top Contributors',
+                      'Fall Risk Factors',
                       style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: payload.topContributors.map((c) => Container(
+                      children: payload.frsContributors.map((c) => Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
                           color: AppTheme.card2,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppTheme.div),
+                          border: Border.all(color: AppTheme.danger.withValues(alpha: 0.3)),
                         ),
                         child: Text(
                           c,
@@ -157,6 +100,24 @@ class AttributionReportCard extends StatelessWidget {
                     const SizedBox(height: 24),
                   ],
                   
+                  // Score Breakdown
+                  if (payload.frsBreakdown.isNotEmpty) ...[
+                    const Text(
+                      'Score Breakdown',
+                      style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    ...payload.frsBreakdown.entries.map((entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: _buildDeltaRow(
+                        icon: Icons.add_circle_outline_rounded,
+                        color: AppTheme.danger,
+                        text: '+${entry.value} points from ${entry.key}.',
+                      ),
+                    )),
+                    const SizedBox(height: 12),
+                  ],
+
                   // Coverage Details
                   ...payload.coverageDetails.map((detail) => Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
@@ -214,27 +175,6 @@ class AttributionReportCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatBox(String label, String value, String subLabel, Color valueColor) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.div),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: AppTheme.textSec, fontSize: 12, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 8),
-          Text(value, style: TextStyle(color: valueColor, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
-          const SizedBox(height: 4),
-          Text(subLabel, style: const TextStyle(color: AppTheme.textSec, fontSize: 11, fontStyle: FontStyle.italic)),
-        ],
       ),
     );
   }

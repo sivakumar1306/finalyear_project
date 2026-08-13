@@ -60,13 +60,25 @@ class FallRiskScoreCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  'Fall Risk Score',
-                  style: AppTypography.inter(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Align(
+                      alignment: Alignment.center,
+                      child: Text(
+                        'Fall Risk Score',
+                        style: AppTypography.inter(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const Align(
+                      alignment: Alignment.centerRight,
+                      child: Icon(Icons.chevron_right_rounded, color: AppTheme.textSec, size: 20),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 if (result.q.q < 10.0)

@@ -598,28 +598,6 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
               ),
             const SizedBox(height: 20),
           ],
-          _ActionRow(
-            icon: Icons.directions_run_rounded,
-            label: 'View Fall history',
-            onTap: _openFallHistory,
-          ),
-          const SizedBox(height: 12),
-          _ToggleRow(
-            icon: Icons.phone_in_talk_rounded,
-            title: 'Auto-call on fall detection',
-            value: ble.autoCallOnFallEnabled,
-            onChanged: _onAutoCallToggle,
-          ),
-          const SizedBox(height: 12),
-          _ToggleRow(
-            icon: Icons.phone_in_talk_rounded,
-            title: 'Auto call on fall prediction',
-            subtitle:
-                'Call emergency contact when fall risk score hits 9.0 or higher',
-            value: ble.autoCallOnFallPredictionEnabled,
-            onChanged: _onAutoCallPredictionToggle,
-          ),
-          const SizedBox(height: 20),
           if (ble.isConnected || _simulateConnection) ...[
             if (_simulateConnection)
               Container(
@@ -649,9 +627,39 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
               ),
             const _SectionLabel('FALL RISK SCORE (LIVE)'),
             const SizedBox(height: 8),
-            const FallRiskScoreCard(),
-            const SizedBox(height: 16),
-            const ExplainableAIDashboard(),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => Scaffold(
+                      backgroundColor: AppTheme.bg,
+                      appBar: AppBar(
+                        backgroundColor: AppTheme.bg,
+                        leading: const GlassBackButton(),
+                        title: Text(
+                          'Risk Score Details',
+                          style: AppTypography.inter(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        centerTitle: true,
+                        elevation: 0,
+                      ),
+                      body: ListView(
+                        padding: const EdgeInsets.all(16.0),
+                        children: const [
+                          ExplainableAIDashboard(),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+              child: const FallRiskScoreCard(),
+            ),
             const SizedBox(height: 20),
           ] else if (!ble.isConnected && !_simulateConnection) ...[
             Container(
@@ -690,6 +698,28 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
             ),
             const SizedBox(height: 20),
           ],
+          _ActionRow(
+            icon: Icons.directions_run_rounded,
+            label: 'View Fall history',
+            onTap: _openFallHistory,
+          ),
+          const SizedBox(height: 12),
+          _ToggleRow(
+            icon: Icons.phone_in_talk_rounded,
+            title: 'Auto-call on fall detection',
+            value: ble.autoCallOnFallEnabled,
+            onChanged: _onAutoCallToggle,
+          ),
+          const SizedBox(height: 12),
+          _ToggleRow(
+            icon: Icons.phone_in_talk_rounded,
+            title: 'Auto call on fall prediction',
+            subtitle:
+                'Call emergency contact when fall risk score hits 9.0 or higher',
+            value: ble.autoCallOnFallPredictionEnabled,
+            onChanged: _onAutoCallPredictionToggle,
+          ),
+          const SizedBox(height: 20),
           const _SectionLabel('EMERGENCY DETAILS'),
           const SizedBox(height: 8),
           if (_loadingContacts)

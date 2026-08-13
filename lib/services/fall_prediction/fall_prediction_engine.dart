@@ -277,11 +277,23 @@ class FallPredictionEngine {
     double lambda3_24 = 0.20; // P
     double lambda4_24 = 0.30; // FH
 
-    double frs24Val = (lambda1_24 * (100.0 - moScore.value)) +
-                      (lambda2_24 * (100.0 - rcScore.value)) +
-                      (lambda3_24 * (100.0 - pScore.value)) +
-                      (lambda4_24 * fhRateNormalized);
+    double frsMoImpact = lambda1_24 * (100.0 - moScore.value);
+    double frsRcImpact = lambda2_24 * (100.0 - rcScore.value);
+    double frsPImpact = lambda3_24 * (100.0 - pScore.value);
+    double frsFhImpact = lambda4_24 * fhRateNormalized;
+
+    double frs24Val = frsMoImpact + frsRcImpact + frsPImpact + frsFhImpact;
     Frs24 frs24 = Frs24(frs24Val.clamp(0.0, 100.0));
+
+    Map<String, double> frsImpacts = {
+      'Motion Instability': frsMoImpact,
+      'Recovery Deficit': frsRcImpact,
+      'Physiological Strain': frsPImpact,
+      'Recent Fall History': frsFhImpact,
+    };
+    var sortedFrsImpacts = frsImpacts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    List<String> frsContributors = sortedFrsImpacts.where((e) => e.value > 2).take(2).map((e) => e.key).toList();
+    if (frsContributors.isEmpty) frsContributors.add('Low Risk Factors');
 
     // FRS-30 Weights (Trend-Risk Profile)
     // Uses rolling baseline scores to represent the 30-day longitudinal trend/slope
@@ -405,6 +417,13 @@ class FallPredictionEngine {
 
     double hsiBaselineVal = (baselineScores['p']! * baseAlpha) + (baselineScores['rc']! * baseBeta) + (baselineScores['mo']! * baseGamma) + (baselineScores['wh']! * baseDelta);
 
+    Map<String, int> frsBreakdown = {};
+    for (var entry in sortedFrsImpacts) {
+      if (entry.value > 0.5) {
+        frsBreakdown[entry.key] = entry.value.round();
+      }
+    }
+
     ExplainabilityPayload explainability = ExplainabilityPayload(
       hsiBase: hsiBaseVal.round(),
       hsiBaseline: hsiBaselineVal.round(),
@@ -413,9 +432,11 @@ class FallPredictionEngine {
       frs24Score: frs24Val.round(),
       frs24Band: frs24.value.riskBand,
       topContributors: topContributors,
+      frsContributors: frsContributors,
       coverageScoreQ: q.q,
       coverageDetails: coverageDetails,
       recommendationAction: recommendationAction,
+      frsBreakdown: frsBreakdown,
     );
 
     // Prediction Horizon (Tau)
