@@ -287,8 +287,8 @@ class BleProvider extends ChangeNotifier {
     // Supabase reads only cover data recorded before the loop started collecting them.
     _loadTodayHrvFromSupabase();
     _loadTodaySleepFromSupabase();
-    _loadLatestTempFromSupabase();
-    _syncContactsToCloud();
+    _loadTodayTempFromSupabase();
+    syncEmergencyContactsFromCloud().then((_) => _syncContactsToCloud());
     loadLowBatteryPromptSetting();
   }
 
@@ -855,6 +855,33 @@ class BleProvider extends ChangeNotifier {
     await _deleteContactFromCloud(id);
   }
 
+  Future<void> syncEmergencyContactsFromCloud() async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    try {
+      final cloudContacts = await SupabaseService.getEmergencyContactsCloud(user.id);
+      if (cloudContacts.isEmpty) return;
+
+      final localRows = await getEmergencyContacts();
+      final localKeys = localRows.map((r) => '${r['name']}_${r['phone']}').toSet();
+
+      for (final c in cloudContacts) {
+        final name = c['name'] as String? ?? '';
+        final phone = c['phone'] as String? ?? '';
+        if (name.isNotEmpty && phone.isNotEmpty) {
+          final key = '${name}_$phone';
+          if (!localKeys.contains(key)) {
+            await _ble.addEmergencyContact(name, phone);
+            localKeys.add(key);
+          }
+        }
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[BleProvider] emergency contact cloud restore failed: $e');
+    }
+  }
+
   Future<void> _syncContactsToCloud() async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
@@ -951,16 +978,16 @@ class BleProvider extends ChangeNotifier {
           (ok) => ok ? null : _loadTodaySpo2FromSupabase(),
         ),
         _refreshStressFromLocal().then(
-          (ok) => ok ? null : _loadLatestStressFromSupabase(),
+          (ok) => ok ? null : _loadTodayStressFromSupabase(),
         ),
         _refreshBpFromLocal().then(
-          (ok) => ok ? null : _loadLatestBpFromSupabase(),
+          (ok) => ok ? null : _loadTodayBpFromSupabase(),
         ),
         _refreshStepsFromLocal().then(
           (ok) => ok ? null : _loadTodayFromSupabase(),
         ),
         _refreshTempFromLocal().then(
-          (ok) => ok ? null : _loadLatestTempFromSupabase(),
+          (ok) => ok ? null : _loadTodayTempFromSupabase(),
         ),
       ]);
     } finally {
@@ -1050,10 +1077,33 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
+  bool _isTodayTimestamp(dynamic msOrIso) {
+    if (msOrIso == null) return false;
+    DateTime dt;
+    if (msOrIso is num) {
+      dt = DateTime.fromMillisecondsSinceEpoch(msOrIso.toInt()).toLocal();
+    } else if (msOrIso is String) {
+      final parsed = DateTime.tryParse(msOrIso);
+      if (parsed == null) return false;
+      dt = parsed.toLocal();
+    } else {
+      return false;
+    }
+    final now = DateTime.now();
+    return dt.year == now.year && dt.month == now.month && dt.day == now.day;
+  }
+
   Future<bool> _refreshStressFromLocal() async {
     try {
       final m = jsonDecode(await _ble.getLatestReading('stress'));
       if (m is! Map<String, dynamic>) return false;
+      final ts = m['measuredAt'] ?? m['timestamp'] ?? m['mTime'];
+      if (!_isTodayTimestamp(ts)) {
+        _latestStressValue = 0;
+        _todayAvgStress = 0;
+        notifyListeners();
+        return false;
+      }
       _latestStressValue = (m['value'] as num?)?.toInt() ?? 0;
       try {
         final summary =
@@ -1078,6 +1128,13 @@ class BleProvider extends ChangeNotifier {
     try {
       final m = jsonDecode(await _ble.getLatestReading('blood_pressure'));
       if (m is! Map<String, dynamic>) return false;
+      final ts = m['measuredAt'] ?? m['timestamp'] ?? m['mTime'];
+      if (!_isTodayTimestamp(ts)) {
+        _latestBpSbp = 0;
+        _latestBpDbp = 0;
+        notifyListeners();
+        return false;
+      }
       _latestBpSbp = (m['systolic'] as num?)?.toInt() ?? 0;
       _latestBpDbp = (m['diastolic'] as num?)?.toInt() ?? 0;
       notifyListeners();
@@ -1112,7 +1169,10 @@ class BleProvider extends ChangeNotifier {
         if (decoded is Map<String, dynamic> &&
             ((decoded['steps'] as num? ?? 0) > 0 ||
                 (decoded['count'] as num? ?? 0) > 0)) {
-          m = decoded;
+          final ts = decoded['date'] ?? decoded['measuredAt'] ?? decoded['timestamp'];
+          if (ts == null || _isTodayTimestamp(ts)) {
+            m = decoded;
+          }
         }
       } catch (_) {}
 
@@ -1120,15 +1180,30 @@ class BleProvider extends ChangeNotifier {
         final rawJson = await _ble.getStepsToday();
         final decoded = jsonDecode(rawJson);
         if (decoded is Map<String, dynamic>) {
-          m = decoded;
+          final ts = decoded['date'] ?? decoded['measuredAt'] ?? decoded['timestamp'];
+          if (ts == null || _isTodayTimestamp(ts)) {
+            m = decoded;
+          }
         }
       }
 
-      if (m == null) return false;
+      if (m == null) {
+        _todaySteps = 0;
+        _todayCalories = 0;
+        _todayDistanceM = 0.0;
+        notifyListeners();
+        return false;
+      }
       final steps = (m['steps'] as num?)?.toInt() ?? 0;
       final calories = (m['caloriesKcal'] as num?)?.toInt() ?? 0;
       final distanceM = (m['distanceM'] as num?)?.toDouble() ?? 0.0;
-      if (steps <= 0 && calories <= 0) return false;
+      if (steps <= 0 && calories <= 0) {
+        _todaySteps = 0;
+        _todayCalories = 0;
+        _todayDistanceM = 0.0;
+        notifyListeners();
+        return false;
+      }
 
       _todaySteps = steps;
       _todayCalories = calories;
@@ -1153,6 +1228,12 @@ class BleProvider extends ChangeNotifier {
     try {
       final m = jsonDecode(await _ble.getLatestReading('temperature'));
       if (m is! Map<String, dynamic>) return false;
+      final ts = m['measuredAt'] ?? m['timestamp'] ?? m['mTime'];
+      if (!_isTodayTimestamp(ts)) {
+        _latestTempC = 0.0;
+        notifyListeners();
+        return false;
+      }
       final v = (m['valueC'] as num?)?.toDouble() ?? 0.0;
       if (v > 0) {
         _latestTempC = v;
@@ -1164,9 +1245,6 @@ class BleProvider extends ChangeNotifier {
           message: 'Your skin temperature just read ${v.toStringAsFixed(1)}°C.',
           vital: 'temperature',
         );
-        // Push to Supabase on every reading (mirrors _parseAndSaveTemp) so the
-        // continuous loop path keeps user_temp in sync, not just the manual
-        // "Measure Now" / background-sync paths.
         final user = SupabaseService.currentUser;
         if (user != null) {
           SupabaseService.insertTemp(
@@ -1629,47 +1707,53 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadLatestBpFromSupabase() async {
+  Future<void> _loadTodayBpFromSupabase() async {
     try {
       final user = SupabaseService.currentUser;
       if (user == null) return;
-      final data = await SupabaseService.getLatestBp(user.id);
+      final data = await SupabaseService.getTodayBp(user.id);
       if (data != null) {
         _latestBpSbp = (data['systolic'] as num? ?? 0).toInt();
         _latestBpDbp = (data['diastolic'] as num? ?? 0).toInt();
-        notifyListeners();
+      } else {
+        _latestBpSbp = 0;
+        _latestBpDbp = 0;
       }
+      notifyListeners();
     } catch (e, st) {
       _recordError(e, st);
     }
   }
 
-  Future<void> _loadLatestStressFromSupabase() async {
+  Future<void> _loadTodayStressFromSupabase() async {
     try {
       final user = SupabaseService.currentUser;
       if (user == null) return;
-      final data = await SupabaseService.getLatestStress(user.id);
+      final data = await SupabaseService.getTodayStress(user.id);
       if (data != null) {
         _latestStressValue = (data['stress_value'] as num? ?? 0).toInt();
-        notifyListeners();
+      } else {
+        _latestStressValue = 0;
+        _todayAvgStress = 0;
       }
+      notifyListeners();
     } catch (e, st) {
       _recordError(e, st);
     }
   }
 
-  Future<void> _loadLatestTempFromSupabase() async {
+  Future<void> _loadTodayTempFromSupabase() async {
     try {
       final user = SupabaseService.currentUser;
       if (user == null) return;
-      final data = await SupabaseService.getLatestTemp(user.id);
+      final data = await SupabaseService.getTodayTemp(user.id);
       if (data != null) {
         final v = (data['value_c'] as num? ?? 0).toDouble();
-        if (v > 0) {
-          _latestTempC = v;
-          notifyListeners();
-        }
+        _latestTempC = v > 0 ? v : 0.0;
+      } else {
+        _latestTempC = 0.0;
       }
+      notifyListeners();
     } catch (e, st) {
       _recordError(e, st);
     }

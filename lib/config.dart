@@ -15,7 +15,7 @@ class AppConfig {
   static const String chatApiBaseUrl = String.fromEnvironment(
     'CHAT_API_BASE_URL',
     defaultValue:
-        'https://vtialringbackendversion1-production.up.railway.app/api/v1',
+        'https://vtialringbackendversion1-production-a3e4.up.railway.app/api/v1',
   );
   static const String packagePrefix = 'com.medxai.sundr';
   static const String bleMethodChannel = '$packagePrefix/ble';

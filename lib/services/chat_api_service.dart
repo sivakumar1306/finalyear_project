@@ -67,23 +67,28 @@ class ChatApiService {
   static Future<Map<String, dynamic>> getConversations() async {
     final userId = _userId;
     if (userId == null) return {'conversations': []};
-    final response = await http
-        .get(
-          Uri.parse('$baseUrl/history/$userId'),
-          headers: _authHeaders,
-        )
-        .timeout(_timeout);
-    return _decodeOrThrow(response);
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/history/$userId'), headers: _authHeaders)
+          .timeout(_timeout);
+      return _decodeOrThrow(response);
+    } catch (_) {
+      return {'conversations': []};
+    }
   }
 
   static Future<Map<String, dynamic>> getMessages(String conversationId) async {
-    final response = await http
-        .get(
-          Uri.parse('$baseUrl/history/messages/$conversationId'),
-          headers: _authHeaders,
-        )
-        .timeout(_timeout);
-    return _decodeOrThrow(response);
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/history/messages/$conversationId'),
+            headers: _authHeaders,
+          )
+          .timeout(_timeout);
+      return _decodeOrThrow(response);
+    } catch (_) {
+      return {'messages': []};
+    }
   }
 
   /// Dynamic AI-assist header data: headline, subtext, and key-change cards,
@@ -104,10 +109,7 @@ class ChatApiService {
       };
     }
     final response = await http
-        .get(
-          Uri.parse('$baseUrl/insights/$userId'),
-          headers: _authHeaders,
-        )
+        .get(Uri.parse('$baseUrl/insights/$userId'), headers: _authHeaders)
         .timeout(_insightsTimeout);
     return _decodeOrThrow(response);
   }
