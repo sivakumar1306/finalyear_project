@@ -50,8 +50,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       );
     } catch (e) {
       if (mounted) {
+        final err = e.toString().toLowerCase();
         setState(
-          () => _error = e.toString().replaceAll('Exception: ', ''),
+          () => _error = (err.contains('invalid') || err.contains('auth') || err.contains('not found'))
+              ? 'Invalid email address.'
+              : e.toString().replaceAll('Exception: ', ''),
         );
       }
     } finally {
