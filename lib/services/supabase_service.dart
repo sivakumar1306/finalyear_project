@@ -330,6 +330,19 @@ class SupabaseService {
         .maybeSingle();
   }
 
+  static Future<Map<String, dynamic>?> getTodayBp(String userId) async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day).toUtc().toIso8601String();
+    return client
+        .from('user_bp')
+        .select()
+        .eq('user_id', userId)
+        .gte('measured_at', startOfDay)
+        .order('measured_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+  }
+
   static Future<List<Map<String, dynamic>>> getBpReadings({
     required String userId,
     required DateTime from,
@@ -374,6 +387,19 @@ class SupabaseService {
         .from('user_stress')
         .select()
         .eq('user_id', userId)
+        .order('measured_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+  }
+
+  static Future<Map<String, dynamic>?> getTodayStress(String userId) async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day).toUtc().toIso8601String();
+    return client
+        .from('user_stress')
+        .select()
+        .eq('user_id', userId)
+        .gte('measured_at', startOfDay)
         .order('measured_at', ascending: false)
         .limit(1)
         .maybeSingle();
@@ -512,6 +538,19 @@ class SupabaseService {
         .from('user_temp')
         .select()
         .eq('user_id', userId)
+        .order('measured_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+  }
+
+  static Future<Map<String, dynamic>?> getTodayTemp(String userId) async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day).toUtc().toIso8601String();
+    return client
+        .from('user_temp')
+        .select()
+        .eq('user_id', userId)
+        .gte('measured_at', startOfDay)
         .order('measured_at', ascending: false)
         .limit(1)
         .maybeSingle();
