@@ -159,8 +159,12 @@ class AccountSystemSettingsScreen extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         Navigator.pop(context); // close loading dialog
+        final err = e.toString().toLowerCase();
+        final message = (err.contains('invalid') || err.contains('auth') || err.contains('not found'))
+            ? 'Invalid email address.'
+            : e.toString().replaceAll('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}')),
+          SnackBar(content: Text(message)),
         );
       }
     }
