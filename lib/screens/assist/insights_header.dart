@@ -44,22 +44,25 @@ class InsightsHeaderState extends State<InsightsHeader>
     final isFresh =
         cachedAt != null && DateTime.now().difference(cachedAt) < _cacheTtl;
 
-    if (!forceRefresh && cached != null && isFresh) {
+    if (forceRefresh) {
+      _cache = null;
+      _cacheTime = null;
+      _cachedData = null;
+    } else if (cached != null &&
+        isFresh &&
+        (cached['days_used'] as num? ?? 0) > 0) {
       // Fresh cache hit — show it immediately, no network call, no spinner.
       _cachedData = cached;
       _insightsFuture = null;
       return;
     }
 
-    // Show stale cache (if any) while a fresh fetch runs in the background,
-    // instead of blanking out to a spinner on every re-fetch.
-    _cachedData = cached;
-    // Range selector removed app-wide — the backend now always analyzes a
-    // fixed (capped) window and tells us via `days_used` how many days of
-    // real data that actually covered, so no range argument is passed here.
+    _cachedData = forceRefresh ? null : cached;
     _insightsFuture = ChatApiService.getInsights().then((data) {
-      _cache = data;
-      _cacheTime = DateTime.now();
+      if ((data['days_used'] as num? ?? 0) > 0) {
+        _cache = data;
+        _cacheTime = DateTime.now();
+      }
       return data;
     });
   }

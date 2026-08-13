@@ -1121,7 +1121,7 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
     final isFresh =
         _cacheTime != null &&
         DateTime.now().difference(_cacheTime!) < _cacheTtl;
-    if (!force && _cache != null && isFresh) {
+    if (!force && _cache != null && isFresh && (_cache!['days_used'] as num? ?? 0) > 0) {
       if (mounted) setState(() => _data = _cache);
       return;
     }
@@ -1130,7 +1130,7 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
       final result = await ChatApiService.getInsights();
       final headlineParts = result['headline_parts'] as List?;
       final hasHeadline = headlineParts != null && headlineParts.isNotEmpty;
-      if (result['error'] == null && hasHeadline) {
+      if (result['error'] == null && hasHeadline && (result['days_used'] as num? ?? 0) > 0) {
         _cache = result;
         _cacheTime = DateTime.now();
       }
