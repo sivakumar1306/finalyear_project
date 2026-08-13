@@ -288,7 +288,7 @@ class BleProvider extends ChangeNotifier {
     _loadTodayHrvFromSupabase();
     _loadTodaySleepFromSupabase();
     _loadTodayTempFromSupabase();
-    _syncContactsToCloud();
+    syncEmergencyContactsFromCloud().then((_) => _syncContactsToCloud());
     loadLowBatteryPromptSetting();
   }
 
@@ -853,6 +853,33 @@ class BleProvider extends ChangeNotifier {
   Future<void> deleteEmergencyContact(int id) async {
     await _ble.deleteEmergencyContact(id);
     await _deleteContactFromCloud(id);
+  }
+
+  Future<void> syncEmergencyContactsFromCloud() async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    try {
+      final cloudContacts = await SupabaseService.getEmergencyContactsCloud(user.id);
+      if (cloudContacts.isEmpty) return;
+
+      final localRows = await getEmergencyContacts();
+      final localKeys = localRows.map((r) => '${r['name']}_${r['phone']}').toSet();
+
+      for (final c in cloudContacts) {
+        final name = c['name'] as String? ?? '';
+        final phone = c['phone'] as String? ?? '';
+        if (name.isNotEmpty && phone.isNotEmpty) {
+          final key = '${name}_$phone';
+          if (!localKeys.contains(key)) {
+            await _ble.addEmergencyContact(name, phone);
+            localKeys.add(key);
+          }
+        }
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[BleProvider] emergency contact cloud restore failed: $e');
+    }
   }
 
   Future<void> _syncContactsToCloud() async {

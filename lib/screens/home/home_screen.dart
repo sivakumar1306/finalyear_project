@@ -1121,7 +1121,10 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
     final isFresh =
         _cacheTime != null &&
         DateTime.now().difference(_cacheTime!) < _cacheTtl;
-    if (!force && _cache != null && isFresh && (_cache!['days_used'] as num? ?? 0) > 0) {
+    if (!force &&
+        _cache != null &&
+        isFresh &&
+        (_cache!['days_used'] as num? ?? 0) > 0) {
       if (mounted) setState(() => _data = _cache);
       return;
     }
@@ -1130,7 +1133,9 @@ class _HomeAiInsightSnippetState extends State<_HomeAiInsightSnippet> {
       final result = await ChatApiService.getInsights();
       final headlineParts = result['headline_parts'] as List?;
       final hasHeadline = headlineParts != null && headlineParts.isNotEmpty;
-      if (result['error'] == null && hasHeadline && (result['days_used'] as num? ?? 0) > 0) {
+      if (result['error'] == null &&
+          hasHeadline &&
+          (result['days_used'] as num? ?? 0) > 0) {
         _cache = result;
         _cacheTime = DateTime.now();
       }
@@ -2463,7 +2468,9 @@ class _ActivityScoreCard extends StatelessWidget {
         chart: _ActivityProgressBar(
           fraction: (steps / 10000.0).clamp(0.0, 1.0),
         ),
-        footnoteLead: steps > 0 ? '${_formatInt(steps)} / 10K steps' : 'No activity',
+        footnoteLead: steps > 0
+            ? '${_formatInt(steps)} / 10K steps'
+            : 'No activity',
         footnoteRest: distanceM > 0
             ? ' · $_distanceLabel · $activeMin min active'
             : '',

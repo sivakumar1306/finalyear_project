@@ -87,6 +87,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   Future<void> _loadContacts() async {
     final ble = context.read<BleProvider>();
+    await ble.syncEmergencyContactsFromCloud();
     final rows = await ble.getEmergencyContacts();
     if (!mounted) return;
     setState(() {
