@@ -8,7 +8,7 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val appPackageName = "com.medxai.sundr"
+val appPackageName = "com.sundr.myapp"
 
 val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties()

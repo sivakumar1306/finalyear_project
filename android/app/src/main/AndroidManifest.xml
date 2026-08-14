@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.medxai.sundr">
+    package="com.sundr.myapp">
 
     <!-- Bluetooth permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
@@ -125,7 +125,7 @@
             android:enabled="true"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.medxai.sundr.action.CRASH_RELAUNCH" />
+                <action android:name="com.sundr.myapp.action.CRASH_RELAUNCH" />
             </intent-filter>
         </receiver>
 
