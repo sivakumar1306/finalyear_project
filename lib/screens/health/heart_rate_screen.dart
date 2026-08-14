@@ -163,10 +163,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
 
       final summaryJson = await _ble.getTodaySummary('heart_rate');
       final summary = jsonDecode(summaryJson) as Map<String, dynamic>;
-      final count = (summary['count'] as num? ?? 0).toInt();
 
       final hourly = List<int>.filled(24, 0);
-      if (count > 0) {
+      try {
         final readingsJson = await _ble.getReadings(
           'heart_rate',
           fromMs: dayStart,
@@ -189,12 +188,18 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         for (int h = 0; h < 24; h++) {
           if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
         }
-      }
+      } catch (_) {}
 
       if (!mounted) return;
       final avg = (summary['avg'] as num?)?.round() ?? 0;
       final minVal = (summary['min'] as num?)?.toInt() ?? 0;
       final maxVal = (summary['max'] as num?)?.toInt() ?? 0;
+      if (!hourly.any((v) => v > 0) && mounted) {
+        final liveVal = context.read<BleProvider>().todayAvgHr;
+        if (liveVal > 0) {
+          hourly[now.hour] = liveVal;
+        }
+      }
       setState(() {
         _chartValues = hourly;
         _avgHr = avg;

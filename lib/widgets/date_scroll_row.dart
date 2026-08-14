@@ -16,7 +16,7 @@ class DateScrollRow extends StatefulWidget {
 }
 
 class _DateScrollRowState extends State<DateScrollRow> {
-  final ScrollController _scrollController = ScrollController();
+  late final ScrollController _scrollController;
   final GlobalKey _selectedKey = GlobalKey();
 
   static const _monthAbbr = [
@@ -24,9 +24,18 @@ class _DateScrollRowState extends State<DateScrollRow> {
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
 
+  double _calcInitialOffset(DateTime date) {
+    final index = date.day - 1;
+    final target = (index * 48.0) - 120.0;
+    return target < 0 ? 0.0 : target;
+  }
+
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController(
+      initialScrollOffset: _calcInitialOffset(widget.selectedDate),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected(animate: false));
   }
 
@@ -57,6 +66,13 @@ class _DateScrollRowState extends State<DateScrollRow> {
         duration: animate ? const Duration(milliseconds: 250) : Duration.zero,
         curve: Curves.easeOutCubic,
       );
+    } else {
+      final target = _calcInitialOffset(widget.selectedDate);
+      if (_scrollController.hasClients && target > 0) {
+        _scrollController.jumpTo(
+          target.clamp(0.0, _scrollController.position.maxScrollExtent),
+        );
+      }
     }
   }
 

@@ -197,10 +197,9 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
       final summary =
           jsonDecode(await _ble.getTodaySummary('temperature'))
               as Map<String, dynamic>;
-      final count = (summary['count'] as num? ?? 0).toInt();
 
       final hourly = List<double>.filled(24, 0);
-      if (count > 0) {
+      try {
         final readingsJson = await _ble.getReadings(
           'temperature',
           fromMs: dayStart,
@@ -223,12 +222,18 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         for (int h = 0; h < 24; h++) {
           if (counts[h] > 0) hourly[h] = sums[h] / counts[h];
         }
-      }
+      } catch (_) {}
 
       if (!mounted) return;
       final avg = (summary['avg'] as num?)?.toDouble() ?? 0;
       final minVal = (summary['min'] as num?)?.toDouble() ?? 0;
       final maxVal = (summary['max'] as num?)?.toDouble() ?? 0;
+      if (!hourly.any((v) => v > 0) && mounted) {
+        final liveVal = context.read<BleProvider>().latestTempC;
+        if (liveVal > 0) {
+          hourly[now.hour] = liveVal;
+        }
+      }
       setState(() {
         _chartValues = hourly;
         _avgTemp = avg;

@@ -154,94 +154,100 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                 child: SizedBox(
                   width: 180,
                   height: 180,
-                  child: AnimatedBuilder(
-                    animation: _pulseAnimation,
-                    builder: (context, child) {
-                      final scale = _isRinging ? _pulseAnimation.value : 1.0;
-                      return Transform.scale(scale: scale, child: child);
-                    },
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Outer Glow Ring
-                        Container(
-                          width: 170,
-                          height: 170,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: _isRinging
-                                  ? AppTheme.gold.withValues(alpha: 0.6)
-                                  : const Color(0x26FFFFFF),
-                              width: _isRinging ? 2.0 : 1.0,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Outer 2 Pulsing Rings
+                      AnimatedBuilder(
+                        animation: _pulseAnimation,
+                        builder: (context, child) {
+                          final scale = _isRinging ? _pulseAnimation.value : 1.0;
+                          return Transform.scale(scale: scale, child: child);
+                        },
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // Outer Glow Ring
+                            Container(
+                              width: 170,
+                              height: 170,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: _isRinging
+                                      ? AppTheme.gold.withValues(alpha: 0.6)
+                                      : const Color(0x26FFFFFF),
+                                  width: _isRinging ? 2.0 : 1.0,
+                                ),
+                                boxShadow: _isRinging
+                                    ? [
+                                        BoxShadow(
+                                          color: AppTheme.gold.withValues(
+                                            alpha: 0.35,
+                                          ),
+                                          blurRadius: 40,
+                                          spreadRadius: 10,
+                                        ),
+                                      ]
+                                    : [],
+                              ),
                             ),
-                            boxShadow: _isRinging
+                            // Mid Ring
+                            Container(
+                              width: 130,
+                              height: 130,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: _isRinging
+                                      ? AppTheme.gold.withValues(alpha: 0.8)
+                                      : const Color(0x38FFFFFF),
+                                  width: 1.0,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Core Ring Button / Still Bluetooth Symbol
+                      Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: _isRinging
                                 ? [
-                                    BoxShadow(
-                                      color: AppTheme.gold.withValues(
-                                        alpha: 0.35,
-                                      ),
-                                      blurRadius: 40,
-                                      spreadRadius: 10,
-                                    ),
+                                    const Color(0xFFFFF0D0),
+                                    AppTheme.gold,
+                                    const Color(0xFF987A46),
                                   ]
-                                : [],
+                                : [
+                                    const Color(0x33FFFFFF),
+                                    const Color(0x1AFFFFFF),
+                                  ],
                           ),
-                        ),
-                        // Mid Ring
-                        Container(
-                          width: 130,
-                          height: 130,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: _isRinging
-                                  ? AppTheme.gold.withValues(alpha: 0.8)
-                                  : const Color(0x38FFFFFF),
-                              width: 1.0,
-                            ),
-                          ),
-                        ),
-                        // Core Ring Button / Glowing Bluetooth Symbol
-                        Container(
-                          width: 90,
-                          height: 90,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: RadialGradient(
-                              colors: _isRinging
-                                  ? [
-                                      const Color(0xFFFFF0D0),
-                                      AppTheme.gold,
-                                      const Color(0xFF987A46),
-                                    ]
-                                  : [
-                                      const Color(0x33FFFFFF),
-                                      const Color(0x1AFFFFFF),
-                                    ],
-                            ),
-                            boxShadow: _isRinging
-                                ? [
-                                    BoxShadow(
-                                      color: AppTheme.gold.withValues(
-                                        alpha: 0.85,
-                                      ),
-                                      blurRadius: 28,
-                                      spreadRadius: 6,
+                          boxShadow: _isRinging
+                              ? [
+                                  BoxShadow(
+                                    color: AppTheme.gold.withValues(
+                                      alpha: 0.85,
                                     ),
-                                  ]
-                                : [],
-                          ),
-                          child: Icon(
-                            Icons.bluetooth_searching_rounded,
-                            size: 40,
-                            color: _isRinging
-                                ? const Color(0xFF0D0C0A)
-                                : Colors.white,
-                          ),
+                                    blurRadius: 28,
+                                    spreadRadius: 6,
+                                  ),
+                                ]
+                              : [],
                         ),
-                      ],
-                    ),
+                        child: Icon(
+                          Icons.bluetooth_searching_rounded,
+                          size: 40,
+                          color: _isRinging
+                              ? const Color(0xFF0D0C0A)
+                              : Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
