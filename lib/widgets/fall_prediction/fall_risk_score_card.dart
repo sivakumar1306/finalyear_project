@@ -1,3 +1,4 @@
+import 'dart:ui' as dart_ui;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/fall_prediction/fall_prediction_provider.dart';
@@ -177,23 +178,38 @@ class _MiniCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: const Color(0x0FFFFFFF),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0x17FFFFFF), width: 0.5),
-        gradient: RadialGradient(
-          center: const Alignment(0.8, -0.8),
-          radius: 1.2,
-          colors: [
-            valueColor.withAlpha(60),
-            const Color(0x0FFFFFFF),
-          ],
-          stops: const [0.0, 1.0],
-        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Glassmorphism blur orb (bottom right)
+          Positioned(
+            bottom: -56,
+            right: -56,
+            child: RepaintBoundary(
+              child: ImageFiltered(
+                imageFilter: dart_ui.ImageFilter.blur(sigmaX: 60, sigmaY: 60, tileMode: TileMode.decal),
+                child: Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: valueColor.withAlpha(70), // orbAlpha equivalent
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -250,9 +266,12 @@ class _MiniCard extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
-          ]
+          ],
         ],
       ),
+    ),
+  ],
+),
     );
   }
 }
