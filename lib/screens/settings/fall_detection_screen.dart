@@ -710,8 +710,6 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
           _ToggleRow(
             icon: Icons.phone_in_talk_rounded,
             title: 'Auto call on fall prediction',
-            subtitle:
-                'Call emergency contact when fall risk score hits 9.0 or higher',
             value: ble.autoCallOnFallPredictionEnabled,
             onChanged: _onAutoCallPredictionToggle,
           ),
