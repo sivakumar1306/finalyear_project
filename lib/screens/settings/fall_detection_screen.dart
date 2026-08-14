@@ -1335,14 +1335,12 @@ class _FallHistorySheet extends StatelessWidget {
 class _ToggleRow extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String? subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
 
   const _ToggleRow({
     required this.icon,
     required this.title,
-    this.subtitle,
     required this.value,
     required this.onChanged,
   });
@@ -1382,16 +1380,6 @@ class _ToggleRow extends StatelessWidget {
                       fontWeight: FontWeight.w400,
                     ),
                   ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: AppTypography.inter(
-                        color: AppTheme.textSec,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
