@@ -15,7 +15,11 @@ class ExplainableAIDashboard extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        return AttributionReportCard(payload: result.explainability!);
+        return AttributionReportCard(
+          payload: result.explainability!,
+          frs30Score: result.frs30.value,
+          frs24Value: result.frs24.value,
+        );
       },
     );
   }

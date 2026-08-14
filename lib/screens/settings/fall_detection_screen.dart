@@ -422,11 +422,8 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     final fallProvider = context.watch<FallPredictionProvider>();
     final realScore = fallProvider.currentResult?.frs24.value.toInt() ?? 0;
     final tier = _debugTier ?? _tierFromScore(realScore);
-    final isDemo = _debugTier != null && _debugTier != _FallTier.low;
 
-    final int hr = isDemo
-        ? (tier == _FallTier.high ? 122 : 118)
-        : ble.todayMaxHr;
+    final int hr = ble.todayMaxHr;
     final showAlert = tier != _FallTier.low && _ignoredForTier != tier;
 
     return Scaffold(
@@ -625,10 +622,8 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                   ],
                 ),
               ),
-            const _SectionLabel('FALL RISK SCORE (LIVE)'),
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () {
+            FallRiskScoreCard(
+              onTapRiskDetails: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -658,7 +653,8 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                   ),
                 );
               },
-              child: const FallRiskScoreCard(),
+              onTapHeartRate: () => Navigator.pushNamed(context, '/heart-rate'),
+              onTapTemperature: () => Navigator.pushNamed(context, '/temperature'),
             ),
             const SizedBox(height: 20),
           ] else if (!ble.isConnected && !_simulateConnection) ...[

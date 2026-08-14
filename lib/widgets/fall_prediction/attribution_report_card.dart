@@ -4,10 +4,14 @@ import '../../theme/app_theme.dart';
 
 class AttributionReportCard extends StatelessWidget {
   final ExplainabilityPayload payload;
+  final double frs30Score;
+  final double frs24Value;
 
   const AttributionReportCard({
     super.key,
     required this.payload,
+    required this.frs30Score,
+    required this.frs24Value,
   });
 
   Color _getRiskColor(FrsRiskBand band) {
@@ -72,7 +76,33 @@ class AttributionReportCard extends StatelessWidget {
                       _buildRiskBadge(payload.frs24Band),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
+
+                  // Main Score Overview
+                  Center(
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Fall Risk Score',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          frs24Value.toStringAsFixed(1),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 56,
+                            fontWeight: FontWeight.w300,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
 
                   // Fall Risk Factors
                   if (!(payload.frsContributors.length == 1 && payload.frsContributors.first == 'Low Risk Factors')) ...[
