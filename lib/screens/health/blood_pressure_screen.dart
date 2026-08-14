@@ -92,8 +92,12 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
 
   int get _displaySbpAvg {
     if (!_isToday) return _daySbpAvg;
+    try {
+      final v = context.read<BleProvider>().latestBpSbp;
+      if (v > 0) return v;
+    } catch (_) {}
     if (_avgSbp > 0) return _avgSbp;
-    try { return context.read<BleProvider>().latestBpSbp; } catch(_) { return 0; }
+    return 0;
   }
 
   int get _displaySbpMin {
@@ -110,8 +114,12 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
 
   int get _displayDbpAvg {
     if (!_isToday) return _dayDbpAvg;
+    try {
+      final v = context.read<BleProvider>().latestBpDbp;
+      if (v > 0) return v;
+    } catch (_) {}
     if (_avgDbp > 0) return _avgDbp;
-    try { return context.read<BleProvider>().latestBpDbp; } catch(_) { return 0; }
+    return 0;
   }
 
   int get _displayDbpMin {
