@@ -85,8 +85,12 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
 
   double get _displayAvg {
     if (!_isToday) return _dayAvg;
+    try {
+      final v = context.read<BleProvider>().latestTempC;
+      if (v > 0) return v;
+    } catch (_) {}
     if (_avgTemp > 0) return _avgTemp;
-    try { return context.read<BleProvider>().latestTempC; } catch(_) { return 0.0; }
+    return 0.0;
   }
 
   double get _displayMin {
