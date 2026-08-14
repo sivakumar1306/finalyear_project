@@ -531,6 +531,10 @@ class BleProvider extends ChangeNotifier {
         _refreshTempFromLocal();
         unawaited(_pushToHealthConnect('temperature'));
         break;
+      case 'HRV':
+      case 'hrv':
+        _refreshHrvFromLocal();
+        break;
     }
   }
 
@@ -989,6 +993,9 @@ class BleProvider extends ChangeNotifier {
         _refreshTempFromLocal().then(
           (ok) => ok ? null : _loadTodayTempFromSupabase(),
         ),
+        _refreshHrvFromLocal().then(
+          (ok) => ok ? null : _loadTodayHrvFromSupabase(),
+        ),
       ]);
     } finally {
       _endNotifyBatch();
@@ -1258,6 +1265,20 @@ class BleProvider extends ChangeNotifier {
           ).catchError((_) {});
         }
       }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _refreshHrvFromLocal() async {
+    try {
+      final m =
+          jsonDecode(await _ble.getTodaySummary('hrv'))
+              as Map<String, dynamic>;
+      if ((m['count'] as num? ?? 0) <= 0) return false;
+      _todayAvgHrv = (m['avg'] as num?)?.round() ?? 0;
+      notifyListeners();
       return true;
     } catch (_) {
       return false;
