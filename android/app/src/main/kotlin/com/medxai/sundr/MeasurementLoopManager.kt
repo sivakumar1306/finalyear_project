@@ -87,13 +87,13 @@ object MeasurementLoopManager {
     // connect rather than waiting on its own disconnected-recheck poll.
     fun onRingConnected() {
         if (!started) return
+        runningCycle.set(false)
         handler.removeCallbacks(cycleRunnable)
         handler.post(cycleRunnable)
     }
 
     fun onRingDisconnected() {
-        // No proactive action needed — an in-flight cycle already checks isConnected between
-        // steps and will mark itself ABORTED_DISCONNECT on its own next step.
+        runningCycle.set(false)
     }
 
     private fun scheduleNext(delayMs: Long) {
@@ -124,7 +124,10 @@ object MeasurementLoopManager {
             scheduleNext(WORKOUT_RECHECK_MS)
             return
         }
-        if (!runningCycle.compareAndSet(false, true)) return
+        if (!runningCycle.compareAndSet(false, true)) {
+            scheduleNext(DISCONNECTED_RECHECK_MS)
+            return
+        }
 
         repository.ioScope.launch {
             try {
