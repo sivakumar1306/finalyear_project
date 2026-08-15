@@ -1124,6 +1124,11 @@ class BleProvider extends ChangeNotifier {
       } catch (e, st) {
         _recordError(e, st);
       }
+      if (_todayAvgStress <= 0 && _latestStressValue > 0) {
+        _todayAvgStress = _latestStressValue;
+        _todayMinStress = _latestStressValue;
+        _todayMaxStress = _latestStressValue;
+      }
       notifyListeners();
       return true;
     } catch (_) {
@@ -1752,10 +1757,16 @@ class BleProvider extends ChangeNotifier {
       if (user == null) return;
       final data = await SupabaseService.getTodayStress(user.id);
       if (data != null) {
-        _latestStressValue = (data['stress_value'] as num? ?? 0).toInt();
+        final val = (data['stress_value'] as num? ?? 0).toInt();
+        _latestStressValue = val;
+        _todayAvgStress = (data['avg_stress'] as num?)?.round() ?? val;
+        _todayMinStress = (data['min_stress'] as num?)?.toInt() ?? val;
+        _todayMaxStress = (data['max_stress'] as num?)?.toInt() ?? val;
       } else {
         _latestStressValue = 0;
         _todayAvgStress = 0;
+        _todayMinStress = 0;
+        _todayMaxStress = 0;
       }
       notifyListeners();
     } catch (e, st) {

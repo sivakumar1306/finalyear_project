@@ -118,7 +118,7 @@ class FallRiskScoreCard extends StatelessWidget {
                       onTap: onTapHeartRate,
                       child: _MiniCard(
                         title: 'Heart Rate',
-                        value: bleProvider.todayMaxHr > 0 ? bleProvider.todayMaxHr.toString() : '--',
+                        value: bleProvider.todayAvgHr > 0 ? bleProvider.todayAvgHr.toString() : '--',
                         unit: 'bpm',
                         valueColor: const Color(0xFFC96B6B),
                         showChevron: true,
@@ -235,6 +235,7 @@ class _MiniCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (trailing != null) Align(alignment: Alignment.centerRight, child: trailing),
+          const Spacer(),
           RichText(
             text: TextSpan(
               children: [

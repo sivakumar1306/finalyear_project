@@ -164,12 +164,11 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
       final summary =
           jsonDecode(await _ble.getTodaySummary('spo2'))
               as Map<String, dynamic>;
-      final count = (summary['count'] as num? ?? 0).toInt();
 
       const totalSlots = 24;
       final slots = List<int>.filled(totalSlots, 0);
 
-      if (count > 0) {
+      try {
         final readingsJson = await _ble.getReadings(
           'spo2',
           fromMs: dayStart,
@@ -195,12 +194,18 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
             slots[i] = (slotSums[i] / slotCounts[i]).round();
           }
         }
-      }
+      } catch (_) {}
 
       if (!mounted) return;
       final avg = (summary['avg'] as num?)?.round() ?? 0;
       final minVal = (summary['min'] as num? ?? 0).toInt();
       final maxVal = (summary['max'] as num? ?? 0).toInt();
+      if (!slots.any((v) => v > 0) && mounted) {
+        final liveVal = context.read<BleProvider>().todayAvgSpo2;
+        if (liveVal > 0) {
+          slots[now.hour] = liveVal;
+        }
+      }
       setState(() {
         _chartValues = slots;
         _avgSpo2 = avg;

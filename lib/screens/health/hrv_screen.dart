@@ -188,12 +188,11 @@ class _HrvScreenState extends State<HrvScreen> {
 
       final summary =
           jsonDecode(await _ble.getTodaySummary('hrv')) as Map<String, dynamic>;
-      final count = (summary['count'] as num? ?? 0).toInt();
 
       const totalSlots = 48;
       final slots = List<int>.filled(totalSlots, 0);
 
-      if (count > 0) {
+      try {
         final readingsJson = await _ble.getReadings(
           'hrv',
           fromMs: dayStart,
@@ -222,10 +221,19 @@ class _HrvScreenState extends State<HrvScreen> {
             slots[i] = (slotSums[i] / slotCounts[i]).round();
           }
         }
-      }
+      } catch (_) {}
 
       if (!mounted) return;
       final avg = (summary['avg'] as num?)?.round() ?? 0;
+      if (!slots.any((v) => v > 0) && mounted) {
+        final liveVal = context.read<BleProvider>().todayAvgHrv;
+        if (liveVal > 0) {
+          final currentSlot = (now.hour * 60 + now.minute) ~/ 30;
+          if (currentSlot >= 0 && currentSlot < totalSlots) {
+            slots[currentSlot] = liveVal;
+          }
+        }
+      }
       setState(() {
         _chartValues = slots;
         _avgHrv = avg;

@@ -187,10 +187,9 @@ class _PressureScreenState extends State<PressureScreen> {
       final summary =
           jsonDecode(await _ble.getTodaySummary('stress'))
               as Map<String, dynamic>;
-      final count = (summary['count'] as num? ?? 0).toInt();
 
       final hourly = List<int>.filled(24, 0);
-      if (count > 0) {
+      try {
         final readingsJson = await _ble.getReadings(
           'stress',
           fromMs: dayStart,
@@ -213,15 +212,22 @@ class _PressureScreenState extends State<PressureScreen> {
         for (int h = 0; h < 24; h++) {
           if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
         }
-      }
+      } catch (_) {}
 
       if (!mounted) return;
       final avg = (summary['avg'] as num?)?.round() ?? 0;
       final minVal = (summary['min'] as num?)?.toInt() ?? 0;
       final maxVal = (summary['max'] as num?)?.toInt() ?? 0;
+      if (!hourly.any((v) => v > 0) && mounted) {
+        final ble = context.read<BleProvider>();
+        final liveVal = ble.todayAvgStress > 0 ? ble.todayAvgStress : ble.latestStressValue;
+        if (liveVal > 0) {
+          hourly[now.hour] = liveVal;
+        }
+      }
       setState(() {
         _chartValues = hourly;
-        _avgStress = avg;
+        _avgStress = avg > 0 ? avg : (hourly.any((v) => v > 0) ? hourly[now.hour] : 0);
         _minStress = minVal;
         _maxStress = maxVal;
         _selectedDate = DateTime.now();

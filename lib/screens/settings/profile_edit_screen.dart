@@ -12,8 +12,6 @@ import 'account_system_settings_screen.dart';
 import 'settings_screen.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/footer_spacer.dart';
-import '../../models/onboarding_data.dart';
-import '../onboarding/onboarding_name_screen.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   final bool showBackButton;
@@ -409,30 +407,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   const SizedBox(height: 12),
                   _buildTopAccountCard(),
                   const SizedBox(height: 24),
-                  _sectionHeader(
-                    'ABOUT YOU',
-                    onEditTap: () {
-                      final data = OnboardingData(
-                        name: _name,
-                        age: _age > 0 ? _age : 25,
-                        gender: _gender.isNotEmpty ? _gender : '',
-                        heightCm: _heightCm > 0 ? _heightCm : 170,
-                        weightKg: _weightKg > 0 ? _weightKg : 70.0,
-                        emergencyContactName: _contacts.isNotEmpty ? _contacts.first.name : null,
-                        emergencyContactPhone: _contacts.isNotEmpty ? _contacts.first.phone : null,
-                        isEditMode: true,
-                      );
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => OnboardingNameScreen(data: data),
-                        ),
-                      ).then((_) {
-                        _loadProfile();
-                        if (_loggedIn) _loadContacts();
-                      });
-                    },
-                  ),
+                  _sectionHeader('ABOUT YOU', showEdit: false),
                   const SizedBox(height: 10),
                   Container(
                     decoration: BoxDecoration(

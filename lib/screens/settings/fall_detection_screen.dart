@@ -423,7 +423,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     final realScore = fallProvider.currentResult?.frs24.value.toInt() ?? 0;
     final tier = _debugTier ?? _tierFromScore(realScore);
 
-    final int hr = ble.todayMaxHr;
+    final int hr = ble.todayAvgHr > 0 ? ble.todayAvgHr : ble.todayMaxHr;
     final showAlert = tier != _FallTier.low && _ignoredForTier != tier;
 
     return Scaffold(
