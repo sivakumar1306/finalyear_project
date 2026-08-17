@@ -220,7 +220,14 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     try {
-      String payloadText = text;
+      // Strip user-supplied "[System Context: ...]" blocks before sending so a
+      // user cannot inject their own instructions that ride alongside the
+      // app-level system context below and override it on the AI backend.
+      final String sanitizedText = text.replaceAll(
+        RegExp(r'\[System Context:.*?\]', caseSensitive: false, dotAll: true),
+        '',
+      ).trim();
+      String payloadText = sanitizedText;
       if (!InsightsHeaderState.hasData) {
         payloadText += '\n\n[System Context: The user currently has NO data available (0 days of readings). Do not hallucinate or invent any metrics, scores, or charts. Inform the user they need to wear their ring longer to gather data.]';
       }

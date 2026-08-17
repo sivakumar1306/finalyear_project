@@ -1,4 +1,4 @@
-﻿# 02 — Stubs, Placeholders, and Fake/Demo Data
+# 02 — Stubs, Placeholders, and Fake/Demo Data
 
 > Every item below was confirmed by direct read. Important correction vs. earlier notes: **the native layer is mostly real** — only the 7 methods in 2.1 are stubs. BLE scan/connect, HR/BP/SpO2/steps/sleep/HRV/stress/temperature, camera, phone control, DND, reminders, OTA (DfuHandle), Room persistence, emergency SMS/call, and sync are genuinely implemented against the Oudmon SDK (`com.oudmon.ble.base`).
 
