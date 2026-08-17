@@ -4,7 +4,6 @@ import 'chat_vital_shell.dart';
 
 // DBP uses the same contrasting violet as blood_pressure_screen.dart so both
 // series stay visually consistent between the full screen and the chat card.
-const _dbpColor = Color(0xFFC084FC);
 
 class BloodPressureChatCard extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -39,7 +38,7 @@ class BloodPressureChatCard extends StatelessWidget {
         maxY: 160,
         yLines: const [160, 120, 80, 40],
         sbpColor: AppTheme.bpColor,
-        dbpColor: _dbpColor,
+        dbpColor: AppTheme.softViolet,
       ),
       onTap: onTap,
     );

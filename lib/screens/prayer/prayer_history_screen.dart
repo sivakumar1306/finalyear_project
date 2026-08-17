@@ -262,7 +262,7 @@ class _PrayerHistoryScreenState extends State<PrayerHistoryScreen> {
                         decoration: BoxDecoration(
                           color: AppTheme.card,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0x1AFFFFFF)),
+                          border: Border.all(color: AppTheme.white10),
                         ),
                         child: Column(
                           children: [
@@ -318,7 +318,7 @@ class _PrayerHistoryScreenState extends State<PrayerHistoryScreen> {
                             decoration: BoxDecoration(
                               color: AppTheme.card,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0x1AFFFFFF)),
+                              border: Border.all(color: AppTheme.white10),
                             ),
                             child: Row(
                               children: [
@@ -401,7 +401,7 @@ class _SummaryStatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x1AFFFFFF)),
+        border: Border.all(color: AppTheme.white10),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -637,7 +637,7 @@ class _PrayerTrendsChartPainter extends CustomPainter {
 
       // Node Circles
       for (final pt in calmPoints) {
-        canvas.drawCircle(pt, 4.5, Paint()..color = const Color(0xFF1A1A1A));
+        canvas.drawCircle(pt, 4.5, Paint()..color = AppTheme.card2);
         canvas.drawCircle(pt, 3.5, Paint()..color = AppTheme.gold);
       }
     }
@@ -665,7 +665,7 @@ class _PrayerTrendsChartPainter extends CustomPainter {
       canvas.drawPath(hrPath, hrStrokePaint);
 
       for (final pt in hrPoints) {
-        canvas.drawCircle(pt, 4.0, Paint()..color = const Color(0xFF1A1A1A));
+        canvas.drawCircle(pt, 4.0, Paint()..color = AppTheme.card2);
         canvas.drawCircle(pt, 3.0, Paint()..color = Colors.redAccent);
       }
     }

@@ -657,7 +657,7 @@ class _SettingsRow extends StatelessWidget {
                 color: AppTheme.card2,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: const Color(0xFFAAAAAA), size: 17),
+              child: Icon(icon, color: AppTheme.iconFaint, size: 17),
             ),
             const SizedBox(width: 14),
             Expanded(

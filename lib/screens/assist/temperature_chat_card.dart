@@ -11,7 +11,7 @@ class TemperatureChatCard extends StatelessWidget {
   static Color _tempBarColor(double v) {
     if (v < 36.0) return AppTheme.spo2Color;
     if (v <= 37.2) return AppTheme.success;
-    if (v <= 38.0) return const Color(0xFFFBBF24);
+    if (v <= 38.0) return AppTheme.tempColor;
     return AppTheme.danger;
   }
 
@@ -53,7 +53,7 @@ class TemperatureChatCard extends StatelessWidget {
             children: [
               _LegendDot(color: AppTheme.spo2Color, label: 'Low'),
               _LegendDot(color: AppTheme.success, label: 'Normal'),
-              _LegendDot(color: Color(0xFFFBBF24), label: 'Elevated'),
+              _LegendDot(color: AppTheme.tempColor, label: 'Elevated'),
               _LegendDot(color: AppTheme.danger, label: 'Fever'),
             ],
           ),
@@ -106,7 +106,7 @@ class _TempMiniBarChart extends StatelessWidget {
                   l,
                   style: AppTypography.inter(
                     fontSize: 9,
-                    color: const Color(0x66FFFFFF),
+                    color: AppTheme.white40,
                   ),
                 ),
               )
@@ -137,7 +137,7 @@ class _TempMiniBarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = const Color(0x0AFFFFFF)
+      ..color = AppTheme.white04
       ..strokeWidth = 0.5;
     for (final y in yLines) {
       final yPos = size.height - ((y - minY) / _range) * size.height;
@@ -189,7 +189,7 @@ class _LegendDot extends StatelessWidget {
         label,
         style: AppTypography.inter(
           fontSize: 9,
-          color: const Color(0x99FFFFFF),
+          color: AppTheme.white60,
         ),
       ),
     ],

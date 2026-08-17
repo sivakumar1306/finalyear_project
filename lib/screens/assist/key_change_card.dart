@@ -1,6 +1,7 @@
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import '../../widgets/app_typography.dart';
+import '../../theme/app_theme.dart';
 
 class KeyChangeCard extends StatelessWidget {
   final String title;
@@ -25,7 +26,7 @@ class KeyChangeCard extends StatelessWidget {
     // cards are visually distinct without needing separate iconography.
     final accentColor = alarming
         ? const Color(0xFFE07A5F)
-        : const Color(0xFFC9A86E);
+        : AppTheme.gold;
 
     // RepaintBoundary caches the blurred layer so scrolling the chat list
     // doesn't re-blur the backdrop every frame.
@@ -42,11 +43,11 @@ class KeyChangeCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: alarming
                   ? accentColor.withValues(alpha: 0.05)
-                  : const Color(0x0AFFFFFF),
+                  : AppTheme.white04,
               border: Border.all(
                 color: alarming
                     ? accentColor.withValues(alpha: 0.35)
-                    : const Color(0x14FFFFFF),
+                    : AppTheme.glassButtonBorder,
                 width: 0.5,
               ),
               borderRadius: BorderRadius.circular(14),
@@ -84,7 +85,7 @@ class KeyChangeCard extends StatelessWidget {
                         style: AppTypography.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: const Color(0xEBFFFFFF),
+                          color: AppTheme.white92,
                         ),
                       ),
                     ),
@@ -105,7 +106,7 @@ class KeyChangeCard extends StatelessWidget {
                   style: AppTypography.inter(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w400,
-                    color: const Color(0x80FFFFFF),
+                    color: AppTheme.white50,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,

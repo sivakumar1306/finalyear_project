@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../services/chat_api_service.dart';
-import '../../theme/app_theme.dart';
+import '../services/chat_api_service.dart';
+import '../theme/app_theme.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});

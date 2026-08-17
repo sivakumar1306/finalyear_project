@@ -15,8 +15,8 @@ This folder holds **product and feature specifications**: what the system must d
 | Name | Where used |
 |------|------------|
 | **SUNDR** | User-facing brand (splash, `MaterialApp` title) |
-| **qring_flutter** | Flutter package name |
-| **com.medxai.sundr** | Android namespace, MethodChannel prefixes |
+| **sundr** | Flutter package name |
+| **com.sundr.myapp** | Android namespace, MethodChannel prefixes |
 | **QRing** | Vendor SDK / legacy internal names |
 
 All names refer to the same product.

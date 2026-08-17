@@ -194,7 +194,7 @@ void main() async {
               update: (_, ble, fall) => fall!..updateBleProvider(ble),
             ),
           ],
-          child: const QRingApp(),
+          child: const SundrApp(),
         ),
       );
       unawaited(_requestPermissionsAndStartService());

@@ -7,6 +7,7 @@ import '../../models/onboarding_data.dart';
 import '../onboarding/onboarding_name_screen.dart';
 import 'sign_up_screen.dart';
 import 'login_screen.dart';
+import '../../theme/app_theme.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -106,7 +107,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF050505),
+      backgroundColor: AppTheme.bg,
       body: SafeArea(
             child: _checking
                 ? Center(

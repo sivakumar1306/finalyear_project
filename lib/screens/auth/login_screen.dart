@@ -6,6 +6,7 @@ import 'forgot_password_screen.dart';
 import 'sign_up_screen.dart';
 import 'splash_screen.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../theme/app_theme.dart';
 
 String _friendlyAuthError(Object e) {
   final raw = e.toString().replaceAll('Exception: ', '').trim();
@@ -205,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: const Text(
                           'Forgot password?',
                           style: TextStyle(
-                            color: Color(0xFFC9A86E),
+                            color: AppTheme.gold,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
@@ -238,7 +239,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 TextSpan(
                                   text: 'Sign up',
                                   style: TextStyle(
-                                    color: Color(0xFFC9A86E),
+                                    color: AppTheme.gold,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -261,11 +262,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: canSubmit ? _login : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: canSubmit
-                          ? const Color(0xFFC9A86E)
-                          : const Color(0xFF2A2A2A),
+                          ? AppTheme.gold
+                          : AppTheme.surfaceRaised,
                       foregroundColor:
                           canSubmit ? Colors.black : Colors.white38,
-                      disabledBackgroundColor: const Color(0xFF2A2A2A),
+                      disabledBackgroundColor: AppTheme.surfaceRaised,
                       disabledForegroundColor: Colors.white38,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
@@ -344,7 +345,7 @@ class _DarkField extends StatelessWidget {
               borderSide: BorderSide(color: Colors.white24),
             ),
             focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFFC9A86E)),
+              borderSide: BorderSide(color: AppTheme.gold),
             ),
             contentPadding: const EdgeInsets.symmetric(vertical: 8),
           ),

@@ -17,7 +17,7 @@ Discover, bond, and maintain a connection to a SUNDR/QRing smart ring so vitals,
 ## 2. Constraints
 
 - All BLE traffic goes through the **closed-source vendor AAR** (`android/app/libs/qring_sdk_*.aar`, `com.oudmon.ble.*`).
-- Flutter never opens GATT directly; it uses MethodChannel / EventChannel (`com.medxai.sundr/ble`, `.../ble_events`).
+- Flutter never opens GATT directly; it uses MethodChannel / EventChannel (`com.sundr.myapp/ble`, `.../ble_events`).
 - Real BLE testing requires a **physical Android device**; emulator has no usable BLE stack for this product.
 - Foreground service owns connection lifecycle independent of Flutter UI process.
 

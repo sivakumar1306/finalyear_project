@@ -84,7 +84,7 @@ class WorkoutDetailScreen extends StatelessWidget {
     if (avgHr > 0) {
       if (avgHr < 115) {
         hrZoneLabel = 'Light / Active Recovery';
-        hrZoneColor = const Color(0xFF38BDF8);
+        hrZoneColor = AppTheme.spo2Color;
       } else if (avgHr < 140) {
         hrZoneLabel = 'Fat Burn / Endurance';
         hrZoneColor = AppTheme.success;
@@ -113,7 +113,7 @@ class WorkoutDetailScreen extends StatelessWidget {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF141414),
+                        color: AppTheme.surfaceDeep,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: const Color(0xFF262626)),
                       ),
@@ -293,7 +293,7 @@ class WorkoutDetailScreen extends StatelessWidget {
                           value: calories > 0 ? '$calories' : '—',
                           unit: 'kcal burned',
                           icon: Icons.local_fire_department_rounded,
-                          color: const Color(0xFFFF6B35),
+                          color: AppTheme.warmOrange,
                           subtitle: '$estCalPerMin kcal/min',
                         ),
                         _MetricTile(
@@ -357,7 +357,7 @@ class WorkoutDetailScreen extends StatelessWidget {
                     const SizedBox(height: 10),
                     _InsightCard(
                       icon: Icons.water_drop_rounded,
-                      color: const Color(0xFF38BDF8),
+                      color: AppTheme.spo2Color,
                       title: 'Hydration & Recovery',
                       description: _generateRecoveryInsight(durationS, calories),
                     ),
@@ -378,7 +378,7 @@ class WorkoutDetailScreen extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFF101010),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFF222222)),
+                        border: Border.all(color: AppTheme.grid),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -478,9 +478,9 @@ class _MetricTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF111111),
+        color: AppTheme.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF222222)),
+        border: Border.all(color: AppTheme.grid),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -574,9 +574,9 @@ class _HrZoneBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF111111),
+        color: AppTheme.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF222222)),
+        border: Border.all(color: AppTheme.grid),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -599,7 +599,7 @@ class _HrZoneBar extends StatelessWidget {
               height: 10,
               child: Row(
                 children: [
-                  Expanded(flex: (warmupRatio * 100).round(), child: Container(color: const Color(0xFF38BDF8))),
+                  Expanded(flex: (warmupRatio * 100).round(), child: Container(color: AppTheme.spo2Color)),
                   const SizedBox(width: 2),
                   Expanded(flex: (fatBurnRatio * 100).round(), child: Container(color: AppTheme.success)),
                   const SizedBox(width: 2),
@@ -616,7 +616,7 @@ class _HrZoneBar extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _ZoneLegendItem(color: const Color(0xFF38BDF8), label: 'Warmup', pct: '${(warmupRatio * 100).round()}%'),
+              _ZoneLegendItem(color: AppTheme.spo2Color, label: 'Warmup', pct: '${(warmupRatio * 100).round()}%'),
               _ZoneLegendItem(color: AppTheme.success, label: 'Fat Burn', pct: '${(fatBurnRatio * 100).round()}%'),
               _ZoneLegendItem(color: AppTheme.gold, label: 'Cardio', pct: '${(cardioRatio * 100).round()}%'),
               _ZoneLegendItem(color: AppTheme.danger, label: 'Peak', pct: '${(peakRatio * 100).round()}%'),
@@ -670,9 +670,9 @@ class _InsightCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF111111),
+        color: AppTheme.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF222222)),
+        border: Border.all(color: AppTheme.grid),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
