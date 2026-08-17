@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
 class RecordsScreen extends StatelessWidget {
   const RecordsScreen({super.key});

@@ -9,7 +9,7 @@ import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_header.dart';
 import '../../widgets/glass_icon_button.dart';
-import 'home_screen.dart';
+import 'home_card_id.dart';
 import '../../widgets/app_typography.dart';
 
 class _CardItem {
@@ -22,16 +22,16 @@ class _CardItem {
 }
 
 const _kCardItems = [
-  _CardItem(HomeCardId.alarms, 'Alarms', Color(0xFF6B82D9), Icons.notifications_outlined),
-  _CardItem(HomeCardId.activity, 'Activity', Color(0xFFE08A4A), Icons.directions_walk),
-  _CardItem(HomeCardId.stress, 'Stress', Color(0xFF6BC99B), Icons.water_drop),
-  _CardItem(HomeCardId.womensHealth, "Women's Health", Color(0xFFD860C8), Icons.woman),
-  _CardItem(HomeCardId.sleep, 'Sleep', Color(0xFF6B82D9), Icons.bedtime),
-  _CardItem(HomeCardId.hrv, 'HRV', Color(0xFFC9A86E), Icons.favorite_border),
-  _CardItem(HomeCardId.bloodOxygen, 'Blood Oxygen', Color(0xFF73D4F8), Icons.air),
-  _CardItem(HomeCardId.heartRate, 'Heart Rate', Color(0xFFC96B6B), Icons.favorite),
-  _CardItem(HomeCardId.bloodPressure, 'Blood Pressure', Color(0xFFD86560), Icons.speed),
-  _CardItem(HomeCardId.temperature, 'Temperature', Color(0xFFE3B76A), Icons.device_thermostat),
+  _CardItem(HomeCardId.alarms, 'Alarms', AppTheme.sleepColor, Icons.notifications_outlined),
+  _CardItem(HomeCardId.activity, 'Activity', AppTheme.focus, Icons.directions_walk),
+  _CardItem(HomeCardId.stress, 'Stress', AppTheme.stressColor, Icons.water_drop),
+  _CardItem(HomeCardId.womensHealth, "Women's Health", AppTheme.womenColor, Icons.woman),
+  _CardItem(HomeCardId.sleep, 'Sleep', AppTheme.sleepColor, Icons.bedtime),
+  _CardItem(HomeCardId.hrv, 'HRV', AppTheme.gold, Icons.favorite_border),
+  _CardItem(HomeCardId.bloodOxygen, 'Blood Oxygen', AppTheme.spo2Color, Icons.air),
+  _CardItem(HomeCardId.heartRate, 'Heart Rate', AppTheme.hrColor, Icons.favorite),
+  _CardItem(HomeCardId.bloodPressure, 'Blood Pressure', AppTheme.bpColor, Icons.speed),
+  _CardItem(HomeCardId.temperature, 'Temperature', AppTheme.tempColor, Icons.device_thermostat),
 ];
 
 class CardSettingsScreen extends StatefulWidget {
@@ -83,7 +83,7 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
     final provider = context.watch<HomeCardProvider>();
     if (!provider.isLoaded) {
       return const Scaffold(
-        backgroundColor: Color(0xFF050505),
+        backgroundColor: AppTheme.bg,
         body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
@@ -107,7 +107,7 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
         _finish(context);
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF050505),
+        backgroundColor: AppTheme.bg,
         body: SafeArea(
           child: Column(
             children: [
@@ -199,7 +199,7 @@ class _CardSettingsRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0x0AFFFFFF), width: 0.5)),
+        border: Border(bottom: BorderSide(color: AppTheme.white04, width: 0.5)),
       ),
       child: Row(
         children: [

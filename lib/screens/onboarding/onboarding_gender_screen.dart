@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/onboarding_data.dart';
 import 'onboarding_shell.dart';
 import 'onboarding_height_screen.dart';
+import '../../theme/app_theme.dart';
 
 class OnboardingGenderScreen extends StatefulWidget {
   final OnboardingData data;
@@ -152,7 +153,7 @@ class _IconGenderCard extends StatelessWidget {
                 icon,
                 size: 24,
                 color: active
-                    ? const Color(0xFF16130E)
+                    ? AppTheme.surfaceWarm
                     : Colors.white.withValues(alpha: 0.92),
               ),
             ),

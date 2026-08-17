@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../theme/app_theme.dart';
 
 class TouchControlScreen extends StatefulWidget {
   const TouchControlScreen({super.key});
@@ -153,11 +154,11 @@ class _TouchControlScreenState extends State<TouchControlScreen> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: isDoubleTap
-                            ? const Color(0xFFC9A86E).withValues(alpha: 0.15)
+                            ? AppTheme.gold.withValues(alpha: 0.15)
                             : Colors.black.withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(8),
                         border: isDoubleTap
-                            ? Border.all(color: const Color(0xFFC9A86E), width: 1)
+                            ? Border.all(color: AppTheme.gold, width: 1)
                             : null,
                       ),
                       child: Text(
@@ -165,7 +166,7 @@ class _TouchControlScreenState extends State<TouchControlScreen> {
                         style: TextStyle(
                           fontFamily: 'monospace',
                           fontSize: 12,
-                          color: isDoubleTap ? const Color(0xFFC9A86E) : Colors.greenAccent,
+                          color: isDoubleTap ? AppTheme.gold : Colors.greenAccent,
                         ),
                       ),
                     );

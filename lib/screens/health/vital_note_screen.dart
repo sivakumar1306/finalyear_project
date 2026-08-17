@@ -4,7 +4,6 @@ import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 
 // ── Design tokens (mirrors the other health detail screens) ───────────────
-const _kBg = Color(0xFF050505);
 
 TextStyle _t(double s, {FontWeight w = FontWeight.w400, Color? c, double? h}) =>
     AppTypography.inter(
@@ -68,9 +67,9 @@ class VitalNoteScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: AppTheme.bg,
       appBar: AppBar(
-        backgroundColor: _kBg,
+        backgroundColor: AppTheme.bg,
         elevation: 0,
         centerTitle: true,
         leading: const GlassBackButton(),

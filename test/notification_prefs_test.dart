@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qring_flutter/services/notification_prefs.dart';
+import 'package:sundr/services/notification_prefs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

@@ -364,8 +364,8 @@ class _BottomNav extends StatelessWidget {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0x08FFFFFF),
-                        border: Border.all(color: const Color(0x17FFFFFF)),
+                        color: AppTheme.glassButton,
+                        border: Border.all(color: AppTheme.glassBorder),
                         borderRadius: BorderRadius.circular(32),
                       ),
                       child: Row(
@@ -418,7 +418,7 @@ class _NavTab extends StatefulWidget {
 }
 
 class _NavTabState extends State<_NavTab> {
-  static const _kGold = Color(0xFFC9A86E);
+  static const _kGold = AppTheme.gold;
   static const _kInactive = Color(0x52FFFFFF);
 
   bool _pressed = false;
@@ -442,7 +442,7 @@ class _NavTabState extends State<_NavTab> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: widget.active
-                ? const Color(0x0DFFFFFF)
+                ? AppTheme.gridLine
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(24),
           ),
@@ -517,9 +517,9 @@ class _NavFabState extends State<_NavFab> {
               center: Alignment(0, 0),
               radius: 0.9,
               colors: [
-                Color(0xFFE0BC85),
-                Color(0xFFC9A86E),
-                Color(0xFF8E7A55),
+                AppTheme.goldMuted,
+                AppTheme.gold,
+                AppTheme.goldDusk,
               ],
               stops: [0.0, 0.5, 1.0],
             ),
@@ -527,7 +527,7 @@ class _NavFabState extends State<_NavFab> {
                 ? []
                 : [
                     BoxShadow(
-                      color: const Color(0xFFC9A86E).withValues(alpha: 0.35),
+                      color: AppTheme.gold.withValues(alpha: 0.35),
                       blurRadius: 12,
                       spreadRadius: 0,
                       offset: const Offset(0, 2),
@@ -536,7 +536,7 @@ class _NavFabState extends State<_NavFab> {
           ),
           child: const Icon(
             Icons.auto_awesome,
-            color: Color(0xD9050505),
+            color: AppTheme.bgDim,
             size: 24,
           ),
         ),

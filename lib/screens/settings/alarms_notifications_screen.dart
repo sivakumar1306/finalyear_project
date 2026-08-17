@@ -181,7 +181,7 @@ class _AlarmsNotificationsScreenState extends State<AlarmsNotificationsScreen> {
                     subtitle: prayerOn
                         ? 'Active · ENDS ${_fmt24(_prayerEnd)}'
                         : 'Scheduled · ENDS ${_fmt24(_prayerEnd)}',
-                    subtitleColor: prayerOn ? const Color(0xFF6BC99B) : null,
+                    subtitleColor: prayerOn ? AppTheme.stressColor : null,
                     onTap: () {
                       if (prayerOn) {
                         Navigator.push(
@@ -360,7 +360,7 @@ class _AlarmRow extends StatelessWidget {
                   ),
                   child: const Icon(
                     Icons.edit_outlined,
-                    color: Color(0xFFAAAAAA),
+                    color: AppTheme.iconFaint,
                     size: 16,
                   ),
                 ),

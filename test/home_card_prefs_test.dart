@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qring_flutter/screens/home/home_screen.dart';
-import 'package:qring_flutter/services/home_card_prefs.dart';
+import 'package:sundr/screens/home/home_card_id.dart';
+import 'package:sundr/services/home_card_prefs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

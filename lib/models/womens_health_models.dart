@@ -152,3 +152,39 @@ class PredictionResult {
     );
   }
 }
+
+// ── Cycle data ─────────────────────────────────────────────────────────────────
+
+class CycleData {
+  final String id;
+  final DateTime periodStart;
+  final int cycleLength;
+  final int periodLength;
+  final String? notes;
+
+  const CycleData({
+    required this.id,
+    required this.periodStart,
+    required this.cycleLength,
+    required this.periodLength,
+    this.notes,
+  });
+
+  DateTime get ovulationDate =>
+      periodStart.add(Duration(days: cycleLength - 14));
+  DateTime get fertileStart =>
+      periodStart.add(Duration(days: cycleLength - 14 - 5));
+  DateTime get fertileEnd =>
+      periodStart.add(Duration(days: cycleLength - 14 + 1));
+  DateTime get periodEnd =>
+      periodStart.add(Duration(days: periodLength - 1));
+  DateTime get nextPeriod => periodStart.add(Duration(days: cycleLength));
+
+  factory CycleData.fromMap(Map<String, dynamic> m) => CycleData(
+        id: m['id'] as String,
+        periodStart: DateTime.parse(m['period_start'] as String),
+        cycleLength: (m['cycle_length'] as num? ?? 28).toInt(),
+        periodLength: (m['period_length'] as num? ?? 5).toInt(),
+        notes: m['notes'] as String?,
+      );
+}

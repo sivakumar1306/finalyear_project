@@ -407,7 +407,7 @@ class _AccountRow extends StatelessWidget {
                 color: AppTheme.card2,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: iconColor ?? const Color(0xFFAAAAAA), size: 17),
+              child: Icon(icon, color: iconColor ?? AppTheme.iconFaint, size: 17),
             ),
             const SizedBox(width: 14),
             Expanded(

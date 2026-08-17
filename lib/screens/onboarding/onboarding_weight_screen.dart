@@ -3,6 +3,7 @@ import '../../models/onboarding_data.dart';
 import '../../services/unit_prefs.dart';
 import 'onboarding_shell.dart';
 import 'onboarding_emergency_contact_screen.dart';
+import '../../theme/app_theme.dart';
 
 class OnboardingWeightScreen extends StatefulWidget {
   final OnboardingData data;
@@ -218,7 +219,7 @@ class _Segment extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            color: active ? const Color(0xFF16130E) : Colors.white54,
+            color: active ? AppTheme.surfaceWarm : Colors.white54,
             fontSize: 14,
             fontWeight: active ? FontWeight.w600 : FontWeight.normal,
           ),

@@ -50,7 +50,7 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF050505),
+      backgroundColor: AppTheme.bg,
       body: Stack(
         children: [
           Positioned(
@@ -64,7 +64,7 @@ class _PrayerScheduleScreenState extends State<PrayerScheduleScreen> {
             child: _GlowBlob(
               width: 450,
               height: 320,
-              color: const Color(0xFF6BC99B).withValues(alpha: 0.025),
+              color: AppTheme.stressColor.withValues(alpha: 0.025),
             ),
           ),
           SafeArea(
@@ -202,7 +202,7 @@ class _GlowBlob extends StatelessWidget {
   const _GlowBlob({
     required this.width,
     required this.height,
-    this.color = const Color(0x0DC9A86E),
+    this.color = AppTheme.goldGlow,
   });
 
   @override

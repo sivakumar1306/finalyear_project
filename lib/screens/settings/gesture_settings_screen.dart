@@ -415,7 +415,7 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
                           final item = _gestureLog[index];
                           return ListTile(
                             leading: const CircleAvatar(
-                              backgroundColor: Color(0x33C9A86E),
+                              backgroundColor: AppTheme.goldTint,
                               child: Icon(Icons.touch_app_rounded, color: AppTheme.gold, size: 20),
                             ),
                             title: Text(

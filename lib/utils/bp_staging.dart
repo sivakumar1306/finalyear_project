@@ -50,14 +50,14 @@ String bpStatusLabel(int sbp, int dbp) => classifyBp(sbp, dbp).label;
 String bpCompactStatusLabel(int sbp, int dbp) =>
     classifyBp(sbp, dbp).compactLabel;
 
-Color bpStatusColor(int sbp, int dbp, {Color noDataColor = const Color(0xFF888888)}) {
+Color bpStatusColor(int sbp, int dbp, {Color noDataColor = AppTheme.textSec}) {
   switch (classifyBp(sbp, dbp)) {
     case BpStage.noData:
       return noDataColor;
     case BpStage.normal:
       return AppTheme.success;
     case BpStage.elevated:
-      return const Color(0xFFFBBF24);
+      return AppTheme.amber;
     case BpStage.stage1:
       return AppTheme.stressColor;
     case BpStage.stage2:

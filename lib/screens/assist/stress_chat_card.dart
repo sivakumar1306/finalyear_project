@@ -10,7 +10,7 @@ class StressChatCard extends StatelessWidget {
 
   static Color _barColor(int v) {
     if (v < 40) return AppTheme.success;
-    if (v < 60) return const Color(0xFFFBBF24);
+    if (v < 60) return AppTheme.amber;
     if (v < 80) return AppTheme.stressColor;
     return AppTheme.danger;
   }
@@ -51,7 +51,7 @@ class StressChatCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _LegendDot(color: AppTheme.success, label: 'Relaxed'),
-              _LegendDot(color: Color(0xFFFBBF24), label: 'Normal'),
+              _LegendDot(color: AppTheme.amber, label: 'Normal'),
               _LegendDot(color: AppTheme.stressColor, label: 'Elevated'),
               _LegendDot(color: AppTheme.danger, label: 'High'),
             ],
@@ -102,7 +102,7 @@ class _ColoredMiniBarChart extends StatelessWidget {
                   l,
                   style: AppTypography.inter(
                     fontSize: 9,
-                    color: const Color(0x66FFFFFF),
+                    color: AppTheme.white40,
                   ),
                 ),
               )
@@ -129,7 +129,7 @@ class _ColoredMiniBarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = const Color(0x0AFFFFFF)
+      ..color = AppTheme.white04
       ..strokeWidth = 0.5;
     for (final y in yLines) {
       final yPos = size.height - (y / maxY) * size.height;
@@ -181,7 +181,7 @@ class _LegendDot extends StatelessWidget {
         label,
         style: AppTypography.inter(
           fontSize: 9,
-          color: const Color(0x99FFFFFF),
+          color: AppTheme.white60,
         ),
       ),
     ],

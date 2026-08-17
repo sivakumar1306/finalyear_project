@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qring_flutter/models/workout_model.dart';
+import 'package:sundr/models/workout_model.dart';
 
 void main() {
   group('WorkoutCategory', () {

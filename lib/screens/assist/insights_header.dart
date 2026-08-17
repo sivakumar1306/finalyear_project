@@ -165,7 +165,7 @@ class InsightsHeaderState extends State<InsightsHeader>
               fontWeight: FontWeight.w400,
               height: 1.30,
               letterSpacing: -0.025 * 21,
-              color: const Color(0xEBFFFFFF),
+              color: AppTheme.white92,
             ),
             children: [
               for (final part in headlineParts)
@@ -191,7 +191,7 @@ class InsightsHeaderState extends State<InsightsHeader>
               fontWeight: FontWeight.w400,
               height: 1.50,
               letterSpacing: 0.02 * 12.5,
-              color: const Color(0x85FFFFFF),
+              color: AppTheme.white52,
             ),
           ),
         ],
@@ -206,7 +206,7 @@ class InsightsHeaderState extends State<InsightsHeader>
               fontSize: 10,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.2 * 10,
-              color: const Color(0x6BFFFFFF),
+              color: AppTheme.white42,
             ),
           ),
           const SizedBox(height: 10),
@@ -239,7 +239,7 @@ class InsightsHeaderState extends State<InsightsHeader>
         width: 16,
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          color: Color(0x66FFFFFF),
+          color: AppTheme.white40,
         ),
       ),
     );
@@ -252,7 +252,7 @@ class InsightsHeaderState extends State<InsightsHeader>
         fontSize: 12.5,
         fontWeight: FontWeight.w400,
         height: 1.50,
-        color: const Color(0x85FFFFFF),
+        color: AppTheme.white52,
       ),
     );
   }

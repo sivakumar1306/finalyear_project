@@ -51,9 +51,9 @@ class SleepHighlightsCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                     decoration: BoxDecoration(
-                      color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.03)
+                      color: AppTheme.white04, // rgba(255,255,255,0.03)
                       border: Border.all(
-                        color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
+                        color: AppTheme.glassButtonBorder, // rgba(255,255,255,0.08)
                         width: 0.5,
                       ),
                       borderRadius: BorderRadius.circular(18),
@@ -68,13 +68,13 @@ class SleepHighlightsCard extends StatelessWidget {
                             fontSize: 10,
                             fontWeight: FontWeight.w500,
                             letterSpacing: 0.14 * 10, // 0.14em
-                            color: const Color(0x6BFFFFFF), // rgba(255,255,255,0.42)
+                            color: AppTheme.white42, // rgba(255,255,255,0.42)
                           ),
                         ),
                         const SizedBox(height: 10),
                         Container(
                           height: 0.5,
-                          color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
+                          color: AppTheme.white04, // rgba(255,255,255,0.04)
                         ),
                         const SizedBox(height: 14),
                         _buildRow(
@@ -114,7 +114,7 @@ class SleepHighlightsCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Container(
         height: 0.5,
-        color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
+        color: AppTheme.white04, // rgba(255,255,255,0.04)
       ),
     );
   }
@@ -144,7 +144,7 @@ class SleepHighlightsCard extends StatelessWidget {
             style: AppTypography.inter(
               fontSize: 12.5,
               fontWeight: FontWeight.w400,
-              color: const Color(0xEBFFFFFF), // rgba(255,255,255,0.92)
+              color: AppTheme.white92, // rgba(255,255,255,0.92)
             ),
           ),
         ),
@@ -159,7 +159,7 @@ class SleepHighlightsCard extends StatelessWidget {
                     height: 4,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
+                      color: AppTheme.glassCard, // rgba(255,255,255,0.06)
                       borderRadius: BorderRadius.circular(100),
                     ),
                   ),
@@ -186,7 +186,7 @@ class SleepHighlightsCard extends StatelessWidget {
               style: AppTypography.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.w400,
-                color: const Color(0x73FFFFFF), // rgba(255,255,255,0.45)
+                color: AppTheme.white45, // rgba(255,255,255,0.45)
               ),
             ),
           ),

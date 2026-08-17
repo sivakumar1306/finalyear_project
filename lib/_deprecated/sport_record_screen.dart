@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/ble_provider.dart';
-import '../../services/ble_service.dart';
+import '../providers/ble_provider.dart';
+import '../services/ble_service.dart';
 
 class SportRecordScreen extends StatefulWidget {
   const SportRecordScreen({super.key});

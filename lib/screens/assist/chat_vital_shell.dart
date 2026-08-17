@@ -1,6 +1,7 @@
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import '../../widgets/app_typography.dart';
+import '../../theme/app_theme.dart';
 
 /// Shared glass-card shell for single-metric vital cards shown in chat
 /// (heart rate, SpO2, HRV, steps). Matches the Figma sleep-highlights style.
@@ -46,8 +47,8 @@ class ChatVitalCardShell extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                   decoration: BoxDecoration(
-                    color: const Color(0x0AFFFFFF),
-                    border: Border.all(color: const Color(0x14FFFFFF), width: 0.5),
+                    color: AppTheme.white04,
+                    border: Border.all(color: AppTheme.glassButtonBorder, width: 0.5),
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Column(
@@ -60,11 +61,11 @@ class ChatVitalCardShell extends StatelessWidget {
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
                           letterSpacing: 0.14 * 10,
-                          color: const Color(0x6BFFFFFF),
+                          color: AppTheme.white42,
                         ),
                       ),
                       const SizedBox(height: 10),
-                      Container(height: 0.5, color: const Color(0x0AFFFFFF)),
+                      Container(height: 0.5, color: AppTheme.white04),
                       const SizedBox(height: 14),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -85,7 +86,7 @@ class ChatVitalCardShell extends StatelessWidget {
                                   'MIN',
                                   min > 0 ? '$min' : '--',
                                   unit,
-                                  const Color(0x99FFFFFF),
+                                  AppTheme.white60,
                                 ),
                               ),
                             ),
@@ -98,7 +99,7 @@ class ChatVitalCardShell extends StatelessWidget {
                                   'MAX',
                                   max > 0 ? '$max' : '--',
                                   unit,
-                                  const Color(0x99FFFFFF),
+                                  AppTheme.white60,
                                 ),
                               ),
                             ),
@@ -128,7 +129,7 @@ class ChatVitalCardShell extends StatelessWidget {
             fontSize: 9,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.6,
-            color: const Color(0x66FFFFFF),
+            color: AppTheme.white40,
           ),
         ),
         const SizedBox(height: 4),
@@ -147,7 +148,7 @@ class ChatVitalCardShell extends StatelessWidget {
                 text: ' $unit',
                 style: AppTypography.inter(
                   fontSize: 10,
-                  color: const Color(0x66FFFFFF),
+                  color: AppTheme.white40,
                 ),
               ),
             ],
@@ -204,7 +205,7 @@ class MiniBarChart extends StatelessWidget {
                   l,
                   style: AppTypography.inter(
                     fontSize: 9,
-                    color: const Color(0x66FFFFFF),
+                    color: AppTheme.white40,
                   ),
                 ),
               )
@@ -235,7 +236,7 @@ class MiniBarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = const Color(0x0AFFFFFF)
+      ..color = AppTheme.white04
       ..strokeWidth = 0.5;
     for (final y in yLines) {
       final yPos = size.height - ((y - baseline) / _range) * size.height;
@@ -317,7 +318,7 @@ class DualMiniBarChart extends StatelessWidget {
                   l,
                   style: AppTypography.inter(
                     fontSize: 9,
-                    color: const Color(0x66FFFFFF),
+                    color: AppTheme.white40,
                   ),
                 ),
               )
@@ -348,7 +349,7 @@ class DualMiniBarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = const Color(0x0AFFFFFF)
+      ..color = AppTheme.white04
       ..strokeWidth = 0.5;
     for (final y in yLines) {
       final yPos = size.height - (y / maxY) * size.height;

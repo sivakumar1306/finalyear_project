@@ -3,8 +3,9 @@ import '../auth/login_screen.dart';
 import '../auth/sign_up_screen.dart';
 import '../../models/onboarding_data.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../theme/app_theme.dart';
 
-const kGold = Color(0xFFC9A86E);
+const kGold = AppTheme.gold;
 const kBg = Colors.black;
 
 class OnboardingShell extends StatelessWidget {
@@ -155,7 +156,7 @@ Widget onboardingHeader(
       Text(
         stepLabel,
         style: const TextStyle(
-          color: Color(0xFFC9A86E),
+          color: AppTheme.gold,
           fontSize: 12,
           fontWeight: FontWeight.w600,
           letterSpacing: 1.5,
