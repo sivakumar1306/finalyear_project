@@ -725,11 +725,6 @@ class BleService {
       }) ??
       '[]';
 
-  /// Dev/testing only — fires the real fall-alert notification pipeline on demand, so it can
-  /// be tested/demoed without a genuine drop test + concurrent vitals spike.
-  Future<bool> simulateFallEvent() async =>
-      await _methodChannel.invokeMethod<bool>('simulateFallEvent') ?? false;
-
   /// Posts a phone-side alert notification (via AlertNotifier) for a vital that just
   /// crossed a user-enabled threshold — see BleProvider._checkAlertThresholds.
   Future<bool> postHealthAlert({
@@ -749,16 +744,6 @@ class BleService {
   Future<bool> clearMockVitals() async =>
       await _methodChannel.invokeMethod<bool>('clearMockVitals') ?? false;
 
-  Future<bool> simulateFallRiskTrigger() async =>
-      await _methodChannel.invokeMethod<bool>('simulateFallRiskTrigger') ??
-      false;
-
-  /// Client-demo only — posts a real vitals spike then deterministically fires the
-  /// predictive "you might fall soon" notification, so the alert flow can be shown
-  /// without waiting on real elevated vitals. See FallPredictionNotifier.kt.
-  Future<bool> simulateFallPrediction() async =>
-      await _methodChannel.invokeMethod<bool>('simulateFallPrediction') ??
-      false;
 
   /// Reads the fall-prediction pending flag — `{"pending": bool, "hr": int}`.
   /// Pending is set when a prediction fires (not only when the notification is tapped),

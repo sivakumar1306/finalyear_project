@@ -88,22 +88,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     });
   }
 
-  Future<void> _simulateRiskTrigger() async {
-    final ble = context.read<BleProvider>();
-    await ble.simulateFallRiskTrigger();
-    // The native side computes and logs this asynchronously (EventBus + a background
-    // coroutine) — give it a moment before re-fetching.
-    await Future.delayed(const Duration(milliseconds: 600));
-    await _loadRealRisk();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Posted a real 135bpm reading — risk score above should update',
-        ),
-      ),
-    );
-  }
+
 
   FallTier _tierFromScore(int score) {
     if (score >= 55) return FallTier.high;
@@ -430,117 +415,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
         ),
         centerTitle: true,
         elevation: 0,
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
-            color: AppTheme.card2,
-            onSelected: (value) {
-              switch (value) {
-                case 'high':
-                  context.read<FallPredictionProvider>().simulateTier('high');
-                  setState(() {
-                    _debugTier = FallTier.high;
-                    _ignoredForTier = null;
-                  });
-                  break;
-                case 'medium':
-                  context.read<FallPredictionProvider>().simulateTier('medium');
-                  setState(() {
-                    _debugTier = FallTier.medium;
-                    _ignoredForTier = null;
-                  });
-                  break;
-                case 'clear':
-                  context.read<FallPredictionProvider>().simulateTier('clear');
-                  setState(() {
-                    _debugTier = null;
-                    _ignoredForTier = null;
-                  });
-                  break;
-                case 'clear_mock_data':
-                  context.read<BleProvider>().clearMockVitals();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Mock data cleared! Restart the app to refresh all UI.',
-                      ),
-                    ),
-                  );
-                  break;
-                case 'notify':
-                  context.read<BleProvider>().simulateFallEvent();
-                  context.read<BleProvider>().refreshEmergencySmsStatus();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Simulated fall — notification only. No SMS or call was triggered.',
-                      ),
-                    ),
-                  );
-                  break;
-                case 'risk_trigger':
-                  _simulateRiskTrigger();
-                  break;
-                case 'prediction':
-                  context.read<BleProvider>().simulateFallPrediction();
-                  context.read<BleProvider>().refreshEmergencySmsStatus();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Simulated prediction — notification only. No SMS was scheduled.',
-                      ),
-                    ),
-                  );
-                  break;
-              }
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'high',
-                child: Text(
-                  'Simulate: High risk',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'medium',
-                child: Text(
-                  'Simulate: Medium risk',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'clear',
-                child: Text(
-                  'Simulate: Clear (auto)',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'notify',
-                child: Text(
-                  'Simulate: Fall notification',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'risk_trigger',
-                child: Text(
-                  'Simulate: Trigger risk analysis',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'prediction',
-                child: Text(
-                  'Simulate Fall prediction',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        ],
+
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
