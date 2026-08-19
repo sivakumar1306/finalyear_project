@@ -3,13 +3,13 @@ class AppConfig {
 
   static const String supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
-    defaultValue: 'https://wdmeriohkwlvsxyusgrp.supabase.co',
+    defaultValue: 'https://eixcdjvfbwrziudieodr.supabase.co',
   );
 
   static const String supabaseAnonKey = String.fromEnvironment(
     'SUPABASE_ANON_KEY',
     defaultValue:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkbWVyaW9oa3dsdnN4eXVzZ3JwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3MzU0MTMsImV4cCI6MjEwMDMxMTQxM30.KLB2XrSE6Ofz_24KvARBOsfk78wCKkJ-e_X2TeIN7i0',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpeGNkanZmYndyeml1ZGllb2RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMTUzOTcsImV4cCI6MjA5NTg5MTM5N30.7rxoCLO39zQv1ExFL3IXp0JWySt-_p1iq7CEScufdXA',
   );
 
   static const String chatApiBaseUrl = String.fromEnvironment(
