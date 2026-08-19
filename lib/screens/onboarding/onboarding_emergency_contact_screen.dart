@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/onboarding_data.dart';
 import '../../providers/ble_provider.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import 'onboarding_shell.dart';
 import 'pair_ring_screen.dart';
@@ -76,7 +77,14 @@ class _OnboardingEmergencyContactScreenState extends State<OnboardingEmergencyCo
                 final ble = context.read<BleProvider>();
                 await ble.addEmergencyContact(contactName, contactPhone ?? '');
               }
-            } catch (_) {}
+            } catch (e, st) {
+              IncidentService.reportUnhandled(
+                source: 'onboarding_emergency_contact_screen',
+                error: e,
+                stackTrace: st,
+                customMessage: 'save profile/emergency contact failed',
+              );
+            }
           }
           if (context.mounted) {
             for (int i = 0; i < 6; i++) {

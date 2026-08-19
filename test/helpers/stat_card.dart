@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../widgets/app_typography.dart';
-import '../widgets/glass_card.dart';
+import 'package:sundr/widgets/app_typography.dart';
+import 'package:sundr/widgets/glass_card.dart';
 
 class StatCard extends StatelessWidget {
   final String label;

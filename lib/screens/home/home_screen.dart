@@ -96,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             );
           }
           if (kDebugMode) {
-            debugPrint('DEBUG profile: $profile, parsed _gender: $_gender');
+            debugPrint('DEBUG profile loaded: gender=$_gender');
           }
         }
       }

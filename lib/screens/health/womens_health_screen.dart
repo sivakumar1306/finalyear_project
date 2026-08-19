@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../services/supabase_service.dart';
+import '../../services/incident_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/glass_menu.dart';
@@ -201,7 +202,13 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
         _awheResult = awheResult;
       });
       _computeCalendarDays();
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'womens_health_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadData failed',
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }

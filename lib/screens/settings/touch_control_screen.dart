@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 import '../../theme/app_theme.dart';
 
 class TouchControlScreen extends StatefulWidget {
@@ -83,7 +84,13 @@ class _TouchControlScreenState extends State<TouchControlScreen> {
       final json = await _ble.getTouchControlSetting();
       final map = jsonDecode(json) as Map<String, dynamic>? ?? {};
       setState(() => _touchEnabled = (map['appType'] as int? ?? 0) != 0);
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'touch_control_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadSetting failed',
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }

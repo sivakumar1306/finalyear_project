@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_menu.dart';
@@ -215,7 +216,14 @@ class _PressureScreenState extends State<PressureScreen> {
         for (int h = 0; h < 24; h++) {
           if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
         }
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'pressure_screen',
+          error: e,
+          stackTrace: st,
+          customMessage: 'build daily chart slots failed',
+        );
+      }
 
       if (!mounted) return;
       final avg = (summary['avg'] as num?)?.round() ?? 0;
@@ -238,7 +246,13 @@ class _PressureScreenState extends State<PressureScreen> {
       if (avg > 0 && mounted) {
         context.read<BleProvider>().updateStressLatest(avg);
       }
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'pressure_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadToday failed',
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -354,7 +368,14 @@ class _PressureScreenState extends State<PressureScreen> {
         measuredAt: DateTime.now(),
       );
       if (mounted) context.read<BleProvider>().updateStressLatest(value);
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'pressure_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_saveMeasurement failed',
+      );
+    }
   }
 
   // ── Three-dot menu ────────────────────────────────────────────────────────

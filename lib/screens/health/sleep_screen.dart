@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/health_connect_service.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_menu.dart';
@@ -270,7 +271,14 @@ class _SleepScreenState extends State<SleepScreen> {
         _avgSpo2 = (spo2Row?['avg_spo2'] as num? ?? 0).toInt();
         _avgHrv = (hrvRow?['avg_hrv'] as num? ?? 0).toInt();
       });
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'sleep_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'load last night avg failed',
+      );
+    }
   }
 
   Future<void> _loadHistory() async {
@@ -332,7 +340,14 @@ class _SleepScreenState extends State<SleepScreen> {
           ),
         );
       }
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'sleep_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_saveToDb failed',
+      );
+    }
   }
 
   // ── Computed helpers ─────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 
 enum RingReminderType { drink, sedentary }
 
@@ -54,7 +55,13 @@ class _RingReminderScreenState extends State<RingReminderScreen> {
         _intervalMin = m['interval'] ?? 60;
         _stepThreshold = m['stepThreshold'] ?? 100;
       });
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'ring_reminder_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadSettings failed',
+      );
     } finally {
       setState(() => _loading = false);
     }

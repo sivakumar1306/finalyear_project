@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/main_tab_provider.dart';
 import '../../services/chat_api_service.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
@@ -101,7 +102,13 @@ class _ChatScreenState extends State<ChatScreen> {
           _scrollToBottom();
         }
       }
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'chat_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'restore conversation failed',
+      );
     } finally {
       if (mounted) {
         setState(() => _isRestoring = false);

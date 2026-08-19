@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/onboarding_data.dart';
 import '../../providers/ble_provider.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../theme/app_theme.dart';
@@ -38,7 +39,14 @@ class _PairRingScreenState extends State<PairRingScreen> {
         final ble = context.read<BleProvider>();
         await ble.addEmergencyContact(contactName, contactPhone ?? '');
       }
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'pair_ring_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_saveProfile failed',
+      );
+    }
     if (mounted) setState(() => _saving = false);
   }
 

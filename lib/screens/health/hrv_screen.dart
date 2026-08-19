@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/health_connect_service.dart';
+import '../../services/incident_service.dart';
 import '../../services/local_vitals_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
@@ -221,7 +222,14 @@ class _HrvScreenState extends State<HrvScreen> {
             slots[i] = (slotSums[i] / slotCounts[i]).round();
           }
         }
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'hrv_screen',
+          error: e,
+          stackTrace: st,
+          customMessage: 'build daily chart slots failed',
+        );
+      }
 
       if (!mounted) return;
       final avg = (summary['avg'] as num?)?.round() ?? 0;
@@ -231,9 +239,17 @@ class _HrvScreenState extends State<HrvScreen> {
           final currentSlot = (now.hour * 60 + now.minute) ~/ 30;
           if (currentSlot >= 0 && currentSlot < totalSlots) {
             slots[currentSlot] = liveVal;
-          }
-        }
+}
       }
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'hrv_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_saveSingleMeasurement failed',
+      );
+    }
+  }
       setState(() {
         _chartValues = slots;
         _avgHrv = avg;
@@ -263,7 +279,14 @@ class _HrvScreenState extends State<HrvScreen> {
       try {
         final m = jsonDecode(result) as Map<String, dynamic>;
         liveVal = (m['value'] as num?)?.toInt() ?? 0;
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'hrv_screen',
+          error: e,
+          stackTrace: st,
+          customMessage: 'parse manual hrv result failed',
+        );
+      }
       if (!mounted) return;
       setState(() {
         _measuring = false;
@@ -397,7 +420,13 @@ class _HrvScreenState extends State<HrvScreen> {
           setState(() => _dayOffline = true);
         }
       }
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'hrv_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadDayFromSupabase failed',
+      );
     } finally {
       if (mounted) setState(() => _loadingDay = false);
     }
@@ -487,7 +516,13 @@ class _HrvScreenState extends State<HrvScreen> {
           setState(() => _trendOffline = true);
         }
       }
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'hrv_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_load7DayTrend failed',
+      );
     } finally {
       if (mounted) setState(() => _loadingTrend = false);
     }

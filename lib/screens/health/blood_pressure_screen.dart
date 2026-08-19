@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_menu.dart';
@@ -92,7 +93,14 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     try {
       final v = context.read<BleProvider>().latestBpSbp;
       if (v > 0) return v;
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'blood_pressure_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'read latestBpSbp failed',
+      );
+    }
     if (_avgSbp > 0) return _avgSbp;
     return 0;
   }
@@ -114,7 +122,14 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     try {
       final v = context.read<BleProvider>().latestBpDbp;
       if (v > 0) return v;
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'blood_pressure_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'read latestBpDbp failed',
+      );
+    }
     if (_avgDbp > 0) return _avgDbp;
     return 0;
   }
@@ -256,7 +271,13 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
       if (lastSbp > 0 && lastDbp > 0) {
         context.read<BleProvider>().updateBpLatest(lastSbp, lastDbp);
       }
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'blood_pressure_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadToday failed',
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -421,7 +442,14 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
         measuredAt: DateTime.now(),
       );
       if (mounted) context.read<BleProvider>().updateBpLatest(sbp, dbp);
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'blood_pressure_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_saveMeasurement failed',
+      );
+    }
   }
 
   // ── Three-dot menu ────────────────────────────────────────────────────────

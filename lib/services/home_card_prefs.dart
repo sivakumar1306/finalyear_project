@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'incident_service.dart';
 import '../screens/home/home_card_id.dart';
 
 /// Centralised persistence for the home dashboard's card order, visibility
@@ -67,7 +68,14 @@ class HomeCardPrefs {
       for (final n in _legacyCardMap[name] ?? [name]) {
         try {
           hidden.add(HomeCardId.values.byName(n));
-        } catch (_) {}
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'home_card_prefs',
+            error: e,
+            stackTrace: st,
+            customMessage: 'Unknown HomeCardId in hidden prefs: $n',
+          );
+        }
       }
     }
     return hidden;
@@ -91,7 +99,14 @@ class HomeCardPrefs {
     for (final name in list) {
       try {
         expanded.add(HomeCardId.values.byName(name));
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'home_card_prefs',
+          error: e,
+          stackTrace: st,
+          customMessage: 'Unknown HomeCardId in expanded prefs: $name',
+        );
+      }
     }
     return expanded;
   }
@@ -125,7 +140,14 @@ class HomeCardPrefs {
     for (final name in list) {
       try {
         compact.add(HomeCardId.values.byName(name));
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'home_card_prefs',
+          error: e,
+          stackTrace: st,
+          customMessage: 'Unknown HomeCardId in compact prefs: $name',
+        );
+      }
     }
     return compact;
   }

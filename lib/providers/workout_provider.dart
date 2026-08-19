@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ble_service.dart';
+import '../services/incident_service.dart';
 import '../services/supabase_service.dart';
 import '../models/workout_model.dart';
 
@@ -75,7 +76,14 @@ class WorkoutProvider extends ChangeNotifier {
       }
       _todayWorkoutDurationS = total;
       notifyListeners();
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'workout_provider',
+        error: e,
+        stackTrace: st,
+        customMessage: 'loadTodayWorkoutDuration failed',
+      );
+    }
   }
 
   Future<SharedPreferences> _getPrefs() async {
@@ -148,7 +156,14 @@ class WorkoutProvider extends ChangeNotifier {
 
     try {
       await _ble.startWorkout(sport, now.millisecondsSinceEpoch);
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'workout_provider',
+        error: e,
+        stackTrace: st,
+        customMessage: 'ble.startWorkout failed',
+      );
+    }
 
     _startUiTimer();
     _runMeasurementLoop(); // fire-and-forget
@@ -174,7 +189,14 @@ class WorkoutProvider extends ChangeNotifier {
 
     try {
       await _ble.stopWorkout();
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'workout_provider',
+        error: e,
+        stackTrace: st,
+        customMessage: 'ble.stopWorkout failed',
+      );
+    }
 
     WorkoutSession? session;
     final userId = SupabaseService.currentUser?.id;
@@ -297,7 +319,14 @@ class WorkoutProvider extends ChangeNotifier {
             _latestHr = hr;
             notifyListeners();
           }
-        } catch (_) {}
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'workout_provider',
+            error: e,
+            stackTrace: st,
+            customMessage: 'hrLoop readHeartRate failed',
+          );
+        }
         await Future.delayed(const Duration(seconds: 4));
       }
     }

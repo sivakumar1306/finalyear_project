@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/alarm_mode_provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
@@ -118,7 +119,13 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
         final touchJson = await _ble.getTouchControlSetting();
         final map = jsonDecode(touchJson) as Map<String, dynamic>? ?? {};
         _touchSensorEnabled = (map['appType'] as int? ?? 0) != 0;
-      } catch (_) {
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'gesture_settings_screen',
+          error: e,
+          stackTrace: st,
+          customMessage: 'load gesture/touch settings failed',
+        );
       } finally {
         if (mounted) setState(() => _loading = false);
       }

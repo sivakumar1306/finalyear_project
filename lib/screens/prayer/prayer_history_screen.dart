@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
@@ -54,7 +55,14 @@ class _PrayerHistoryScreenState extends State<PrayerHistoryScreen> {
         try {
           final map = jsonDecode(jsonStr) as Map<String, dynamic>;
           allSessions.add(map);
-        } catch (_) {}
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'prayer_history_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: 'decode local prayer session failed',
+          );
+        }
       }
     } catch (e) {
       debugPrint('Error reading local prayer sessions: $e');

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 
 class TargetProfileScreen extends StatefulWidget {
   const TargetProfileScreen({super.key});
@@ -61,7 +62,13 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
           _gender = m['gender'] ?? 1;
         }
       });
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'target_profile_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadSetting failed',
+      );
     } finally {
       setState(() => _loading = false);
     }

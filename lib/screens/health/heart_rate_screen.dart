@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 import '../../services/local_vitals_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
@@ -187,7 +188,14 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         for (int h = 0; h < 24; h++) {
           if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
         }
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'heart_rate_screen',
+          error: e,
+          stackTrace: st,
+          customMessage: 'build daily chart slots failed',
+        );
+      }
 
       if (!mounted) return;
       final avg = (summary['avg'] as num?)?.round() ?? 0;
@@ -209,7 +217,13 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       if (avg > 0 && mounted) {
         context.read<BleProvider>().updateHrData(avg, minVal, maxVal);
       }
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'heart_rate_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadToday failed',
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -227,7 +241,14 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         maxHr: max,
         sampleCount: count,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'heart_rate_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_saveHrToSupabase failed',
+      );
+    }
   }
 
   // ── Local-first day / trend (cloud only fills gaps + refreshes cache) ──────
@@ -285,7 +306,13 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           setState(() => _dayOffline = true);
         }
       }
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'heart_rate_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadDayFromSupabase failed',
+      );
     } finally {
       if (mounted) setState(() => _loadingDay = false);
     }
@@ -395,7 +422,13 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           setState(() => _trendOffline = true);
         }
       }
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'heart_rate_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_load7DayTrend failed',
+      );
     } finally {
       if (mounted) setState(() => _loadingTrend = false);
     }

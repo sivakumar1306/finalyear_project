@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/onboarding_data.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../auth/splash_screen.dart';
 import 'onboarding_age_screen.dart';
@@ -31,7 +32,14 @@ class _OnboardingNameScreenState extends State<OnboardingNameScreen> {
   Future<void> _goBackToSplash() async {
     try {
       await SupabaseService.signOut();
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'onboarding_name_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_goBackToSplash signOut failed',
+      );
+    }
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
