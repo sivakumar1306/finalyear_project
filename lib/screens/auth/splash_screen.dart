@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -21,12 +22,24 @@ class _SplashScreenState extends State<SplashScreen> {
 
   bool _checking = true;
 
+  StreamSubscription<AuthState>? _restoreSub;
+  Timer? _restoreTimer;
+
   @override
   void initState() {
     super.initState();
     _checkSession();
   }
 
+  @override
+  void dispose() {
+    _restoreSub?.cancel();
+    _restoreTimer?.cancel();
+    super.dispose();
+  }
+
+  /// Keeps the splash visible for at least a short beat so it doesn't flash,
+  /// while the profile fetch (the real work) runs concurrently.
   Future<void> _holdSplash(DateTime started) async {
     final elapsed = DateTime.now().difference(started);
     if (elapsed < _minSplashDuration) {
@@ -36,14 +49,42 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _checkSession() async {
     final started = DateTime.now();
-    final user = SupabaseService.currentUser;
-    if (user != null) {
-      await _routeLoggedInUser(user, started);
+    final sessionUser = await _resolveUser();
+    if (sessionUser != null) {
+      await _routeLoggedInUser(sessionUser, started);
     } else {
       await _holdSplash(started);
       if (!mounted) return;
       setState(() => _checking = false);
     }
+  }
+
+  /// Returns the signed-in user, waiting briefly for the persisted session to
+  /// be restored by supabase-flutter (restore is asynchronous — without this,
+  /// a cold start that reads `currentUser` a few milliseconds too early lands
+  /// the user on the login screen even though the session was stored).
+  Future<User?> _resolveUser() async {
+    final current = SupabaseService.currentUser;
+    if (current != null) return current;
+
+    final completer = Completer<User?>();
+    _restoreSub?.cancel();
+    _restoreTimer?.cancel();
+    _restoreSub = SupabaseService.client.auth.onAuthStateChange.listen(
+      (state) {
+        final user = state.session?.user;
+        if (user != null && !completer.isCompleted) completer.complete(user);
+      },
+    );
+    _restoreTimer = Timer(const Duration(milliseconds: 2000), () {
+      if (!completer.isCompleted) {
+        completer.complete(SupabaseService.currentUser);
+      }
+    });
+    final user = await completer.future;
+    _restoreTimer?.cancel();
+    if (!completer.isCompleted) completer.complete(user);
+    return user;
   }
 
   Future<void> _routeLoggedInUser(User user, DateTime started) async {
@@ -66,8 +107,12 @@ class _SplashScreenState extends State<SplashScreen> {
         );
       }
     } catch (_) {
+      // Profile lookup failed (offline, table unavailable, timeout…). The user
+      // still has a valid session — go home instead of bouncing them back to
+      // the login screen. `/home` tolerates the offline / missing-profile case.
       await _holdSplash(started);
-      if (mounted) setState(() => _checking = false);
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/home');
     }
   }
 

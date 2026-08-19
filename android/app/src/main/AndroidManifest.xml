@@ -1,11 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.sundr.myapp">
-
     <!-- Bluetooth permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" tools:targetApi="s" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 
     <!-- Location (required for BLE scanning on Android < 12) -->
@@ -17,7 +17,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
-    <!-- Emergency SMS to emergency contacts after fall detection (SmsManager) -->
+    <!-- Emergency SMS to emergency contacts after fall detection (SmsManager).
+         SEND_SMS is restricted by Play policy to default-SMS-handler apps for
+         core functions; here it is only used for the emergency fall alert. -->
     <uses-permission android:name="android.permission.SEND_SMS" />
 
     <!-- Other -->
@@ -42,7 +44,10 @@
     <!-- Speech recognition (AI-assist voice input, speech_to_text) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Health Connect (Google Health Connect SDK) -->
+    <!-- Health Connect (Google Health Connect SDK).
+         The restricted-use warnings below are inherent to Health Connect and
+         cannot be silenced; usage is limited to core health/fitness tracking
+         with explicit user consent in-app. -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.WRITE_STEPS" />
     <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
@@ -62,6 +67,7 @@
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application
         android:label="@string/app_name"
