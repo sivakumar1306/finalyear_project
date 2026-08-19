@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/womens_health_models.dart';
 import '../../../providers/ble_provider.dart';
+import '../../../services/incident_service.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/womens_health_prediction_service.dart';
 import '../../../theme/app_theme.dart';
@@ -618,7 +619,13 @@ class WomensHealthMiniCardState extends State<WomensHealthMiniCard> {
           });
         }
       }
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'home_vitals_cards',
+        error: e,
+        stackTrace: st,
+        customMessage: 'load womens health prediction failed',
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }

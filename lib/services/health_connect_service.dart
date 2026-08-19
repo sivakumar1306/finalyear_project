@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:health/health.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'incident_service.dart';
 
 /// A syncable metric group backed by Google Health Connect.
 ///
@@ -157,7 +158,14 @@ class HealthConnectService {
     for (final name in saved) {
       try {
         types.add(HealthSyncType.values.byName(name));
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'health_connect_service',
+          error: e,
+          stackTrace: st,
+          customMessage: 'Unknown HealthSyncType in prefs: $name',
+        );
+      }
     }
     return types;
   }
@@ -226,7 +234,14 @@ class HealthConnectService {
           if (await _health.isHealthDataHistoryAvailable()) {
             await _health.requestHealthDataHistoryAuthorization();
           }
-        } catch (_) {}
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'health_connect_service',
+            error: e,
+            stackTrace: st,
+            customMessage: 'requestHealthDataHistoryAuthorization failed',
+          );
+        }
       }
       return granted;
     } catch (_) {
@@ -239,7 +254,14 @@ class HealthConnectService {
     await _ensureConfigured();
     try {
       await _health.revokePermissions();
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'revokePermissions failed',
+      );
+    }
     _writeGranted.clear();
     await setConnected(false);
   }
@@ -311,7 +333,14 @@ class HealthConnectService {
         clientRecordId: 'sundr-${dataType.name}-${at.millisecondsSinceEpoch}',
         recordingMethod: RecordingMethod.automatic,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'writeHealthData failed for ${dataType.name}',
+      );
+    }
   }
 
   Future<void> tryWriteBloodOxygen(int pct, DateTime at) async {
@@ -324,7 +353,14 @@ class HealthConnectService {
         endTime: at,
         recordingMethod: RecordingMethod.automatic,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'writeBloodOxygen failed',
+      );
+    }
   }
 
   Future<void> tryWriteBloodPressure(
@@ -343,7 +379,14 @@ class HealthConnectService {
         clientRecordId: 'sundr-BP-${at.millisecondsSinceEpoch}',
         recordingMethod: RecordingMethod.automatic,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'writeBloodPressure failed',
+      );
+    }
   }
 
   /// Writes today's cumulative step count (midnight → [at]) so it replaces any
@@ -361,7 +404,14 @@ class HealthConnectService {
         clientRecordId: 'sundr-STEPS-${start.millisecondsSinceEpoch}',
         recordingMethod: RecordingMethod.automatic,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'writeSteps failed',
+      );
+    }
   }
 
   /// Writes a night of sleep as stage segments (light → deep → rem → awake)
@@ -399,7 +449,14 @@ class HealthConnectService {
           clientRecordId: 'sundr-sleep-$dayKey-${index++}',
           recordingMethod: RecordingMethod.automatic,
         );
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'health_connect_service',
+          error: e,
+          stackTrace: st,
+          customMessage: 'writeSleepStage failed for ${stage.name}',
+        );
+      }
       cursor = stageEnd;
     }
 
@@ -419,7 +476,14 @@ class HealthConnectService {
           clientRecordId: 'sundr-sleep-$dayKey-asleep',
           recordingMethod: RecordingMethod.automatic,
         );
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'health_connect_service',
+          error: e,
+          stackTrace: st,
+          customMessage: 'writeSleepAsleep failed',
+        );
+      }
     }
   }
 
@@ -436,7 +500,14 @@ class HealthConnectService {
     if (types.contains(HealthSyncType.steps)) {
       try {
         steps = await _health.getTotalStepsInInterval(start, now);
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'health_connect_service',
+          error: e,
+          stackTrace: st,
+          customMessage: 'getTotalStepsInInterval failed',
+        );
+      }
     }
 
     final List<HealthDataPoint> points;
@@ -500,7 +571,14 @@ class HealthConnectService {
           final lastPeriod = mPoints.last.dateFrom;
           daysSinceLastPeriod = now.difference(lastPeriod).inDays;
         }
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'health_connect_service',
+          error: e,
+          stackTrace: st,
+          customMessage: 'fetchToday menstruation data failed',
+        );
+      }
     }
 
     return HealthConnectToday(
@@ -583,7 +661,14 @@ class HealthConnectService {
           baselineTemp = tempValues.reduce((a, b) => a + b) / tempValues.length;
         }
       }
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'fetchHistoricalBaselines failed',
+      );
+    }
 
     return {
       'rolling14DayMedianHR': medianHR,

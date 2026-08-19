@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../services/incident_service.dart';
 
 /// Captures whatever [repaintKey] is attached to (wrap the screen's root
 /// widget in a `RepaintBoundary` with this key) and opens the OS share sheet
@@ -21,5 +22,12 @@ Future<void> shareScreenshot(GlobalKey repaintKey, {required String text}) async
     final file = File('${dir.path}/vital_screenshot.png');
     await file.writeAsBytes(byteData.buffer.asUint8List());
     await Share.shareXFiles([XFile(file.path)], text: text);
-  } catch (_) {}
+  } catch (e, st) {
+    IncidentService.reportUnhandled(
+      source: 'screenshot_share',
+      error: e,
+      stackTrace: st,
+      customMessage: 'shareScreenshot failed',
+    );
+  }
 }

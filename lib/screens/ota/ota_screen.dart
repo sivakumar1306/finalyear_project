@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
@@ -80,7 +81,14 @@ class _OtaScreenState extends State<OtaScreen> {
       final fullName = profile?['full_name'] as String? ?? '';
       if (!mounted || fullName.trim().isEmpty) return;
       setState(() => _firstName = fullName.trim().split(' ').first);
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'ota_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadUserName failed',
+      );
+    }
   }
 
   @override
@@ -101,7 +109,14 @@ class _OtaScreenState extends State<OtaScreen> {
           }
         });
       }
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'ota_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_fetchSupabaseReleases failed',
+      );
+    }
   }
 
 

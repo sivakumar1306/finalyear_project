@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 import '../../services/local_vitals_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
@@ -193,7 +194,14 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
             slots[i] = (slotSums[i] / slotCounts[i]).round();
           }
         }
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'blood_oxygen_screen',
+          error: e,
+          stackTrace: st,
+          customMessage: 'build daily chart slots failed',
+        );
+      }
 
       if (!mounted) return;
       final avg = (summary['avg'] as num?)?.round() ?? 0;
@@ -288,7 +296,13 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
           setState(() => _dayOffline = true);
         }
       }
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'blood_oxygen_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadDayFromSupabase failed',
+      );
     } finally {
       if (mounted) setState(() => _loadingDay = false);
     }
@@ -378,7 +392,13 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
           setState(() => _trendOffline = true);
         }
       }
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'blood_oxygen_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_load7DayTrend failed',
+      );
     } finally {
       if (mounted) setState(() => _loadingTrend = false);
     }
@@ -396,7 +416,14 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
       try {
         final m = jsonDecode(result) as Map<String, dynamic>;
         liveVal = (m['spo2'] as num?)?.toInt() ?? 0;
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'blood_oxygen_screen',
+          error: e,
+          stackTrace: st,
+          customMessage: 'parse manual spo2 result failed',
+        );
+      }
       if (!mounted) return;
       setState(() {
         _measuring = false;
@@ -446,7 +473,14 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
           _maxSpo2 = newMax;
         });
       }
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'blood_oxygen_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_saveSingleMeasurement failed',
+      );
+    }
   }
 
   // ── Three-dot menu ────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/home_card_provider.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_header.dart';
@@ -62,7 +63,14 @@ class _CardSettingsScreenState extends State<CardSettingsScreen> {
           });
         }
       }
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'card_settings_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadUserProfile failed',
+      );
+    }
   }
 
   bool get _showWomensHealth {

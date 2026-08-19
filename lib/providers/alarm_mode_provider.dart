@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../config.dart';
+import '../services/incident_service.dart';
 import '../services/prayer_schedule_prefs.dart';
 import '../theme/app_theme.dart';
 
@@ -52,7 +53,14 @@ class AlarmModeProvider extends ChangeNotifier {
     if (!Platform.isAndroid) return;
     try {
       await _channel.invokeMethod('openDndAccessSettings');
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'alarm_mode_provider',
+        error: e,
+        stackTrace: st,
+        customMessage: 'openDndAccessSettings failed',
+      );
+    }
   }
 
   Future<PhoneModeResult> setMode(PhoneMode mode) async {
@@ -87,7 +95,14 @@ class AlarmModeProvider extends ChangeNotifier {
       // Ongoing, colorized notification mirroring the mode: a live stopwatch for Focus,
       // a countdown tied to the real DND auto-off timer for Prayer, none for Base.
       await _channel.invokeMethod('syncModeNotification', {'mode': mode.name});
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'alarm_mode_provider',
+        error: e,
+        stackTrace: st,
+        customMessage: 'setMode failed for ${mode.name}',
+      );
+    }
     _mode = mode;
     notifyListeners();
     return PhoneModeResult.applied;

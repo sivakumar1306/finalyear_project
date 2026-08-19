@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/unit_prefs.dart';
 import '../../theme/app_theme.dart';
@@ -77,7 +78,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           });
         }
       }
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'profile_edit_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadProfile failed',
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }

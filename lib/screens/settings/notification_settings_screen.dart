@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
@@ -27,7 +28,14 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     try {
       final json = await _ble.getNotificationSettings();
       setState(() => _settings = jsonDecode(json) ?? {});
-    } catch (_) {} finally {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'notification_settings_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadSettings failed',
+      );
+    } finally {
       setState(() => _loading = false);
     }
   }

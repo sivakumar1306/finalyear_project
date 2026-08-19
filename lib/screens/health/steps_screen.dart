@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/glass_icon_button.dart';
@@ -293,7 +294,14 @@ class _StepsScreenState extends State<StepsScreen> {
         calories: cal,
         distanceM: dist,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'steps_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_saveToDb failed',
+      );
+    }
   }
 
   Future<_DaySnapshot?> _loadFromLocalDb() async {

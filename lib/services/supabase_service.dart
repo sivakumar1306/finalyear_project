@@ -921,8 +921,11 @@ class SupabaseService {
     String fileUrl, {
     void Function(int received, int total)? onProgress,
   }) async {
+    http.Client? client;
+    IOSink? sink;
+    File? file;
     try {
-      final client = http.Client();
+      client = http.Client();
       final request = http.Request('GET', Uri.parse(fileUrl));
       final response = await client.send(request);
 
@@ -933,12 +936,12 @@ class SupabaseService {
       final contentLength = response.contentLength ?? 0;
       final tempDir = await getTemporaryDirectory();
       final fileName = 'ota_firmware_${DateTime.now().millisecondsSinceEpoch}.bin';
-      final file = File('${tempDir.path}/$fileName');
-      final sink = file.openWrite();
+      file = File('${tempDir.path}/$fileName');
+      sink = file.openWrite();
 
       int bytesReceived = 0;
       await response.stream.listen((chunk) {
-        sink.add(chunk);
+        sink!.add(chunk);
         bytesReceived += chunk.length;
         if (onProgress != null && contentLength > 0) {
           onProgress(bytesReceived, contentLength);
@@ -946,10 +949,25 @@ class SupabaseService {
       }).asFuture();
 
       await sink.close();
+      sink = null;
       client.close();
+      client = null;
       return file.path;
-    } catch (e) {
-      debugPrint('downloadFirmwareFile error: $e');
+    } catch (e, st) {
+      debugPrint('downloadFirmwareFile error: $e\n$st');
+      try {
+        await sink?.close();
+      } catch (_) {
+        // Best-effort cleanup of the partially written file.
+      }
+      client?.close();
+      if (file != null && await file.exists()) {
+        try {
+          await file.delete();
+        } catch (_) {
+          // Best-effort cleanup of the partially written file.
+        }
+      }
       return null;
     }
   }

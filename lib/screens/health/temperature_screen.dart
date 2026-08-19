@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/unit_prefs.dart';
 import '../../theme/app_theme.dart';
@@ -87,7 +88,14 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     try {
       final v = context.read<BleProvider>().latestTempC;
       if (v > 0) return v;
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'temperature_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'read latestTempC failed',
+      );
+    }
     if (_avgTemp > 0) return _avgTemp;
     return 0.0;
   }
@@ -221,7 +229,14 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         for (int h = 0; h < 24; h++) {
           if (counts[h] > 0) hourly[h] = sums[h] / counts[h];
         }
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'temperature_screen',
+          error: e,
+          stackTrace: st,
+          customMessage: 'build daily chart slots failed',
+        );
+      }
 
       if (!mounted) return;
       final avg = (summary['avg'] as num?)?.toDouble() ?? 0;
@@ -240,7 +255,13 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         _maxTemp = maxVal;
         _selectedDate = DateTime.now();
       });
-    } catch (_) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'temperature_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadToday failed',
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -429,7 +450,14 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
           }
         }
       }
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'temperature_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'decode temperature log failed',
+      );
+    }
     return readings;
   }
 
@@ -445,7 +473,14 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
             )
             .toList(),
       );
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'temperature_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_saveToSupabase failed',
+      );
+    }
   }
 
   // ── Three-dot menu ────────────────────────────────────────────────────────

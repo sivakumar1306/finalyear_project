@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 
 class DisplaySettingsScreen extends StatefulWidget {
   const DisplaySettingsScreen({super.key});
@@ -38,7 +39,14 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
         _orientation = m['orientation'] ?? 0;
         _screenOnDuration = m['screenOnDuration'] ?? 5;
       });
-    } catch (_) {} finally {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'display_settings_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadSettings failed',
+      );
+    } finally {
       setState(() => _loading = false);
     }
   }

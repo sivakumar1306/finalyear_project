@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ble_service.dart';
 import '../services/goal_prefs.dart';
 import '../services/health_connect_service.dart';
+import '../services/incident_service.dart';
 import '../services/notification_prefs.dart';
 import '../services/supabase_service.dart';
 
@@ -1182,7 +1183,14 @@ Future<void> _loadTodayVitalsFromLocal() async {
             m = decoded;
           }
         }
-      } catch (_) {}
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'ble_provider',
+          error: e,
+          stackTrace: st,
+          customMessage: 'getTodaySummary steps parse failed',
+        );
+      }
 
       if (m == null) {
         final rawJson = await _ble.getStepsToday();

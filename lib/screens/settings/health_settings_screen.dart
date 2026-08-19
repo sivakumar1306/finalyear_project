@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/incident_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_typography.dart';
 
@@ -51,7 +52,14 @@ class _HealthSettingsScreenState extends State<HealthSettingsScreen> {
     try {
       final ms = await _ble.getCycleCooldownMs();
       if (mounted) setState(() => _cycleCooldownMs = ms);
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'health_settings_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadCycleCooldown failed',
+      );
+    }
   }
 
   Future<void> _setCycleCooldown(int ms) async {

@@ -1,3 +1,4 @@
+import 'incident_service.dart';
 import '../services/supabase_service.dart';
 
 /// One segment of the AI-assist headline. [highlight] renders in gold.
@@ -92,14 +93,28 @@ class InsightsService {
         from: from,
         to: now,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'insights_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'compute getSleepHistory failed',
+      );
+    }
     try {
       bpRows = await SupabaseService.getBpReadings(
         userId: user.id,
         from: from,
         to: now,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'insights_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'compute getBpReadings failed',
+      );
+    }
 
     final sleepTrend = _sleepTrend(sleepRows);
     final bpTrend = _bpTrend(bpRows);

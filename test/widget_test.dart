@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sundr/widgets/data_card.dart';
-import 'package:sundr/_deprecated/stat_card.dart';
-import 'package:sundr/_deprecated/status_badge.dart';
+import 'helpers/stat_card.dart';
+import 'helpers/status_badge.dart';
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 

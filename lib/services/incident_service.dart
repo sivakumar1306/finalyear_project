@@ -56,7 +56,7 @@ class IncidentService {
     required String source,
     required Object error,
     StackTrace? stackTrace,
-    String? customMessage,
+String? customMessage,
     Map<String, dynamic>? extraInfo,
   }) async {
     // Never block UI / crash path on network; always log locally first.
@@ -103,6 +103,26 @@ class IncidentService {
       // Incident reporting itself must never throw or crash the host app.
       debugPrint('[IncidentService] Failed to record incident to Supabase: $e\n$st');
     }
+  }
+
+  /// Fire-and-forget variant for non-critical catch blocks that must not
+  /// block the caller; failures inside reporting are swallowed internally.
+  static void reportUnhandled({
+    required String source,
+    required Object error,
+    StackTrace? stackTrace,
+    String? customMessage,
+    Map<String, dynamic>? extraInfo,
+  }) {
+    unawaited(
+      reportIncident(
+        source: source,
+        error: error,
+        stackTrace: stackTrace,
+        customMessage: customMessage,
+        extraInfo: extraInfo,
+      ),
+    );
   }
 
   /// Redact PII from any free-text payload (message / stack trace).
