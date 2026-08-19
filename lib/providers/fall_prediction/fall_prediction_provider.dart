@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../../models/fall_prediction/layer_inputs.dart';
 import '../../models/fall_prediction/context_factors.dart';
 import '../../models/fall_prediction/prediction_result.dart';
-
+import '../../models/fall_prediction/engine_outputs.dart';
 import '../../services/fall_prediction/fall_prediction_engine.dart';
 import '../../services/fall_prediction/layer2_recovery.dart';
 import '../../services/fall_prediction/layer1_physiology.dart' show BpSource;
@@ -267,7 +267,54 @@ class FallPredictionProvider extends ChangeNotifier {
     }
   }
 
+  void simulateTier(String tier) {
+    if (tier == 'clear') {
+      _recalculate();
+      return;
+    }
 
+    double score = 10.0;
+    if (tier == 'high') {
+      score = 75.0;
+      _bleProvider?.simulateFallPrediction();
+    }
+    if (tier == 'medium') {
+      score = 45.0;
+    }
+
+    _currentResult = PredictionResult(
+      hsiBase: HsiBase(80.0),
+      hsi: HsiAdj(70.0),
+      frs24: Frs24(score),
+      frs30: Frs30(score - 5.0),
+      riskLevel: tier == 'high'
+          ? RiskClassification.high
+          : RiskClassification.moderate,
+      tau: PredictionHorizon(const Duration(hours: 24)),
+      q: CoverageScore(95.0),
+      explainability: ExplainabilityPayload(
+        hsiBase: 80,
+        hsiBaseline: 85,
+        hsiAdj: 70,
+        attributionDeltas: AttributionDeltas(
+          contextShiftDelta: -5,
+          physiologicalDelta: -10,
+        ),
+        frs24Score: score.toInt(),
+        frs24Band: score >= 60.0 ? FrsRiskBand.high : FrsRiskBand.moderate,
+        topContributors: ['Heart Rate Variability', 'Activity Exposure'],
+        frsContributors: ['Motion Instability', 'Recent Fall History'],
+        coverageScoreQ: 95.0,
+        coverageDetails: ['Good coverage'],
+        recommendationAction: 'Take a rest',
+        frsBreakdown: {
+          'Motion Instability': 25,
+          'Recovery Deficit': 10,
+        },
+      ),
+    );
+    notifyListeners();
+  }
 
   @override
   void dispose() {

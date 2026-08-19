@@ -617,7 +617,8 @@ Future<void> _maybeAlert(
     await _loadTodayVitalsFromLocal();
   }
 
-
+  /// Dev/testing only — fires the real fall-alert notification pipeline on demand.
+  Future<void> simulateFallEvent() => _ble.simulateFallEvent();
 
   /// Latest score computed by the native FallRiskAnalyzer, or null if it hasn't
   /// logged anything yet (e.g. no vital reading has been saved since install).
@@ -653,7 +654,10 @@ Future<void> _maybeAlert(
   /// genuine ring reading takes, so FallRiskAnalyzer can be verified end-to-end.
   Future<void> clearMockVitals() => _ble.clearMockVitals();
 
+  Future<void> simulateFallRiskTrigger() => _ble.simulateFallRiskTrigger();
 
+  /// Client-demo only — see FallPredictionNotifier.kt / BlePlugin.simulateFallPrediction.
+  Future<void> simulateFallPrediction() => _ble.simulateFallPrediction();
 
   /// Call on cold start (Home initState) and on app resume — picks up a pending
   /// fall prediction whether the app was opened via the notification or directly
