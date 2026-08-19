@@ -44,6 +44,10 @@ object FallRiskAnalyzer {
         EventBus.getDefault().register(this)
     }
 
+    fun resetCooldown() {
+        lastAlertAt = 0L
+    }
+
     @Subscribe(threadMode = ThreadMode.BACKGROUND)
     fun onNewReading(event: NewReadingEvent) {
         val repo = repository ?: return
@@ -122,11 +126,10 @@ object FallRiskAnalyzer {
             (recentSteps.maxOf { it.steps } - recentSteps.minOf { it.steps }) < 20
         val recentHr = repo.heartRateBetween(since, now, 200)
         var hr: Int? = null
-        if (recentHr.isNotEmpty()) {
-            hr = recentHr.last().valueBpm
-        }
-        if (event.simulated && event.vital == com.sundr.myapp.data.Vital.HEART_RATE && event.primaryValue != null) {
+        if (event.vital == com.sundr.myapp.data.Vital.HEART_RATE && event.primaryValue != null) {
             hr = event.primaryValue.toInt()
+        } else if (recentHr.isNotEmpty()) {
+            hr = recentHr.last().valueBpm
         }
 
         if (hr != null) {

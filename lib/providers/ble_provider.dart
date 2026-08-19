@@ -656,8 +656,10 @@ Future<void> _maybeAlert(
 
   Future<void> simulateFallRiskTrigger() => _ble.simulateFallRiskTrigger();
 
-  /// Client-demo only — see FallPredictionNotifier.kt / BlePlugin.simulateFallPrediction.
-  Future<void> simulateFallPrediction() => _ble.simulateFallPrediction();
+  Future<void> simulateFallPrediction() async {
+    await _ble.simulateFallPrediction();
+    Future.delayed(const Duration(milliseconds: 500), checkPendingFallPrediction);
+  }
 
   /// Call on cold start (Home initState) and on app resume — picks up a pending
   /// fall prediction whether the app was opened via the notification or directly
@@ -666,12 +668,6 @@ Future<void> _maybeAlert(
     final json = await _ble.consumeFallPredictionFlag();
     final decoded = jsonDecode(json);
     if (decoded is! Map || decoded['pending'] != true) {
-      // Prediction was cleared (or never fired) — hide banner if still showing.
-      if (_showFallPredictionBanner) {
-        _showFallPredictionBanner = false;
-        _fallPredictionTier = 'low';
-        notifyListeners();
-      }
       return;
     }
     // Already showing with same state — avoid redundant rebuilds on every resume.
@@ -696,6 +692,13 @@ Future<void> _maybeAlert(
       _fallPredictionTier = 'high'; // fallback
     }
 
+    notifyListeners();
+  }
+
+  void simulateMediumFallPredictionBanner() {
+    _showFallPredictionBanner = true;
+    _fallPredictionTier = 'medium';
+    _fallPredictionHr = 122; // Hardcode a simulated elevated HR
     notifyListeners();
   }
 

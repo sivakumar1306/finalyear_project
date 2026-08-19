@@ -184,38 +184,47 @@ class HomeAiInsightSnippetState extends State<HomeAiInsightSnippet> {
 // same alert appears consistent whether it's seen here or after drilling in.
 
 class FallPredictionBanner extends StatelessWidget {
+  final String tier;
   final int hr;
   final int? smsSecondsRemaining;
   final bool smsHasPermission;
-  final VoidCallback onTakeAction;
+  final VoidCallback onCardTap;
+  final VoidCallback onPrimaryAction;
   final VoidCallback onIgnore;
 
   const FallPredictionBanner({
     super.key,
+    this.tier = 'low',
     required this.hr,
     this.smsSecondsRemaining,
     this.smsHasPermission = true,
-    required this.onTakeAction,
+    required this.onCardTap,
+    required this.onPrimaryAction,
     required this.onIgnore,
   });
 
   @override
   Widget build(BuildContext context) {
     final countdown = smsSecondsRemaining;
-    final accent = countdown != null ? AppTheme.hrColor : AppTheme.tempColor;
+    final isHigh = tier == 'high' || countdown != null;
+    final accent = isHigh ? AppTheme.hrColor : AppTheme.tempColor;
+    
     final title = countdown != null
         ? 'Emergency SMS in ${countdown}s'
-        : 'We are concerned ...';
+        : (isHigh ? 'You might fall soon...' : 'We are concerned ...');
+        
     final body = countdown != null
         ? (!smsHasPermission
               ? 'SMS permission is missing — grant it so contacts can be alerted automatically. Open the app settings if needed.'
               : 'SMS will be sent to all emergency contacts in $countdown seconds. Tap Cancel if you are okay.')
-        : (hr > 0
-              ? 'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.'
-              : 'A fall-related alert is active. Take action or ignore if you are okay.');
+        : (isHigh 
+              ? 'We have detected multiple signs that you might fall down in the next 2-3 minutes. Take a seat and contact your caretaker.'
+              : (hr > 0
+                  ? 'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.'
+                  : 'A fall-related alert is active. Take action or ignore if you are okay.'));
 
     return ShrinkButton(
-      onTap: onTakeAction,
+      onTap: onCardTap,
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -233,7 +242,7 @@ class FallPredictionBanner extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  countdown != null ? 'EMERGENCY SMS' : 'FALL PREDICTION',
+                  countdown != null ? 'EMERGENCY SMS' : 'LIKELY FALL ALERT',
                   style: inter(
                     11,
                     weight: FontWeight.w700,
@@ -275,7 +284,7 @@ class FallPredictionBanner extends StatelessWidget {
                   child: SizedBox(
                     height: 44,
                     child: ElevatedButton(
-                      onPressed: onTakeAction,
+                      onPressed: onPrimaryAction,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white.withValues(alpha: 0.14),
                         foregroundColor: Colors.white,
@@ -285,22 +294,121 @@ class FallPredictionBanner extends StatelessWidget {
                         ),
                       ),
                       child: Text(
-                        'Take action',
+                        isHigh && countdown == null ? 'Alert emergency contact' : 'Take action',
                         style: inter(14, weight: FontWeight.w600),
                       ),
                     ),
                   ),
                 ),
-                TextButton(
-                  onPressed: onIgnore,
-                  child: Text(
-                    countdown != null ? 'Cancel SMS' : 'ignore',
-                    style: inter(
-                      14,
-                      weight: FontWeight.w600,
-                      color: AppTheme.danger,
+                if (!isHigh || countdown != null)
+                  TextButton(
+                    onPressed: onIgnore,
+                    child: Text(
+                      countdown != null ? 'Cancel SMS' : 'ignore',
+                      style: inter(
+                        14,
+                        weight: FontWeight.w600,
+                        color: AppTheme.danger,
+                      ),
                     ),
                   ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class FallEventBanner extends StatelessWidget {
+  final int countdown;
+  final VoidCallback onCardTap;
+  final VoidCallback onCancel;
+
+  const FallEventBanner({
+    super.key,
+    required this.countdown,
+    required this.onCardTap,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ShrinkButton(
+      onTap: onCardTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.hrColor.withValues(alpha: 0.25), width: 0.5),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppTheme.hrColor.withValues(alpha: 0.40), AppTheme.card],
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'FALL PREDICTION',
+                  style: inter(
+                    11,
+                    weight: FontWeight.w700,
+                    color: AppTheme.hrColor,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text('We have detected a fall', style: inter(20, weight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            Text(
+              'We have detected that you may have potentially fallen. Notifying emergency contacts & services in $countdown seconds',
+              style: inter(
+                13,
+                color: Colors.white.withValues(alpha: 0.85),
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Dialing emergency contact ...',
+                  style: inter(13, color: Colors.white.withValues(alpha: 0.85)),
+                ),
+                ElevatedButton(
+                  onPressed: onCancel,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: 0.05),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  child: Text('Cancel', style: inter(14, weight: FontWeight.w500)),
                 ),
               ],
             ),

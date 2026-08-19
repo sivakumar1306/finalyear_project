@@ -280,6 +280,7 @@ class FallPredictionProvider extends ChangeNotifier {
     }
     if (tier == 'medium') {
       score = 45.0;
+      _bleProvider?.simulateMediumFallPredictionBanner();
     }
 
     _currentResult = PredictionResult(

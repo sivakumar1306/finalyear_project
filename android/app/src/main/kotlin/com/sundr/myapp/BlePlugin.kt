@@ -2815,17 +2815,18 @@ class BlePlugin(private val context: Context) {
                         detectedAt = System.currentTimeMillis(),
                     )
                 )
-                // Demo only — never schedule SMS or place a call from a simulation.
                 val skipStandard = SafetyLiveUpdate.showFall(
                     context,
                     (confidence * 100).toInt(),
                     EmergencySmsSender.COUNTDOWN_SECONDS,
                     EmergencyAutoCaller.isEnabled(context),
-                    simulated = true,
+                    simulated = false,
                 )
                 if (!skipStandard) {
-                    FallAlertNotifier.notifyFall(context, confidence, source, simulated = true)
+                    FallAlertNotifier.notifyFall(context, confidence, source, simulated = false)
                 }
+                EmergencySmsSender.schedule(context, reason = "fall")
+                EmergencyAutoCaller.placeIfEnabled(context)
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
@@ -2845,12 +2846,13 @@ class BlePlugin(private val context: Context) {
     private fun simulateFallRiskTrigger(result: MethodChannel.Result) {
         repo().ioScope.launch {
             try {
+                com.sundr.myapp.analysis.FallRiskAnalyzer.resetCooldown()
                 val cycleId = repo().startCycle()
                 val bpm = 135
                 EventBus.getDefault().post(
                     NewReadingEvent(
                         Vital.HEART_RATE, -1L, cycleId, System.currentTimeMillis(),
-                        bpm.toDouble(), simulated = true,
+                        bpm.toDouble(), simulated = false,
                     )
                 )
                 mainHandler.post { result.success(true) }
@@ -2863,30 +2865,15 @@ class BlePlugin(private val context: Context) {
     private fun simulateFallPrediction(result: MethodChannel.Result) {
         repo().ioScope.launch {
             try {
+                com.sundr.myapp.analysis.FallRiskAnalyzer.resetCooldown()
                 val cycleId = repo().startCycle()
                 val bpm = 122
                 EventBus.getDefault().post(
                     NewReadingEvent(
                         Vital.HEART_RATE, -1L, cycleId, System.currentTimeMillis(),
-                        bpm.toDouble(), simulated = true,
+                        bpm.toDouble(), simulated = false,
                     )
                 )
-                // Demo only — never schedule SMS from a simulation.
-                FallPredictionNotifier.notifyPrediction(context, bpm, simulated = true)
-
-                // Persist so it shows up in Fall History, same as the real
-                // FallRiskAnalyzer.maybeAlert() path.
-                repo().insertFallEvent(
-                    FallEventEntity(
-                        confidence = 0.7f,
-                        corroborated = false,
-                        corroborationSource = "prediction",
-                        metadataJson = gson.toJson(mapOf("hr" to bpm, "simulated" to true)),
-                        detectedAt = System.currentTimeMillis(),
-                        eventType = "PREDICTED",
-                    )
-                )
-
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
@@ -3003,6 +2990,9 @@ class BlePlugin(private val context: Context) {
         FallPredictionNotifier.restorePending(context)
         val pending = MainActivity.pendingFallPrediction
         val hr = MainActivity.pendingFallPredictionHr
+        if (pending) {
+            FallPredictionNotifier.clearPending(context)
+        }
         result.success(gson.toJson(mapOf("pending" to pending, "hr" to hr)))
     }
 

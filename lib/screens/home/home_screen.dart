@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/ble_provider.dart';
+import '../settings/fall_detection_widgets.dart';
 import '../../providers/home_card_provider.dart';
+import '../../providers/fall_prediction/fall_prediction_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/footer_spacer.dart';
@@ -718,25 +721,112 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 if (ble.showFallPredictionBanner || ble.emergencySmsActive) ...[
-                  FallPredictionBanner(
-                    hr: ble.fallPredictionHr > 0
-                        ? ble.fallPredictionHr
-                        : ble.todayMaxHr,
-                    smsSecondsRemaining: ble.emergencySmsActive
-                        ? ble.emergencySmsSecondsRemaining
-                        : null,
-                    smsHasPermission: ble.emergencySmsHasPermission,
-                    onTakeAction: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              const FallDetectionScreen(initialHighAlert: true),
-                        ),
-                      );
-                    },
-                    onIgnore: () => ble.dismissFallPredictionBanner(),
-                  ),
+                  if (ble.emergencySmsActive && ble.emergencySmsReason == 'fall')
+                    FallEventBanner(
+                      countdown: ble.emergencySmsSecondsRemaining,
+                      onCardTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const FallDetectionScreen(initialHighAlert: true),
+                          ),
+                        );
+                      },
+                      onCancel: () async {
+                        final response = await showDialog<String>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            backgroundColor: AppTheme.card,
+                            title: Text('Are you okay?', style: inter(18, weight: FontWeight.w600)),
+                            content: Text(
+                              'Please confirm that you have not fallen and do not need emergency assistance.',
+                              style: inter(14, color: Colors.white.withValues(alpha: 0.8)),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, 'cancel'),
+                                child: Text('Cancel', style: inter(14, color: Colors.white54)),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, 'confirm'),
+                                child: Text('I am okay', style: inter(14, color: AppTheme.hrColor, weight: FontWeight.w600)),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (response == 'confirm') {
+                          ble.dismissFallPredictionBanner();
+                          if (context.mounted) {
+                            context.read<FallPredictionProvider>().simulateTier('clear');
+                          }
+                        }
+                      },
+                    )
+                  else
+                    FallPredictionBanner(
+                      tier: ble.fallPredictionTier,
+                      hr: ble.fallPredictionHr > 0
+                          ? ble.fallPredictionHr
+                          : ble.todayMaxHr,
+                      smsSecondsRemaining: ble.emergencySmsActive
+                          ? ble.emergencySmsSecondsRemaining
+                          : null,
+                      smsHasPermission: ble.emergencySmsHasPermission,
+                      onCardTap: () {
+                        final isHigh = ble.fallPredictionTier == 'high' || ble.emergencySmsActive;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                FallDetectionScreen(initialHighAlert: isHigh),
+                          ),
+                        );
+                      },
+                      onPrimaryAction: () {
+                        final isHigh = ble.fallPredictionTier == 'high' || ble.emergencySmsActive;
+                        final countdown = ble.emergencySmsActive ? ble.emergencySmsSecondsRemaining : null;
+                        if (isHigh && countdown == null) {
+                          _alertContactDirectly();
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  FallDetectionScreen(initialHighAlert: isHigh),
+                            ),
+                          );
+                        }
+                      },
+                      onIgnore: () async {
+                        final response = await showDialog<String>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            backgroundColor: AppTheme.card,
+                            title: Text('Are you okay?', style: inter(18, weight: FontWeight.w600)),
+                            content: Text(
+                              'Please confirm that you have not fallen and do not need emergency assistance.',
+                              style: inter(14, color: Colors.white.withValues(alpha: 0.8)),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, 'cancel'),
+                                child: Text('Cancel', style: inter(14, color: Colors.white54)),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, 'confirm'),
+                                child: Text('I am okay', style: inter(14, color: AppTheme.hrColor, weight: FontWeight.w600)),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (response == 'confirm') {
+                          ble.dismissFallPredictionBanner();
+                          if (context.mounted) {
+                            context.read<FallPredictionProvider>().simulateTier('clear');
+                          }
+                        }
+                      },
+                    ),
                   const SizedBox(height: 12),
                 ],
               ]),
@@ -925,6 +1015,62 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               style: inter(12, weight: FontWeight.w600, color: AppTheme.gold),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _alertContactDirectly() async {
+    final ble = context.read<BleProvider>();
+    final rows = await ble.getEmergencyContacts();
+    if (rows.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No emergency contact saved yet')),
+      );
+      return;
+    }
+    final firstRow = rows.first;
+    final contact = EmergencyContact(
+      id: (firstRow['id'] as num?)?.toInt(),
+      name: firstRow['name'] as String? ?? '',
+      phone: firstRow['phone'] as String? ?? '',
+    );
+    final phone = contact.phone.trim();
+    if (!mounted) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppTheme.card2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) =>
+          AlertContactSheet(contact: contact, contactCount: rows.length),
+    );
+    if (action == null || !mounted) return;
+
+    if (action == 'call') {
+      final uri = Uri(scheme: 'tel', path: phone);
+      final ok = await launchUrl(uri);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not reach $phone')));
+      }
+      return;
+    }
+
+    final result = await ble.sendEmergencySms();
+    if (!mounted) return;
+    final ok = result['ok'] == true;
+    final sent = (result['sentCount'] as num?)?.toInt() ?? 0;
+    final err = result['error'] as String?;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'SMS sent to $sent emergency contact${sent == 1 ? '' : 's'}'
+              : (err ?? 'Failed to send emergency SMS'),
         ),
       ),
     );

@@ -95,14 +95,6 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     // coroutine) — give it a moment before re-fetching.
     await Future.delayed(const Duration(milliseconds: 600));
     await _loadRealRisk();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Posted a real 135bpm reading — risk score above should update',
-        ),
-      ),
-    );
   }
 
   FallTier _tierFromScore(int score) {
@@ -226,7 +218,9 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
 
     setState(() => _ignoredForTier = FallTier.high);
     if (!mounted) return;
-    await context.read<BleProvider>().cancelEmergencySms();
+    await context.read<BleProvider>().dismissFallPredictionBanner();
+    if (!mounted) return;
+    context.read<FallPredictionProvider>().simulateTier('clear');
   }
 
   Future<void> _addContact() async {
@@ -412,7 +406,10 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     final realScore = fallProvider.currentResult?.frs24.value.toInt() ?? 0;
     final tier = _debugTier ?? _tierFromScore(realScore);
 
-    final int hr = ble.todayAvgHr > 0 ? ble.todayAvgHr : ble.todayMaxHr;
+    int hr = ble.fallPredictionHr > 0 ? ble.fallPredictionHr : ble.todayAvgHr;
+    if (hr == 0) hr = ble.todayMaxHr;
+    if (hr == 0) hr = 122; // Fallback so it doesn't say "rose to 0 BPM"
+    
     final showAlert = tier != FallTier.low && _ignoredForTier != tier;
 
     return Scaffold(
@@ -470,13 +467,6 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                 case 'notify':
                   context.read<BleProvider>().simulateFallEvent();
                   context.read<BleProvider>().refreshEmergencySmsStatus();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Simulated fall — notification only. No SMS or call was triggered.',
-                      ),
-                    ),
-                  );
                   break;
                 case 'risk_trigger':
                   _simulateRiskTrigger();
@@ -484,13 +474,6 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                 case 'prediction':
                   context.read<BleProvider>().simulateFallPrediction();
                   context.read<BleProvider>().refreshEmergencySmsStatus();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Simulated prediction — notification only. No SMS was scheduled.',
-                      ),
-                    ),
-                  );
                   break;
               }
             },
@@ -556,7 +539,11 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
               onPrimaryAction:
                   (ble.emergencySmsActive || tier == FallTier.high)
                   ? _alertContact
-                  : () => setState(() => _ignoredForTier = tier),
+                  : () {
+                      setState(() => _ignoredForTier = tier);
+                      context.read<BleProvider>().dismissFallPredictionBanner();
+                      context.read<FallPredictionProvider>().simulateTier('clear');
+                    },
             ),
             const SizedBox(height: 20),
             SectionLabel(
