@@ -4,6 +4,7 @@ import '../../models/onboarding_data.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../theme/app_theme.dart';
 
 
 class PairRingScreen extends StatefulWidget {
@@ -77,7 +78,7 @@ class _PairRingScreenState extends State<PairRingScreen> {
                           height: 6,
                           decoration: BoxDecoration(
                             color: i == 6
-                                ? const Color(0xFFC9A86E)
+                                ? AppTheme.gold
                                 : Colors.white24,
                             borderRadius: BorderRadius.circular(3),
                           ),
@@ -117,7 +118,7 @@ class _PairRingScreenState extends State<PairRingScreen> {
                           TextSpan(text: 'Time to meet your '),
                           TextSpan(
                               text: 'ring',
-                              style: TextStyle(color: Color(0xFFC9A86E))),
+                              style: TextStyle(color: AppTheme.gold)),
                         ],
                       ),
                     ),
@@ -139,7 +140,7 @@ class _PairRingScreenState extends State<PairRingScreen> {
             if (_saving)
               const Padding(
                 padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(color: Color(0xFFC9A86E)),
+                child: CircularProgressIndicator(color: AppTheme.gold),
               )
             else ...[
               Padding(
@@ -150,7 +151,7 @@ class _PairRingScreenState extends State<PairRingScreen> {
                   child: ElevatedButton(
                     onPressed: _pairNow,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC9A86E),
+                      backgroundColor: AppTheme.gold,
                       foregroundColor: Colors.black,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30)),

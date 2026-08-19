@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
@@ -10,8 +9,7 @@ import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 
 /// Full-featured OTA Firmware Update Screen for the Vital Smart Ring.
-/// Supports downloading firmware packages (.bin/.zip) directly from Supabase
-/// Storage / Server, custom URLs, or local files, and flashing via native DFU.
+/// Simplified UI as requested.
 class OtaScreen extends StatefulWidget {
   const OtaScreen({super.key});
 
@@ -27,10 +25,9 @@ class _OtaScreenState extends State<OtaScreen> {
   Map<String, dynamic>? _selectedRelease;
 
   String? _selectedFilePath;
-  String? _selectedFileName;
   bool _isDownloading = false;
   bool _isUpdating = false;
-  bool _isLoadingReleases = false;
+
   int _downloadProgress = 0;
   int _flashProgress = 0;
   String _statusMessage = '';
@@ -94,7 +91,6 @@ class _OtaScreenState extends State<OtaScreen> {
   }
 
   Future<void> _fetchSupabaseReleases() async {
-    setState(() => _isLoadingReleases = true);
     try {
       final releases = await SupabaseService.getFirmwareUpdates();
       if (mounted) {
@@ -103,28 +99,12 @@ class _OtaScreenState extends State<OtaScreen> {
           if (releases.isNotEmpty) {
             _selectedRelease = releases.first;
           }
-          _isLoadingReleases = false;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => _isLoadingReleases = false);
-    }
+    } catch (_) {}
   }
 
-  Future<void> _pickLocalFile() async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['bin', 'zip'],
-    );
-    if (result != null && result.files.single.path != null) {
-      setState(() {
-        _selectedFilePath = result.files.single.path;
-        _selectedFileName = result.files.single.name;
-        _selectedRelease = null;
-        _statusMessage = 'Selected local file: $_selectedFileName';
-      });
-    }
-  }
+
 
   Future<void> _startUpdateProcess({String? targetUrl, String? targetVersion}) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -180,7 +160,7 @@ class _OtaScreenState extends State<OtaScreen> {
       setState(() {
         _isDownloading = true;
         _downloadProgress = 0;
-        _statusMessage = 'Downloading firmware package from Supabase...';
+        _statusMessage = 'Downloading firmware package...';
       });
 
       localFilePath = await SupabaseService.downloadFirmwareFile(
@@ -189,7 +169,7 @@ class _OtaScreenState extends State<OtaScreen> {
           if (mounted && total > 0) {
             setState(() {
               _downloadProgress = ((received / total) * 100).toInt();
-              _statusMessage = 'Downloading from Supabase: $_downloadProgress%';
+              _statusMessage = 'Downloading: $_downloadProgress%';
             });
           }
         },
@@ -199,10 +179,10 @@ class _OtaScreenState extends State<OtaScreen> {
       setState(() => _isDownloading = false);
 
       if (localFilePath == null) {
-        setState(() => _statusMessage = 'Failed to download firmware file from Supabase.');
+        setState(() => _statusMessage = 'Failed to download firmware file.');
         messenger.showSnackBar(
           const SnackBar(
-            content: Text('Firmware download failed. Check connection or URL.'),
+            content: Text('Firmware download failed. Check connection.'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -213,7 +193,7 @@ class _OtaScreenState extends State<OtaScreen> {
     if (localFilePath == null) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('No firmware file selected.'),
+          content: Text('No firmware file selected or found online.'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -272,7 +252,7 @@ class _OtaScreenState extends State<OtaScreen> {
     final currentFirmware = _simplifyVersion(
       ble.firmwareVersion['firmware'] ?? 'V1',
     );
-    final ringName = _firstName.isNotEmpty ? "$_firstName's Ring" : 'My Ring';
+    final ringName = _firstName.isNotEmpty ? "$_firstName's Ring" : 'User Name\'s Ring';
     final hasUpdate = _supabaseReleases.isNotEmpty;
 
     return Scaffold(
@@ -281,7 +261,7 @@ class _OtaScreenState extends State<OtaScreen> {
         backgroundColor: AppTheme.bg,
         leading: const GlassBackButton(),
         title: Text(
-          'Firmware upgrade',
+          'Firmware update',
           style: AppTypography.inter(
             color: Colors.white,
             fontSize: 16,
@@ -292,294 +272,71 @@ class _OtaScreenState extends State<OtaScreen> {
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: AppTheme.card,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: const Color(0x1AFFFFFF),
-                  width: 0.5,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isConnected ? 'Ring connected' : 'Ring disconnected',
-                    style: AppTypography.inter(
-                      color: isConnected ? AppTheme.success : AppTheme.danger,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    ringName,
-                    style: AppTypography.inter(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    currentFirmware,
-                    style: AppTypography.inter(
-                      color: AppTheme.gold,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  if (hasUpdate) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      'New firmware available',
-                      style: AppTypography.inter(
-                        color: AppTheme.gold,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  Text(
-                    'Do not turn off or disconnect the ring while updating firmware.',
-                    style: AppTypography.inter(
-                      color: AppTheme.textSec,
-                      fontSize: 12,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
+            Text(
+              isConnected ? 'Ring connected' : 'Ring disconnected',
+              style: AppTypography.inter(
+                color: isConnected ? AppTheme.success : AppTheme.danger,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
               ),
             ),
-
-            const SizedBox(height: 24),
-
+            const SizedBox(height: 8),
+            Text(
+              ringName,
+              style: AppTypography.inter(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Available updates',
+                  'Firmware version : ',
                   style: AppTypography.inter(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
+                    color: AppTheme.gold,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                IconButton(
-                  onPressed: _isLoadingReleases ? null : _fetchSupabaseReleases,
-                  icon: _isLoadingReleases
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.gold),
-                        )
-                      : const Icon(Icons.refresh_rounded, color: AppTheme.gold, size: 20),
+                Text(
+                  currentFirmware,
+                  style: AppTypography.inter(
+                    color: AppTheme.gold,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-
-            if (_supabaseReleases.isNotEmpty) ...[
-              ..._supabaseReleases.map((release) {
-                final isSelected = _selectedRelease == release;
-                final version = _simplifyVersion(
-                  (release['version'] as String?) ?? 'V1',
-                );
-                final notes = release['release_notes'] as String? ??
-                    'Performance and stability improvements.';
-
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedRelease = release;
-                      _selectedFilePath = null;
-                      _selectedFileName = null;
-                      _statusMessage = 'Selected release: $version';
-                    });
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppTheme.card2 : AppTheme.card,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isSelected ? AppTheme.gold : const Color(0x1AFFFFFF),
-                        width: isSelected ? 1.5 : 0.5,
-                      ),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                          color: isSelected ? AppTheme.gold : AppTheme.textSec,
-                          size: 22,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                version,
-                                style: AppTypography.inter(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                notes,
-                                style: AppTypography.inter(
-                                  color: AppTheme.textSec,
-                                  fontSize: 12,
-                                  height: 1.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            ] else ...[
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.card,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0x1AFFFFFF)),
-                ),
-                child: Text(
-                  _isLoadingReleases
-                      ? 'Checking for firmware updates...'
-                      : 'No new firmware available. You can still install from a file or URL below.',
-                  style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
+            if (hasUpdate) ...[
+              const SizedBox(height: 6),
+              Text(
+                'New firmware available',
+                style: AppTypography.inter(
+                  color: AppTheme.gold,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
-
-            const SizedBox(height: 24),
-
-            // ── Custom Supabase File Link Input ──────────────────────────────
+            const SizedBox(height: 16),
             Text(
-              'Or Custom Supabase Storage URL',
+              'Do not turn off or disconnect the ring while\nupdating firmware',
               style: AppTypography.inter(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
+                color: AppTheme.textSec,
+                fontSize: 14,
+                height: 1.4,
               ),
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _customUrlController,
-              style: AppTypography.inter(color: Colors.white, fontSize: 13),
-              decoration: InputDecoration(
-                hintText: 'https://xyz.supabase.co/storage/v1/object/public/...',
-                hintStyle: AppTypography.inter(color: AppTheme.textSec, fontSize: 12),
-                filled: true,
-                fillColor: AppTheme.card,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0x1AFFFFFF)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: AppTheme.gold),
-                ),
-              ),
-              onChanged: (val) {
-                if (val.trim().isNotEmpty) {
-                  setState(() {
-                    _selectedRelease = null;
-                    _selectedFilePath = null;
-                    _selectedFileName = null;
-                    _statusMessage = 'Using custom URL';
-                  });
-                }
-              },
-            ),
+            const SizedBox(height: 32),
 
-            const SizedBox(height: 24),
-
-            // ── Manual Local File Fallback ───────────────────────────────────
-            Text(
-              'Local File Option',
-              style: AppTypography.inter(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.card,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0x1AFFFFFF)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_selectedFileName != null) ...[
-                    Row(
-                      children: [
-                        const Icon(Icons.file_present_rounded, color: AppTheme.gold, size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _selectedFileName!,
-                            style: AppTypography.inter(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  SizedBox(
-                    width: double.infinity,
-                    height: 44,
-                    child: OutlinedButton.icon(
-                      onPressed: (_isDownloading || _isUpdating) ? null : _pickLocalFile,
-                      icon: const Icon(Icons.folder_open_rounded, size: 18),
-                      label: Text(
-                        'Select Local .bin / .zip File',
-                        style: AppTypography.inter(fontWeight: FontWeight.w600),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0x33FFFFFF)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            // ── Update Progress & Action Button ──────────────────────────────
+            // ── Update Progress ──────────────────────────────
             if (_isDownloading || _isUpdating || _flashProgress > 0) ...[
               Container(
                 padding: const EdgeInsets.all(16),
@@ -620,7 +377,7 @@ class _OtaScreenState extends State<OtaScreen> {
                             ? (_downloadProgress / 100).clamp(0.0, 1.0)
                             : (_flashProgress / 100).clamp(0.0, 1.0),
                         minHeight: 10,
-                        backgroundColor: const Color(0x1AFFFFFF),
+                        backgroundColor: AppTheme.white10,
                         valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.gold),
                       ),
                     ),
@@ -646,48 +403,37 @@ class _OtaScreenState extends State<OtaScreen> {
             SizedBox(
               width: double.infinity,
               height: 52,
-              child: ElevatedButton.icon(
+              child: ElevatedButton(
                 onPressed: (!isConnected || _isDownloading || _isUpdating)
                     ? null
                     : () => _startUpdateProcess(),
-                icon: (_isDownloading || _isUpdating)
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.gold,
+                  foregroundColor: Colors.black,
+                  disabledBackgroundColor: AppTheme.white10,
+                  disabledForegroundColor: Colors.white38,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(26),
+                  ),
+                ),
+                child: (_isDownloading || _isUpdating)
                     ? const SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
                       )
-                    : const Icon(Icons.system_update_rounded, size: 20),
-                label: Text(
-                  _isDownloading
-                      ? 'Downloading...'
-                      : _isUpdating
-                          ? 'Updating...'
-                          : hasUpdate
-                              ? 'Update firmware'
-                              : 'Update firmware',
-                  style: AppTypography.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.gold,
-                  foregroundColor: Colors.black,
-                  disabledBackgroundColor: const Color(0x1AFFFFFF),
-                  disabledForegroundColor: Colors.white38,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
+                    : Text(
+                        'Update firmware',
+                        style: AppTypography.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
-
-            const SizedBox(height: 36),
           ],
         ),
       ),
     );
   }
 }
-
-

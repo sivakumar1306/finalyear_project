@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,6 +8,7 @@ import '../../models/onboarding_data.dart';
 import '../onboarding/onboarding_name_screen.dart';
 import 'sign_up_screen.dart';
 import 'login_screen.dart';
+import '../../theme/app_theme.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,7 +18,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  static const _minSplashDuration = Duration(milliseconds: 350);
+  static const _minSplashDuration = Duration(milliseconds: 600);
 
   bool _checking = true;
 
@@ -114,53 +116,61 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  Widget _buildLogo({double iconSize = 34, double fontSize = 28}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Image.asset(
+          'sundr_logo.png',
+          width: iconSize,
+          height: iconSize,
+          color: const Color(0xFFC7A56A),
+          errorBuilder: (context, error, stackTrace) => SizedBox(
+            width: iconSize,
+            height: iconSize,
+            child: CustomPaint(
+              painter: const _SundrStarburstPainter(color: Color(0xFFC7A56A)),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        const Text(
+          'SUNDR',
+          style: TextStyle(
+            color: Color(0xFFC7A56A),
+            fontSize: 28,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 5.5,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: _checking
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset('sundr_logo.png', width: 56, height: 56),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'SUNDR',
-                    style: TextStyle(
-                      color: Color(0xFFC7A56A),
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 6,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : SafeArea(
-              child: Column(
-                children: [
-                  const Spacer(flex: 2),
-                  Image.asset('ring.webp', height: 200),
-                  const SizedBox(height: 28),
-                  const Text(
-                    'SUNDR',
-                    style: TextStyle(
-                      color: Color(0xFFC7A56A),
-                      fontSize: 26,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 6,
-                    ),
-                  ),
-                  const Spacer(flex: 3),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
+      backgroundColor: AppTheme.bg,
+      body: SafeArea(
+            child: _checking
+                ? Center(
+                    child: _buildLogo(iconSize: 34, fontSize: 28),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Column(
                       children: [
+                        const Spacer(),
+                        Center(
+                          child: _buildLogo(iconSize: 34, fontSize: 28),
+                        ),
+                        const Spacer(),
                         _GlassButton(
                           label: 'Get Started',
-                          textColor: const Color(0xFFC9A86E),
-                          fillColor: const Color(0xFFC9A86E),
+                          textColor: const Color(0xFFC7A56A),
+                          fillColor: const Color(0xFFC7A56A),
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -180,19 +190,63 @@ class _SplashScreenState extends State<SplashScreen> {
                             ),
                           ),
                         ),
+                        const SizedBox(height: 28),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
+          ),
     );
   }
 }
 
-/// Translucent "glass" pill button: subtle tinted fill, faint border,
-/// and a background blur — matches the frosted look in the design file.
+class _SundrStarburstPainter extends CustomPainter {
+  final Color color;
+  const _SundrStarburstPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.075
+      ..strokeCap = StrokeCap.round;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2;
+
+    for (int i = 0; i < 4; i++) {
+      final angle = (i * 90) * (pi / 180);
+      final dx = cos(angle);
+      final dy = sin(angle);
+
+      canvas.drawLine(
+        center,
+        Offset(center.dx + dx * r * 0.95, center.dy + dy * r * 0.95),
+        paint,
+      );
+
+      final tip = Offset(center.dx + dx * r * 0.95, center.dy + dy * r * 0.95);
+      final wing1 = angle + 135 * (pi / 180);
+      final wing2 = angle - 135 * (pi / 180);
+      final wingLen = r * 0.38;
+
+      canvas.drawLine(
+        tip,
+        Offset(tip.dx + cos(wing1) * wingLen, tip.dy + sin(wing1) * wingLen),
+        paint,
+      );
+      canvas.drawLine(
+        tip,
+        Offset(tip.dx + cos(wing2) * wingLen, tip.dy + sin(wing2) * wingLen),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _GlassButton extends StatelessWidget {
   final String label;
   final Color textColor;
@@ -218,22 +272,23 @@ class _GlassButton extends StatelessWidget {
             onTap: onTap,
             child: Container(
               width: double.infinity,
-              height: 45,
+              height: 50,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: fillColor.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(30),
                 border: Border.all(
-                  color: fillColor.withValues(alpha: 0.15),
-                  width: 0.5,
+                  color: fillColor.withValues(alpha: 0.20),
+                  width: 0.8,
                 ),
               ),
               child: Text(
                 label,
                 style: TextStyle(
                   color: textColor,
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
                 ),
               ),
             ),

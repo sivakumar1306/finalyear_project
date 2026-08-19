@@ -9,15 +9,13 @@ import '../../widgets/glass_icon_button.dart';
 import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
-import '../settings/card_settings_screen.dart';
+import '../settings/goal_setting_screen.dart';
 import 'activity_description_screen.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/date_scroll_row.dart';
+import '../../theme/app_theme.dart';
 
 // ── Design tokens ───────────────────────────────────────────────────────────
-const _kBg = Color(0xFF050505);
-const _kStepsColor = Color(0xFF4ADE80);
-const _kDistColor = Color(0xFF60A5FA);
-const _kCalColor = Color(0xFFFB923C);
 
 const List<String> _monthAbbr = [
   'Jan',
@@ -231,9 +229,9 @@ class _StepsScreenState extends State<StepsScreen> {
       if (list.isEmpty) return null;
 
       final stepSlots = List<int>.filled(96, 0);
-      final calSlots = List<int>.filled(96, 0);
+      final calSlotsRaw = List<int>.filled(96, 0);
       final distSlots = List<double>.filled(96, 0.0);
-      int totalSteps = 0, totalCal = 0;
+      int totalSteps = 0, totalCalRaw = 0;
       double totalDist = 0.0;
 
       for (final item in list) {
@@ -251,21 +249,23 @@ class _StepsScreenState extends State<StepsScreen> {
         final stepTotal = steps + runSteps;
         final calRaw =
             (m['e'] as num?)?.toInt() ?? (m['calorie'] as num?)?.toInt() ?? 0;
-        final cal = calRaw >= 1000 ? calRaw ~/ 1000 : calRaw;
         final dist =
             (m['g'] as num?)?.toDouble() ??
             (m['distance'] as num?)?.toDouble() ??
             0.0;
 
         totalSteps += stepTotal;
-        totalCal += cal;
+        totalCalRaw += calRaw;
         totalDist += dist;
         if (slot >= 0 && slot < 96) {
           stepSlots[slot] += stepTotal;
-          calSlots[slot] += cal;
+          calSlotsRaw[slot] += calRaw;
           distSlots[slot] += dist;
         }
       }
+
+      final totalCal = totalCalRaw >= 1000 ? totalCalRaw ~/ 1000 : (totalCalRaw > 0 ? 1 : 0);
+      final calSlots = calSlotsRaw.map((c) => c >= 1000 ? c ~/ 1000 : (c > 0 ? 1 : 0)).toList();
 
       if (totalSteps <= 0 && totalCal <= 0 && totalDist <= 0) return null;
       return _DaySnapshot(
@@ -339,9 +339,13 @@ class _StepsScreenState extends State<StepsScreen> {
     );
     if (rows.isEmpty) return _DaySnapshot.empty();
     final row = rows.first;
+    final stepsCount = (row['steps'] as num? ?? 0).toInt();
+    final rawCal = (row['calories'] as num? ?? 0).toInt();
+    // Normalize if historical row stored un-converted small calories (e.g. 2142 for 547 steps)
+    final cal = (rawCal >= 500 && stepsCount < 4000) ? rawCal ~/ 1000 : rawCal;
     return _DaySnapshot(
-      steps: (row['steps'] as num? ?? 0).toInt(),
-      cal: (row['calories'] as num? ?? 0).toInt(),
+      steps: stepsCount,
+      cal: cal,
       distM: (row['distance_m'] as num? ?? 0.0).toDouble(),
       stepSlots: List.filled(96, 0),
       calSlots: List.filled(96, 0),
@@ -516,7 +520,7 @@ class _StepsScreenState extends State<StepsScreen> {
           label: 'Goal setting',
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const CardSettingsScreen()),
+            MaterialPageRoute(builder: (_) => const GoalSettingScreen()),
           ),
         ),
       ],
@@ -561,9 +565,9 @@ class _StepsScreenState extends State<StepsScreen> {
     return RepaintBoundary(
       key: _screenshotKey,
       child: Scaffold(
-        backgroundColor: _kBg,
+        backgroundColor: AppTheme.bg,
         appBar: AppBar(
-          backgroundColor: _kBg,
+          backgroundColor: AppTheme.bg,
           elevation: 0,
           centerTitle: true,
           leadingWidth: 70,
@@ -590,7 +594,7 @@ class _StepsScreenState extends State<StepsScreen> {
           ],
         ),
         body: RefreshIndicator(
-          color: const Color(0xFFC9A86E),
+          color: AppTheme.gold,
           backgroundColor: const Color(0xFF1C1C1C),
           onRefresh: () => _loadDay(_selectedDate, force: true),
           child: SingleChildScrollView(
@@ -599,7 +603,7 @@ class _StepsScreenState extends State<StepsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ── Interactive date strip ───────────────────────────────────
-                _DateStrip(
+                DateScrollRow(
                   selectedDate: _selectedDate,
                   onDateSelected: _onDateSelected,
                 ),
@@ -653,7 +657,7 @@ class _StepsScreenState extends State<StepsScreen> {
                             ),
                             child: const Icon(
                               Icons.fitness_center_rounded,
-                              color: Color(0xFFE08A4A),
+                              color: AppTheme.focus,
                               size: 18,
                             ),
                           ),
@@ -689,7 +693,7 @@ class _StepsScreenState extends State<StepsScreen> {
                           child: _StatCard(
                             label: 'Total Steps',
                             value: _dispSteps > 0 ? '$_dispSteps' : '-- --',
-                            color: _kStepsColor,
+                            color: AppTheme.softGreen,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -699,7 +703,7 @@ class _StepsScreenState extends State<StepsScreen> {
                             value: _dispDistM > 0
                                 ? '${(_dispDistM / 1000).toStringAsFixed(2)} km'
                                 : '-- --',
-                            color: _kDistColor,
+                            color: AppTheme.softBlue,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -707,7 +711,7 @@ class _StepsScreenState extends State<StepsScreen> {
                           child: _StatCard(
                             label: 'Total Calories',
                             value: _dispCal > 0 ? '$_dispCal' : '-- --',
-                            color: _kCalColor,
+                            color: AppTheme.softOrange,
                           ),
                         ),
                       ],
@@ -722,7 +726,7 @@ class _StepsScreenState extends State<StepsScreen> {
                       title: 'STEPS',
                       subtitle: _dayLabel.toUpperCase(),
                       summary: _daySteps > 0 ? '$_daySteps steps' : '0 steps',
-                      color: _kStepsColor,
+                      color: AppTheme.softGreen,
                       values: _toHourlyInt(_stepsSlots),
                       xLabels: _hourXLabels,
                       loading: _loading,
@@ -735,7 +739,7 @@ class _StepsScreenState extends State<StepsScreen> {
                       summary: _dayDistM > 0
                           ? '${_dayDistM.toStringAsFixed(0)} m'
                           : '0 km',
-                      color: _kDistColor,
+                      color: AppTheme.softBlue,
                       values: _toHourlyDbl(_distSlots),
                       xLabels: _hourXLabels,
                       loading: _loading,
@@ -746,7 +750,7 @@ class _StepsScreenState extends State<StepsScreen> {
                       title: 'CALORIES',
                       subtitle: _dayLabel.toUpperCase(),
                       summary: _dayCal > 0 ? '$_dayCal kcal' : '0 kcal',
-                      color: _kCalColor,
+                      color: AppTheme.softOrange,
                       values: _toHourlyInt(_calSlots),
                       xLabels: _hourXLabels,
                       loading: _loading,
@@ -779,152 +783,6 @@ class _StepsScreenState extends State<StepsScreen> {
   static const _hourXLabels = ['12am', '6am', '12pm', '6pm', '12am'];
 }
 
-// ── Date strip ────────────────────────────────────────────────────────────────
-
-class _DateStrip extends StatefulWidget {
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onDateSelected;
-
-  const _DateStrip({required this.selectedDate, required this.onDateSelected});
-
-  @override
-  State<_DateStrip> createState() => _DateStripState();
-}
-
-class _DateStripState extends State<_DateStrip> {
-  static const int _pastDays = 6;
-  static const int _futureDays = 3;
-  static const int _itemCount = _pastDays + 1 + _futureDays;
-
-  final _scrollController = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
-  }
-
-  @override
-  void didUpdateWidget(covariant _DateStrip oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!_sameDay(oldWidget.selectedDate, widget.selectedDate)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  bool _sameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
-
-  DateTime get _today {
-    final n = DateTime.now();
-    return DateTime(n.year, n.month, n.day);
-  }
-
-  DateTime _dateAt(int index) => _today.add(Duration(days: index - _pastDays));
-
-  int get _selectedIndex {
-    final diff = _today
-        .difference(
-          DateTime(
-            widget.selectedDate.year,
-            widget.selectedDate.month,
-            widget.selectedDate.day,
-          ),
-        )
-        .inDays;
-    return (_pastDays - diff).clamp(0, _itemCount - 1);
-  }
-
-  void _scrollToSelected() {
-    if (!_scrollController.hasClients) return;
-    const approxItemWidth = 56.0;
-    final target =
-        (_selectedIndex * approxItemWidth) -
-        (_scrollController.position.viewportDimension / 2) +
-        (approxItemWidth / 2);
-    _scrollController.animateTo(
-      target.clamp(0.0, _scrollController.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 58,
-      child: ListView.builder(
-        controller: _scrollController,
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        itemCount: _itemCount,
-        itemBuilder: (_, i) {
-          final date = _dateAt(i);
-          final isToday = i == _pastDays;
-          final isSelected = _sameDay(date, widget.selectedDate);
-          final isFuture = i > _pastDays;
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: isFuture ? null : () => widget.onDateSelected(date),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeOut,
-                  alignment: Alignment.center,
-                  constraints: BoxConstraints(
-                    minWidth: isSelected ? 96 : 44,
-                    minHeight: 40,
-                  ),
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isSelected ? 16 : 12,
-                    vertical: 8,
-                  ),
-                  decoration: isSelected
-                      ? BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.12),
-                            width: 0.5,
-                          ),
-                        )
-                      : null,
-                  child: Text(
-                    isSelected
-                        ? (isToday
-                              ? 'Today, ${date.day} ${_monthAbbr[date.month - 1]}'
-                              : '${date.day} ${_monthAbbr[date.month - 1]}')
-                        : '${date.day}',
-                    style: _t(
-                      isSelected ? 13 : 14,
-                      w: isSelected ? FontWeight.w500 : FontWeight.w400,
-                      c: isFuture
-                          ? Colors.white.withValues(alpha: 0.18)
-                          : isSelected
-                          ? Colors.white.withValues(alpha: 0.95)
-                          : Colors.white.withValues(alpha: 0.45),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
 
 // ── Activity score ────────────────────────────────────────────────────────────
 
@@ -948,7 +806,7 @@ class _ActivityScore extends StatelessWidget {
           style: _t(
             10,
             w: FontWeight.w700,
-            c: const Color(0xFFC9A86E),
+            c: AppTheme.gold,
             ls: 1.6,
           ),
         ),
@@ -958,7 +816,7 @@ class _ActivityScore extends StatelessWidget {
                 width: 48,
                 height: 48,
                 child: CircularProgressIndicator(
-                  color: Color(0xFFC9A86E),
+                  color: AppTheme.gold,
                   strokeWidth: 2,
                 ),
               )
@@ -1292,11 +1150,11 @@ class _BarPainter extends CustomPainter {
       // Select color based on ratio (as seen in Graphs-Activity.png)
       Color barColor;
       if (ratio >= 0.9) {
-        barColor = const Color(0xFFC9A86E);
+        barColor = AppTheme.gold;
       } else if (ratio >= 0.65) {
         barColor = Colors.white.withValues(alpha: 0.85);
       } else {
-        barColor = const Color(0xFF6BC99B);
+        barColor = AppTheme.stressColor;
       }
 
       if (selectedIndex == i) {
@@ -1362,7 +1220,7 @@ class _BarPainter extends CustomPainter {
           Rect.fromLTWH(rectLeft, rectTop, tooltipW, tooltipH),
           const Radius.circular(6),
         ),
-        Paint()..color = const Color(0xFF000000),
+        Paint()..color = Colors.black,
       );
 
       final path = Path();
@@ -1377,7 +1235,7 @@ class _BarPainter extends CustomPainter {
       }
       path.close();
 
-      canvas.drawPath(path, Paint()..color = const Color(0xFF000000));
+      canvas.drawPath(path, Paint()..color = Colors.black);
 
       textPainter.paint(canvas, Offset(rectLeft + padX, rectTop + padY));
     }

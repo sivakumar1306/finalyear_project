@@ -11,13 +11,17 @@ import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/date_scroll_row.dart';
+import '../../widgets/legend_dot.dart';
+import '../../widgets/metric_bar_painter.dart';
+import '../../widgets/metric_chart_card.dart';
+import '../../widgets/metric_stat_card.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
 const _kCard = AppTheme.card;
 const _kBorder = AppTheme.div;
-const _kGrid = Color(0xFF222222);
 const _kSec = Color(0xFF666666);
 const _kSec2 = AppTheme.textSec;
 
@@ -53,7 +57,7 @@ Color _stressLevelColor(int v) {
   return AppTheme.danger;
 }
 
-Color _barColor(int v) {
+Color _barColor(num v) {
   if (v < 40) return AppTheme.success;
   if (v < 60) return const Color(0xFFFBBF24);
   if (v < 80) return AppTheme.stressColor;
@@ -132,35 +136,13 @@ class _PressureScreenState extends State<PressureScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _seedInstantData();
+
       _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
   }
 
-  void _seedInstantData() {
-    try {
-      final ble = context.read<BleProvider>();
-      final curStress = ble.todayAvgStress > 0 ? ble.todayAvgStress : (ble.latestStressValue > 0 ? ble.latestStressValue : 25);
-      final minVal = ble.todayMinStress > 0 ? ble.todayMinStress : (curStress - 5).clamp(1, 99);
-      final maxVal = ble.todayMaxStress > 0 ? ble.todayMaxStress : (curStress + 12).clamp(1, 99);
 
-      final nowHour = DateTime.now().hour;
-      final slots = List<int>.filled(24, 0);
-      for (int h = 0; h <= nowHour; h++) {
-        final v = ((h % 4) - 2) * 2;
-        slots[h] = (curStress + v).clamp(minVal, maxVal);
-      }
-
-      setState(() {
-        _avgStress = curStress;
-        _minStress = minVal;
-        _maxStress = maxVal;
-        _chartValues = slots;
-        _loading = false;
-      });
-    } catch (_) {}
-  }
 
   // ── Date selection ────────────────────────────────────────────────────────
 
@@ -208,10 +190,9 @@ class _PressureScreenState extends State<PressureScreen> {
       final summary =
           jsonDecode(await _ble.getTodaySummary('stress'))
               as Map<String, dynamic>;
-      final count = (summary['count'] as num? ?? 0).toInt();
 
       final hourly = List<int>.filled(24, 0);
-      if (count > 0) {
+      try {
         final readingsJson = await _ble.getReadings(
           'stress',
           fromMs: dayStart,
@@ -234,15 +215,22 @@ class _PressureScreenState extends State<PressureScreen> {
         for (int h = 0; h < 24; h++) {
           if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
         }
-      }
+      } catch (_) {}
 
       if (!mounted) return;
       final avg = (summary['avg'] as num?)?.round() ?? 0;
       final minVal = (summary['min'] as num?)?.toInt() ?? 0;
       final maxVal = (summary['max'] as num?)?.toInt() ?? 0;
+      if (!hourly.any((v) => v > 0) && mounted) {
+        final ble = context.read<BleProvider>();
+        final liveVal = ble.todayAvgStress > 0 ? ble.todayAvgStress : ble.latestStressValue;
+        if (liveVal > 0) {
+          hourly[now.hour] = liveVal;
+        }
+      }
       setState(() {
         _chartValues = hourly;
-        _avgStress = avg;
+        _avgStress = avg > 0 ? avg : (hourly.any((v) => v > 0) ? hourly[now.hour] : 0);
         _minStress = minVal;
         _maxStress = maxVal;
         _selectedDate = DateTime.now();
@@ -515,7 +503,7 @@ class _PressureScreenState extends State<PressureScreen> {
               const SizedBox(height: 16),
 
               // ── 2. Date row ────────────────────────────────────────────────
-              _StressDateRow(
+              DateScrollRow(
                 selectedDate: _selectedDate,
                 onDateSelected: _onDateSelected,
               ),
@@ -545,12 +533,23 @@ class _PressureScreenState extends State<PressureScreen> {
               const SizedBox(height: 16),
 
               // ── 4. Daily chart ─────────────────────────────────────────────
-              _StressChartCard(
+              MetricChartCard(
                 headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
                 rangeLabel: hasData ? '$_displayMin - $_displayMax' : '-- --',
-                values: _chartValues,
+                yLabels: const ['100', '75', '50', '25'],
+                loadingAccent: AppTheme.stressColor,
+                barCount: _chartValues.length,
                 xLabels: const ['12am', '6am', '12pm', '6pm'],
                 loading: _loading || _loadingDay,
+                child: CustomPaint(
+                  painter: MetricBarPainter(
+                    values: _chartValues,
+                    maxY: 100,
+                    yLines: const [100, 75, 50, 25],
+                    colorFor: (v) => _barColor(v).withValues(alpha: 0.88),
+                  ),
+                  child: const SizedBox.expand(),
+                ),
               ),
               if (_dayOffline && !_isToday) ...[
                 const SizedBox(height: 8),
@@ -564,26 +563,32 @@ class _PressureScreenState extends State<PressureScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: _StressStatCard(
+                    child: MetricStatCard(
                       label: 'AVERAGE',
                       value: _displayAvg > 0 ? '$_displayAvg' : '--',
-                      level: _displayAvg,
+                      unit: _displayAvg > 0 ? '/100' : '--',
+                      caption: _displayAvg > 0 ? _stressLabel(_displayAvg) : '--',
+                      captionColor: _stressLevelColor(_displayAvg),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _StressStatCard(
+                    child: MetricStatCard(
                       label: 'MINIMUM',
                       value: _displayMin > 0 ? '$_displayMin' : '--',
-                      level: _displayMin,
+                      unit: _displayMin > 0 ? '/100' : '--',
+                      caption: _displayMin > 0 ? _stressLabel(_displayMin) : '--',
+                      captionColor: _stressLevelColor(_displayMin),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _StressStatCard(
+                    child: MetricStatCard(
                       label: 'MAXIMUM',
                       value: _displayMax > 0 ? '$_displayMax' : '--',
-                      level: _displayMax,
+                      unit: _displayMax > 0 ? '/100' : '--',
+                      caption: _displayMax > 0 ? _stressLabel(_displayMax) : '--',
+                      captionColor: _stressLevelColor(_displayMax),
                     ),
                   ),
                 ],
@@ -600,13 +605,32 @@ class _PressureScreenState extends State<PressureScreen> {
               const SizedBox(height: 20),
 
               // ── 7. 7-day trend ─────────────────────────────────────────────
-              _StressChartCard(
+              MetricChartCard(
                 headerLabel: 'LAST 7 DAYS TREND',
                 rangeLabel: trendRangeLabel,
-                values: _trendValues,
+                yLabels: const ['100', '75', '50', '25'],
+                loadingAccent: AppTheme.stressColor,
+                barCount: _trendValues.length,
                 xLabels: _trendXLabels(),
                 loading: _loadingTrend,
-                showLegend: true,
+                footer: const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    LegendDot(color: AppTheme.success, label: 'Relaxed'),
+                    LegendDot(color: AppTheme.amber, label: 'Normal'),
+                    LegendDot(color: AppTheme.stressColor, label: 'Elevated'),
+                    LegendDot(color: AppTheme.danger, label: 'High'),
+                  ],
+                ),
+                child: CustomPaint(
+                  painter: MetricBarPainter(
+                    values: _trendValues,
+                    maxY: 100,
+                    yLines: const [100, 75, 50, 25],
+                    colorFor: (v) => _barColor(v).withValues(alpha: 0.88),
+                  ),
+                  child: const SizedBox.expand(),
+                ),
               ),
               if (_trendOffline) ...[
                 const SizedBox(height: 8),
@@ -624,334 +648,6 @@ class _PressureScreenState extends State<PressureScreen> {
   }
 }
 
-// ── Date row ──────────────────────────────────────────────────────────────────
-
-class _StressDateRow extends StatelessWidget {
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onDateSelected;
-  const _StressDateRow({
-    required this.selectedDate,
-    required this.onDateSelected,
-  });
-
-  static const _months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < dates.length; i++) ...[
-            if (i > 0) const SizedBox(width: 16),
-            _buildItem(dates[i], today),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItem(DateTime d, DateTime today) {
-    final isToday = d == today;
-    final isFuture = d.isAfter(today);
-    final sel = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-    );
-    final isSelected = d == sel && !isToday;
-
-    if (isToday || isSelected) {
-      return GestureDetector(
-        onTap: isToday ? null : () => onDateSelected(d),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: const Color(0xFF202020),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF363636)),
-          ),
-          child: Text(
-            isToday
-                ? 'Today, ${d.day} ${_months[d.month - 1]}'
-                : '${d.day} ${_months[d.month - 1]}',
-            style: _inter(13, weight: FontWeight.w500),
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: isFuture ? null : () => onDateSelected(d),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: Text(
-          '${d.day}',
-          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Stress Chart Card ─────────────────────────────────────────────────────────
-
-class _StressChartCard extends StatelessWidget {
-  final String headerLabel;
-  final String rangeLabel;
-  final List<int> values;
-  final List<String> xLabels;
-  final bool loading;
-  final bool showLegend;
-
-  const _StressChartCard({
-    required this.headerLabel,
-    required this.rangeLabel,
-    required this.values,
-    required this.xLabels,
-    required this.loading,
-    this.showLegend = false,
-  });
-
-  static const _yAxisW = 30.0;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                headerLabel,
-                style: _inter(
-                  11,
-                  weight: FontWeight.w600,
-                  color: _kSec,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              Text(
-                rangeLabel,
-                style: _inter(
-                  11,
-                  weight: FontWeight.w500,
-                  color: const Color(0xFF999999),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // Y-axis + chart
-          SizedBox(
-            height: 128,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: _yAxisW,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: ['100', '75', '50', '25']
-                        .map(
-                          (l) => Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: Text(l, style: _inter(10, color: _kSec)),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-                Expanded(
-                  child: loading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppTheme.stressColor,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : CustomPaint(
-                          painter: _StressBarPainter(values: values),
-                          child: const SizedBox.expand(),
-                        ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Day labels: equal-width slots centered under each bar.
-          // Time-of-day labels: spaceBetween axis ticks.
-          Padding(
-            padding: const EdgeInsets.only(left: _yAxisW),
-            child: xLabels.length == values.length &&
-                    xLabels.isNotEmpty &&
-                    xLabels.every((l) => l.isNotEmpty)
-                ? Row(
-                    children: [
-                      for (final label in xLabels)
-                        Expanded(
-                          child: Text(
-                            label,
-                            textAlign: TextAlign.center,
-                            style: _inter(10, color: _kSec),
-                          ),
-                        ),
-                    ],
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: xLabels
-                        .map((l) => Text(l, style: _inter(10, color: _kSec)))
-                        .toList(),
-                  ),
-          ),
-          if (showLegend) ...[
-            const SizedBox(height: 12),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _LegendDot(color: AppTheme.success, label: 'Relaxed'),
-                _LegendDot(color: Color(0xFFFBBF24), label: 'Normal'),
-                _LegendDot(color: AppTheme.stressColor, label: 'Elevated'),
-                _LegendDot(color: AppTheme.danger, label: 'High'),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ── Stress Bar Painter ────────────────────────────────────────────────────────
-
-class _StressBarPainter extends CustomPainter {
-  final List<int> values;
-  const _StressBarPainter({required this.values});
-
-  static const _maxY = 100.0;
-  static const _yLines = [100, 75, 50, 25];
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Horizontal grid lines
-    final gridPaint = Paint()
-      ..color = _kGrid
-      ..strokeWidth = 0.5;
-    for (final y in _yLines) {
-      final yPos = size.height - (y / _maxY) * size.height;
-      canvas.drawLine(Offset(0, yPos), Offset(size.width, yPos), gridPaint);
-    }
-
-    if (values.isEmpty) return;
-    final n = values.length;
-    final slotW = size.width / n;
-    final barW = (slotW * 0.55).clamp(2.0, 9.0);
-
-    for (int i = 0; i < n; i++) {
-      if (values[i] <= 0) continue;
-      final ratio = (values[i] / _maxY).clamp(0.0, 1.0);
-      final barH = (ratio * size.height).clamp(2.0, size.height);
-      final x = i * slotW + (slotW - barW) / 2;
-      canvas.drawRRect(
-        RRect.fromLTRBR(
-          x,
-          size.height - barH,
-          x + barW,
-          size.height,
-          const Radius.circular(3),
-        ),
-        Paint()..color = _barColor(values[i]).withValues(alpha: 0.88),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_StressBarPainter old) => old.values != values;
-}
-
-// ── Stat card ─────────────────────────────────────────────────────────────────
-
-class _StressStatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final int level;
-
-  const _StressStatCard({
-    required this.label,
-    required this.value,
-    required this.level,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: _inter(
-              10,
-              weight: FontWeight.w600,
-              color: _kSec,
-              letterSpacing: 0.7,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(value, style: _inter(17, weight: FontWeight.w600)),
-              const SizedBox(width: 4),
-              Text(level > 0 ? '/100' : '--', style: _inter(11, color: _kSec)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            level > 0 ? _stressLabel(level) : '--',
-            style: _inter(11, color: _stressLevelColor(level)),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ── Real-time measurement card ────────────────────────────────────────────────
 
@@ -1048,22 +744,4 @@ class _StressMeasurementCard extends StatelessWidget {
       ),
     );
   }
-}
-
-// ── Legend dot ────────────────────────────────────────────────────────────────
-
-class _LegendDot extends StatelessWidget {
-  final Color color;
-  final String label;
-  const _LegendDot({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      CircleAvatar(radius: 3.5, backgroundColor: color),
-      const SizedBox(width: 3),
-      Text(label, style: _inter(10, color: _kSec)),
-    ],
-  );
 }

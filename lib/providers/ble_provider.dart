@@ -212,8 +212,11 @@ class BleProvider extends ChangeNotifier {
   /// When true, a corroborated fall *detection* immediately calls the first emergency contact.
   bool _autoCallOnFallEnabled = false;
   bool _autoCallOnFallHasPermission = false;
+  bool _autoCallOnFallPredictionEnabled = false;
+
   bool get autoCallOnFallEnabled => _autoCallOnFallEnabled;
   bool get autoCallOnFallHasPermission => _autoCallOnFallHasPermission;
+  bool get autoCallOnFallPredictionEnabled => _autoCallOnFallPredictionEnabled;
 
   // ── Manual update methods (called by individual screens) ──────────────────
 
@@ -284,13 +287,14 @@ class BleProvider extends ChangeNotifier {
     // Supabase reads only cover data recorded before the loop started collecting them.
     _loadTodayHrvFromSupabase();
     _loadTodaySleepFromSupabase();
-    _loadLatestTempFromSupabase();
+    _loadTodayTempFromSupabase();
+    syncEmergencyContactsFromCloud().then((_) => _syncContactsToCloud());
     loadLowBatteryPromptSetting();
   }
 
   // ── Event listener ────────────────────────────────────────────────────────
 
-  void _listenEvents() {
+void _listenEvents() {
     _eventSub = _ble.events.listen(
       (event) {
         try {
@@ -320,7 +324,7 @@ class BleProvider extends ChangeNotifier {
                 _bindReadyCompleter = Completer<void>();
                 _onConnected(delay: _connectDelaySeconds);
               } else {
-                _battery = -1;
+                // Retain last known battery level on temporary connection drops
               }
               notifyListeners();
               break;
@@ -379,7 +383,7 @@ class BleProvider extends ChangeNotifier {
   // Listen on [cameraShutterEvents] for "capture" (ring's shutter button/gesture
   // was used — trigger the phone's own camera capture) or "exit" (the ring left
   // camera mode on its own — close the phone's camera screen).
-  Future<bool> enterRingCameraMode() => _ble.takePicture();
+Future<bool> enterRingCameraMode() => _ble.takePicture();
 
   /// Tells the ring to exit its camera UI and stops the native keep-alive loop.
   /// Always call this when the camera screen is closed/disposed.
@@ -387,7 +391,7 @@ class BleProvider extends ChangeNotifier {
 
   // ── Gesture Controls (PalmScreenReq) ──────────────────────────────────────
 
-  Future<void> loadGestureSetting() async {
+Future<void> loadGestureSetting() async {
     try {
       final json = await _ble.getGestureSetting();
       final decoded = jsonDecode(json);
@@ -473,11 +477,12 @@ class BleProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _onBatteryPushEvent(Map<String, dynamic> data) {
+void _onBatteryPushEvent(Map<String, dynamic> data) {
     final percent = (data['batteryPercent'] as num?)?.toInt() ?? -1;
     final charging = data['charging'] as bool? ?? false;
     if (percent < 0) return;
     _battery = percent;
+    SharedPreferences.getInstance().then((prefs) => prefs.setInt('last_battery', percent));
     notifyListeners();
     if (!charging) {
       _maybeAlert(
@@ -526,12 +531,16 @@ class BleProvider extends ChangeNotifier {
         _refreshTempFromLocal();
         unawaited(_pushToHealthConnect('temperature'));
         break;
+      case 'HRV':
+      case 'hrv':
+        _refreshHrvFromLocal();
+        break;
     }
   }
 
   /// Best-effort two-way sync: forwards the latest Room reading of [vital] to
   /// Google Health Connect (silently no-ops when not connected/authorized).
-  Future<void> _pushToHealthConnect(String vital) async {
+Future<void> _pushToHealthConnect(String vital) async {
     try {
       final hc = HealthConnectService.instance;
       final m = jsonDecode(await _ble.getLatestReading(vital));
@@ -570,7 +579,7 @@ class BleProvider extends ChangeNotifier {
   // specific alert key. See NotificationPrefs / postHealthAlert (BlePlugin.kt
   // -> AlertNotifier.notifyAnomaly).
 
-  Future<void> _maybeAlert(
+Future<void> _maybeAlert(
     String key,
     bool condition, {
     required String title,
@@ -608,8 +617,7 @@ class BleProvider extends ChangeNotifier {
     await _loadTodayVitalsFromLocal();
   }
 
-  /// Dev/testing only — fires the real fall-alert notification pipeline on demand.
-  Future<void> simulateFallEvent() => _ble.simulateFallEvent();
+
 
   /// Latest score computed by the native FallRiskAnalyzer, or null if it hasn't
   /// logged anything yet (e.g. no vital reading has been saved since install).
@@ -643,10 +651,9 @@ class BleProvider extends ChangeNotifier {
 
   /// Dev/testing only — posts a real vital reading through the exact same event path a
   /// genuine ring reading takes, so FallRiskAnalyzer can be verified end-to-end.
-  Future<void> simulateFallRiskTrigger() => _ble.simulateFallRiskTrigger();
+  Future<void> clearMockVitals() => _ble.clearMockVitals();
 
-  /// Client-demo only — see FallPredictionNotifier.kt / BlePlugin.simulateFallPrediction.
-  Future<void> simulateFallPrediction() => _ble.simulateFallPrediction();
+
 
   /// Call on cold start (Home initState) and on app resume — picks up a pending
   /// fall prediction whether the app was opened via the notification or directly
@@ -787,6 +794,9 @@ class BleProvider extends ChangeNotifier {
       if (decoded is! Map) return;
       _autoCallOnFallEnabled = decoded['enabled'] == true;
       _autoCallOnFallHasPermission = decoded['hasPermission'] == true;
+      final prefs = await SharedPreferences.getInstance();
+      _autoCallOnFallPredictionEnabled =
+          prefs.getBool('autoCallOnFallPrediction') ?? false;
       notifyListeners();
     } catch (e) {
       debugPrint('[FallDetection] load auto-call setting failed: $e');
@@ -810,8 +820,15 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> setAutoCallOnFallPredictionEnabled(bool enabled) async {
+    _autoCallOnFallPredictionEnabled = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('autoCallOnFallPrediction', enabled);
+    notifyListeners();
+  }
+
   /// Emergency contacts — persisted natively (Room), not Flutter widget state.
-  Future<List<Map<String, dynamic>>> getEmergencyContacts() async {
+Future<List<Map<String, dynamic>>> getEmergencyContacts() async {
     final json = await _ble.getEmergencyContacts();
     final decoded = jsonDecode(json);
     if (decoded is! List) return [];
@@ -825,17 +842,44 @@ class BleProvider extends ChangeNotifier {
 
   Future<void> addEmergencyContact(String name, String phone) async {
     await _ble.addEmergencyContact(name, phone);
-    _syncContactsToCloud();
+    await _syncContactsToCloud();
   }
 
   Future<void> updateEmergencyContact(int id, String name, String phone) async {
     await _ble.updateEmergencyContact(id, name, phone);
-    _syncContactsToCloud();
+    await _syncContactsToCloud();
   }
 
   Future<void> deleteEmergencyContact(int id) async {
     await _ble.deleteEmergencyContact(id);
-    _deleteContactFromCloud(id);
+    await _deleteContactFromCloud(id);
+  }
+
+  Future<void> syncEmergencyContactsFromCloud() async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    try {
+      final cloudContacts = await SupabaseService.getEmergencyContactsCloud(user.id);
+      if (cloudContacts.isEmpty) return;
+
+      final localRows = await getEmergencyContacts();
+      final localKeys = localRows.map((r) => '${r['name']}_${r['phone']}').toSet();
+
+      for (final c in cloudContacts) {
+        final name = c['name'] as String? ?? '';
+        final phone = c['phone'] as String? ?? '';
+        if (name.isNotEmpty && phone.isNotEmpty) {
+          final key = '${name}_$phone';
+          if (!localKeys.contains(key)) {
+            await _ble.addEmergencyContact(name, phone);
+            localKeys.add(key);
+          }
+        }
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[BleProvider] emergency contact cloud restore failed: $e');
+    }
   }
 
   Future<void> _syncContactsToCloud() async {
@@ -871,7 +915,7 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  bool _notifyBatching = false;
+bool _notifyBatching = false;
   bool _notifyQueued = false;
 
   bool _microtaskNotifyScheduled = false;
@@ -923,22 +967,31 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadTodayVitalsFromLocal() async {
+Future<void> _loadTodayVitalsFromLocal() async {
     _beginNotifyBatch();
     try {
       await Future.wait([
-        _refreshHrFromLocal()
-            .then((ok) => ok ? null : _loadTodayHrFromSupabase()),
-        _refreshSpo2FromLocal()
-            .then((ok) => ok ? null : _loadTodaySpo2FromSupabase()),
-        _refreshStressFromLocal()
-            .then((ok) => ok ? null : _loadLatestStressFromSupabase()),
-        _refreshBpFromLocal()
-            .then((ok) => ok ? null : _loadLatestBpFromSupabase()),
-        _refreshStepsFromLocal()
-            .then((ok) => ok ? null : _loadTodayFromSupabase()),
-        _refreshTempFromLocal()
-            .then((ok) => ok ? null : _loadLatestTempFromSupabase()),
+        _refreshHrFromLocal().then(
+          (ok) => ok ? null : _loadTodayHrFromSupabase(),
+        ),
+        _refreshSpo2FromLocal().then(
+          (ok) => ok ? null : _loadTodaySpo2FromSupabase(),
+        ),
+        _refreshStressFromLocal().then(
+          (ok) => ok ? null : _loadTodayStressFromSupabase(),
+        ),
+        _refreshBpFromLocal().then(
+          (ok) => ok ? null : _loadTodayBpFromSupabase(),
+        ),
+        _refreshStepsFromLocal().then(
+          (ok) => ok ? null : _loadTodayFromSupabase(),
+        ),
+        _refreshTempFromLocal().then(
+          (ok) => ok ? null : _loadTodayTempFromSupabase(),
+        ),
+        _refreshHrvFromLocal().then(
+          (ok) => ok ? null : _loadTodayHrvFromSupabase(),
+        ),
       ]);
     } finally {
       _endNotifyBatch();
@@ -1027,10 +1080,33 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
+  bool _isTodayTimestamp(dynamic msOrIso) {
+    if (msOrIso == null) return false;
+    DateTime dt;
+    if (msOrIso is num) {
+      dt = DateTime.fromMillisecondsSinceEpoch(msOrIso.toInt()).toLocal();
+    } else if (msOrIso is String) {
+      final parsed = DateTime.tryParse(msOrIso);
+      if (parsed == null) return false;
+      dt = parsed.toLocal();
+    } else {
+      return false;
+    }
+    final now = DateTime.now();
+    return dt.year == now.year && dt.month == now.month && dt.day == now.day;
+  }
+
   Future<bool> _refreshStressFromLocal() async {
     try {
       final m = jsonDecode(await _ble.getLatestReading('stress'));
       if (m is! Map<String, dynamic>) return false;
+      final ts = m['measuredAt'] ?? m['timestamp'] ?? m['mTime'];
+      if (!_isTodayTimestamp(ts)) {
+        _latestStressValue = 0;
+        _todayAvgStress = 0;
+        notifyListeners();
+        return false;
+      }
       _latestStressValue = (m['value'] as num?)?.toInt() ?? 0;
       try {
         final summary =
@@ -1044,6 +1120,11 @@ class BleProvider extends ChangeNotifier {
       } catch (e, st) {
         _recordError(e, st);
       }
+      if (_todayAvgStress <= 0 && _latestStressValue > 0) {
+        _todayAvgStress = _latestStressValue;
+        _todayMinStress = _latestStressValue;
+        _todayMaxStress = _latestStressValue;
+      }
       notifyListeners();
       return true;
     } catch (_) {
@@ -1055,6 +1136,13 @@ class BleProvider extends ChangeNotifier {
     try {
       final m = jsonDecode(await _ble.getLatestReading('blood_pressure'));
       if (m is! Map<String, dynamic>) return false;
+      final ts = m['measuredAt'] ?? m['timestamp'] ?? m['mTime'];
+      if (!_isTodayTimestamp(ts)) {
+        _latestBpSbp = 0;
+        _latestBpDbp = 0;
+        notifyListeners();
+        return false;
+      }
       _latestBpSbp = (m['systolic'] as num?)?.toInt() ?? 0;
       _latestBpDbp = (m['diastolic'] as num?)?.toInt() ?? 0;
       notifyListeners();
@@ -1082,11 +1170,52 @@ class BleProvider extends ChangeNotifier {
 
   Future<bool> _refreshStepsFromLocal() async {
     try {
-      final m = jsonDecode(await _ble.getStepsToday());
-      if (m is! Map<String, dynamic>) return false;
-      _todaySteps = (m['steps'] as num?)?.toInt() ?? 0;
-      _todayCalories = (m['caloriesKcal'] as num?)?.toInt() ?? 0;
-      _todayDistanceM = (m['distanceM'] as num?)?.toDouble() ?? 0.0;
+      Map<String, dynamic>? m;
+      try {
+        final summaryJson = await _ble.getTodaySummary('steps');
+        final decoded = jsonDecode(summaryJson);
+        if (decoded is Map<String, dynamic> &&
+            ((decoded['steps'] as num? ?? 0) > 0 ||
+                (decoded['count'] as num? ?? 0) > 0)) {
+          final ts = decoded['date'] ?? decoded['measuredAt'] ?? decoded['timestamp'];
+          if (ts == null || _isTodayTimestamp(ts)) {
+            m = decoded;
+          }
+        }
+      } catch (_) {}
+
+      if (m == null) {
+        final rawJson = await _ble.getStepsToday();
+        final decoded = jsonDecode(rawJson);
+        if (decoded is Map<String, dynamic>) {
+          final ts = decoded['date'] ?? decoded['measuredAt'] ?? decoded['timestamp'];
+          if (ts == null || _isTodayTimestamp(ts)) {
+            m = decoded;
+          }
+        }
+      }
+
+      if (m == null) {
+        _todaySteps = 0;
+        _todayCalories = 0;
+        _todayDistanceM = 0.0;
+        notifyListeners();
+        return false;
+      }
+      final steps = (m['steps'] as num?)?.toInt() ?? 0;
+      final calories = (m['caloriesKcal'] as num?)?.toInt() ?? 0;
+      final distanceM = (m['distanceM'] as num?)?.toDouble() ?? 0.0;
+      if (steps <= 0 && calories <= 0) {
+        _todaySteps = 0;
+        _todayCalories = 0;
+        _todayDistanceM = 0.0;
+        notifyListeners();
+        return false;
+      }
+
+      _todaySteps = steps;
+      _todayCalories = calories;
+      _todayDistanceM = distanceM;
       notifyListeners();
       _saveStepsToDb(_todaySteps, _todayCalories, _todayDistanceM);
       final goal = await _loadCachedGoal();
@@ -1107,6 +1236,12 @@ class BleProvider extends ChangeNotifier {
     try {
       final m = jsonDecode(await _ble.getLatestReading('temperature'));
       if (m is! Map<String, dynamic>) return false;
+      final ts = m['measuredAt'] ?? m['timestamp'] ?? m['mTime'];
+      if (!_isTodayTimestamp(ts)) {
+        _latestTempC = 0.0;
+        notifyListeners();
+        return false;
+      }
       final v = (m['valueC'] as num?)?.toDouble() ?? 0.0;
       if (v > 0) {
         _latestTempC = v;
@@ -1118,9 +1253,6 @@ class BleProvider extends ChangeNotifier {
           message: 'Your skin temperature just read ${v.toStringAsFixed(1)}°C.',
           vital: 'temperature',
         );
-        // Push to Supabase on every reading (mirrors _parseAndSaveTemp) so the
-        // continuous loop path keeps user_temp in sync, not just the manual
-        // "Measure Now" / background-sync paths.
         final user = SupabaseService.currentUser;
         if (user != null) {
           SupabaseService.insertTemp(
@@ -1140,12 +1272,27 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> _refreshHrvFromLocal() async {
+    try {
+      final m =
+          jsonDecode(await _ble.getTodaySummary('hrv'))
+              as Map<String, dynamic>;
+      if ((m['count'] as num? ?? 0) <= 0) return false;
+      _todayAvgHrv = (m['avg'] as num?)?.round() ?? 0;
+      notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ── Device management ─────────────────────────────────────────────────────
 
-  Future<void> _loadSavedDevice() async {
+Future<void> _loadSavedDevice() async {
     final prefs = await SharedPreferences.getInstance();
     _deviceName = prefs.getString('device_name') ?? '';
     _deviceAddress = prefs.getString('device_address') ?? '';
+    _battery = prefs.getInt('last_battery') ?? -1;
     notifyListeners();
     if (_deviceAddress.isNotEmpty) {
       _isConnected = await _ble.isConnected();
@@ -1240,7 +1387,7 @@ class BleProvider extends ChangeNotifier {
   // recorded" calls: HRV and Temperature (loop-measured readings are backed by these
   // ring-stored series too, so pulling them keeps gaps filled), plus Sleep (out of
   // scope for this pipeline).
-  Future<void> syncAllFromRing() async {
+Future<void> syncAllFromRing() async {
     if (_isSyncing || !_isConnected) return;
     final myGen = ++_syncGen;
     bool alive() => _syncGen == myGen;
@@ -1304,7 +1451,7 @@ class BleProvider extends ChangeNotifier {
 
   // ── Parse & save helpers (used by sync, no setState) ─────────────────────
 
-  void _parseAndSaveHrv(String jsonStr) {
+void _parseAndSaveHrv(String jsonStr) {
     try {
       final decoded = jsonDecode(jsonStr);
       if (decoded == null || decoded is! Map<String, dynamic>) return;
@@ -1523,7 +1670,7 @@ class BleProvider extends ChangeNotifier {
 
   // ── Supabase load-on-startup ──────────────────────────────────────────────
 
-  Future<void> _loadTodayFromSupabase() async {
+Future<void> _loadTodayFromSupabase() async {
     try {
       final user = SupabaseService.currentUser;
       if (user == null) return;
@@ -1538,7 +1685,10 @@ class BleProvider extends ChangeNotifier {
           .maybeSingle();
       if (data != null) {
         _todaySteps = (data['steps'] as num? ?? 0).toInt();
-        _todayCalories = (data['calories'] as num? ?? 0).toInt();
+        final rawCal = (data['calories'] as num? ?? 0).toInt();
+        _todayCalories = (rawCal >= 500 && _todaySteps < 4000)
+            ? rawCal ~/ 1000
+            : rawCal;
         _todayDistanceM = (data['distance_m'] as num? ?? 0).toDouble();
         notifyListeners();
       }
@@ -1579,47 +1729,59 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadLatestBpFromSupabase() async {
+  Future<void> _loadTodayBpFromSupabase() async {
     try {
       final user = SupabaseService.currentUser;
       if (user == null) return;
-      final data = await SupabaseService.getLatestBp(user.id);
+      final data = await SupabaseService.getTodayBp(user.id);
       if (data != null) {
         _latestBpSbp = (data['systolic'] as num? ?? 0).toInt();
         _latestBpDbp = (data['diastolic'] as num? ?? 0).toInt();
-        notifyListeners();
+      } else {
+        _latestBpSbp = 0;
+        _latestBpDbp = 0;
       }
+      notifyListeners();
     } catch (e, st) {
       _recordError(e, st);
     }
   }
 
-  Future<void> _loadLatestStressFromSupabase() async {
+  Future<void> _loadTodayStressFromSupabase() async {
     try {
       final user = SupabaseService.currentUser;
       if (user == null) return;
-      final data = await SupabaseService.getLatestStress(user.id);
+      final data = await SupabaseService.getTodayStress(user.id);
       if (data != null) {
-        _latestStressValue = (data['stress_value'] as num? ?? 0).toInt();
-        notifyListeners();
+        final val = (data['stress_value'] as num? ?? 0).toInt();
+        _latestStressValue = val;
+        _todayAvgStress = (data['avg_stress'] as num?)?.round() ?? val;
+        _todayMinStress = (data['min_stress'] as num?)?.toInt() ?? val;
+        _todayMaxStress = (data['max_stress'] as num?)?.toInt() ?? val;
+      } else {
+        _latestStressValue = 0;
+        _todayAvgStress = 0;
+        _todayMinStress = 0;
+        _todayMaxStress = 0;
       }
+      notifyListeners();
     } catch (e, st) {
       _recordError(e, st);
     }
   }
 
-  Future<void> _loadLatestTempFromSupabase() async {
+  Future<void> _loadTodayTempFromSupabase() async {
     try {
       final user = SupabaseService.currentUser;
       if (user == null) return;
-      final data = await SupabaseService.getLatestTemp(user.id);
+      final data = await SupabaseService.getTodayTemp(user.id);
       if (data != null) {
         final v = (data['value_c'] as num? ?? 0).toDouble();
-        if (v > 0) {
-          _latestTempC = v;
-          notifyListeners();
-        }
+        _latestTempC = v > 0 ? v : 0.0;
+      } else {
+        _latestTempC = 0.0;
       }
+      notifyListeners();
     } catch (e, st) {
       _recordError(e, st);
     }
@@ -1660,15 +1822,71 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  // ── Steps refresh (also called from StepsScreen for pull-to-refresh) ──────
-  // Steps are now captured every measurement cycle by the native loop and stored
-  // locally — this just re-reads that local snapshot rather than re-fetching the
-  // ring/upserting Supabase itself (the native SupabaseSyncManager owns that now).
-  Future<void> syncTodayStepsFromRing() async {
+  void _parseAndSaveTodaySteps(String jsonStr) {
+    try {
+      final decoded = jsonDecode(jsonStr);
+      final list = decoded is List ? decoded : <dynamic>[];
+      if (list.isEmpty) return;
+
+      final stepSlots = List<int>.filled(96, 0);
+      int totalSteps = 0;
+      int totalCalRaw = 0;
+      double totalDist = 0.0;
+
+      for (final item in list) {
+        if (item is! Map) continue;
+        final m = Map<String, dynamic>.from(item);
+        final slot =
+            (m['d'] as num?)?.toInt() ??
+            (m['timeIndex'] as num?)?.toInt() ??
+            -1;
+        final steps =
+            (m['f'] as num?)?.toInt() ?? (m['walkSteps'] as num?)?.toInt() ?? 0;
+        final runSteps = (m['runSteps'] as num?)?.toInt() ?? 0;
+        final stepTotal = steps + runSteps;
+        final calRaw =
+            (m['e'] as num?)?.toInt() ?? (m['calorie'] as num?)?.toInt() ?? 0;
+        final dist =
+            (m['g'] as num?)?.toDouble() ??
+            (m['distance'] as num?)?.toDouble() ??
+            0.0;
+
+        totalSteps += stepTotal;
+        totalCalRaw += calRaw;
+        totalDist += dist;
+        if (slot >= 0 && slot < 96) {
+          stepSlots[slot] += stepTotal;
+        }
+      }
+
+      final totalCal = totalCalRaw >= 1000 ? totalCalRaw ~/ 1000 : (totalCalRaw > 0 ? 1 : 0);
+
+      if (totalSteps > 0 || totalCal > 0 || totalDist > 0) {
+        _todaySteps = totalSteps;
+        _todayCalories = totalCal;
+        _todayDistanceM = totalDist;
+        _todayStepsByInterval = stepSlots;
+        notifyListeners();
+        _saveStepsToDb(totalSteps, totalCal, totalDist);
+      }
+    } catch (e, st) {
+      _recordError(e, st);
+    }
+  }
+
+Future<void> syncTodayStepsFromRing() async {
     if (_syncingSteps) return;
     _syncingSteps = true;
     notifyListeners();
-    await _refreshStepsFromLocal();
+    try {
+      final jsonStr = await _ble.getTodaySteps();
+      _parseAndSaveTodaySteps(jsonStr);
+    } catch (e, st) {
+      _recordError(e, st);
+    }
+    if (_todaySteps <= 0) {
+      await _refreshStepsFromLocal();
+    }
     _syncingSteps = false;
     notifyListeners();
   }
@@ -1677,7 +1895,12 @@ class BleProvider extends ChangeNotifier {
 
   Future<void> refreshBattery() async {
     try {
-      _battery = await _ble.getBattery();
+      final b = await _ble.getBattery();
+      if (b > 0) {
+        _battery = b;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('last_battery', b);
+      }
       notifyListeners();
       if (_battery > 0) {
         _maybeAlert(
@@ -1693,7 +1916,7 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> findDevice({bool enable = true}) async {
+Future<bool> findDevice({bool enable = true}) async {
     try {
       return await _ble.findDevice(enable: enable);
     } catch (e) {
@@ -1797,6 +2020,7 @@ class BleProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('device_name');
     await prefs.remove('device_address');
+    await prefs.remove('last_battery');
     notifyListeners();
   }
 

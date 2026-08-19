@@ -4,10 +4,6 @@ import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 
 // ── Design tokens (mirrors steps_screen.dart) ──────────────────────────────
-const _kBg = Color(0xFF050505);
-const _kStepsColor = Color(0xFF4ADE80);
-const _kDistColor = Color(0xFF60A5FA);
-const _kCalColor = Color(0xFFFB923C);
 
 TextStyle _t(double s, {FontWeight w = FontWeight.w400, Color? c, double? h}) =>
     AppTypography.inter(
@@ -32,9 +28,9 @@ class ActivityDescriptionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: AppTheme.bg,
       appBar: AppBar(
-        backgroundColor: _kBg,
+        backgroundColor: AppTheme.bg,
         elevation: 0,
         centerTitle: true,
         leading: const GlassBackButton(),
@@ -107,7 +103,7 @@ class ActivityDescriptionScreen extends StatelessWidget {
             // ── Metric tip cards ─────────────────────────────────────────
             const _TipCard(
               icon: Icons.directions_walk_rounded,
-              color: _kStepsColor,
+              color: AppTheme.softGreen,
               title: 'Steps',
               tip:
                   'Full steps credit at 8,000/day. Under 5,000 is typically '
@@ -116,7 +112,7 @@ class ActivityDescriptionScreen extends StatelessWidget {
             const SizedBox(height: 10),
             const _TipCard(
               icon: Icons.local_fire_department_rounded,
-              color: _kCalColor,
+              color: AppTheme.softOrange,
               title: 'Calories',
               tip:
                   'Full calorie credit at 250 active kcal — about a 30-minute '
@@ -125,7 +121,7 @@ class ActivityDescriptionScreen extends StatelessWidget {
             const SizedBox(height: 10),
             const _TipCard(
               icon: Icons.directions_run_rounded,
-              color: _kDistColor,
+              color: AppTheme.softBlue,
               title: 'Distance',
               tip:
                   'Full distance credit at 5 km (~45–60 min walk). Use with '

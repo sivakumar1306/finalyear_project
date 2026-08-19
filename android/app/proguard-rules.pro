@@ -3,7 +3,7 @@
 # Without this, R8 renames their fields to single letters (a, b, c, ...) and can
 # strip the @SerializedName annotations meant to guard against exactly that,
 # silently breaking every screen that reads raw local-DB readings.
--keep class com.medxai.sundr.data.** { *; }
+-keep class com.sundr.myapp.data.** { *; }
 -keepattributes Signature
 -keepattributes *Annotation*
 

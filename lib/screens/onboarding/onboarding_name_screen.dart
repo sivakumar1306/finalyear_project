@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../models/onboarding_data.dart';
-import 'onboarding_shell.dart';
+import '../../services/supabase_service.dart';
+import '../auth/splash_screen.dart';
 import 'onboarding_age_screen.dart';
+import 'onboarding_shell.dart';
 
 class OnboardingNameScreen extends StatefulWidget {
   final OnboardingData data;
@@ -26,14 +28,33 @@ class _OnboardingNameScreenState extends State<OnboardingNameScreen> {
     super.dispose();
   }
 
+  Future<void> _goBackToSplash() async {
+    try {
+      await SupabaseService.signOut();
+    } catch (_) {}
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const SplashScreen()),
+      (_) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return OnboardingShell(
-      step: 1,
-      totalSteps: 6,
-      data: widget.data,
-      canContinue: true,
-      onContinue: () {
+    return PopScope(
+      canPop: widget.data.isEditMode,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _goBackToSplash();
+      },
+      child: OnboardingShell(
+        step: 1,
+        totalSteps: 6,
+        data: widget.data,
+        canContinue: true,
+        onBack: widget.data.isEditMode ? () => Navigator.pop(context) : _goBackToSplash,
+        onContinue: () {
         widget.data.name = _ctrl.text.trim();
         Navigator.push(
           context,
@@ -81,6 +102,7 @@ class _OnboardingNameScreenState extends State<OnboardingNameScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

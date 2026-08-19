@@ -1,7 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.medxai.sundr">
-
+    package="com.sundr.myapp">
     <!-- Bluetooth permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
@@ -29,6 +28,10 @@
     <uses-permission android:name="android.permission.RECEIVE_USER_PRESENT" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- Required because BleConnectionService declares foregroundServiceType="connectedDevice|dataSync".
+         Android requires a matching FOREGROUND_SERVICE_* permission for EVERY type listed on the
+         service, not just one — omitting this caused SecurityException on service creation
+         (targetSdk 37 / API 34+ enforcement). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -128,7 +131,7 @@
             android:enabled="true"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.medxai.sundr.action.CRASH_RELAUNCH" />
+                <action android:name="com.sundr.myapp.action.CRASH_RELAUNCH" />
             </intent-filter>
         </receiver>
 

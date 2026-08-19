@@ -118,7 +118,7 @@ class _GoalSettingScreenState extends State<GoalSettingScreen> {
             colorScheme: const ColorScheme.dark(
               primary: AppTheme.gold,
               onPrimary: Colors.black,
-              surface: Color(0xFF141414),
+              surface: AppTheme.surfaceDeep,
               onSurface: Colors.white,
             ),
           ),
@@ -147,7 +147,7 @@ class _GoalSettingScreenState extends State<GoalSettingScreen> {
                 ? (value / 10).toStringAsFixed(1)
                 : '$value';
             return Dialog(
-              backgroundColor: const Color(0xFF141414),
+              backgroundColor: AppTheme.surfaceDeep,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
                 side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
@@ -238,7 +238,7 @@ class _GoalSettingScreenState extends State<GoalSettingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF050505),
+      backgroundColor: AppTheme.bg,
       body: Stack(
         children: [
           Positioned(
@@ -252,7 +252,7 @@ class _GoalSettingScreenState extends State<GoalSettingScreen> {
             child: _GlowBlob(
               width: 450,
               height: 320,
-              color: const Color(0xFFC9A86E).withValues(alpha: 0.025),
+              color: AppTheme.gold.withValues(alpha: 0.025),
             ),
           ),
           SafeArea(
@@ -355,7 +355,7 @@ class _GlowBlob extends StatelessWidget {
   const _GlowBlob({
     required this.width,
     required this.height,
-    this.color = const Color(0x0DC9A86E),
+    this.color = AppTheme.goldGlow,
   });
 
   @override

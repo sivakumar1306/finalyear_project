@@ -87,3 +87,6 @@ something.md
 **/windows/flutter/generated_plugins.cmake
 **/windows
 **/linux
+
+# DevTools settings
+devtools_options.yaml

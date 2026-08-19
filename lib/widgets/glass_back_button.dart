@@ -18,7 +18,14 @@ class GlassBackButton extends StatelessWidget {
       icon: Icons.arrow_back_ios_new_rounded,
       size: 36,
       iconSize: 16,
-      onTap: onTap ?? () => Navigator.pop(context),
+      onTap: onTap ??
+          () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
+            }
+          },
     );
   }
 }

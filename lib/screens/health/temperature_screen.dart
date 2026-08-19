@@ -12,15 +12,15 @@ import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/date_scroll_row.dart';
+import '../../widgets/legend_dot.dart';
+import '../../widgets/metric_bar_painter.dart';
+import '../../widgets/metric_chart_card.dart';
+import '../../widgets/metric_stat_card.dart';
 
 
 // ── Local design tokens — same system as heart_rate_screen.dart / blood_oxygen_screen.dart ──
 
-const _kCard = AppTheme.card;
-const _kBorder = AppTheme.div;
-const _kGrid = Color(0xFF222222);
-const _kSec = Color(0xFF666666);
-const _kSec2 = AppTheme.textSec;
 
 TextStyle _inter(
   double size, {
@@ -84,8 +84,12 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
 
   double get _displayAvg {
     if (!_isToday) return _dayAvg;
+    try {
+      final v = context.read<BleProvider>().latestTempC;
+      if (v > 0) return v;
+    } catch (_) {}
     if (_avgTemp > 0) return _avgTemp;
-    try { return context.read<BleProvider>().latestTempC; } catch(_) { return 0.0; }
+    return 0.0;
   }
 
   double get _displayMin {
@@ -112,10 +116,10 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   }
 
   static Color _tempStatusColor(double v) {
-    if (v <= 0) return _kSec2;
+    if (v <= 0) return AppTheme.textSec;
     if (v < 36.0) return AppTheme.spo2Color;
     if (v <= 37.2) return AppTheme.success;
-    if (v <= 38.0) return const Color(0xFFFBBF24);
+    if (v <= 38.0) return AppTheme.tempColor;
     return AppTheme.danger;
   }
 
@@ -135,36 +139,14 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _seedInstantData();
+
       _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
     _loadTempUnit();
   }
 
-  void _seedInstantData() {
-    try {
-      final ble = context.read<BleProvider>();
-      final curTemp = ble.latestTempC > 0 ? ble.latestTempC : 36.6;
-      final minVal = (curTemp - 0.3).clamp(35.0, 42.0);
-      final maxVal = (curTemp + 0.4).clamp(35.0, 42.0);
 
-      final nowHour = DateTime.now().hour;
-      final slots = List<double>.filled(24, 0.0);
-      for (int h = 0; h <= nowHour; h++) {
-        final v = ((h % 3) - 1) * 0.1;
-        slots[h] = (curTemp + v).clamp(minVal, maxVal);
-      }
-
-      setState(() {
-        _avgTemp = curTemp;
-        _minTemp = minVal;
-        _maxTemp = maxVal;
-        _chartValues = slots;
-        _loading = false;
-      });
-    } catch (_) {}
-  }
 
   Future<void> _loadTempUnit() async {
     final unit = await UnitPrefs.loadTempUnit();
@@ -214,10 +196,9 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
       final summary =
           jsonDecode(await _ble.getTodaySummary('temperature'))
               as Map<String, dynamic>;
-      final count = (summary['count'] as num? ?? 0).toInt();
 
       final hourly = List<double>.filled(24, 0);
-      if (count > 0) {
+      try {
         final readingsJson = await _ble.getReadings(
           'temperature',
           fromMs: dayStart,
@@ -240,12 +221,18 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         for (int h = 0; h < 24; h++) {
           if (counts[h] > 0) hourly[h] = sums[h] / counts[h];
         }
-      }
+      } catch (_) {}
 
       if (!mounted) return;
       final avg = (summary['avg'] as num?)?.toDouble() ?? 0;
       final minVal = (summary['min'] as num?)?.toDouble() ?? 0;
       final maxVal = (summary['max'] as num?)?.toDouble() ?? 0;
+      if (!hourly.any((v) => v > 0) && mounted) {
+        final liveVal = context.read<BleProvider>().latestTempC;
+        if (liveVal > 0) {
+          hourly[now.hour] = liveVal;
+        }
+      }
       setState(() {
         _chartValues = hourly;
         _avgTemp = avg;
@@ -499,7 +486,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                   VitalRange(
                     label: 'Elevated',
                     range: '37.2–38.0°C',
-                    color: Color(0xFFFBBF24),
+                    color: AppTheme.tempColor,
                   ),
                   VitalRange(
                     label: 'Fever',
@@ -597,7 +584,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
           ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(0.5),
-            child: Container(color: _kBorder, height: 0.5),
+            child: Container(color: AppTheme.div, height: 0.5),
           ),
         ),
         body: SingleChildScrollView(
@@ -608,7 +595,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
               const SizedBox(height: 16),
 
               // ── 1. Date row ────────────────────────────────────────────────
-              _TempDateRow(
+              DateScrollRow(
                 selectedDate: _selectedDate,
                 onDateSelected: _onDateSelected,
               ),
@@ -639,7 +626,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Text(_unitLabel, style: _inter(20, color: _kSec)),
+                  Text(_unitLabel, style: _inter(20, color: AppTheme.textTertiary)),
                 ],
               ),
               Text(
@@ -650,7 +637,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                   13,
                   weight: FontWeight.w600,
                   color: _measuring
-                      ? _kSec
+                      ? AppTheme.textTertiary
                       : _tempStatusColor(
                           _manualTemp > 0 ? _manualTemp : _displayAvg,
                         ),
@@ -659,12 +646,23 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
               const SizedBox(height: 16),
 
               // ── 3. Daily chart ────────────────────────────────────────────
-              _TempChartCard(
+              MetricChartCard(
                 headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
                 rangeLabel: dailyRangeLabel,
-                values: _chartValues,
+                yLabels: const ['40', '38', '36', '34'],
+                loadingAccent: AppTheme.tempColor,
                 xLabels: const ['12am', '6am', '12pm', '6pm', ''],
                 loading: _loading || _loadingDay,
+                child: CustomPaint(
+                  painter: MetricBarPainter(
+                    values: _chartValues,
+                    maxY: 40,
+                    baseline: 34,
+                    yLines: const [40, 38, 36, 34],
+                    colorFor: _tempBarColor,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
               ),
               if (_dayOffline && !_isToday) ...[
                 const SizedBox(height: 8),
@@ -678,7 +676,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: _TempStatCard(
+                    child: MetricStatCard(
                       label: 'AVERAGE',
                       value: _displayAvg > 0
                           ? _disp(_displayAvg).toStringAsFixed(1)
@@ -688,7 +686,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _TempStatCard(
+                    child: MetricStatCard(
                       label: 'MINIMUM',
                       value: _displayMin > 0
                           ? _disp(_displayMin).toStringAsFixed(1)
@@ -698,7 +696,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _TempStatCard(
+                    child: MetricStatCard(
                       label: 'MAXIMUM',
                       value: _displayMax > 0
                           ? _disp(_displayMax).toStringAsFixed(1)
@@ -721,13 +719,32 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
               const SizedBox(height: 20),
 
               // ── 6. 7-day trend ────────────────────────────────────────────
-              _TempChartCard(
+              MetricChartCard(
                 headerLabel: 'LAST 7 DAYS TREND',
                 rangeLabel: trendRangeLabel,
-                values: _trendValues,
+                yLabels: const ['40', '38', '36', '34'],
+                loadingAccent: AppTheme.tempColor,
                 xLabels: _trendXLabels(),
                 loading: _loadingTrend,
-                showLegend: true,
+                footer: const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    LegendDot(color: AppTheme.spo2Color, label: 'Low'),
+                    LegendDot(color: AppTheme.success, label: 'Normal'),
+                    LegendDot(color: AppTheme.tempColor, label: 'Elevated'),
+                    LegendDot(color: AppTheme.danger, label: 'Fever'),
+                  ],
+                ),
+                child: CustomPaint(
+                  painter: MetricBarPainter(
+                    values: _trendValues,
+                    maxY: 40,
+                    baseline: 34,
+                    yLines: const [40, 38, 36, 34],
+                    colorFor: _tempBarColor,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
               ),
               if (_trendOffline) ...[
                 const SizedBox(height: 8),
@@ -752,317 +769,11 @@ class _TempReading {
   final double valueC;
   const _TempReading({required this.time, required this.valueC});
 }
-
-// ── Date row ──────────────────────────────────────────────────────────────────
-
-class _TempDateRow extends StatelessWidget {
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onDateSelected;
-  const _TempDateRow({
-    required this.selectedDate,
-    required this.onDateSelected,
-  });
-
-  static const _months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < dates.length; i++) ...[
-            if (i > 0) const SizedBox(width: 16),
-            _buildItem(dates[i], today),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItem(DateTime d, DateTime today) {
-    final isToday = d == today;
-    final isFuture = d.isAfter(today);
-    final sel = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-    );
-    final isSelected = d == sel && !isToday;
-
-    if (isToday || isSelected) {
-      return GestureDetector(
-        onTap: isToday ? null : () => onDateSelected(d),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: const Color(0xFF202020),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF363636)),
-          ),
-          child: Text(
-            isToday
-                ? 'Today, ${d.day} ${_months[d.month - 1]}'
-                : '${d.day} ${_months[d.month - 1]}',
-            style: _inter(13, weight: FontWeight.w500),
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: isFuture ? null : () => onDateSelected(d),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: Text(
-          '${d.day}',
-          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Temperature chart card ──────────────────────────────────────────────────
-
-class _TempChartCard extends StatelessWidget {
-  final String headerLabel;
-  final String rangeLabel;
-  final List<double> values;
-  final List<String> xLabels;
-  final bool loading;
-  final bool showLegend;
-
-  const _TempChartCard({
-    required this.headerLabel,
-    required this.rangeLabel,
-    required this.values,
-    required this.xLabels,
-    required this.loading,
-    this.showLegend = false,
-  });
-
-  static const _yAxisW = 30.0;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                headerLabel,
-                style: _inter(
-                  11,
-                  weight: FontWeight.w600,
-                  color: _kSec,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              Text(
-                rangeLabel,
-                style: _inter(
-                  11,
-                  weight: FontWeight.w500,
-                  color: const Color(0xFF999999),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 128,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: _yAxisW,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: ['40', '38', '36', '34']
-                        .map(
-                          (l) => Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: Text(l, style: _inter(10, color: _kSec)),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-                Expanded(
-                  child: loading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppTheme.tempColor,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : CustomPaint(
-                          painter: _TempBarPainter(values: values),
-                          child: const SizedBox.expand(),
-                        ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.only(left: _yAxisW),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: xLabels
-                  .map((l) => Text(l, style: _inter(10, color: _kSec)))
-                  .toList(),
-            ),
-          ),
-          if (showLegend) ...[
-            const SizedBox(height: 12),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _LegendDot(color: AppTheme.spo2Color, label: 'Low'),
-                _LegendDot(color: AppTheme.success, label: 'Normal'),
-                _LegendDot(color: Color(0xFFFBBF24), label: 'Elevated'),
-                _LegendDot(color: AppTheme.danger, label: 'Fever'),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ── Temperature bar painter ─────────────────────────────────────────────────
-
-class _TempBarPainter extends CustomPainter {
-  final List<double> values;
-  const _TempBarPainter({required this.values});
-
-  static const _minY = 34.0;
-  static const _maxY = 40.0;
-  static const _range = _maxY - _minY;
-  static const _yLines = [40.0, 38.0, 36.0, 34.0];
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = _kGrid
-      ..strokeWidth = 0.5;
-    for (final y in _yLines) {
-      final yPos = size.height - ((y - _minY) / _range) * size.height;
-      canvas.drawLine(Offset(0, yPos), Offset(size.width, yPos), gridPaint);
-    }
-
-    if (values.isEmpty) return;
-    final n = values.length;
-    final slotW = size.width / n;
-    final barW = (slotW * 0.55).clamp(2.0, 9.0);
-
-    for (int i = 0; i < n; i++) {
-      if (values[i] <= 0) continue;
-      final ratio = ((values[i] - _minY) / _range).clamp(0.0, 1.0);
-      final barH = (ratio * size.height).clamp(2.0, size.height);
-      final x = i * slotW + (slotW - barW) / 2;
-      canvas.drawRRect(
-        RRect.fromLTRBR(
-          x,
-          size.height - barH,
-          x + barW,
-          size.height,
-          const Radius.circular(3),
-        ),
-        Paint()..color = _tempBarColor(values[i]),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_TempBarPainter old) => old.values != values;
-}
-
-Color _tempBarColor(double v) {
+Color _tempBarColor(num v) {
   if (v < 36.0) return AppTheme.spo2Color;
   if (v <= 37.2) return AppTheme.success;
-  if (v <= 38.0) return const Color(0xFFFBBF24);
+  if (v <= 38.0) return AppTheme.tempColor;
   return AppTheme.danger;
-}
-
-// ── Stat cards ────────────────────────────────────────────────────────────────
-
-class _TempStatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final String unit;
-  const _TempStatCard({
-    required this.label,
-    required this.value,
-    required this.unit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: _inter(
-              10,
-              weight: FontWeight.w600,
-              color: _kSec,
-              letterSpacing: 0.7,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(value, style: _inter(17, weight: FontWeight.w600)),
-              const SizedBox(width: 4),
-              Text(unit, style: _inter(11, color: _kSec)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ── Real-time measurement card ────────────────────────────────────────────────
@@ -1093,9 +804,9 @@ class _RealTimeTempCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _kCard,
+        color: AppTheme.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
+        border: Border.all(color: AppTheme.div),
       ),
       child: Column(
         children: [
@@ -1117,11 +828,11 @@ class _RealTimeTempCard extends StatelessWidget {
                       weight: FontWeight.w600,
                       color: measuring || latestTemp > 0
                           ? Colors.white
-                          : _kSec2,
+                          : AppTheme.textSec,
                     ),
                   ),
                   const SizedBox(width: 4),
-                  Text(unitLabel, style: _inter(11, color: _kSec)),
+                  Text(unitLabel, style: _inter(11, color: AppTheme.textTertiary)),
                 ],
               ),
             ],
@@ -1133,9 +844,9 @@ class _RealTimeTempCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
+                color: AppTheme.surfaceMid,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF2E2E2E)),
+                border: Border.all(color: AppTheme.dividerSoft),
               ),
               child: Center(
                 child: measuring
@@ -1143,7 +854,7 @@ class _RealTimeTempCard extends StatelessWidget {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                          color: enabled ? AppTheme.tempColor : _kSec,
+                          color: enabled ? AppTheme.tempColor : AppTheme.textTertiary,
                           strokeWidth: 2,
                         ),
                       )
@@ -1152,7 +863,7 @@ class _RealTimeTempCard extends StatelessWidget {
                         style: _inter(
                           14,
                           weight: FontWeight.w500,
-                          color: enabled ? Colors.white70 : _kSec,
+                          color: enabled ? Colors.white70 : AppTheme.textTertiary,
                         ),
                       ),
               ),
@@ -1164,24 +875,3 @@ class _RealTimeTempCard extends StatelessWidget {
   }
 }
 
-// ── Legend ───────────────────────────────────────────────────────────────────
-
-class _LegendDot extends StatelessWidget {
-  final Color color;
-  final String label;
-  const _LegendDot({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Container(
-        width: 7,
-        height: 7,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      ),
-      const SizedBox(width: 5),
-      Text(label, style: _inter(11, color: _kSec2)),
-    ],
-  );
-}

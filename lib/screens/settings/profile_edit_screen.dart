@@ -8,7 +8,6 @@ import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/glass_icon_button.dart';
 import '../auth/login_screen.dart';
-import '../auth/sign_up_screen.dart';
 import 'account_system_settings_screen.dart';
 import 'settings_screen.dart';
 import '../../widgets/app_typography.dart';
@@ -43,9 +42,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   // Emergency Details — same Room-backed data as Fall Prediction (BleProvider),
   // not a separate copy, so edits stay consistent across both screens.
   List<_EmergencyContact> _contacts = [];
-  bool _loadingContacts = true;
 
-  // Address / instructions — DB-backed (user_profiles), not just local prefs.
+  String _phone = '';
   String _address = '';
   String _instructions = '';
 
@@ -73,6 +71,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             _age = (p['age'] as int?) ?? 0;
             _heightCm = (p['height_cm'] as int?) ?? 0;
             _weightKg = ((p['weight_kg'] as num?) ?? 0).toDouble();
+            _phone = (p['phone'] as String?) ?? '';
             _address = (p['address'] as String?) ?? '';
             _instructions = (p['additional_instructions'] as String?) ?? '';
           });
@@ -86,6 +85,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   Future<void> _loadContacts() async {
     final ble = context.read<BleProvider>();
+    await ble.syncEmergencyContactsFromCloud();
     final rows = await ble.getEmergencyContacts();
     if (!mounted) return;
     setState(() {
@@ -98,7 +98,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             ),
           )
           .toList();
-      _loadingContacts = false;
     });
   }
 
@@ -115,6 +114,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         heightCm: _heightCm,
         weightKg: _weightKg,
         address: _address,
+        phone: _phone,
         additionalInstructions: _instructions,
       );
     } catch (e) {
@@ -137,7 +137,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (_) => _InputDialog(
-        title: 'Nickname',
+        title: 'Name',
         controller: ctrl,
         keyboardType: TextInputType.name,
       ),
@@ -244,6 +244,22 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
   }
 
+  void _editPhone() async {
+    final ctrl = TextEditingController(text: _phone);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => _InputDialog(
+        title: 'Phone',
+        controller: ctrl,
+        keyboardType: TextInputType.phone,
+      ),
+    );
+    if (result != null && result != _phone) {
+      setState(() => _phone = result);
+      await _autoSave();
+    }
+  }
+
   Future<void> _addContact() async {
     final nameCtl = TextEditingController();
     final phoneCtl = TextEditingController();
@@ -337,30 +353,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     await _autoSave();
   }
 
-  Future<void> _editInstructions() async {
-    final ctl = TextEditingController(text: _instructions);
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (_) => _FormDialog(
-        title: 'Additional instructions',
-        fields: [
-          TextField(
-            controller: ctl,
-            style: const TextStyle(color: Colors.white),
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'e.g. Gate code, floor, pets...',
-            ),
-          ),
-        ],
-      ),
-    );
-    if (saved != true) return;
-    final next = ctl.text.trim();
-    if (next == _instructions) return;
-    setState(() => _instructions = next);
-    await _autoSave();
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -388,22 +381,20 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         centerTitle: true,
         elevation: 0,
         actions: [
-          if (!widget.showBackButton)
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Center(
-                child: GlassIconButton(
-                  icon: Icons.settings_outlined,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          const SettingsScreen(showBackButton: true),
-                    ),
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(
+              child: GlassIconButton(
+                icon: Icons.settings_outlined,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SettingsScreen(showBackButton: true),
                   ),
                 ),
               ),
             ),
+          ),
         ],
       ),
       body: _loading
@@ -413,8 +404,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 16),
-                  _sectionLabel('ABOUT YOU'),
+                  const SizedBox(height: 12),
+                  _buildTopAccountCard(),
+                  const SizedBox(height: 24),
+                  _sectionHeader('ABOUT YOU', showEdit: false),
                   const SizedBox(height: 10),
                   Container(
                     decoration: BoxDecoration(
@@ -425,15 +418,15 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       children: [
                         _ProfileRow(
                           icon: Icons.person_outline_rounded,
-                          label: 'Nickname',
-                          value: _name.isNotEmpty ? _name : '—',
+                          label: 'Name',
+                          value: _name.isNotEmpty ? _name : 'Sundr',
                           onTap: _editName,
                         ),
                         _divider(),
                         _ProfileRow(
                           icon: Icons.edit_outlined,
                           label: 'Gender',
-                          value: _gender.isNotEmpty ? _gender : '—',
+                          value: _gender.isNotEmpty ? _gender : 'Male',
                           onTap: _editGender,
                         ),
                         _divider(),
@@ -449,7 +442,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           label: 'Height',
                           value: _heightCm > 0
                               ? UnitPrefs.formatHeightCm(_heightCm, _unitSystem)
-                              : '—',
+                              : "5' 11\"",
                           onTap: _editHeight,
                         ),
                         _divider(),
@@ -458,142 +451,61 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           label: 'Weight',
                           value: _weightKg > 0
                               ? UnitPrefs.formatWeightKg(_weightKg, _unitSystem)
-                              : '—',
+                              : '89 kg',
                           onTap: _editWeight,
+                        ),
+                        _divider(),
+                        _ProfileRow(
+                          icon: Icons.phone_outlined,
+                          label: 'Phone',
+                          value: _phone.isNotEmpty
+                              ? _phone
+                              : '+91 000 000 0000',
+                          onTap: _editPhone,
+                        ),
+                        _divider(),
+                        _ProfileRow(
+                          icon: Icons.location_on_outlined,
+                          label: 'Address',
+                          value: _address.isNotEmpty
+                              ? _address
+                              : 'Flat 101, SingleBar avenue....',
+                          onTap: _editAddress,
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 28),
-                  _sectionLabel('ACCOUNT'),
+                  const SizedBox(height: 24),
+                  _sectionHeader('EMERGENCY DETAILS', showEdit: false),
                   const SizedBox(height: 10),
-                  _buildAccountSection(),
-                  const SizedBox(height: 12),
                   Container(
                     decoration: BoxDecoration(
                       color: AppTheme.card,
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: _AccountActionRow(
-                      icon: Icons.arrow_forward_rounded,
-                      label: 'Go to system settings',
-                      trailing: true,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              const SettingsScreen(showBackButton: true),
+                    child: Column(
+                      children: [
+                        const _ProfileRow(
+                          icon: Icons.local_hospital_outlined,
+                          label: 'Default Emergency Contact',
+                          value: '101',
                         ),
-                      ),
-                    ),
-                  ),
-
-                  if (_loggedIn) ...[
-                    const SizedBox(height: 28),
-                    _sectionLabel('EMERGENCY DETAILS'),
-                    const SizedBox(height: 10),
-                    if (_loadingContacts)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: AppTheme.gold,
-                          ),
-                        ),
-                      )
-                    else if (_contacts.isEmpty)
-                      Container(
-                        decoration: BoxDecoration(
-                          color: AppTheme.card,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Icon(
-                                Icons.warning_amber_rounded,
-                                color: AppTheme.danger,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  'No emergency contacts saved. Add at least one real '
-                                  'contact so fall alerts can reach someone.',
-                                  style: AppTypography.inter(
-                                    color: Colors.white.withValues(alpha: 0.75),
-                                    fontSize: 12.5,
-                                    height: 1.4,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      Container(
-                        decoration: BoxDecoration(
-                          color: AppTheme.card,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          children: [
-                            for (var i = 0; i < _contacts.length; i++) ...[
-                              if (i > 0) _divider(),
-                              _ContactRow(
-                                contact: _contacts[i],
-                                onTap: () => _editContact(_contacts[i]),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppTheme.card,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: _AccountActionRow(
-                        icon: Icons.add_rounded,
-                        label: 'Add a new contact',
-                        onTap: _addContact,
-                      ),
-                    ),
-
-                    const SizedBox(height: 28),
-                    _sectionLabel('ADDRESS'),
-                    const SizedBox(height: 10),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppTheme.card,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        children: [
-                          _ProfileRow(
-                            icon: Icons.location_on_outlined,
-                            label: 'Address',
-                            value: _address.isEmpty ? 'Add' : _address,
-                            onTap: _editAddress,
-                          ),
+                        for (var i = 0; i < _contacts.length; i++) ...[
                           _divider(),
-                          _ProfileRow(
-                            icon: Icons.edit_note_rounded,
-                            label: 'Additional instructions',
-                            value: _instructions.isEmpty
-                                ? 'Add'
-                                : _instructions,
-                            onTap: _editInstructions,
+                          _ContactRow(
+                            contact: _contacts[i],
+                            onTap: () => _editContact(_contacts[i]),
                           ),
                         ],
-                      ),
+                        _divider(),
+                        _AccountActionRow(
+                          icon: Icons.add_rounded,
+                          label: 'Add a new contact',
+                          onTap: _addContact,
+                        ),
+                      ],
                     ),
-                  ],
-
+                  ),
                   const SizedBox(height: 24),
                   if (!widget.showBackButton) const FooterSpacer(),
                   if (widget.showBackButton) const SizedBox(height: 24),
@@ -603,180 +515,127 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     );
   }
 
-  Widget _buildAccountSection() {
-    if (!_loggedIn) {
-      // Logged-out state — "Create an account" / "Log into existing account".
-      return Container(
-        decoration: BoxDecoration(
-          color: AppTheme.card,
-          borderRadius: BorderRadius.circular(16),
+  Widget _sectionHeader(String title, {bool showEdit = true, VoidCallback? onEditTap}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          title,
+          style: AppTypography.inter(
+            color: AppTheme.textSec,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.5,
+          ),
         ),
-        child: Column(
-          children: [
-            _AccountActionRow(
-              icon: Icons.add_circle_outline_rounded,
-              label: 'Create an account',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SignUpScreen()),
+        if (showEdit)
+          GestureDetector(
+            onTap: onEditTap,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4.0),
+              child: Row(
+                children: [
+                  Text(
+                    'Edit',
+                    style: AppTypography.inter(
+                      color: AppTheme.textSec,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.edit_outlined,
+                    color: AppTheme.textSec,
+                    size: 14,
+                  ),
+                ],
               ),
             ),
-            _divider(),
-            _AccountActionRow(
-              icon: Icons.person_outline_rounded,
-              label: 'Log into existing account',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+          ),
+      ],
+    );
+  }
 
-    // Logged-in state — email, account settings, log out.
+  Widget _buildTopAccountCard() {
+    final email = SupabaseService.currentUser?.email ?? 'AccountName@email.com';
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.card,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
-        children: [
-          _AccountEmailRow(email: SupabaseService.currentUser?.email ?? '—'),
-          _divider(),
-          _AccountActionRow(
-            icon: Icons.settings_outlined,
-            label: 'Account settings',
-            onTap: () => Navigator.push(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          if (_loggedIn) {
+            Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => const AccountSystemSettingsScreen(),
               ),
-            ),
+            );
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            );
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  color: AppTheme.card2,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person_outline_rounded,
+                  color: AppTheme.gold,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  email,
+                  style: AppTypography.inter(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppTheme.textSec,
+                size: 20,
+              ),
+            ],
           ),
-          _divider(),
-          _AccountActionRow(
-            icon: Icons.logout_rounded,
-            label: 'Log out',
-            onTap: () => _confirmLogout(context),
-          ),
-        ],
+        ),
       ),
     );
   }
-
-  Widget _sectionLabel(String text) => Text(
-    text,
-    style: AppTypography.inter(
-      color: AppTheme.textSec,
-      fontSize: 11,
-      fontWeight: FontWeight.w600,
-      letterSpacing: 1.5,
-    ),
-  );
 
   Widget _divider() => const Divider(height: 1, color: AppTheme.div);
-
-  Future<void> _confirmLogout(BuildContext context) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppTheme.card2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Log out',
-          style: AppTypography.inter(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        content: Text(
-          'Logging out clears your session and all personal data stored on this device (health history, emergency contacts, ring pairing). Are you sure?',
-          style: AppTypography.inter(color: AppTheme.textSec),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Cancel',
-              style: AppTypography.inter(color: AppTheme.textSec),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              'Log out',
-              style: AppTypography.inter(
-                color: AppTheme.danger,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (ok == true && context.mounted) {
-      await SupabaseService.logoutAndClearLocalData();
-      if (context.mounted) {
-        Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
-      }
-    }
-  }
-}
-
-class _AccountEmailRow extends StatelessWidget {
-  final String email;
-  const _AccountEmailRow({required this.email});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: AppTheme.gold.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.person_rounded,
-              color: AppTheme.gold,
-              size: 17,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              email,
-              style: AppTypography.inter(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _AccountActionRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool trailing;
 
   const _AccountActionRow({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.trailing = false,
   });
 
   @override
@@ -795,7 +654,7 @@ class _AccountActionRow extends StatelessWidget {
                 color: AppTheme.card2,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: const Color(0xFFAAAAAA), size: 17),
+              child: Icon(icon, color: AppTheme.iconFaint, size: 17),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -808,12 +667,6 @@ class _AccountActionRow extends StatelessWidget {
                 ),
               ),
             ),
-            if (trailing)
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AppTheme.textSec,
-                size: 20,
-              ),
           ],
         ),
       ),
@@ -825,13 +678,13 @@ class _ProfileRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _ProfileRow({
     required this.icon,
     required this.label,
     required this.value,
-    required this.onTap,
+    this.onTap,
   });
 
   @override
@@ -850,7 +703,7 @@ class _ProfileRow extends StatelessWidget {
                 color: AppTheme.card2,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: const Color(0xFFAAAAAA), size: 17),
+              child: Icon(icon, color: AppTheme.iconFaint, size: 17),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -901,7 +754,7 @@ class _ContactRow extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.local_hospital_outlined,
-                color: Color(0xFFAAAAAA),
+                color: AppTheme.iconFaint,
                 size: 17,
               ),
             ),

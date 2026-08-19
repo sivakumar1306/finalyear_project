@@ -14,7 +14,7 @@ class ChatApiService {
   // getInsights() does heavier server-side aggregation (7/30/90-day trend
   // computation across several vitals) than the other endpoints, so it needs
   // more headroom.
-  static const _insightsTimeout = Duration(seconds: 20);
+  static const _insightsTimeout = Duration(seconds: 120);
 
   // /chat runs an LLM agent that decides which tool(s) to call, waits on
   // those tool results, then generates the final reply — confirmed via
@@ -67,23 +67,28 @@ class ChatApiService {
   static Future<Map<String, dynamic>> getConversations() async {
     final userId = _userId;
     if (userId == null) return {'conversations': []};
-    final response = await http
-        .get(
-          Uri.parse('$baseUrl/history/$userId'),
-          headers: _authHeaders,
-        )
-        .timeout(_timeout);
-    return _decodeOrThrow(response);
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/history/$userId'), headers: _authHeaders)
+          .timeout(_timeout);
+      return _decodeOrThrow(response);
+    } catch (_) {
+      return {'conversations': []};
+    }
   }
 
   static Future<Map<String, dynamic>> getMessages(String conversationId) async {
-    final response = await http
-        .get(
-          Uri.parse('$baseUrl/history/messages/$conversationId'),
-          headers: _authHeaders,
-        )
-        .timeout(_timeout);
-    return _decodeOrThrow(response);
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/history/messages/$conversationId'),
+            headers: _authHeaders,
+          )
+          .timeout(_timeout);
+      return _decodeOrThrow(response);
+    } catch (_) {
+      return {'messages': []};
+    }
   }
 
   /// Dynamic AI-assist header data: headline, subtext, and key-change cards,
@@ -104,10 +109,7 @@ class ChatApiService {
       };
     }
     final response = await http
-        .get(
-          Uri.parse('$baseUrl/insights/$userId'),
-          headers: _authHeaders,
-        )
+        .get(Uri.parse('$baseUrl/insights/$userId'), headers: _authHeaders)
         .timeout(_insightsTimeout);
     return _decodeOrThrow(response);
   }

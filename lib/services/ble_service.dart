@@ -18,7 +18,9 @@ class BleService {
     try {
       return await _methodChannel.invokeMethod<T>(method, arguments);
     } on PlatformException catch (e) {
-      debugPrint('[BleService] $method PlatformException: ${e.code} ${e.message}');
+      debugPrint(
+        '[BleService] $method PlatformException: ${e.code} ${e.message}',
+      );
       rethrow;
     } on MissingPluginException catch (e) {
       debugPrint('[BleService] $method MissingPluginException: $e');
@@ -41,9 +43,7 @@ class BleService {
 
   // ── Connection ─────────────────────────────────────────────────────
   Future<bool> connect(String address) async {
-    final result = await _invoke<bool>('connect', {
-      'address': address,
-    });
+    final result = await _invoke<bool>('connect', {'address': address});
     return result ?? false;
   }
 
@@ -57,7 +57,9 @@ class BleService {
   /// Last native crash/SDK failure recorded before a process death (or soft fail).
   Future<Map<String, dynamic>?> getLastNativeCrash() async {
     try {
-      final result = await _methodChannel.invokeMethod<dynamic>('getLastNativeCrash');
+      final result = await _methodChannel.invokeMethod<dynamic>(
+        'getLastNativeCrash',
+      );
       if (result is Map) {
         return Map<String, dynamic>.from(result);
       }
@@ -102,11 +104,10 @@ class BleService {
     required int calories,
     required double distanceM,
   }) async {
-    final result = await _methodChannel.invokeMethod<bool>('saveStepsSnapshot', {
-      'steps': steps,
-      'calories': calories,
-      'distanceM': distanceM,
-    });
+    final result = await _methodChannel.invokeMethod<bool>(
+      'saveStepsSnapshot',
+      {'steps': steps, 'calories': calories, 'distanceM': distanceM},
+    );
     return result ?? false;
   }
 
@@ -505,6 +506,7 @@ class BleService {
       return false;
     }
   }
+
   Future<String> getDrinkReminder() async =>
       await _methodChannel.invokeMethod<String>('getDrinkReminder') ?? '{}';
 
@@ -554,6 +556,14 @@ class BleService {
   /// if a `cameraShutter` "exit" event was already received.
   Future<bool> exitCameraMode() async =>
       await _methodChannel.invokeMethod<bool>('exitCameraMode') ?? false;
+
+  Future<bool> scanMediaFile(String path) async {
+    try {
+      return await _methodChannel.invokeMethod<bool>('scanMediaFile', {'path': path}) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   // ── Workout ────────────────────────────────────────────────────────
   Future<void> startWorkout(String type, int startTimeMs) => _methodChannel
@@ -715,11 +725,6 @@ class BleService {
       }) ??
       '[]';
 
-  /// Dev/testing only — fires the real fall-alert notification pipeline on demand, so it can
-  /// be tested/demoed without a genuine drop test + concurrent vitals spike.
-  Future<bool> simulateFallEvent() async =>
-      await _methodChannel.invokeMethod<bool>('simulateFallEvent') ?? false;
-
   /// Posts a phone-side alert notification (via AlertNotifier) for a vital that just
   /// crossed a user-enabled threshold — see BleProvider._checkAlertThresholds.
   Future<bool> postHealthAlert({
@@ -736,16 +741,9 @@ class BleService {
 
   /// Dev/testing only — posts a real NewReadingEvent so FallRiskAnalyzer's compute-and-log
   /// pipeline can be verified without a real ring connected (seedDemoData bypasses this path).
-  Future<bool> simulateFallRiskTrigger() async =>
-      await _methodChannel.invokeMethod<bool>('simulateFallRiskTrigger') ??
-      false;
+  Future<bool> clearMockVitals() async =>
+      await _methodChannel.invokeMethod<bool>('clearMockVitals') ?? false;
 
-  /// Client-demo only — posts a real vitals spike then deterministically fires the
-  /// predictive "you might fall soon" notification, so the alert flow can be shown
-  /// without waiting on real elevated vitals. See FallPredictionNotifier.kt.
-  Future<bool> simulateFallPrediction() async =>
-      await _methodChannel.invokeMethod<bool>('simulateFallPrediction') ??
-      false;
 
   /// Reads the fall-prediction pending flag — `{"pending": bool, "hr": int}`.
   /// Pending is set when a prediction fires (not only when the notification is tapped),

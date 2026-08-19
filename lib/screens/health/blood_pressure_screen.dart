@@ -11,17 +11,15 @@ import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/date_scroll_row.dart';
 import '../../utils/bp_staging.dart';
+import '../../widgets/legend_dot.dart';
+import '../../widgets/metric_chart_card.dart';
+import '../../widgets/metric_stat_card.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
-const _kCard = AppTheme.card;
-const _kBorder = AppTheme.div;
-const _kGrid = Color(0xFF222222);
-const _kSec = Color(0xFF666666);
-const _kSec2 = AppTheme.textSec;
-const _dbpColor = Color(0xFFC084FC);
 
 TextStyle _inter(
   double size, {
@@ -40,7 +38,7 @@ TextStyle _inter(
 String _bpStatus(int sbp, int dbp) => bpStatusLabel(sbp, dbp);
 
 Color _bpStatusColor(int sbp, int dbp) =>
-    bpStatusColor(sbp, dbp, noDataColor: _kSec2);
+    bpStatusColor(sbp, dbp, noDataColor: AppTheme.textSec);
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -91,8 +89,12 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
 
   int get _displaySbpAvg {
     if (!_isToday) return _daySbpAvg;
+    try {
+      final v = context.read<BleProvider>().latestBpSbp;
+      if (v > 0) return v;
+    } catch (_) {}
     if (_avgSbp > 0) return _avgSbp;
-    try { return context.read<BleProvider>().latestBpSbp; } catch(_) { return 0; }
+    return 0;
   }
 
   int get _displaySbpMin {
@@ -109,8 +111,12 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
 
   int get _displayDbpAvg {
     if (!_isToday) return _dayDbpAvg;
+    try {
+      final v = context.read<BleProvider>().latestBpDbp;
+      if (v > 0) return v;
+    } catch (_) {}
     if (_avgDbp > 0) return _avgDbp;
-    try { return context.read<BleProvider>().latestBpDbp; } catch(_) { return 0; }
+    return 0;
   }
 
   int get _displayDbpMin {
@@ -135,41 +141,13 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _seedInstantData();
+
       _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
   }
 
-  void _seedInstantData() {
-    try {
-      final ble = context.read<BleProvider>();
-      final curSbp = ble.latestBpSbp > 0 ? ble.latestBpSbp : 120;
-      final curDbp = ble.latestBpDbp > 0 ? ble.latestBpDbp : 80;
 
-      final nowHour = DateTime.now().hour;
-      final slotsSbp = List<int>.filled(24, 0);
-      final slotsDbp = List<int>.filled(24, 0);
-      for (int h = 0; h <= nowHour; h++) {
-        final varSbp = ((h % 4) - 2) * 2;
-        final varDbp = ((h % 3) - 1) * 2;
-        slotsSbp[h] = (curSbp + varSbp).clamp(90, 180);
-        slotsDbp[h] = (curDbp + varDbp).clamp(60, 110);
-      }
-
-      setState(() {
-        _avgSbp = curSbp;
-        _minSbp = curSbp - 5;
-        _maxSbp = curSbp + 8;
-        _avgDbp = curDbp;
-        _minDbp = curDbp - 4;
-        _maxDbp = curDbp + 6;
-        _chartSbp = slotsSbp;
-        _chartDbp = slotsDbp;
-        _loading = false;
-      });
-    } catch (_) {}
-  }
 
   // ── Date selection ────────────────────────────────────────────────────────────
 
@@ -482,7 +460,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
                   VitalRange(
                     label: 'Elevated',
                     range: '120–129/<80',
-                    color: Color(0xFFFBBF24),
+                    color: AppTheme.amber,
                   ),
                   VitalRange(
                     label: 'Stage 1',
@@ -598,7 +576,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
           ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(0.5),
-            child: Container(color: _kBorder, height: 0.5),
+            child: Container(color: AppTheme.div, height: 0.5),
           ),
         ),
         body: SingleChildScrollView(
@@ -609,7 +587,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               const SizedBox(height: 16),
 
               // ── 2. Date row ────────────────────────────────────────────────
-              _BPDateRow(
+              DateScrollRow(
                 selectedDate: _selectedDate,
                 onDateSelected: _onDateSelected,
               ),
@@ -641,7 +619,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
                   ),
                   Text(
                     '/',
-                    style: _inter(36, weight: FontWeight.w300, color: _kSec),
+                    style: _inter(36, weight: FontWeight.w300, color: AppTheme.textTertiary),
                   ),
                   Text(
                     dbpText,
@@ -657,7 +635,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text('mmHg', style: _inter(13, color: _kSec)),
+                  Text('mmHg', style: _inter(13, color: AppTheme.textTertiary)),
                   if (currentLabel.isNotEmpty) ...[
                     const SizedBox(width: 10),
                     Container(
@@ -684,13 +662,21 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               const SizedBox(height: 16),
 
               // ── 4. Daily chart ─────────────────────────────────────────────
-              _BPChartCard(
+              MetricChartCard(
                 headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
                 rangeLabel: dailyRangeLabel,
-                sbpValues: _chartSbp,
-                dbpValues: _chartDbp,
+                yLabels: const ['160', '120', '80', '40'],
+                loadingAccent: AppTheme.bpColor,
+                barCount: _chartSbp.length,
                 xLabels: const ['12am', '6am', '12pm', '6pm', ''],
                 loading: _loading || _loadingDay,
+                child: CustomPaint(
+                  painter: _BPBarPainter(
+                    sbpValues: _chartSbp,
+                    dbpValues: _chartDbp,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
               ),
               if (_dayOffline && !_isToday) ...[
                 const SizedBox(height: 8),
@@ -704,29 +690,38 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: _BPStatCard(
+                    child: MetricStatCard(
                       label: 'AVERAGE',
                       value: (_displaySbpAvg > 0 && _displayDbpAvg > 0)
                           ? '$_displaySbpAvg/$_displayDbpAvg'
                           : '--',
+                      unit: (_displaySbpAvg > 0 && _displayDbpAvg > 0)
+                          ? 'mmHg'
+                          : '',
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _BPStatCard(
+                    child: MetricStatCard(
                       label: 'MINIMUM',
                       value: (_displaySbpMin > 0 && _displayDbpMin > 0)
                           ? '$_displaySbpMin/$_displayDbpMin'
                           : '--',
+                      unit: (_displaySbpMin > 0 && _displayDbpMin > 0)
+                          ? 'mmHg'
+                          : '',
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _BPStatCard(
+                    child: MetricStatCard(
                       label: 'MAXIMUM',
                       value: (_displaySbpMax > 0 && _displayDbpMax > 0)
                           ? '$_displaySbpMax/$_displayDbpMax'
                           : '--',
+                      unit: (_displaySbpMax > 0 && _displayDbpMax > 0)
+                          ? 'mmHg'
+                          : '',
                     ),
                   ),
                 ],
@@ -744,14 +739,28 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               const SizedBox(height: 20),
 
               // ── 7. 7-day trend ─────────────────────────────────────────────
-              _BPChartCard(
+              MetricChartCard(
                 headerLabel: 'LAST 7 DAYS TREND',
                 rangeLabel: trendRangeLabel,
-                sbpValues: _trendSbp,
-                dbpValues: _trendDbp,
+                yLabels: const ['160', '120', '80', '40'],
+                loadingAccent: AppTheme.bpColor,
+                barCount: _trendSbp.length,
                 xLabels: _trendXLabels(),
                 loading: _loadingTrend,
-                showLegend: true,
+                footer: const Row(
+                  children: [
+                    LegendDot(color: AppTheme.bpColor, label: 'Systolic'),
+                    SizedBox(width: 14),
+                    LegendDot(color: AppTheme.softViolet, label: 'Diastolic'),
+                  ],
+                ),
+                child: CustomPaint(
+                  painter: _BPBarPainter(
+                    sbpValues: _trendSbp,
+                    dbpValues: _trendDbp,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
               ),
               if (_trendOffline) ...[
                 const SizedBox(height: 8),
@@ -764,229 +773,6 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ── Date row ──────────────────────────────────────────────────────────────────
-
-class _BPDateRow extends StatelessWidget {
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onDateSelected;
-  const _BPDateRow({required this.selectedDate, required this.onDateSelected});
-
-  static const _months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final dates = List.generate(7, (i) => today.add(Duration(days: i - 3)));
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < dates.length; i++) ...[
-            if (i > 0) const SizedBox(width: 16),
-            _buildItem(dates[i], today),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItem(DateTime d, DateTime today) {
-    final isToday = d == today;
-    final isFuture = d.isAfter(today);
-    final sel = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-    );
-    final isSelected = d == sel && !isToday;
-
-    if (isToday || isSelected) {
-      return GestureDetector(
-        onTap: isToday ? null : () => onDateSelected(d),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: const Color(0xFF202020),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF363636)),
-          ),
-          child: Text(
-            isToday
-                ? 'Today, ${d.day} ${_months[d.month - 1]}'
-                : '${d.day} ${_months[d.month - 1]}',
-            style: _inter(13, weight: FontWeight.w500),
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: isFuture ? null : () => onDateSelected(d),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: Text(
-          '${d.day}',
-          style: _inter(15, color: isFuture ? const Color(0xFF333333) : _kSec2),
-        ),
-      ),
-    );
-  }
-}
-
-// ── BP Chart Card (dual series: systolic + diastolic) ─────────────────────────
-
-class _BPChartCard extends StatelessWidget {
-  final String headerLabel;
-  final String rangeLabel;
-  final List<int> sbpValues;
-  final List<int> dbpValues;
-  final List<String> xLabels;
-  final bool loading;
-  final bool showLegend;
-
-  const _BPChartCard({
-    required this.headerLabel,
-    required this.rangeLabel,
-    required this.sbpValues,
-    required this.dbpValues,
-    required this.xLabels,
-    required this.loading,
-    this.showLegend = false,
-  });
-
-  static const _yAxisW = 30.0;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                headerLabel,
-                style: _inter(
-                  11,
-                  weight: FontWeight.w600,
-                  color: _kSec,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              Text(
-                rangeLabel,
-                style: _inter(
-                  11,
-                  weight: FontWeight.w500,
-                  color: const Color(0xFF999999),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 128,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: _yAxisW,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: ['160', '120', '80', '40']
-                        .map(
-                          (l) => Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: Text(l, style: _inter(10, color: _kSec)),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-                Expanded(
-                  child: loading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppTheme.bpColor,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : CustomPaint(
-                          painter: _BPBarPainter(
-                            sbpValues: sbpValues,
-                            dbpValues: dbpValues,
-                          ),
-                          child: const SizedBox.expand(),
-                        ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Day labels: equal-width slots centered under each bar pair.
-          // Time-of-day labels (with an empty end tick): spaceBetween ticks.
-          Padding(
-            padding: const EdgeInsets.only(left: _yAxisW),
-            child: xLabels.length == sbpValues.length &&
-                    xLabels.every((l) => l.isNotEmpty)
-                ? Row(
-                    children: [
-                      for (final label in xLabels)
-                        Expanded(
-                          child: Text(
-                            label,
-                            textAlign: TextAlign.center,
-                            style: _inter(10, color: _kSec),
-                          ),
-                        ),
-                    ],
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: xLabels
-                        .map((l) => Text(l, style: _inter(10, color: _kSec)))
-                        .toList(),
-                  ),
-          ),
-          if (showLegend) ...[
-            const SizedBox(height: 12),
-            const Row(
-              children: [
-                _LegendDot(color: AppTheme.bpColor, label: 'Systolic'),
-                SizedBox(width: 14),
-                _LegendDot(color: _dbpColor, label: 'Diastolic'),
-              ],
-            ),
-          ],
-        ],
       ),
     );
   }
@@ -1005,7 +791,7 @@ class _BPBarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = _kGrid
+      ..color = AppTheme.grid
       ..strokeWidth = 0.5;
     for (final y in _yLines) {
       final yPos = size.height - (y / _maxY) * size.height;
@@ -1017,7 +803,7 @@ class _BPBarPainter extends CustomPainter {
     final slotW = size.width / n;
     final barW = (slotW * 0.3).clamp(1.5, 5.0);
     final sbpPaint = Paint()..color = AppTheme.bpColor.withValues(alpha: 0.88);
-    final dbpPaint = Paint()..color = _dbpColor.withValues(alpha: 0.88);
+    final dbpPaint = Paint()..color = AppTheme.softViolet.withValues(alpha: 0.88);
 
     for (int i = 0; i < n; i++) {
       final cx = i * slotW + slotW / 2;
@@ -1061,58 +847,6 @@ class _BPBarPainter extends CustomPainter {
       old.sbpValues != sbpValues || old.dbpValues != dbpValues;
 }
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
-
-class _BPStatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  const _BPStatCard({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: _inter(
-              10,
-              weight: FontWeight.w600,
-              color: _kSec,
-              letterSpacing: 0.7,
-            ),
-          ),
-          const SizedBox(height: 8),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(value, style: _inter(17, weight: FontWeight.w600)),
-                const SizedBox(width: 4),
-                Text(
-                  value != '--' ? 'mmHg' : '',
-                  style: _inter(11, color: _kSec),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // ── Real-time measurement card ────────────────────────────────────────────────
 
 class _RealTimeBPCard extends StatelessWidget {
@@ -1141,9 +875,9 @@ class _RealTimeBPCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _kCard,
+        color: AppTheme.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
+        border: Border.all(color: AppTheme.div),
       ),
       child: Column(
         children: [
@@ -1165,11 +899,11 @@ class _RealTimeBPCard extends StatelessWidget {
                       weight: FontWeight.w600,
                       color: measuring || (sbp > 0 && dbp > 0)
                           ? Colors.white
-                          : _kSec2,
+                          : AppTheme.textSec,
                     ),
                   ),
                   const SizedBox(width: 4),
-                  Text('mmHg', style: _inter(11, color: _kSec)),
+                  Text('mmHg', style: _inter(11, color: AppTheme.textTertiary)),
                 ],
               ),
             ],
@@ -1181,9 +915,9 @@ class _RealTimeBPCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
+                color: AppTheme.surfaceMid,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF2E2E2E)),
+                border: Border.all(color: AppTheme.dividerSoft),
               ),
               child: Center(
                 child: measuring
@@ -1191,7 +925,7 @@ class _RealTimeBPCard extends StatelessWidget {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                          color: enabled ? AppTheme.bpColor : _kSec,
+                          color: enabled ? AppTheme.bpColor : AppTheme.textTertiary,
                           strokeWidth: 2,
                         ),
                       )
@@ -1200,7 +934,7 @@ class _RealTimeBPCard extends StatelessWidget {
                         style: _inter(
                           14,
                           weight: FontWeight.w500,
-                          color: enabled ? Colors.white70 : _kSec,
+                          color: enabled ? Colors.white70 : AppTheme.textTertiary,
                         ),
                       ),
               ),
@@ -1212,20 +946,3 @@ class _RealTimeBPCard extends StatelessWidget {
   }
 }
 
-// ── Legend dot ────────────────────────────────────────────────────────────────
-
-class _LegendDot extends StatelessWidget {
-  final Color color;
-  final String label;
-  const _LegendDot({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      CircleAvatar(radius: 4, backgroundColor: color),
-      const SizedBox(width: 4),
-      Text(label, style: _inter(10, color: _kSec)),
-    ],
-  );
-}

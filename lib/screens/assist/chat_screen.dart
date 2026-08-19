@@ -16,6 +16,8 @@ import 'blood_oxygen_chat_card.dart';
 import 'hrv_chat_card.dart';
 import 'blood_pressure_chat_card.dart';
 import 'steps_chat_card.dart';
+import 'temperature_chat_card.dart';
+import 'stress_chat_card.dart';
 import '../../widgets/app_typography.dart';
 
 // Persist the active conversation id per-user so the thread survives an
@@ -144,7 +146,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF141414),
+        backgroundColor: AppTheme.surfaceDeep,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Start a new chat?',
@@ -156,7 +158,7 @@ class _ChatScreenState extends State<ChatScreen> {
         content: Text(
           'This clears the current conversation from view. Your history isn\'t deleted.',
           style: AppTypography.inter(
-            color: const Color(0x99FFFFFF),
+            color: AppTheme.white60,
             fontSize: 13,
           ),
         ),
@@ -165,7 +167,7 @@ class _ChatScreenState extends State<ChatScreen> {
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               'Cancel',
-              style: AppTypography.inter(color: const Color(0x99FFFFFF)),
+              style: AppTypography.inter(color: AppTheme.white60),
             ),
           ),
           TextButton(
@@ -218,7 +220,19 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     try {
-      final result = await ChatApiService.chat(text, _conversationId);
+      // Strip user-supplied "[System Context: ...]" blocks before sending so a
+      // user cannot inject their own instructions that ride alongside the
+      // app-level system context below and override it on the AI backend.
+      final String sanitizedText = text.replaceAll(
+        RegExp(r'\[System Context:.*?\]', caseSensitive: false, dotAll: true),
+        '',
+      ).trim();
+      String payloadText = sanitizedText;
+      if (!InsightsHeaderState.hasData) {
+        payloadText += '\n\n[System Context: The user currently has NO data available (0 days of readings). Do not hallucinate or invent any metrics, scores, or charts. Inform the user they need to wear their ring longer to gather data.]';
+      }
+
+      final result = await ChatApiService.chat(payloadText, _conversationId);
       setState(() {
         _messages.add({
           'role': 'assistant',
@@ -352,7 +366,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     : RefreshIndicator(
                         onRefresh: _onPullToRefresh,
                         color: AppTheme.gold,
-                        backgroundColor: const Color(0xFF141414),
+                        backgroundColor: AppTheme.surfaceDeep,
                         child: ListView.builder(
                           controller: _scrollController,
                           padding: const EdgeInsets.symmetric(
@@ -378,7 +392,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                     ),
                                     child: Container(
                                       height: 0.5,
-                                      color: const Color(0x1AFFFFFF),
+                                      color: AppTheme.white10,
                                     ),
                                   ),
                                 ],
@@ -406,7 +420,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                           fontSize: 10,
                                           fontWeight: FontWeight.w500,
                                           letterSpacing: 0.12 * 10,
-                                          color: const Color(0x66FFFFFF),
+                                          color: AppTheme.white40,
                                         ),
                                       ),
                                     ),
@@ -419,7 +433,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                         vertical: 16,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: const Color(0x0AFFFFFF),
+                                        color: AppTheme.white04,
                                         border: Border.all(
                                           color: const Color(0x12FFFFFF),
                                           width: 1,
@@ -459,10 +473,10 @@ class _ChatScreenState extends State<ChatScreen> {
                                         vertical: 9,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: const Color(0x0AFFFFFF),
+                                        color: AppTheme.white04,
                                         borderRadius: BorderRadius.circular(20),
                                         border: Border.all(
-                                          color: const Color(0x14FFFFFF),
+                                          color: AppTheme.glassButtonBorder,
                                           width: 0.5,
                                         ),
                                       ),
@@ -502,8 +516,13 @@ class _ChatScreenState extends State<ChatScreen> {
                           } else {
                             final String content = msg['content'] ?? '';
                             final card = msg['card'];
+                            
+                            // Guard against hallucinated cards when there's actually no data,
+                            // rather than relying on unreliable string matching of the LLM's text.
+                            final bool hasNoData = !InsightsHeaderState.hasData;
+                            
                             final cardWidget =
-                                card != null ? _buildChatCard(context, card) : null;
+                                (card != null && !hasNoData) ? _buildChatCard(context, card) : null;
                             return Align(
                               alignment: Alignment.centerLeft,
                               child: Column(
@@ -541,7 +560,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return RefreshIndicator(
       onRefresh: _onPullToRefresh,
       color: AppTheme.gold,
-      backgroundColor: const Color(0xFF141414),
+      backgroundColor: AppTheme.surfaceDeep,
       child: ListView(
         controller: _scrollController,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -551,7 +570,7 @@ class _ChatScreenState extends State<ChatScreen> {
             padding: const EdgeInsets.only(top: 18, bottom: 14),
             child: Container(
               height: 0.5,
-              color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
+              color: AppTheme.white10, // rgba(255,255,255,0.1)
             ),
           ),
           Column(
@@ -583,7 +602,7 @@ class _ChatScreenState extends State<ChatScreen> {
               Text(
                 'Ask me anything about your health',
                 style: AppTypography.inter(
-                  color: const Color(0x85FFFFFF), // rgba(255,255,255,0.52)
+                  color: AppTheme.white52, // rgba(255,255,255,0.52)
                   fontSize: 14,
                 ),
               ),
@@ -635,7 +654,7 @@ class _ChatScreenState extends State<ChatScreen> {
             fontWeight: FontWeight.w400,
             height: 1.50,
             letterSpacing: -0.005 * 13,
-            color: const Color(0xF5FFFFFF), // rgba(255,255,255,0.96)
+            color: AppTheme.white96, // rgba(255,255,255,0.96)
           ),
         ),
       ),
@@ -678,6 +697,16 @@ class _ChatScreenState extends State<ChatScreen> {
           data: data,
           onTap: () => Navigator.pushNamed(context, '/steps'),
         );
+      case 'temperature_trend':
+        return TemperatureChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/temperature'),
+        );
+      case 'stress_trend':
+        return StressChatCard(
+          data: data,
+          onTap: () => Navigator.pushNamed(context, '/pressure'),
+        );
       default:
         return null;
     }
@@ -697,7 +726,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 0.12 * 10,
-                color: const Color(0x66FFFFFF), // rgba(255,255,255,0.4)
+                color: AppTheme.white40, // rgba(255,255,255,0.4)
               ),
             ),
           ),
@@ -711,7 +740,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
             decoration: BoxDecoration(
-              color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
+              color: AppTheme.white04, // rgba(255,255,255,0.04)
               border: Border.all(
                 color: const Color(0x12FFFFFF), // rgba(255,255,255,0.07)
                 width: 1,
@@ -730,7 +759,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 fontWeight: FontWeight.w400,
                 height: 1.50,
                 letterSpacing: -0.005 * 13,
-                color: const Color(0xF5FFFFFF), // rgba(255,255,255,0.96)
+                color: AppTheme.white96, // rgba(255,255,255,0.96)
               ),
             ),
           ),
@@ -753,7 +782,7 @@ class _ChatScreenState extends State<ChatScreen> {
             color: Color(0x8C050505), // rgba(5,5,5,0.55)
             border: Border(
               top: BorderSide(
-                color: Color(0x0DFFFFFF), // rgba(255,255,255,0.05)
+                color: AppTheme.gridLine, // rgba(255,255,255,0.05)
                 width: 0.5,
               ),
             ),
@@ -765,9 +794,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   height: 52,
                   padding: const EdgeInsets.fromLTRB(18, 8, 14, 8),
                   decoration: BoxDecoration(
-                    color: const Color(0x0DFFFFFF), // rgba(255,255,255,0.05)
+                    color: AppTheme.gridLine, // rgba(255,255,255,0.05)
                     border: Border.all(
-                      color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
+                      color: AppTheme.white10, // rgba(255,255,255,0.1)
                       width: 0.5,
                     ),
                     borderRadius: BorderRadius.circular(100),
@@ -831,7 +860,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               shape: BoxShape.circle,
                               border: _isLoading
                                   ? Border.all(
-                                      color: const Color(0x1AFFFFFF),
+                                      color: AppTheme.white10,
                                       width: 0.5,
                                     )
                                   : null,
@@ -877,17 +906,17 @@ class _SuggestionChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0x0AFFFFFF), // rgba(255,255,255,0.03)
+          color: AppTheme.white04, // rgba(255,255,255,0.03)
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
+            color: AppTheme.glassButtonBorder, // rgba(255,255,255,0.08)
             width: 0.5,
           ),
         ),
         child: Text(
           text,
           style: AppTypography.inter(
-            color: const Color(0x85FFFFFF), // rgba(255,255,255,0.52)
+            color: AppTheme.white52, // rgba(255,255,255,0.52)
             fontSize: 13,
             fontWeight: FontWeight.w400,
           ),

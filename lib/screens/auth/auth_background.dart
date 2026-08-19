@@ -1,6 +1,7 @@
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
 
 /// Shared backdrop for the auth screens (forgot password flow): soft gold
 /// ambient glows per the Figma design — Ellipse 7 (280x200, gold 5% alpha,
@@ -14,7 +15,7 @@ class AuthBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF050505),
+      backgroundColor: AppTheme.bg,
       body: Stack(
         children: [
           Positioned(
@@ -28,7 +29,7 @@ class AuthBackground extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.all(Radius.elliptical(140, 100)),
                   gradient: const RadialGradient(
-                    colors: [Color(0x0DC9A86E), Color(0x00C9A86E)],
+                    colors: [AppTheme.goldGlow, AppTheme.goldTransparent],
                   ),
                 ),
               ),
@@ -45,7 +46,7 @@ class AuthBackground extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.all(Radius.elliptical(225, 160)),
                   gradient: const RadialGradient(
-                    colors: [Color(0x06C9A86E), Color(0x00C9A86E)],
+                    colors: [Color(0x06C9A86E), AppTheme.goldTransparent],
                   ),
                 ),
               ),
@@ -106,24 +107,35 @@ class AuthGlassField extends StatelessWidget {
               height: 47,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: const Color(0x0AFFFFFF),
-                border: Border.all(color: const Color(0x14FFFFFF), width: 0.5),
+                color: AppTheme.white04,
+                border: Border.all(color: AppTheme.glassButtonBorder, width: 0.5),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: TextField(
-                controller: controller,
-                obscureText: obscure,
-                keyboardType: keyboardType,
-                textInputAction: textInputAction,
-                onChanged: onChanged,
-                style: const TextStyle(color: Color(0xEDFFFFFF), fontSize: 13),
-                decoration: InputDecoration(
-                  hintText: hint,
-                  hintStyle: const TextStyle(color: Color(0x3DFFFFFF)),
-                  suffixIcon: suffix,
-                  isDense: true,
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
+              child: Align(
+                alignment: Alignment.center,
+                child: TextField(
+                  controller: controller,
+                  obscureText: obscure,
+                  keyboardType: keyboardType,
+                  textInputAction: textInputAction,
+                  onChanged: onChanged,
+                  textAlignVertical: TextAlignVertical.center,
+                  style: const TextStyle(
+                    color: AppTheme.white93,
+                    fontSize: 13,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: hint,
+                    hintStyle: const TextStyle(color: Color(0x3DFFFFFF)),
+                    suffixIcon: suffix,
+                    suffixIconConstraints: const BoxConstraints(
+                      maxHeight: 32,
+                      minHeight: 32,
+                    ),
+                    isDense: true,
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
               ),
             ),
@@ -156,8 +168,8 @@ class AuthGoldButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: loading ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFC9A86E),
-          foregroundColor: const Color(0xED050505),
+          backgroundColor: AppTheme.gold,
+          foregroundColor: AppTheme.bgFaint,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -169,7 +181,7 @@ class AuthGoldButton extends StatelessWidget {
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Color(0xED050505),
+                  color: AppTheme.bgFaint,
                 ),
               )
             : Text(

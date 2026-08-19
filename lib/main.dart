@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/ble_provider.dart';
 import 'providers/workout_provider.dart';
 import 'providers/alarm_mode_provider.dart';
+import 'providers/alarm_schedule_provider.dart';
 import 'providers/prayer_session_provider.dart';
 import 'providers/main_tab_provider.dart';
 import 'providers/home_card_provider.dart';
@@ -88,112 +89,125 @@ StreamSubscription? _authSub;
 void main() async {
   // Zone guard: uncaught Dart errors (including from plugins) are reported but
   // must not tear down the isolate if we can keep the UI alive.
-  await runZonedGuarded(() async {
-    WidgetsFlutterBinding.ensureInitialized();
+  await runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
 
-    final imageCache = PaintingBinding.instance.imageCache;
-    imageCache.maximumSize = 80;
-    imageCache.maximumSizeBytes = 40 << 20; // 40 MB
+      final imageCache = PaintingBinding.instance.imageCache;
+      imageCache.maximumSize = 80;
+      imageCache.maximumSizeBytes = 40 << 20; // 40 MB
 
-    // Capture Flutter UI / layout framework errors (e.g. missing assets) without
-    // treating them as fatal process kills.
-    FlutterError.onError = (FlutterErrorDetails details) {
-      FlutterError.presentError(details);
-      unawaited(
-        IncidentService.reportIncident(
-          source: 'flutter_ui',
-          error: details.exception,
-          stackTrace: details.stack,
-          customMessage: details.summary.toString(),
+      // Capture Flutter UI / layout framework errors (e.g. missing assets) without
+      // treating them as fatal process kills.
+      FlutterError.onError = (FlutterErrorDetails details) {
+        FlutterError.presentError(details);
+        unawaited(
+          IncidentService.reportIncident(
+            source: 'flutter_ui',
+            error: details.exception,
+            stackTrace: details.stack,
+            customMessage: details.summary.toString(),
+          ),
+        );
+      };
+
+      // Capture uncaught async / isolate errors — return true = "handled".
+      PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+        unawaited(
+          IncidentService.reportIncident(
+            source: 'flutter_async',
+            error: error,
+            stackTrace: stack,
+          ),
+        );
+        return true;
+      };
+
+      ErrorWidget.builder = (FlutterErrorDetails details) {
+        // Visible (but non-alarming) error tile instead of a blank section — users
+        // must know a widget crashed. The incident itself is reported via onError.
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppTheme.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.danger.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.error_outline_rounded,
+                color: AppTheme.danger,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Something went wrong rendering this section.',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.75),
+                    fontSize: 12.5,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      };
+
+      try {
+        await Future.wait([SupabaseService.initialize(), _syncLoggedInFlag()]);
+        await _configureNativeSync();
+      } catch (e, st) {
+        debugPrint('Startup init failed (continuing offline): $e\n$st');
+      }
+
+      unawaited(_reportLastNativeCrash());
+
+      _authSub?.cancel();
+      try {
+        _authSub = SupabaseService.client.auth.onAuthStateChange.listen((_) {
+          unawaited(_syncLoggedInFlag());
+          unawaited(_configureNativeSync());
+        });
+      } catch (e) {
+        debugPrint('Auth listener setup failed: $e');
+      }
+
+      runApp(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider(create: (_) => BleProvider()),
+            ChangeNotifierProvider(create: (_) => WorkoutProvider()),
+            ChangeNotifierProvider(create: (_) => AlarmModeProvider()),
+            ChangeNotifierProvider(
+              create: (_) => AlarmScheduleProvider()..load(),
+            ),
+            ChangeNotifierProvider(create: (_) => PrayerSessionProvider()),
+            ChangeNotifierProvider(create: (_) => MainTabProvider()),
+            ChangeNotifierProvider(create: (_) => HomeCardProvider()..load()),
+            ChangeNotifierProxyProvider<BleProvider, FallPredictionProvider>(
+              create: (_) => FallPredictionProvider(),
+              update: (_, ble, fall) => fall!..updateBleProvider(ble),
+            ),
+          ],
+          child: const SundrApp(),
         ),
       );
-    };
-
-    // Capture uncaught async / isolate errors — return true = "handled".
-    PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+      unawaited(_requestPermissionsAndStartService());
+    },
+    (Object error, StackTrace stack) {
+      debugPrint('Uncaught zone error: $error\n$stack');
       unawaited(
         IncidentService.reportIncident(
-          source: 'flutter_async',
+          source: 'flutter_zone',
           error: error,
           stackTrace: stack,
         ),
       );
-      return true;
-    };
-
-    ErrorWidget.builder = (FlutterErrorDetails details) {
-      // Visible (but non-alarming) error tile instead of a blank section — users
-      // must know a widget crashed. The incident itself is reported via onError.
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTheme.danger.withValues(alpha: 0.35)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.error_outline_rounded, color: AppTheme.danger, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Something went wrong rendering this section.',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.75),
-                  fontSize: 12.5,
-                  height: 1.4,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    };
-
-    try {
-      await Future.wait([SupabaseService.initialize(), _syncLoggedInFlag()]);
-      await _configureNativeSync();
-    } catch (e, st) {
-      debugPrint('Startup init failed (continuing offline): $e\n$st');
-    }
-
-    unawaited(_reportLastNativeCrash());
-
-    _authSub?.cancel();
-    try {
-      _authSub = SupabaseService.client.auth.onAuthStateChange.listen((_) {
-        unawaited(_syncLoggedInFlag());
-        unawaited(_configureNativeSync());
-      });
-    } catch (e) {
-      debugPrint('Auth listener setup failed: $e');
-    }
-
-    runApp(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider(create: (_) => BleProvider()),
-          ChangeNotifierProvider(create: (_) => WorkoutProvider()),
-          ChangeNotifierProvider(create: (_) => AlarmModeProvider()),
-          ChangeNotifierProvider(create: (_) => PrayerSessionProvider()),
-          ChangeNotifierProvider(create: (_) => MainTabProvider()),
-          ChangeNotifierProvider(create: (_) => HomeCardProvider()..load()),
-          ChangeNotifierProvider(create: (_) => FallPredictionProvider()),
-        ],
-        child: const QRingApp(),
-      ),
-    );
-    unawaited(_requestPermissionsAndStartService());
-  }, (Object error, StackTrace stack) {
-    debugPrint('Uncaught zone error: $error\n$stack');
-    unawaited(
-      IncidentService.reportIncident(
-        source: 'flutter_zone',
-        error: error,
-        stackTrace: stack,
-      ),
-    );
-  });
+    },
+  );
 }

@@ -1,16 +1,22 @@
-# SUMTHING (QRing Flutter App) — Knowledge Transfer Document
+# SUNDR — Knowledge Transfer Document
 
 | | |
 |---|---|
-| **Project** | SUMTHING — smart-ring health companion app (package/internal name `qring_flutter`, Android namespace `com.medxai.sundr`) |
-| **Repo root** | `C:\Jeffrey\new-flutter` |
+| **Project** | SUNDR — smart-ring health companion app (Flutter package `sundr`, Android namespace `com.sundr.myapp`) |
+| **Repo root** | `C:\Users\sugee\Documents\GitHub\Vital2026\The_Vital_Monitoring` |
 | **Platform** | Flutter (Android primary target; iOS/desktop scaffolding present but not the active target) |
 | **Backend** | Supabase (Postgres + Auth), plus a separate self-hosted chat API |
 | **Hardware** | A BLE smart ring, driven via a closed-source Android SDK (`qring_sdk_1.0.0.50.aar`, package `com.oudmon.ble.*`) |
 | **Document date** | 2026-07-12 |
 | **Audience** | A new engineer taking over this codebase with no prior context |
 
-> **Naming note:** the app is user-facing branded **"SUNDR"** (splash screen shows "SUNDR"), but the Flutter package name (`qring_flutter`), Android namespace (`com.medxai.sundr`), all MethodChannel names (`com.medxai.sundr/*`), and most internal class names still say **"QRing"** — this is a rebrand-in-place; the two names refer to the same app. Expect to see both throughout the code.
+> **Naming note:** the app is user-facing branded **"SUNDR"**. The Flutter package (`sundr`), Android namespace
+> (`com.sundr.myapp`), Kotlin package (`com.sundr.myapp`), and all Method/EventChannel names
+> (`com.sundr.myapp/*`) are unified. A few **legacy identifiers intentionally keep the `qring_` prefix** for
+> data compatibility across installs: the Room database name (`qring_local.db`), SharedPreferences keys
+> (`qring_supabase_*`, `qring_fall_*`, …), notification channel IDs (`qring_ble_connection`, …), and the
+> vendor SDK artifact (`qring_sdk_*.aar`). Some internal Kotlin class names still say **QRing**
+> (`QRingApplication`, `QRingDatabase`, `QRingBluetoothReceiver`, …) — same app, cosmetic-only.
 
 ---
 
@@ -155,7 +161,7 @@ There is **no custom application backend** in the traditional sense — the "bac
 
 ### 2.4 SDK integration architecture
 
-The vendor supplies a closed-source Android AAR (`android/app/libs/qring_sdk_1.0.0.50.aar`, decompiled package `com.oudmon.ble.*`) that talks to the ring over BLE GATT. This SDK is **only accessible from native Android/Kotlin code** — Flutter never touches BLE directly. `BlePlugin.kt` (~2,100 lines) is the single bridge class wrapping the SDK's callback-based API into a request/response `MethodChannel` plus a push-style `EventChannel`. See [§6](#6-sdk-and-device-integration) for full detail.
+The vendor supplies a closed-source Android AAR (`android/app/libs/qring_sdk_1.0.0.50.aar`, decompiled package `com.oudmon.ble.*`) that talks to the ring over BLE GATT. This SDK is **only accessible from native Android/Kotlin code** — Flutter never touches BLE directly. `BlePlugin.kt` (~3,250 lines) is the single bridge class wrapping the SDK's callback-based API into a request/response `MethodChannel` plus a push-style `EventChannel`. See [§6](#6-sdk-and-device-integration) for full detail.
 
 ### 2.5 Database architecture
 
@@ -277,8 +283,8 @@ new-flutter/
 │       ├── libs/qring_sdk_1.0.0.50.aar   # Vendor closed-source BLE SDK
 │       └── src/main/
 │           ├── AndroidManifest.xml
-│           └── kotlin/com/medxai/qring_flutter/
-│               ├── BlePlugin.kt              # Core Flutter↔SDK bridge (~2,100 lines)
+│           └── kotlin/com/sundr/myapp/
+│               ├── BlePlugin.kt              # Core Flutter↔SDK bridge (~3,250 lines)
 │               ├── MainActivity.kt           # Channel registration, app entry
 │               ├── BleConnectionService.kt   # Always-on foreground service
 │               ├── WorkoutService.kt         # Workout-only foreground service
@@ -321,8 +327,8 @@ flowchart TD
     Screens["lib/screens/*\n(~44 screen files)"] --> Providers["lib/providers/*\nBleProvider / WorkoutProvider /\nAlarmModeProvider"]
     Providers --> Services["lib/services/*\nBleService / SupabaseService /\nChatApiService"]
     Screens -.direct calls for\nsettings/local reads.-> Services
-    Services -->|MethodChannel\ncom.medxai.sundr/ble| BlePlugin
-    Services -->|MethodChannel\ncom.medxai.sundr/phone_mode| PhoneModePlugin
+    Services -->|MethodChannel\ncom.sundr.myapp/ble| BlePlugin
+    Services -->|MethodChannel\ncom.sundr.myapp/phone_mode| PhoneModePlugin
     Services -->|supabase_flutter| Supabase[(Supabase)]
     Services -->|http| ChatAPI[Chat backend]
     BlePlugin --> RoomDB[(Room DB)]
@@ -464,7 +470,7 @@ Shared chrome: `onboarding_shell.dart` provides back button, step-dot progress, 
 
 ### 5.3 `home/` — Main dashboard
 
-- **`home_screen.dart`** (1,583 lines — the most complex screen in the app). **Purpose**: primary dashboard. **Actions**: pull-to-refresh; tap device pill → ring scan sheet; tap any metric card → its detail screen; Alarm mode segmented selector (Focus/Base/Prayer); fall-prediction banner "Take action"/"ignore". **Data**: almost entirely `BleProvider` fields (steps, stress, sleep, HRV, SpO2, HR, BP, connection state) plus `SupabaseService.getProfile`/`getCycles` for the name/gender-gated Women's Health card. **Business logic**: activity-score formula (duplicated in `steps_screen.dart` — see [§12](#12-known-issues-and-technical-debt)); per-metric status classifiers (stress/SpO2/HR/HRV/sleep) matching the thresholds used on each metric's own detail screen; fall-prediction banner visibility handles both cold-start and warm-resume launch paths. Custom painters: `_SparkPainter`, `_BarChartPainter`, `_CycleBarPainter`.
+- **`home_screen.dart`** (~960 lines, plus the split-out `lib/screens/home/cards/*` and `home_card_id.dart` — the dashboard was the most complex screen in the app). **Purpose**: primary dashboard. **Actions**: pull-to-refresh; tap device pill → ring scan sheet; tap any metric card → its detail screen; Alarm mode segmented selector (Focus/Base/Prayer); fall-prediction banner "Take action"/"ignore". **Data**: almost entirely `BleProvider` fields (steps, stress, sleep, HRV, SpO2, HR, BP, connection state) plus `SupabaseService.getProfile`/`getCycles` for the name/gender-gated Women's Health card. **Business logic**: activity-score formula (duplicated in `steps_screen.dart` — see [§12](#12-known-issues-and-technical-debt)); per-metric status classifiers (stress/SpO2/HR/HRV/sleep) matching the thresholds used on each metric's own detail screen; fall-prediction banner visibility handles both cold-start and warm-resume launch paths. Custom painters: `_SparkPainter`, `_BarChartPainter`, `_CycleBarPainter`.
 - **`ring_scan_sheet.dart`** — Modal bottom-sheet scan/pair UI (the primary pairing entry point from Home). Auto-starts scanning, filters to SUNDR ring name prefixes, 20s auto-stop, offers "connect to last device directly" as a fallback for rings that stopped advertising.
 
 ### 5.4 `health/` — Vitals detail screens
@@ -560,7 +566,7 @@ flowchart TB
 ```
 
 - **`QRingApplication.kt`** — registers both Bluetooth receivers *before* anything touches `BleOperateManager` (required per the SDK's own documentation, or `onServiceDiscovered()` never fires), initializes the SDK, and calls `FallRiskAnalyzer.init(this)`.
-- **`MainActivity.kt`** — registers the two MethodChannels (`com.medxai.sundr/ble`, `com.medxai.sundr/phone_mode`) and one EventChannel (`com.medxai.sundr/ble_events`); handles fall-prediction notification tap intents.
+- **`MainActivity.kt`** — registers the two MethodChannels (`com.sundr.myapp/ble`, `com.sundr.myapp/phone_mode`) and one EventChannel (`com.sundr.myapp/ble_events`); handles fall-prediction notification tap intents.
 - **`BleConnectionService.kt`** — the **always-on foreground service** (`foregroundServiceType="connectedDevice"`). On create: starts foreground notification, starts an 8s repeating connection-check/auto-reconnect loop (gated on login state), starts `MeasurementLoopManager`, `SupabaseSyncManager`, and `FallMotionDetector` — all three deliberately piggyback on this one service rather than each spinning up their own, explicitly to avoid multiplying OEM battery-optimization kill risk.
 - **`WorkoutService.kt`** — a **second, separate foreground service** (`foregroundServiceType="health"`), started/stopped only around an active workout. Runs its own 5s tick loop with staggered sub-intervals for steps (60s), HR (60s), SpO2 (5 min), and BP (10 min, never overlapping SpO2). Coordinates with `MeasurementLoopManager` via `MeasurementCoordinator` so the background loop pauses entirely during a workout.
 - **`BootReceiver.kt`** — restarts `BleConnectionService` after device reboot, only if a previously-bound device address is saved.
@@ -569,9 +575,9 @@ flowchart TB
 
 | Channel | Type | Direction | Purpose |
 |---|---|---|---|
-| `com.medxai.sundr/ble` | MethodChannel | Dart → Native (request/response) | ~90 methods: scanning, connection, all vital reads/settings, OTA, workout start/stop, local DB reads, fall-detection reads, emergency contacts, sync config |
-| `com.medxai.sundr/ble_events` | EventChannel | Native → Dart (push stream) | `scanResult`, `scanFinished`, `scanError`, `connectionState`, `deviceNotification`, `otaProgress`, `newReading` |
-| `com.medxai.sundr/phone_mode` | MethodChannel | Dart ↔ Native | Focus/Prayer/Base mode, DND permission/control |
+| `com.sundr.myapp/ble` | MethodChannel | Dart → Native (request/response) | ~90 methods: scanning, connection, all vital reads/settings, OTA, workout start/stop, local DB reads, fall-detection reads, emergency contacts, sync config |
+| `com.sundr.myapp/ble_events` | EventChannel | Native → Dart (push stream) | `scanResult`, `scanFinished`, `scanError`, `connectionState`, `deviceNotification`, `otaProgress`, `newReading` |
+| `com.sundr.myapp/phone_mode` | MethodChannel | Dart ↔ Native | Focus/Prayer/Base mode, DND permission/control |
 
 `BlePlugin.handleMethodCall` is a large `when(call.method)` dispatcher. The common pattern for any blocking measurement call: an `AtomicBoolean done` guard prevents double-resolving the Flutter `Result`, and a `mainHandler.postDelayed` timeout races the SDK's callback so a dropped callback can never hang the Dart side forever. Results are serialized to JSON strings via Gson before crossing the channel; Dart-side `BleService` parses them.
 
@@ -776,7 +782,7 @@ This app requires a **real BLE-capable Android device** (or at minimum a physica
 ### 9.2 Build process
 
 - **Debug**: `flutter run` / `flutter build apk --debug`.
-- **Release**: `flutter build apk --release` (or `--split-per-abi` for smaller per-architecture APKs). Note: release builds currently use the **debug signing config** (no separate release keystore configured yet — see [§12](#12-known-issues-and-technical-debt)). `isMinifyEnabled = true` with `proguard-rules.pro` explicitly keeping `com.medxai.sundr.data.**` (Room entities) to prevent R8 stripping Gson-serialized fields.
+- **Release**: `flutter build apk --release` (or `--split-per-abi` for smaller per-architecture APKs). Note: release builds currently use the **debug signing config** (no separate release keystore configured yet — see [§12](#12-known-issues-and-technical-debt)). `isMinifyEnabled = true` with `proguard-rules.pro` explicitly keeping `com.sundr.myapp.data.**` (Room entities) to prevent R8 stripping Gson-serialized fields.
 - **Android SDK requirements**: `compileSdk 36`, `minSdk 26`, `targetSdk 35`, Kotlin/Java target 17.
 - **The vendor AAR** (`android/app/libs/qring_sdk_1.0.0.50.aar`) must be present for the app to build at all — it's checked into `android/app/libs/`, not fetched from a Maven repo.
 
@@ -807,7 +813,7 @@ Native (Kotlin): `androidx.room` (+ `ksp` for the compiler), `gson`, `org.greenr
 - **Dart side**: standard `flutter run` hot reload + `debugPrint`/breakpoints in an IDE (Android Studio / VS Code with the Flutter extension).
 - **Native side**: `adb logcat`, filtered by tag — notable tags used deliberately for hard-to-diagnose issues: `"MeasurementLoop"` (HRV timeout debugging), `"TempSync"` (temperature file-transfer sync), and standard class-name tags elsewhere.
 - **Fall detection debug tooling** (no real fall required): the `⋮` menu on `fall_detection_screen.dart` exposes "Simulate High/Medium/Clear risk" (UI-preview only), "Simulate Fall notification", and — most usefully — "Simulate Trigger risk analysis," which posts a real synthetic 135bpm reading through the **actual** `NewReadingEvent` → `FallRiskAnalyzer` pipeline, confirmed to produce the real end-to-end alert.
-- **Sync debug tooling**: `BleService.getSyncStatus()` (pending/unsynced row counts) and `BleService.forceSyncNow()` (bypass the hourly gate) — both surfaced via the `com.medxai.sundr/ble` channel.
+- **Sync debug tooling**: `BleService.getSyncStatus()` (pending/unsynced row counts) and `BleService.forceSyncNow()` (bypass the hourly gate) — both surfaced via the `com.sundr.myapp/ble` channel.
 
 ### 9.6 Testing approach
 
@@ -920,8 +926,8 @@ There is currently **no meaningful automated test suite** — `test/widget_test.
 1. `lib/main.dart` and `lib/app.dart` — see the whole app's shape in ~150 lines combined.
 2. `lib/providers/ble_provider.dart` — the central state container; reading it explains most of what Home and the vitals screens depend on.
 3. `lib/services/ble_service.dart` — the full menu of what native can do, in one file.
-4. `android/app/src/main/kotlin/com/medxai/qring_flutter/BlePlugin.kt` — the native counterpart; skim the method categories rather than reading all 2,100 lines at once.
-5. `android/app/src/main/kotlin/com/medxai/qring_flutter/MeasurementLoopManager.kt` — understand the background measurement loop before touching any vitals feature.
+4. `android/app/src/main/kotlin/com/sundr/myapp/BlePlugin.kt` — the native counterpart; skim the method categories rather than reading all 3,250 lines at once.
+5. `android/app/src/main/kotlin/com/sundr/myapp/MeasurementLoopManager.kt` — understand the background measurement loop before touching any vitals feature.
 6. `FALL_DETECTION_STATUS.md` and `android/.../analysis/*.kt` — if working on fall detection specifically.
 7. `supabase/migrations/*.sql` — for schema/sync work; also pull a live schema dump from the Supabase dashboard since not every table originates from a migration file in this repo.
 

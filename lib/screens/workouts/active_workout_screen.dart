@@ -191,7 +191,7 @@ class _MetricsGrid extends StatelessWidget {
                 ? '${workout.workoutCalories} kcal'
                 : '—',
             icon: Icons.local_fire_department_rounded,
-            color: const Color(0xFFFF6B35),
+            color: AppTheme.warmOrange,
             subtitle: 'Burned',
           ),
       };

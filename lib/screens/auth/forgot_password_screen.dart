@@ -6,6 +6,7 @@ import '../../widgets/glass_icon_button.dart';
 import '../settings/faq_screen.dart';
 import 'auth_background.dart';
 import 'recovery_code_screen.dart';
+import '../../theme/app_theme.dart';
 
 /// Step 1 of the password-recovery flow — enter the registered email and
 /// request a recovery code. Matches the Figma "Forgot Password" screen.
@@ -50,8 +51,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       );
     } catch (e) {
       if (mounted) {
+        final err = e.toString().toLowerCase();
         setState(
-          () => _error = e.toString().replaceAll('Exception: ', ''),
+          () => _error = (err.contains('invalid') || err.contains('auth') || err.contains('not found'))
+              ? 'Invalid email address.'
+              : e.toString().replaceAll('Exception: ', ''),
         );
       }
     } finally {
@@ -101,7 +105,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     const Text(
                       'We will send a recovery code to your registered email address',
                       style: TextStyle(
-                        color: Color(0x85FFFFFF),
+                        color: AppTheme.white52,
                         fontSize: 12.5,
                         letterSpacing: 0.25,
                         height: 1.5,

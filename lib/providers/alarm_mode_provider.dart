@@ -1,8 +1,19 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../screens/prayer/prayer_session_screen.dart';
 import '../config.dart';
+import '../services/prayer_schedule_prefs.dart';
+import '../theme/app_theme.dart';
+
+int _msUntil(TimeOfDay target) {
+  final now = DateTime.now();
+  var targetTime =
+      DateTime(now.year, now.month, now.day, target.hour, target.minute);
+  if (targetTime.isBefore(now)) {
+    targetTime = targetTime.add(const Duration(days: 1));
+  }
+  return targetTime.difference(now).inMilliseconds;
+}
 
 enum PhoneMode { focus, base, prayer }
 
@@ -61,11 +72,11 @@ class AlarmModeProvider extends ChangeNotifier {
           break;
         case PhoneMode.prayer:
           await _channel.invokeMethod('setSilentMode', {'enabled': false});
-          // autoOffAfterOneMinute tells the native side to schedule its own
-          // (process-lifetime) timer to flip DND back off — see class doc.
+          final (_, end) = await PrayerSchedulePrefs.load();
+          final ms = _msUntil(end);
           await _channel.invokeMethod('setDoNotDisturb', {
             'enabled': true,
-            'autoOffAfterOneMinute': true,
+            'autoOffDurationMs': ms,
           });
           break;
         case PhoneMode.base:
@@ -90,23 +101,6 @@ Future<void> requestPhoneMode(
   AlarmModeProvider provider,
   PhoneMode mode,
 ) async {
-  if (mode == PhoneMode.prayer) {
-    final result = await provider.setMode(PhoneMode.prayer);
-    if (result == PhoneModeResult.needsDndAccess && context.mounted) {
-      await _promptDndAccess(context, provider);
-      return;
-    }
-    if (context.mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const _PrayerSessionRouteWrapper(),
-        ),
-      );
-    }
-    return;
-  }
-
   final result = await provider.setMode(mode);
   if (result == PhoneModeResult.needsDndAccess && context.mounted) {
     await _promptDndAccess(context, provider);
@@ -117,7 +111,7 @@ Future<void> _promptDndAccess(BuildContext context, AlarmModeProvider provider) 
   final openSettings = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      backgroundColor: const Color(0xFF111111),
+      backgroundColor: AppTheme.card,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: const Text(
         'Do Not Disturb access needed',
@@ -147,11 +141,3 @@ Future<void> _promptDndAccess(BuildContext context, AlarmModeProvider provider) 
   }
 }
 
-class _PrayerSessionRouteWrapper extends StatelessWidget {
-  const _PrayerSessionRouteWrapper();
-
-  @override
-  Widget build(BuildContext context) {
-    return const PrayerSessionScreen();
-  }
-}

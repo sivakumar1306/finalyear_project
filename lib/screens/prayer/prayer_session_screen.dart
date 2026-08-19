@@ -96,7 +96,10 @@ class _PrayerSessionScreenState extends State<PrayerSessionScreen> with SingleTi
       appBar: AppBar(
         backgroundColor: AppTheme.bg,
         elevation: 0,
-        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -318,13 +321,13 @@ class _GoldFlowStateOrbPainter extends CustomPainter {
       final colorSeed = (i % 4);
       Color color;
       if (colorSeed == 0) {
-        color = const Color(0xFFE8D3A7); // Champagne Gold highlight
+        color = AppTheme.goldPale; // Champagne Gold highlight
       } else if (colorSeed == 1) {
         color = AppTheme.gold; // Exact App Gold (0xFFC9A86E)
       } else if (colorSeed == 2) {
         color = const Color(0xFFD6B57C); // Soft Warm Gold
       } else {
-        color = const Color(0xFF8A6B34); // Deep Warm Amber Gold
+        color = AppTheme.goldDark; // Deep Warm Amber Gold
       }
 
       list.add(_OrbParticle(
@@ -353,9 +356,9 @@ class _GoldFlowStateOrbPainter extends CustomPainter {
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          const Color(0xFFE8D3A7).withValues(alpha: 0.45), // Champagne Bloom
+          AppTheme.goldPale.withValues(alpha: 0.45), // Champagne Bloom
           AppTheme.gold.withValues(alpha: 0.32),            // App Gold Core
-          const Color(0xFF8A6B34).withValues(alpha: 0.16), // Outer Deep Warm Gold
+          AppTheme.goldDark.withValues(alpha: 0.16), // Outer Deep Warm Gold
           Colors.transparent,
         ],
         stops: const [0.0, 0.38, 0.72, 1.0],
@@ -443,7 +446,7 @@ class _GoldFlowStateOrbPainter extends CustomPainter {
       if (p.z > 0.3) {
         final glowAlpha = ((p.z - 0.3) / 0.7 * 0.40).clamp(0.0, 0.40);
         final bloomPaint = Paint()
-          ..color = const Color(0xFFE8D3A7).withValues(alpha: glowAlpha)
+          ..color = AppTheme.goldPale.withValues(alpha: glowAlpha)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0);
         canvas.drawCircle(Offset(p.screenX, p.screenY), p.size * 2.0, bloomPaint);
       }
@@ -504,7 +507,7 @@ class _VitalsDrawerSheet extends StatelessWidget {
       height: MediaQuery.of(context).size.height * 0.8,
       child: Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF141414),
+          color: AppTheme.surfaceDeep,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           border: Border(top: BorderSide(color: AppTheme.gold, width: 1.5)),
         ),
@@ -545,7 +548,7 @@ class _VitalsDrawerSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          const Divider(color: Color(0x1AFFFFFF), height: 1),
+          const Divider(color: AppTheme.white10, height: 1),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
@@ -561,49 +564,49 @@ class _VitalsDrawerSheet extends StatelessWidget {
                     children: [
                       _VitalCard(
                         title: '1. Heart Rate',
-                        value: '${ble.todayAvgHr > 0 ? ble.todayAvgHr : 65} bpm',
+                        value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr} bpm' : '--',
                         icon: Icons.favorite_rounded,
                         color: Colors.redAccent,
                       ),
                       _VitalCard(
                         title: '2. HRV',
-                        value: '${ble.todayAvgHrv > 0 ? ble.todayAvgHrv : 58} ms',
+                        value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv} ms' : '--',
                         icon: Icons.favorite_border_rounded,
                         color: Colors.lightBlueAccent,
                       ),
                       _VitalCard(
                         title: '3. Blood Oxygen',
-                        value: '${ble.todayAvgSpo2 > 0 ? ble.todayAvgSpo2 : 98}%',
+                        value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}%' : '--',
                         icon: Icons.water_drop_rounded,
                         color: Colors.cyanAccent,
                       ),
                       _VitalCard(
                         title: '4. BP Systolic',
-                        value: '${ble.latestBpSbp > 0 ? ble.latestBpSbp : 118} mmHg',
+                        value: ble.latestBpSbp > 0 ? '${ble.latestBpSbp} mmHg' : '--',
                         icon: Icons.speed_rounded,
                         color: Colors.orangeAccent,
                       ),
                       _VitalCard(
                         title: '5. BP Diastolic',
-                        value: '${ble.latestBpDbp > 0 ? ble.latestBpDbp : 76} mmHg',
+                        value: ble.latestBpDbp > 0 ? '${ble.latestBpDbp} mmHg' : '--',
                         icon: Icons.compress_rounded,
                         color: Colors.amberAccent,
                       ),
                       _VitalCard(
                         title: '6. Skin Temp',
-                        value: '${(ble.latestTempC > 0 ? ble.latestTempC : 36.6).toStringAsFixed(1)} °C',
+                        value: ble.latestTempC > 0 ? '${ble.latestTempC.toStringAsFixed(1)} °C' : '--',
                         icon: Icons.thermostat_rounded,
                         color: Colors.deepOrangeAccent,
                       ),
                       _VitalCard(
                         title: '7. Stress Level',
-                        value: '${ble.latestStressValue > 0 ? ble.latestStressValue : 20} / 100',
+                        value: ble.latestStressValue > 0 ? '${ble.latestStressValue} / 100' : '--',
                         icon: Icons.psychology_rounded,
                         color: Colors.purpleAccent,
                       ),
                       _VitalCard(
-                        title: '8. Stillness / Steps',
-                        value: '${session.snapshots.isNotEmpty ? session.snapshots.last.steps : 0} steps',
+                        title: '8. Daily Steps',
+                        value: '${ble.todaySteps} steps',
                         icon: Icons.directions_walk_rounded,
                         color: Colors.greenAccent,
                       ),
@@ -621,13 +624,13 @@ class _VitalsDrawerSheet extends StatelessWidget {
                       ),
                       _VitalCard(
                         title: '11. Rest Rate',
-                        value: '${session.snapshots.isNotEmpty ? session.snapshots.last.restRate : 60} bpm',
+                        value: session.snapshots.isNotEmpty ? '${session.snapshots.last.restRate} bpm' : '--',
                         icon: Icons.bedtime_rounded,
                         color: Colors.indigoAccent,
                       ),
                       _VitalCard(
                         title: '12. Respiration',
-                        value: '${session.snapshots.isNotEmpty ? session.snapshots.last.respirationRate : 14} /min',
+                        value: session.snapshots.isNotEmpty ? '${session.snapshots.last.respirationRate} /min' : '--',
                         icon: Icons.air_rounded,
                         color: Colors.lightGreenAccent,
                       ),
@@ -676,7 +679,7 @@ class _VitalCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x1AFFFFFF)),
+        border: Border.all(color: AppTheme.white10),
       ),
       child: Row(
         children: [

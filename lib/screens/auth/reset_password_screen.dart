@@ -4,6 +4,7 @@ import '../../services/supabase_service.dart';
 import '../../widgets/glass_back_button.dart';
 import 'auth_background.dart';
 import 'login_screen.dart';
+import '../../theme/app_theme.dart';
 
 /// Step 3 of the password-recovery flow — set the new password. Requires the
 /// session established by the verified recovery code.
@@ -99,7 +100,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     const Text(
                       'Choose a new password for your account',
                       style: TextStyle(
-                        color: Color(0x85FFFFFF),
+                        color: AppTheme.white52,
                         fontSize: 12.5,
                         letterSpacing: 0.25,
                         height: 1.5,

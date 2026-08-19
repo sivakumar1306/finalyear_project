@@ -13,10 +13,7 @@ import '../../widgets/app_typography.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _kBg     = Color(0xFF080808);
-const _kCard   = Color(0xFF111111);
-const _kBorder = Color(0xFF242424);
 const _kSec    = Color(0xFF555555);
-const _kSec2   = Color(0xFF888888);
 
 TextStyle _inter(
   double size, {
@@ -131,7 +128,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Text(
               _dateHeader(dt),
-              style: _inter(11, weight: FontWeight.w600, color: _kSec2, letterSpacing: 0.6),
+              style: _inter(11, weight: FontWeight.w600, color: AppTheme.textSec, letterSpacing: 0.6),
             ),
           ),
         );
@@ -162,7 +159,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
             child: RefreshIndicator(
               onRefresh: _loadHistory,
               color: AppTheme.gold,
-              backgroundColor: _kCard,
+              backgroundColor: AppTheme.card,
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
@@ -183,7 +180,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                                   Text('Workouts',
                                       style: _inter(28, weight: FontWeight.w700)),
                                   Text('Track your fitness journey',
-                                      style: _inter(13, color: _kSec2)),
+                                      style: _inter(13, color: AppTheme.textSec)),
                                 ],
                               ),
                             ],
@@ -216,7 +213,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                                 'START WORKOUT',
                                 style: _inter(11,
                                     weight: FontWeight.w700,
-                                    color: _kSec2,
+                                    color: AppTheme.textSec,
                                     letterSpacing: 1.4),
                               ),
                               if (workout.isWorkoutActive) ...[
@@ -252,7 +249,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                     child: Container(
                       margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                       height: 0.5,
-                      color: _kBorder,
+                      color: AppTheme.div,
                     ),
                   ),
 
@@ -267,7 +264,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                             "TODAY'S WORKOUTS",
                             style: _inter(11,
                                 weight: FontWeight.w700,
-                                color: _kSec2,
+                                color: AppTheme.textSec,
                                 letterSpacing: 1.4),
                           ),
                           if (_history.isNotEmpty)
@@ -275,14 +272,14 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: _kCard,
+                                color: AppTheme.card,
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: _kBorder),
+                                border: Border.all(color: AppTheme.div),
                               ),
                               child: Text(
                                 '${_history.length}',
                                 style: _inter(11,
-                                    weight: FontWeight.w600, color: _kSec2),
+                                    weight: FontWeight.w600, color: AppTheme.textSec),
                               ),
                             ),
                         ],
@@ -335,7 +332,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                             'HISTORY',
                             style: _inter(11,
                                 weight: FontWeight.w700,
-                                color: _kSec2,
+                                color: AppTheme.textSec,
                                 letterSpacing: 1.4),
                           ),
                         ),
@@ -442,9 +439,9 @@ class _CategoryGridItem extends StatelessWidget {
         onTap: locked ? null : () => _showSportPicker(context),
         child: Container(
           decoration: BoxDecoration(
-            color: _kCard,
+            color: AppTheme.card,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _kBorder),
+            border: Border.all(color: AppTheme.div),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -480,7 +477,7 @@ class _CategoryGridItem extends StatelessWidget {
     final nav = Navigator.of(context);
     showModalBottomSheet(
       context: context,
-      backgroundColor: _kCard,
+      backgroundColor: AppTheme.card,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -491,7 +488,7 @@ class _CategoryGridItem extends StatelessWidget {
           Navigator.pop(sheetCtx);
           showModalBottomSheet(
             context: context,
-            backgroundColor: _kCard,
+            backgroundColor: AppTheme.card,
             isScrollControlled: true,
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -565,9 +562,9 @@ class _SpotlightCard extends StatelessWidget {
         margin: const EdgeInsets.only(right: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: _kCard,
+          color: AppTheme.card,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _kBorder),
+          border: Border.all(color: AppTheme.div),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -593,7 +590,7 @@ class _SpotlightCard extends StatelessWidget {
             // Date
             Text(
               startedAt.isNotEmpty ? _fmtDate(startedAt) : '',
-              style: _inter(9.5, color: _kSec2),
+              style: _inter(9.5, color: AppTheme.textSec),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -613,16 +610,16 @@ class _SpotlightCard extends StatelessWidget {
                   const SizedBox(width: 2),
                   Text('$avgHr',
                       style: _inter(10,
-                          weight: FontWeight.w600, color: _kSec2)),
+                          weight: FontWeight.w600, color: AppTheme.textSec)),
                   const SizedBox(width: 6),
                 ],
                 if (calories > 0) ...[
                   const Icon(Icons.local_fire_department_rounded,
-                      color: Color(0xFFFF6B35), size: 11),
+                      color: AppTheme.warmOrange, size: 11),
                   const SizedBox(width: 2),
                   Text('$calories',
                       style: _inter(10,
-                          weight: FontWeight.w600, color: _kSec2)),
+                          weight: FontWeight.w600, color: AppTheme.textSec)),
                   const SizedBox(width: 6),
                 ],
                 if (distanceM > 0) ...[
@@ -634,7 +631,7 @@ class _SpotlightCard extends StatelessWidget {
                         ? '${(distanceM / 1000).toStringAsFixed(1)}k'
                         : '${distanceM.toStringAsFixed(0)}m',
                     style: _inter(10,
-                        weight: FontWeight.w600, color: _kSec2),
+                        weight: FontWeight.w600, color: AppTheme.textSec),
                   ),
                 ],
               ],
@@ -709,7 +706,7 @@ class _HistoryRow extends StatelessWidget {
     }
     if (calories > 0) {
       stats.add((Icons.local_fire_department_rounded,
-          const Color(0xFFFF6B35), '$calories kcal'));
+          AppTheme.warmOrange, '$calories kcal'));
     }
 
     return GestureDetector(
@@ -717,9 +714,9 @@ class _HistoryRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: _kCard,
+          color: AppTheme.card,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _kBorder),
+          border: Border.all(color: AppTheme.div),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -743,7 +740,7 @@ class _HistoryRow extends StatelessWidget {
                       Text(label, style: _inter(14, weight: FontWeight.w600)),
                       if (startedAt.isNotEmpty)
                         Text(_fmtTime(startedAt),
-                            style: _inter(11, color: _kSec2)),
+                            style: _inter(11, color: AppTheme.textSec)),
                     ],
                   ),
                 ),
@@ -765,7 +762,7 @@ class _HistoryRow extends StatelessWidget {
                           children: [
                             Icon(s.$1, color: s.$2, size: 12),
                             const SizedBox(width: 3),
-                            Text(s.$3, style: _inter(11, color: _kSec2)),
+                            Text(s.$3, style: _inter(11, color: AppTheme.textSec)),
                           ],
                         ))
                     .toList(),
@@ -797,9 +794,9 @@ class _EmptyWorkouts extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 48),
       decoration: BoxDecoration(
-        color: _kCard,
+        color: AppTheme.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
+        border: Border.all(color: AppTheme.div),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -820,7 +817,7 @@ class _EmptyWorkouts extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Start a workout above to see\nyour history here',
-            style: _inter(12, color: _kSec2, height: 1.5),
+            style: _inter(12, color: AppTheme.textSec, height: 1.5),
             textAlign: TextAlign.center,
           ),
         ],

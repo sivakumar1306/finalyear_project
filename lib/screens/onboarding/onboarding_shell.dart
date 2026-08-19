@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import '../onboarding/pair_ring_screen.dart';
+import '../auth/login_screen.dart';
+import '../auth/sign_up_screen.dart';
 import '../../models/onboarding_data.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../theme/app_theme.dart';
 
-const kGold = Color(0xFFC9A86E);
+const kGold = AppTheme.gold;
 const kBg = Colors.black;
 
 class OnboardingShell extends StatelessWidget {
@@ -13,6 +15,7 @@ class OnboardingShell extends StatelessWidget {
   final Widget body;
   final String buttonLabel;
   final VoidCallback onContinue;
+  final VoidCallback? onBack;
   final bool canContinue;
 
   const OnboardingShell({
@@ -22,6 +25,7 @@ class OnboardingShell extends StatelessWidget {
     required this.data,
     required this.body,
     required this.onContinue,
+    this.onBack,
     this.buttonLabel = 'Continue',
     this.canContinue = true,
   });
@@ -38,29 +42,43 @@ class OnboardingShell extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  const GlassBackButton(),
+                  GlassBackButton(
+                    onTap: onBack ??
+                        () {
+                          if (Navigator.canPop(context)) {
+                            Navigator.pop(context);
+                          } else {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const SignUpScreen(),
+                              ),
+                            );
+                          }
+                        },
+                  ),
                   Expanded(
                     child: Center(
                       child: _StepDots(current: step, total: totalSteps),
                     ),
                   ),
-                  TextButton(
-                    onPressed: () => Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PairRingScreen(data: data),
+                  if (!data.isEditMode)
+                    TextButton(
+                      onPressed: () => Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const LoginScreen(),
+                        ),
                       ),
-                      (_) => false,
-                    ),
-                    child: const Text(
-                      'LOG IN',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 13,
-                        letterSpacing: 1,
+                      child: const Text(
+                        'LOG IN',
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 13,
+                          letterSpacing: 1,
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -138,7 +156,7 @@ Widget onboardingHeader(
       Text(
         stepLabel,
         style: const TextStyle(
-          color: Color(0xFFC9A86E),
+          color: AppTheme.gold,
           fontSize: 12,
           fontWeight: FontWeight.w600,
           letterSpacing: 1.5,

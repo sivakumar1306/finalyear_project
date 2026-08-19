@@ -4,8 +4,8 @@ import '../../providers/ble_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
-import 'profile_edit_screen.dart';
 import '../../widgets/app_typography.dart';
+import '../auth/recovery_code_screen.dart';
 
 class AccountSystemSettingsScreen extends StatelessWidget {
   const AccountSystemSettingsScreen({super.key});
@@ -46,15 +46,6 @@ class AccountSystemSettingsScreen extends StatelessWidget {
               child: Column(
                 children: [
                   _AccountRow(
-                    icon: Icons.person_outline_rounded,
-                    title: 'Edit Profile',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
-                    ),
-                  ),
-                  _divider(),
-                  _AccountRow(
                     icon: Icons.person_rounded,
                     title: 'Account',
                     value: email,
@@ -69,6 +60,7 @@ class AccountSystemSettingsScreen extends StatelessWidget {
                   _AccountRow(
                     icon: Icons.edit_outlined,
                     title: 'Change Password',
+                    onTap: () => _onChangePassword(context, email),
                   ),
                 ],
               ),
@@ -143,6 +135,40 @@ class AccountSystemSettingsScreen extends StatelessWidget {
       );
 
   Widget _divider() => const Divider(height: 1, color: AppTheme.div);
+
+  Future<void> _onChangePassword(BuildContext context, String email) async {
+    if (email.isEmpty) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: AppTheme.gold)),
+    );
+    
+    try {
+      await SupabaseService.resetPassword(email);
+      if (context.mounted) {
+        Navigator.pop(context); // close loading dialog
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RecoveryCodeScreen(email: email),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // close loading dialog
+        final err = e.toString().toLowerCase();
+        final message = (err.contains('invalid') || err.contains('auth') || err.contains('not found'))
+            ? 'Invalid email address.'
+            : e.toString().replaceAll('Exception: ', '');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
+    }
+  }
 
   Future<void> _confirmLogout(BuildContext context) async {
     final ok = await showDialog<bool>(
@@ -381,7 +407,7 @@ class _AccountRow extends StatelessWidget {
                 color: AppTheme.card2,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: iconColor ?? const Color(0xFFAAAAAA), size: 17),
+              child: Icon(icon, color: iconColor ?? AppTheme.iconFaint, size: 17),
             ),
             const SizedBox(width: 14),
             Expanded(

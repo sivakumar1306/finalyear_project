@@ -33,7 +33,12 @@ class AboutScreen extends StatelessWidget {
           children: [
             const SizedBox(height: 20),
             // App Icon Placeholder / Ring Image
-            Image.asset('ring.webp', width: 90, height: 90, fit: BoxFit.contain),
+            Image.asset(
+              'ring.webp',
+              width: 90,
+              height: 90,
+              fit: BoxFit.contain,
+            ),
             const SizedBox(height: 16),
             Text(
               'SUNDR',
@@ -46,10 +51,7 @@ class AboutScreen extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Version 1.0.0 (Build 1)',
-              style: AppTypography.inter(
-                fontSize: 14,
-                color: AppTheme.textSec,
-              ),
+              style: AppTypography.inter(fontSize: 14, color: AppTheme.textSec),
             ),
             const SizedBox(height: 32),
             Container(
@@ -134,7 +136,7 @@ class AboutScreen extends StatelessWidget {
                 color: AppTheme.card2,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: const Color(0xFFAAAAAA), size: 17),
+              child: Icon(icon, color: AppTheme.iconFaint, size: 17),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -147,7 +149,11 @@ class AboutScreen extends StatelessWidget {
                 ),
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: Colors.white24, size: 20),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.white24,
+              size: 20,
+            ),
           ],
         ),
       ),

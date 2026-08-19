@@ -21,6 +21,11 @@ class InsightsHeaderState extends State<InsightsHeader>
   static DateTime? _cacheTime;
   static const _cacheTtl = Duration(minutes: 5);
 
+  static bool get hasData {
+    final daysUsed = (_cache?['days_used'] as num?)?.toInt();
+    return daysUsed != null && daysUsed > 0;
+  }
+
   Future<Map<String, dynamic>>? _insightsFuture;
   Map<String, dynamic>? _cachedData;
 
@@ -39,22 +44,25 @@ class InsightsHeaderState extends State<InsightsHeader>
     final isFresh =
         cachedAt != null && DateTime.now().difference(cachedAt) < _cacheTtl;
 
-    if (!forceRefresh && cached != null && isFresh) {
+    if (forceRefresh) {
+      _cache = null;
+      _cacheTime = null;
+      _cachedData = null;
+    } else if (cached != null &&
+        isFresh &&
+        (cached['days_used'] as num? ?? 0) > 0) {
       // Fresh cache hit — show it immediately, no network call, no spinner.
       _cachedData = cached;
       _insightsFuture = null;
       return;
     }
 
-    // Show stale cache (if any) while a fresh fetch runs in the background,
-    // instead of blanking out to a spinner on every re-fetch.
-    _cachedData = cached;
-    // Range selector removed app-wide — the backend now always analyzes a
-    // fixed (capped) window and tells us via `days_used` how many days of
-    // real data that actually covered, so no range argument is passed here.
+    _cachedData = forceRefresh ? null : cached;
     _insightsFuture = ChatApiService.getInsights().then((data) {
-      _cache = data;
-      _cacheTime = DateTime.now();
+      if ((data['days_used'] as num? ?? 0) > 0) {
+        _cache = data;
+        _cacheTime = DateTime.now();
+      }
       return data;
     });
   }
@@ -157,7 +165,7 @@ class InsightsHeaderState extends State<InsightsHeader>
               fontWeight: FontWeight.w400,
               height: 1.30,
               letterSpacing: -0.025 * 21,
-              color: const Color(0xEBFFFFFF),
+              color: AppTheme.white92,
             ),
             children: [
               for (final part in headlineParts)
@@ -183,7 +191,7 @@ class InsightsHeaderState extends State<InsightsHeader>
               fontWeight: FontWeight.w400,
               height: 1.50,
               letterSpacing: 0.02 * 12.5,
-              color: const Color(0x85FFFFFF),
+              color: AppTheme.white52,
             ),
           ),
         ],
@@ -198,7 +206,7 @@ class InsightsHeaderState extends State<InsightsHeader>
               fontSize: 10,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.2 * 10,
-              color: const Color(0x6BFFFFFF),
+              color: AppTheme.white42,
             ),
           ),
           const SizedBox(height: 10),
@@ -231,7 +239,7 @@ class InsightsHeaderState extends State<InsightsHeader>
         width: 16,
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          color: Color(0x66FFFFFF),
+          color: AppTheme.white40,
         ),
       ),
     );
@@ -244,7 +252,7 @@ class InsightsHeaderState extends State<InsightsHeader>
         fontSize: 12.5,
         fontWeight: FontWeight.w400,
         height: 1.50,
-        color: const Color(0x85FFFFFF),
+        color: AppTheme.white52,
       ),
     );
   }

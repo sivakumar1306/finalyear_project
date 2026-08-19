@@ -20,7 +20,6 @@ class FindDeviceScreen extends StatefulWidget {
 class _FindDeviceScreenState extends State<FindDeviceScreen>
     with SingleTickerProviderStateMixin {
   bool _isRinging = false;
-  bool _loading = false;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
@@ -65,53 +64,45 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
     _ringTimer?.cancel();
 
     if (!enable) {
-      setState(() {
-        _isRinging = false;
-        _pulseController.stop();
-        _pulseController.reset();
-      });
-      await ble.findDevice(enable: false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Alert stopped.'),
-            backgroundColor: AppTheme.card2,
-          ),
-        );
-      }
+      _ringTimer = null;
+      _pulseController.stop();
+      _pulseController.reset();
+      setState(() => _isRinging = false);
+      try {
+        await ble.findDevice(enable: false);
+      } catch (_) {}
       return;
     }
 
-    setState(() => _loading = true);
+    setState(() => _isRinging = true);
+    _pulseController.repeat(reverse: true);
+
     final success = await ble.findDevice(enable: true);
     if (!mounted) return;
 
-    setState(() {
-      _loading = false;
-      if (success) {
-        _isRinging = true;
-        _pulseController.repeat(reverse: true);
-
-        // Ring hardware alert auto-expires after ~5 seconds.
-        // Keep re-issuing findDevice every 4 seconds to maintain continuous flashing/vibration.
-        _ringTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
-          if (_isRinging && ble.isConnected) {
-            await ble.findDevice(enable: true);
-          } else {
-            _ringTimer?.cancel();
-          }
-        });
-      }
-    });
-
     if (success) {
+      _ringTimer?.cancel();
+      _ringTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
+        if (_isRinging && ble.isConnected) {
+          await ble.findDevice(enable: true);
+        } else {
+          _ringTimer?.cancel();
+        }
+      });
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Alerting ring continuously! Check for flashing LED or vibration.'),
+          content: Text(
+            'Alerting ring continuously! Check for flashing LED or vibration.',
+          ),
           backgroundColor: AppTheme.card2,
         ),
       );
     } else {
+      _pulseController.stop();
+      _pulseController.reset();
+      setState(() => _isRinging = false);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to communicate with ring.'),
@@ -163,87 +154,100 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                 child: SizedBox(
                   width: 180,
                   height: 180,
-                  child: AnimatedBuilder(
-                    animation: _pulseAnimation,
-                    builder: (context, child) {
-                      final scale = _isRinging ? _pulseAnimation.value : 1.0;
-                      return Transform.scale(
-                        scale: scale,
-                        child: child,
-                      );
-                    },
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Outer Glow Ring
-                        Container(
-                          width: 170,
-                          height: 170,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: _isRinging
-                                  ? AppTheme.gold.withValues(alpha: 0.6)
-                                  : const Color(0x26FFFFFF),
-                              width: _isRinging ? 2.0 : 1.0,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Outer 2 Pulsing Rings
+                      AnimatedBuilder(
+                        animation: _pulseAnimation,
+                        builder: (context, child) {
+                          final scale = _isRinging ? _pulseAnimation.value : 1.0;
+                          return Transform.scale(scale: scale, child: child);
+                        },
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // Outer Glow Ring
+                            Container(
+                              width: 170,
+                              height: 170,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: _isRinging
+                                      ? AppTheme.gold.withValues(alpha: 0.6)
+                                      : AppTheme.white15,
+                                  width: _isRinging ? 2.0 : 1.0,
+                                ),
+                                boxShadow: _isRinging
+                                    ? [
+                                        BoxShadow(
+                                          color: AppTheme.gold.withValues(
+                                            alpha: 0.35,
+                                          ),
+                                          blurRadius: 40,
+                                          spreadRadius: 10,
+                                        ),
+                                      ]
+                                    : [],
+                              ),
                             ),
-                            boxShadow: _isRinging
+                            // Mid Ring
+                            Container(
+                              width: 130,
+                              height: 130,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: _isRinging
+                                      ? AppTheme.gold.withValues(alpha: 0.8)
+                                      : const Color(0x38FFFFFF),
+                                  width: 1.0,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Core Ring Button / Still Bluetooth Symbol
+                      Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: _isRinging
                                 ? [
-                                    BoxShadow(
-                                      color:
-                                          AppTheme.gold.withValues(alpha: 0.35),
-                                      blurRadius: 40,
-                                      spreadRadius: 10,
-                                    )
+                                    const Color(0xFFFFF0D0),
+                                    AppTheme.gold,
+                                    const Color(0xFF987A46),
                                   ]
-                                : [],
+                                : [
+                                    const Color(0x33FFFFFF),
+                                    AppTheme.white10,
+                                  ],
                           ),
+                          boxShadow: _isRinging
+                              ? [
+                                  BoxShadow(
+                                    color: AppTheme.gold.withValues(
+                                      alpha: 0.85,
+                                    ),
+                                    blurRadius: 28,
+                                    spreadRadius: 6,
+                                  ),
+                                ]
+                              : [],
                         ),
-                        // Mid Ring
-                        Container(
-                          width: 130,
-                          height: 130,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: _isRinging
-                                  ? AppTheme.gold.withValues(alpha: 0.8)
-                                  : const Color(0x38FFFFFF),
-                              width: 1.0,
-                            ),
-                          ),
+                        child: Icon(
+                          Icons.bluetooth_searching_rounded,
+                          size: 40,
+                          color: _isRinging
+                              ? const Color(0xFF0D0C0A)
+                              : Colors.white,
                         ),
-                        // Core Ring Button
-                        Container(
-                          width: 90,
-                          height: 90,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: RadialGradient(
-                              colors: _isRinging
-                                  ? [
-                                      const Color(0xFFF3E2C4),
-                                      AppTheme.gold,
-                                      const Color(0xFF987A46),
-                                    ]
-                                  : [
-                                      const Color(0x33FFFFFF),
-                                      const Color(0x1AFFFFFF),
-                                    ],
-                            ),
-                          ),
-                          child: Icon(
-                            _isRinging
-                                ? Icons.graphic_eq_rounded
-                                : Icons.bluetooth_searching_rounded,
-                            size: 40,
-                            color: _isRinging
-                                ? const Color(0xFF0D0C0A)
-                                : Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -251,7 +255,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
               const SizedBox(height: 24),
 
               Text(
-                _isRinging ? 'Alerting Ring...' : 'Locate Your Ring',
+                _isRinging ? 'Locating your ring' : 'Locate Your Ring',
                 style: AppTypography.inter(
                   color: Colors.white,
                   fontSize: 22,
@@ -281,45 +285,36 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _loading
-                      ? null
-                      : () => _toggleFindRing(!_isRinging),
+                  onPressed: () => _toggleFindRing(!_isRinging),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _isRinging ? Colors.redAccent : AppTheme.gold,
+                    backgroundColor: _isRinging
+                        ? Colors.redAccent
+                        : AppTheme.gold,
                     foregroundColor: _isRinging ? Colors.white : Colors.black,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                     elevation: _isRinging ? 0 : 4,
                   ),
-                  child: _loading
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: _isRinging ? Colors.white : Colors.black,
-                          ),
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              _isRinging
-                                  ? Icons.stop_circle_rounded
-                                  : Icons.vibration_rounded,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              _isRinging ? 'Stop Alert' : 'Start Ringing / Flashing',
-                              style: AppTypography.inter(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        _isRinging
+                            ? Icons.stop_circle_rounded
+                            : Icons.vibration_rounded,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        _isRinging ? 'Locating Your Ring' : 'Make Ring Flash',
+                        style: AppTypography.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
                         ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
@@ -332,7 +327,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                   color: AppTheme.card,
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: const Color(0x1AFFFFFF),
+                    color: AppTheme.white10,
                     width: 0.5,
                   ),
                 ),
@@ -381,9 +376,11 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: LinearProgressIndicator(
-                        value: ble.battery >= 0 ? (batteryPct / 100).clamp(0.0, 1.0) : 0.0,
+                        value: ble.battery >= 0
+                            ? (batteryPct / 100).clamp(0.0, 1.0)
+                            : 0.0,
                         minHeight: 8,
-                        backgroundColor: const Color(0x1AFFFFFF),
+                        backgroundColor: AppTheme.white10,
                         valueColor: AlwaysStoppedAnimation<Color>(
                           batteryPct > 20 ? AppTheme.gold : Colors.redAccent,
                         ),
@@ -401,7 +398,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                   color: AppTheme.card,
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: const Color(0x1AFFFFFF),
+                    color: AppTheme.white10,
                     width: 0.5,
                   ),
                 ),
@@ -414,12 +411,20 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                     ),
                     _DetailRow(
                       label: 'MAC Address',
-                      value: ble.deviceAddress.isNotEmpty ? ble.deviceAddress : '—',
+                      value: ble.deviceAddress.isNotEmpty
+                          ? ble.deviceAddress
+                          : '—',
                       onCopy: ble.deviceAddress.isNotEmpty
                           ? () {
-                              Clipboard.setData(ClipboardData(text: ble.deviceAddress));
+                              Clipboard.setData(
+                                ClipboardData(text: ble.deviceAddress),
+                              );
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('MAC address copied to clipboard.')),
+                                const SnackBar(
+                                  content: Text(
+                                    'MAC address copied to clipboard.',
+                                  ),
+                                ),
                               );
                             }
                           : null,
@@ -427,7 +432,9 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                     _DetailRow(
                       label: 'Connection Status',
                       value: ble.isConnected ? 'Connected' : 'Disconnected',
-                      valueColor: ble.isConnected ? Colors.greenAccent : Colors.redAccent,
+                      valueColor: ble.isConnected
+                          ? Colors.greenAccent
+                          : Colors.redAccent,
                     ),
                     _DetailRow(
                       label: 'Firmware Version',
@@ -472,7 +479,7 @@ class _DetailRow extends StatelessWidget {
         border: Border(
           bottom: isLast
               ? BorderSide.none
-              : const BorderSide(color: Color(0x14FFFFFF), width: 0.5),
+              : const BorderSide(color: AppTheme.glassButtonBorder, width: 0.5),
         ),
       ),
       child: Row(
@@ -480,10 +487,7 @@ class _DetailRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: AppTypography.inter(
-              color: AppTheme.textSec,
-              fontSize: 13,
-            ),
+            style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
           ),
           Row(
             children: [

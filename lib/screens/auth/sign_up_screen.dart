@@ -4,7 +4,9 @@ import '../../models/onboarding_data.dart';
 import '../onboarding/onboarding_name_screen.dart';
 import '../settings/faq_screen.dart';
 import 'login_screen.dart';
+import 'splash_screen.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../theme/app_theme.dart';
 
 String _friendlyAuthError(Object e) {
   final raw = e.toString().replaceAll('Exception: ', '').trim();
@@ -110,16 +112,36 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     final canSubmit = _fieldsFilled && !_loading;
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const SplashScreen(),
+          ),
+          (_) => false,
+        );
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
         child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  const GlassBackButton(),
+                  GlassBackButton(
+                    onTap: () => Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SplashScreen(),
+                      ),
+                      (_) => false,
+                    ),
+                  ),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.help_outline, color: Colors.white54),
@@ -232,7 +254,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               TextSpan(
                                 text: 'Log in instead',
                                 style: TextStyle(
-                                  color: Color(0xFFC9A86E),
+                                  color: AppTheme.gold,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -255,11 +277,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   onPressed: canSubmit ? _signUp : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: canSubmit
-                        ? const Color(0xFFC9A86E)
-                        : const Color(0xFF2A2A2A),
+                        ? AppTheme.gold
+                        : AppTheme.surfaceRaised,
                     foregroundColor:
                         canSubmit ? Colors.black : Colors.white38,
-                    disabledBackgroundColor: const Color(0xFF2A2A2A),
+                    disabledBackgroundColor: AppTheme.surfaceRaised,
                     disabledForegroundColor: Colors.white38,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30),
@@ -288,8 +310,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _DarkField extends StatelessWidget {
@@ -337,7 +360,7 @@ class _DarkField extends StatelessWidget {
               borderSide: BorderSide(color: Colors.white24),
             ),
             focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFFC9A86E)),
+              borderSide: BorderSide(color: AppTheme.gold),
             ),
             contentPadding: const EdgeInsets.symmetric(vertical: 8),
           ),

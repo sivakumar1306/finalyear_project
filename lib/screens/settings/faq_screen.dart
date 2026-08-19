@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../theme/app_theme.dart';
 
 class FaqScreen extends StatelessWidget {
   const FaqScreen({super.key});
@@ -243,7 +244,7 @@ class FaqScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF050505),
+      backgroundColor: AppTheme.bg,
       body: Stack(
         children: [
           // Ambient glow
@@ -254,7 +255,7 @@ class FaqScreen extends StatelessWidget {
               width: 280,
               height: 200,
               decoration: BoxDecoration(
-                color: const Color(0xFFC9A86E).withValues(alpha: 0.05),
+                color: AppTheme.gold.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(200),
               ),
             ),

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/onboarding_data.dart';
+import '../../providers/ble_provider.dart';
+import '../../services/supabase_service.dart';
 import 'onboarding_shell.dart';
 import 'pair_ring_screen.dart';
 
@@ -29,8 +32,15 @@ class _OnboardingEmergencyContactScreenState extends State<OnboardingEmergencyCo
     super.dispose();
   }
 
+  bool _saving = false;
+
   bool _isValid() {
-    return _nameCtrl.text.trim().isNotEmpty && _phoneCtrl.text.trim().isNotEmpty;
+    bool isComplete = _nameCtrl.text.trim().isNotEmpty && _phoneCtrl.text.trim().isNotEmpty;
+    if (widget.data.isEditMode) {
+      bool isBlank = _nameCtrl.text.trim().isEmpty && _phoneCtrl.text.trim().isEmpty;
+      return isBlank || isComplete;
+    }
+    return isComplete;
   }
 
   @override
@@ -39,11 +49,45 @@ class _OnboardingEmergencyContactScreenState extends State<OnboardingEmergencyCo
       step: 6,
       totalSteps: 6,
       data: widget.data,
-      canContinue: _isValid(),
+      canContinue: _isValid() && !_saving,
       buttonLabel: 'Finish',
-      onContinue: () {
+      onContinue: () async {
+        if (_saving) return;
+        setState(() => _saving = true);
+        
         widget.data.emergencyContactName = _nameCtrl.text.trim();
         widget.data.emergencyContactPhone = _phoneCtrl.text.trim();
+
+        if (widget.data.isEditMode) {
+          final user = SupabaseService.currentUser;
+          if (user != null) {
+            try {
+              await SupabaseService.upsertProfile(
+                userId: user.id,
+                fullName: widget.data.name,
+                age: widget.data.age,
+                gender: widget.data.gender,
+                heightCm: widget.data.heightCm,
+                weightKg: widget.data.weightKg,
+              );
+              final contactName = widget.data.emergencyContactName;
+              final contactPhone = widget.data.emergencyContactPhone;
+              if (contactName != null && contactName.isNotEmpty && context.mounted) {
+                final ble = context.read<BleProvider>();
+                await ble.addEmergencyContact(contactName, contactPhone ?? '');
+              }
+            } catch (_) {}
+          }
+          if (context.mounted) {
+            for (int i = 0; i < 6; i++) {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              }
+            }
+          }
+          return;
+        }
+
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(

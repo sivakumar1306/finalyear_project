@@ -1,5 +1,5 @@
-name: qring_flutter
-description: "QRing Smart Ring Flutter App"
+name: sundr
+description: "SUNDR Smart Ring Flutter App"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -22,7 +22,6 @@ dependencies:
   share_plus: 10.1.4
   camera: ^0.12.0+2
   health: ^13.3.1
-  sensors_plus: ^7.1.0
 
 dev_dependencies:
   flutter_test:
