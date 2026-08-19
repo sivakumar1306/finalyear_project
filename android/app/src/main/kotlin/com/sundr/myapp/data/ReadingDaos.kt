@@ -49,7 +49,9 @@ interface HeartRateReadingDao {
     @Query("SELECT * FROM reading_heart_rate ORDER BY measuredAt DESC LIMIT 1")
     suspend fun latest(): HeartRateReadingEntity?
 
-    @Query("SELECT AVG(valueBpm) as avg, MIN(valueBpm) as min, MAX(valueBpm) as max, COUNT(*) as count FROM reading_heart_rate WHERE measuredAt BETWEEN :dayStart AND :dayEnd")
+    // source != 'demo_seed' guard: seeded demo rows must never flow into cloud
+    // aggregates (user_hr etc.) — see SupabaseSyncManager.recomputeAndUpsertAggregates.
+    @Query("SELECT AVG(valueBpm) as avg, MIN(valueBpm) as min, MAX(valueBpm) as max, COUNT(*) as count FROM reading_heart_rate WHERE measuredAt BETWEEN :dayStart AND :dayEnd AND source != 'demo_seed'")
     suspend fun dailyAggregate(dayStart: Long, dayEnd: Long): DailyAggregate
 
     // Drop synced rows older than retention; unsynced rows are kept until pushed.
@@ -77,7 +79,7 @@ interface Spo2ReadingDao {
     @Query("SELECT * FROM reading_spo2 ORDER BY measuredAt DESC LIMIT 1")
     suspend fun latest(): Spo2ReadingEntity?
 
-    @Query("SELECT AVG(valuePct) as avg, MIN(valuePct) as min, MAX(valuePct) as max, COUNT(*) as count FROM reading_spo2 WHERE measuredAt BETWEEN :dayStart AND :dayEnd")
+    @Query("SELECT AVG(valuePct) as avg, MIN(valuePct) as min, MAX(valuePct) as max, COUNT(*) as count FROM reading_spo2 WHERE measuredAt BETWEEN :dayStart AND :dayEnd AND source != 'demo_seed'")
     suspend fun dailyAggregate(dayStart: Long, dayEnd: Long): DailyAggregate
 
     @Query("DELETE FROM reading_spo2 WHERE measuredAt < :cutoffMs AND syncedAt IS NOT NULL")
@@ -104,7 +106,7 @@ interface StressReadingDao {
     @Query("SELECT * FROM reading_stress ORDER BY measuredAt DESC LIMIT 1")
     suspend fun latest(): StressReadingEntity?
 
-    @Query("SELECT AVG(value) as avg, MIN(value) as min, MAX(value) as max, COUNT(*) as count FROM reading_stress WHERE measuredAt BETWEEN :dayStart AND :dayEnd")
+    @Query("SELECT AVG(value) as avg, MIN(value) as min, MAX(value) as max, COUNT(*) as count FROM reading_stress WHERE measuredAt BETWEEN :dayStart AND :dayEnd AND source != 'demo_seed'")
     suspend fun dailyAggregate(dayStart: Long, dayEnd: Long): DailyAggregate
 
     @Query("DELETE FROM reading_stress WHERE measuredAt < :cutoffMs AND syncedAt IS NOT NULL")
