@@ -11,11 +11,14 @@ import '../../theme/app_theme.dart';
 import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
-import '../settings/card_settings_screen.dart';
+import '../settings/goal_setting_screen.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
+import '../../widgets/legend_dot.dart';
+import '../../widgets/metric_chart_card.dart';
+import '../../widgets/metric_stat_card.dart';
 
 
 // Oudmon SDK sleep stage constants: 0=deep, 1=light, 2=awake, 3=REM
@@ -24,24 +27,17 @@ const _kLight = 1;
 const _kAwake = 2;
 const _kRem = 3;
 
-const _kAwakeColor = Color(0xFFFBBF24);
-const _kLightColor = Color(0xFF60A5FA);
 const _kDeepColor = Color(0xFF6366F1);
-const _kRemColor = Color(0xFF818CF8);
 
 const _stageColors = {
   _kDeep: _kDeepColor,
-  _kLight: _kLightColor,
-  _kAwake: _kAwakeColor,
-  _kRem: _kRemColor,
+  _kLight: AppTheme.softBlue,
+  _kAwake: AppTheme.amber,
+  _kRem: AppTheme.bpColor,
 };
 
 // ── Local design tokens — same system as heart_rate_screen.dart / blood_oxygen_screen.dart ──
 
-const _kCard = AppTheme.card;
-const _kBorder = AppTheme.div;
-const _kSec = Color(0xFF666666);
-const _kSec2 = AppTheme.textSec;
 
 TextStyle _inter(
   double size, {
@@ -435,7 +431,7 @@ class _SleepScreenState extends State<SleepScreen> {
           label: 'Goal setting',
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const CardSettingsScreen()),
+            MaterialPageRoute(builder: (_) => const GoalSettingScreen()),
           ),
         ),
         GlassMenuItem(
@@ -459,7 +455,7 @@ class _SleepScreenState extends State<SleepScreen> {
                   VitalRange(
                     label: 'Fair',
                     range: '40–59',
-                    color: Color(0xFFFBBF24),
+                    color: AppTheme.amber,
                   ),
                   VitalRange(
                     label: 'Good',
@@ -531,7 +527,7 @@ class _SleepScreenState extends State<SleepScreen> {
           ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(0.5),
-            child: Container(color: _kBorder, height: 0.5),
+            child: Container(color: AppTheme.div, height: 0.5),
           ),
         ),
         body: SingleChildScrollView(
@@ -572,7 +568,7 @@ class _SleepScreenState extends State<SleepScreen> {
                 hasData
                     ? 'Score $_sleepScore · ${_quality()}'
                     : (_loading ? 'Loading…' : 'No data yet'),
-                style: _inter(13, color: _kSec),
+                style: _inter(13, color: AppTheme.textTertiary),
               ),
               const SizedBox(height: 16),
 
@@ -584,7 +580,7 @@ class _SleepScreenState extends State<SleepScreen> {
               ],
 
               // ── 3. Sleep stages chart ────────────────────────────────────
-              _ChartCard(
+              MetricChartCard(
                 headerLabel: hasData ? 'SLEEP STAGES' : 'NO DATA YET',
                 rangeLabel: hasData && _sleepTime > 0
                     ? '${_timeLabel(_sleepTime)} – ${_timeLabel(_wakeTime)}'
@@ -594,7 +590,7 @@ class _SleepScreenState extends State<SleepScreen> {
                     ? Center(
                         child: Text(
                           'NO DATA YET',
-                          style: _inter(12, color: _kSec, letterSpacing: 1.2),
+                          style: _inter(12, color: AppTheme.textTertiary, letterSpacing: 1.2),
                         ),
                       )
                     : CustomPaint(
@@ -615,10 +611,10 @@ class _SleepScreenState extends State<SleepScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: const [
-                  _LegendDot(color: _kAwakeColor, label: 'Awake'),
-                  _LegendDot(color: _kRemColor, label: 'REM'),
-                  _LegendDot(color: _kLightColor, label: 'Light'),
-                  _LegendDot(color: _kDeepColor, label: 'Deep'),
+                  LegendDot(color: AppTheme.amber, label: 'Awake'),
+                  LegendDot(color: AppTheme.bpColor, label: 'REM'),
+                  LegendDot(color: AppTheme.softBlue, label: 'Light'),
+                  LegendDot(color: _kDeepColor, label: 'Deep'),
                 ],
               ),
               const SizedBox(height: 10),
@@ -627,7 +623,7 @@ class _SleepScreenState extends State<SleepScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: _StatCard(
+                    child: MetricStatCard(
                       label: 'EFFICIENCY',
                       value: hasData ? _efficiency() : '--',
                       unit: '',
@@ -635,7 +631,7 @@ class _SleepScreenState extends State<SleepScreen> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _StatCard(
+                    child: MetricStatCard(
                       label: 'DEEP SLEEP',
                       value: hasData ? _fmt(_deepDuration) : '--',
                       unit: '',
@@ -643,7 +639,7 @@ class _SleepScreenState extends State<SleepScreen> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _StatCard(
+                    child: MetricStatCard(
                       label: 'REM SLEEP',
                       value: hasData ? _fmt(_remDuration) : '--',
                       unit: '',
@@ -669,9 +665,9 @@ class _SleepScreenState extends State<SleepScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: _kCard,
+                  color: AppTheme.card,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _kBorder),
+                  border: Border.all(color: AppTheme.div),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -681,7 +677,7 @@ class _SleepScreenState extends State<SleepScreen> {
                       style: _inter(
                         11,
                         weight: FontWeight.w600,
-                        color: _kSec,
+                        color: AppTheme.textTertiary,
                         letterSpacing: 0.6,
                       ),
                     ),
@@ -690,14 +686,14 @@ class _SleepScreenState extends State<SleepScreen> {
                       label: 'Sleep Duration',
                       value: hasData ? _fmt(_totalDuration) : '--',
                     ),
-                    const Divider(color: _kBorder, height: 20),
+                    const Divider(color: AppTheme.div, height: 20),
                     _SummaryRow(
                       label: 'Sleep Time',
                       value: hasData && _sleepTime > 0
                           ? _timeLabel(_sleepTime)
                           : '--',
                     ),
-                    const Divider(color: _kBorder, height: 20),
+                    const Divider(color: AppTheme.div, height: 20),
                     _SummaryRow(
                       label: 'Wake Time',
                       value: hasData && _wakeTime > 0
@@ -715,7 +711,7 @@ class _SleepScreenState extends State<SleepScreen> {
                 style: _inter(
                   11,
                   weight: FontWeight.w600,
-                  color: _kSec,
+                  color: AppTheme.textTertiary,
                   letterSpacing: 0.6,
                 ),
               ),
@@ -723,7 +719,7 @@ class _SleepScreenState extends State<SleepScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: _StatCard(
+                    child: MetricStatCard(
                       label: 'AVG HEART RATE',
                       value: _avgHr > 0 ? '$_avgHr' : '--',
                       unit: _avgHr > 0 ? 'bpm' : '',
@@ -731,7 +727,7 @@ class _SleepScreenState extends State<SleepScreen> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _StatCard(
+                    child: MetricStatCard(
                       label: 'AVG BLOOD OXYGEN',
                       value: _avgSpo2 > 0 ? '$_avgSpo2' : '--',
                       unit: _avgSpo2 > 0 ? '%' : '',
@@ -739,7 +735,7 @@ class _SleepScreenState extends State<SleepScreen> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _StatCard(
+                    child: MetricStatCard(
                       label: 'AVG HRV',
                       value: _avgHrv > 0 ? '$_avgHrv' : '--',
                       unit: _avgHrv > 0 ? 'ms' : '',
@@ -750,19 +746,20 @@ class _SleepScreenState extends State<SleepScreen> {
               const SizedBox(height: 20),
 
               // ── 8. 7-day trend ─────────────────────────────────────────────
-              _ChartCard(
+              MetricChartCard(
                 headerLabel: 'LAST 7 DAYS TREND',
                 rangeLabel: avgDur > 0
                     ? 'avg ${_fmt(avgDur)}${avgScore > 0 ? " · score $avgScore" : ""}'
                     : '-- --',
                 height: 128,
                 yLabels: const ['8h', '6h', '4h', '2h'],
+                barCount: trendVals.length,
                 xLabels: _trendDayLabels(),
                 child: trendVals.every((v) => v == 0)
                     ? Center(
                         child: Text(
                           'NO DATA YET',
-                          style: _inter(12, color: _kSec, letterSpacing: 1.2),
+                          style: _inter(12, color: AppTheme.textTertiary, letterSpacing: 1.2),
                         ),
                       )
                     : CustomPaint(
@@ -781,169 +778,7 @@ class _SleepScreenState extends State<SleepScreen> {
 }
 
 
-// ── Chart card wrapper (same header/border pattern as _HRChartCard) ──────────
-
-class _ChartCard extends StatelessWidget {
-  final String headerLabel;
-  final String rangeLabel;
-  final double height;
-  final Widget child;
-  final List<String>? xLabels;
-  final List<String>? yLabels;
-
-  static const _yAxisW = 30.0;
-
-  const _ChartCard({
-    required this.headerLabel,
-    required this.rangeLabel,
-    required this.child,
-    this.height = 128,
-    this.xLabels,
-    this.yLabels,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final hasY = yLabels != null && yLabels!.isNotEmpty;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                headerLabel,
-                style: _inter(
-                  11,
-                  weight: FontWeight.w600,
-                  color: _kSec,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              Text(
-                rangeLabel,
-                style: _inter(
-                  11,
-                  weight: FontWeight.w500,
-                  color: const Color(0xFF999999),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: height,
-            width: double.infinity,
-            child: hasY
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        width: _yAxisW,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            for (final label in yLabels!)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: Text(
-                                  label,
-                                  style: _inter(10, color: _kSec),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Expanded(child: child),
-                    ],
-                  )
-                : child,
-          ),
-          // Equal-width columns so each label sits under its bar slot.
-          // Offset by Y-axis width when present so labels stay under the bars.
-          if (xLabels != null && xLabels!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Padding(
-              padding: EdgeInsets.only(left: hasY ? _yAxisW : 0),
-              child: Row(
-                children: [
-                  for (final label in xLabels!)
-                    Expanded(
-                      child: Text(
-                        label,
-                        textAlign: TextAlign.center,
-                        style: _inter(10, color: _kSec2),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ── Stat card (same pattern as _HRStatCard) ───────────────────────────────────
-
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final String unit;
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.unit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: _inter(
-              10,
-              weight: FontWeight.w600,
-              color: _kSec,
-              letterSpacing: 0.7,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(value, style: _inter(17, weight: FontWeight.w600)),
-              const SizedBox(width: 4),
-              Text(unit, style: _inter(11, color: _kSec)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Sleep stages breakdown card ───────────────────────────────────────────────
+// ── Stages breakdown card ─────────────────────────────────────────────────────
 
 class _StagesBreakdownCard extends StatelessWidget {
   final bool hasData;
@@ -970,9 +805,9 @@ class _StagesBreakdownCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _kCard,
+        color: AppTheme.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
+        border: Border.all(color: AppTheme.div),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -982,7 +817,7 @@ class _StagesBreakdownCard extends StatelessWidget {
             style: _inter(
               11,
               weight: FontWeight.w600,
-              color: _kSec,
+              color: AppTheme.textTertiary,
               letterSpacing: 0.6,
             ),
           ),
@@ -991,14 +826,14 @@ class _StagesBreakdownCard extends StatelessWidget {
             label: 'Time Awake',
             value: hasData ? fmt(awakeDuration) : '--',
             progress: hasData ? (awakeDuration / total).clamp(0.0, 1.0) : 0.0,
-            color: _kAwakeColor,
+            color: AppTheme.amber,
           ),
           const SizedBox(height: 12),
           _StageRow(
             label: 'Light Sleep',
             value: hasData ? fmt(lightDuration) : '--',
             progress: hasData ? (lightDuration / total).clamp(0.0, 1.0) : 0.0,
-            color: _kLightColor,
+            color: AppTheme.softBlue,
           ),
           const SizedBox(height: 12),
           _StageRow(
@@ -1012,7 +847,7 @@ class _StagesBreakdownCard extends StatelessWidget {
             label: 'REM Sleep',
             value: hasData ? fmt(remDuration) : '--',
             progress: hasData ? (remDuration / total).clamp(0.0, 1.0) : 0.0,
-            color: _kRemColor,
+            color: AppTheme.bpColor,
           ),
         ],
       ),
@@ -1053,7 +888,7 @@ class _StageRow extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(label, style: _inter(13, weight: FontWeight.w500)),
-                Text(value, style: _inter(12, color: _kSec2)),
+                Text(value, style: _inter(12, color: AppTheme.textSec)),
               ],
             ),
             const SizedBox(height: 5),
@@ -1061,7 +896,7 @@ class _StageRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(3),
               child: LinearProgressIndicator(
                 value: progress,
-                backgroundColor: _kBorder,
+                backgroundColor: AppTheme.div,
                 valueColor: AlwaysStoppedAnimation<Color>(color),
                 minHeight: 4,
               ),
@@ -1083,33 +918,8 @@ class _SummaryRow extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      Text(label, style: _inter(13, color: _kSec2)),
+      Text(label, style: _inter(13, color: AppTheme.textSec)),
       Text(value, style: _inter(13, weight: FontWeight.w600)),
-    ],
-  );
-}
-
-// ── Legend Dot ─────────────────────────────────────────────────────────────────
-
-class _LegendDot extends StatelessWidget {
-  final Color color;
-  final String label;
-  const _LegendDot({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(2),
-        ),
-      ),
-      const SizedBox(width: 4),
-      Text(label, style: _inter(10, color: _kSec2)),
     ],
   );
 }
@@ -1170,7 +980,7 @@ class _HypnogramPainter extends CustomPainter {
       final x1 = startOff / window * size.width;
       final x2 = endOff / window * size.width;
       final y = (_yPos[type] ?? 0.62) * size.height;
-      final color = _stageColors[type] ?? _kLightColor;
+      final color = _stageColors[type] ?? AppTheme.softBlue;
 
       // Shaded area under segment
       fillPaint.color = color.withValues(alpha: 0.18);
@@ -1274,7 +1084,7 @@ class _SleepBarPainter extends CustomPainter {
       final x = i * slotW + (slotW - barW) / 2;
       paint.color = v > 0
           ? AppTheme.sleepColor.withValues(alpha: 0.85)
-          : _kBorder;
+          : AppTheme.div;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(x, size.height - barH, barW, barH),

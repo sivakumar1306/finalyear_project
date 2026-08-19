@@ -717,12 +717,14 @@ class BlePlugin(private val context: Context) {
                     sendBindSuccessWithRetry(attempt + 1)
                 } else {
                     Log.e(TAG, "CMD_BIND_SUCCESS: no raw-echo confirmation after $INIT_MAX_ATTEMPTS attempts — proceeding anyway")
+                    sendEvent("bindReady", emptyMap<String, Any>())
                 }
             }
         }
 
         pendingBindConfirmation = Runnable {
             mainHandler.removeCallbacks(timeoutRunnable)
+            sendEvent("bindReady", emptyMap<String, Any>())
         }
         mainHandler.postDelayed(timeoutRunnable, INIT_RETRY_TIMEOUT_MS)
 

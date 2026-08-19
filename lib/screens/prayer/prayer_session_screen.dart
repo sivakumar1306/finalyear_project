@@ -321,13 +321,13 @@ class _GoldFlowStateOrbPainter extends CustomPainter {
       final colorSeed = (i % 4);
       Color color;
       if (colorSeed == 0) {
-        color = const Color(0xFFE8D3A7); // Champagne Gold highlight
+        color = AppTheme.goldPale; // Champagne Gold highlight
       } else if (colorSeed == 1) {
         color = AppTheme.gold; // Exact App Gold (0xFFC9A86E)
       } else if (colorSeed == 2) {
         color = const Color(0xFFD6B57C); // Soft Warm Gold
       } else {
-        color = const Color(0xFF8A6B34); // Deep Warm Amber Gold
+        color = AppTheme.goldDark; // Deep Warm Amber Gold
       }
 
       list.add(_OrbParticle(
@@ -356,9 +356,9 @@ class _GoldFlowStateOrbPainter extends CustomPainter {
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          const Color(0xFFE8D3A7).withValues(alpha: 0.45), // Champagne Bloom
+          AppTheme.goldPale.withValues(alpha: 0.45), // Champagne Bloom
           AppTheme.gold.withValues(alpha: 0.32),            // App Gold Core
-          const Color(0xFF8A6B34).withValues(alpha: 0.16), // Outer Deep Warm Gold
+          AppTheme.goldDark.withValues(alpha: 0.16), // Outer Deep Warm Gold
           Colors.transparent,
         ],
         stops: const [0.0, 0.38, 0.72, 1.0],
@@ -446,7 +446,7 @@ class _GoldFlowStateOrbPainter extends CustomPainter {
       if (p.z > 0.3) {
         final glowAlpha = ((p.z - 0.3) / 0.7 * 0.40).clamp(0.0, 0.40);
         final bloomPaint = Paint()
-          ..color = const Color(0xFFE8D3A7).withValues(alpha: glowAlpha)
+          ..color = AppTheme.goldPale.withValues(alpha: glowAlpha)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0);
         canvas.drawCircle(Offset(p.screenX, p.screenY), p.size * 2.0, bloomPaint);
       }
@@ -507,7 +507,7 @@ class _VitalsDrawerSheet extends StatelessWidget {
       height: MediaQuery.of(context).size.height * 0.8,
       child: Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF141414),
+          color: AppTheme.surfaceDeep,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           border: Border(top: BorderSide(color: AppTheme.gold, width: 1.5)),
         ),
@@ -548,7 +548,7 @@ class _VitalsDrawerSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          const Divider(color: Color(0x1AFFFFFF), height: 1),
+          const Divider(color: AppTheme.white10, height: 1),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
@@ -679,7 +679,7 @@ class _VitalCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x1AFFFFFF)),
+        border: Border.all(color: AppTheme.white10),
       ),
       child: Row(
         children: [

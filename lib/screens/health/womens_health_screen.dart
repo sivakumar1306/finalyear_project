@@ -12,14 +12,16 @@ import '../../providers/ble_provider.dart';
 import '../../models/womens_health_models.dart';
 import '../../services/womens_health_prediction_service.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/legend_dot.dart';
+import 'womens_health_widgets.dart';
 
 // ── Design tokens (glass card system per DESIGN.md) ────────────────────────
 
-const _kGlassBg = Color(0x0FFFFFFF); // rgba(255,255,255,0.06)
-const _kGlassBorder = Color(0x17FFFFFF); // rgba(255,255,255,0.09)
+const _kGlassBg = AppTheme.glassCard; // rgba(255,255,255,0.06)
+const _kGlassBorder = AppTheme.glassBorder; // rgba(255,255,255,0.09)
 const _kFertile = AppTheme.hrvColor; // teal
 const _kOvulation = Color(0xFFA855F7); // purple
-const _kToday = Color(0xFF60A5FA); // blue
+const _kToday = AppTheme.softBlue; // blue
 const _kPeriod = AppTheme.womenColor; // pink
 
 TextStyle _inter(
@@ -73,42 +75,6 @@ String _fmtMD(DateTime d) => '${_kMonthsShort[d.month - 1]} ${d.day}';
 String _fmtTillDate(DateTime d) =>
     'Till ${_kWeekdaysFull[d.weekday - 1].substring(0, 3)}, ${_fmtMD(d)}';
 
-// ── Data model ─────────────────────────────────────────────────────────────────
-
-class CycleData {
-  final String id;
-  final DateTime periodStart;
-  final int cycleLength;
-  final int periodLength;
-  final String? notes;
-
-  const CycleData({
-    required this.id,
-    required this.periodStart,
-    required this.cycleLength,
-    required this.periodLength,
-    this.notes,
-  });
-
-  DateTime get ovulationDate =>
-      periodStart.add(Duration(days: cycleLength - 14));
-  DateTime get fertileStart =>
-      periodStart.add(Duration(days: cycleLength - 14 - 5));
-  DateTime get fertileEnd =>
-      periodStart.add(Duration(days: cycleLength - 14 + 1));
-  DateTime get periodEnd =>
-      periodStart.add(Duration(days: periodLength - 1));
-  DateTime get nextPeriod => periodStart.add(Duration(days: cycleLength));
-
-  factory CycleData.fromMap(Map<String, dynamic> m) => CycleData(
-        id: m['id'] as String,
-        periodStart: DateTime.parse(m['period_start'] as String),
-        cycleLength: (m['cycle_length'] as num? ?? 28).toInt(),
-        periodLength: (m['period_length'] as num? ?? 5).toInt(),
-        notes: m['notes'] as String?,
-      );
-}
-
 // ── Screen ─────────────────────────────────────────────────────────────────────
 
 class WomensHealthScreen extends StatefulWidget {
@@ -135,8 +101,8 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   final _screenshotKey = GlobalKey();
 
   static const _phaseColors = {
-    'Menstrual': Color(0xFFEF4444),
-    'Follicular': Color(0xFF818CF8),
+    'Menstrual': AppTheme.danger,
+    'Follicular': AppTheme.bpColor,
     'Ovulation': _kOvulation,
     'Luteal': AppTheme.womenColor,
   };
@@ -523,7 +489,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
         ),
         const SizedBox(height: 20),
 
-        _SetupField(
+        SetupField(
           label: 'LAST PERIOD START DATE',
           child: GestureDetector(
             onTap: () async {
@@ -566,9 +532,9 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
         ),
         const SizedBox(height: 12),
 
-        _SetupField(
+        SetupField(
           label: 'TYPICAL CYCLE LENGTH',
-          child: _StepperTile(
+          child: StepperTile(
             value: _setupCycleLen,
             unit: 'days',
             min: 21,
@@ -578,9 +544,9 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
         ),
         const SizedBox(height: 12),
 
-        _SetupField(
+        SetupField(
           label: 'TYPICAL PERIOD LENGTH',
-          child: _StepperTile(
+          child: StepperTile(
             value: _setupPeriodLen,
             unit: 'days',
             min: 2,
@@ -597,7 +563,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
             height: 54,
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFFEC4899), Color(0xFFA21B6A)],
+                colors: [AppTheme.womenColor, Color(0xFFA21B6A)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -643,7 +609,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
             children: [
               CustomPaint(
                 size: const Size(210, 210),
-                painter: _CycleRingPainter(
+                painter: CycleRingPainter(
                   currentDay: day,
                   cycleLength: c.cycleLength,
                 ),
@@ -846,7 +812,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: _PredictionCol(
+            child: PredictionCol(
               label: 'Next Period',
               value: '$daysToNext',
               valueSuffix: ' Days',
@@ -854,14 +820,14 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
             ),
           ),
           Expanded(
-            child: _PredictionCol(
+            child: PredictionCol(
               label: 'Fertility',
               value: isFertile ? 'Active' : 'Inactive',
               subtitle: _fmtTillDate(c.fertileEnd),
             ),
           ),
           Expanded(
-            child: _PredictionCol(
+            child: PredictionCol(
               label: 'Phase',
               value: phase.isEmpty ? '--' : phase,
               subtitle: _fmtTillDate(phaseEnd),
@@ -887,7 +853,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     final cells = List.generate(totalCells, (i) {
       final date = gridStart.add(Duration(days: i));
       final d = _d(date);
-      return _CalCell(
+      return CalCell(
         date: date,
         inMonth: date.month == now.month && date.year == now.year,
         isPeriod: _periodDays.contains(d),
@@ -897,7 +863,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       );
     });
 
-    final weeks = <List<_CalCell>>[
+    final weeks = <List<CalCell>>[
       for (int i = 0; i < cells.length; i += 7) cells.sublist(i, i + 7),
     ];
 
@@ -928,10 +894,10 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
             spacing: 16,
             runSpacing: 6,
             children: const [
-              _LegDot(_kPeriod, 'Period'),
-              _LegDot(_kFertile, 'Fertile Window'),
-              _LegDot(_kOvulation, 'Ovulation'),
-              _LegDot(_kToday, 'Today'),
+              LegendDot(color: _kPeriod, label: 'Period'),
+              LegendDot(color: _kFertile, label: 'Fertile Window'),
+              LegendDot(color: _kOvulation, label: 'Ovulation'),
+              LegendDot(color: _kToday, label: 'Today'),
             ],
           ),
         ],
@@ -939,7 +905,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     );
   }
 
-  Widget _buildWeekRow(List<_CalCell> week) {
+  Widget _buildWeekRow(List<CalCell> week) {
     final isFert = week.map((c) => c.isFertile).toList();
     return SizedBox(
       height: 38,
@@ -985,7 +951,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     );
   }
 
-  Widget _dayCell(_CalCell c) {
+  Widget _dayCell(CalCell c) {
     Color? bg;
     Color textColor = c.inMonth
         ? Colors.white.withValues(alpha: 0.9)
@@ -1046,7 +1012,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
           const SizedBox(height: 16),
           for (int i = 0; i < shown.length; i++) ...[
             if (i > 0) const SizedBox(height: 18),
-            _CyclePatternRow(
+            CyclePatternRow(
               index: i + 1,
               cycle: shown[i],
             ),
@@ -1141,7 +1107,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 SizedBox(
                   height: 20,
                   width: double.infinity,
-                  child: CustomPaint(painter: _TempGaugePainter(delta: delta)),
+                  child: CustomPaint(painter: TempGaugePainter(delta: delta)),
                 ),
                 const SizedBox(height: 4),
                 Row(
@@ -1239,7 +1205,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                     child: Row(
                       children: [
                         if (awakeSecs > 0) Expanded(flex: awakeSecs, child: Container(color: AppTheme.sleepAwake.withValues(alpha: 0.55))),
-                        if (remSecs > 0) Expanded(flex: remSecs, child: Container(color: const Color(0xFF38BDF8))),
+                        if (remSecs > 0) Expanded(flex: remSecs, child: Container(color: AppTheme.spo2Color)),
                         if (lightSecs > 0) Expanded(flex: lightSecs, child: Container(color: AppTheme.sleepLight)),
                         if (deepSecs > 0) Expanded(flex: deepSecs, child: Container(color: AppTheme.sleepDeep)),
                       ],
@@ -1252,10 +1218,10 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                   spacing: 12,
                   runSpacing: 6,
                   children: [
-                    _LegDot(AppTheme.sleepAwake, 'Awake'),
-                    _LegDot(const Color(0xFF38BDF8), 'REM'),
-                    _LegDot(AppTheme.sleepLight, 'Light'),
-                    _LegDot(AppTheme.sleepDeep, 'Deep'),
+                    LegendDot(color: AppTheme.sleepAwake, label: 'Awake'),
+                    LegendDot(color: AppTheme.spo2Color, label: 'REM'),
+                    LegendDot(color: AppTheme.sleepLight, label: 'Light'),
+                    LegendDot(color: AppTheme.sleepDeep, label: 'Deep'),
                   ],
                 ),
               ],
@@ -1345,7 +1311,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                   height: 20,
                   width: double.infinity,
                   child: CustomPaint(
-                    painter: _StressGaugePainter(
+                    painter: StressGaugePainter(
                       min: ble.todayMinStress,
                       max: ble.todayMaxStress,
                       latest: stress,
@@ -1411,7 +1377,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 Text('Log New Period', style: _inter(18, weight: FontWeight.w700)),
                 const SizedBox(height: 20),
 
-                _SetupField(
+                SetupField(
                   label: 'PERIOD START DATE',
                   child: GestureDetector(
                     onTap: () async {
@@ -1451,9 +1417,9 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                _SetupField(
+                SetupField(
                   label: 'CYCLE LENGTH',
-                  child: _StepperTile(
+                  child: StepperTile(
                     value: newCycleLen,
                     unit: 'days',
                     min: 21,
@@ -1462,9 +1428,9 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                _SetupField(
+                SetupField(
                   label: 'PERIOD LENGTH',
-                  child: _StepperTile(
+                  child: StepperTile(
                     value: newPeriodLen,
                     unit: 'days',
                     min: 2,
@@ -1496,7 +1462,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                     height: 50,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                          colors: [Color(0xFFEC4899), Color(0xFFA21B6A)],
+                          colors: [AppTheme.womenColor, Color(0xFFA21B6A)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight),
                       borderRadius: BorderRadius.circular(12),
@@ -1526,429 +1492,3 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   static String _fmt(DateTime d) => '${_kMonthsShort[d.month - 1]} ${d.day}, ${d.year}';
 }
 
-// ── Calendar cell model ────────────────────────────────────────────────────────
-
-class _CalCell {
-  final DateTime date;
-  final bool inMonth;
-  final bool isPeriod;
-  final bool isFertile;
-  final bool isOvulation;
-  final bool isToday;
-
-  const _CalCell({
-    required this.date,
-    required this.inMonth,
-    required this.isPeriod,
-    required this.isFertile,
-    required this.isOvulation,
-    required this.isToday,
-  });
-}
-
-// ── Cycle ring painter ────────────────────────────────────────────────────────
-
-class _CycleRingPainter extends CustomPainter {
-  final int currentDay;
-  final int cycleLength;
-
-  const _CycleRingPainter({required this.currentDay, required this.cycleLength});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 18;
-    const strokeW = 14.0;
-
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.06)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeW,
-    );
-
-    final progress = (currentDay / cycleLength).clamp(0.0, 1.0);
-    if (progress <= 0) return;
-
-    final rect = Rect.fromCircle(center: center, radius: radius);
-    canvas.drawArc(
-      rect,
-      -math.pi / 2,
-      2 * math.pi * progress,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeW
-        ..strokeCap = StrokeCap.round
-        ..shader = const LinearGradient(
-          colors: [Color(0xFFEC4899), Color(0xFFA855F7)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ).createShader(rect),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_CycleRingPainter old) =>
-      old.currentDay != currentDay || old.cycleLength != cycleLength;
-}
-
-// ── Prediction column ──────────────────────────────────────────────────────────
-
-class _PredictionCol extends StatelessWidget {
-  final String label;
-  final String value;
-  final String valueSuffix;
-  final String subtitle;
-
-  const _PredictionCol({
-    required this.label,
-    required this.value,
-    this.valueSuffix = '',
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: _inter(10.5,
-              weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.45)),
-        ),
-        const SizedBox(height: 6),
-        RichText(
-          text: TextSpan(children: [
-            TextSpan(
-                text: value,
-                style: _inter(20, weight: FontWeight.w600, color: Colors.white)),
-            if (valueSuffix.isNotEmpty)
-              TextSpan(
-                  text: valueSuffix,
-                  style: _inter(12, color: Colors.white.withValues(alpha: 0.6))),
-          ]),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: _inter(11, color: Colors.white.withValues(alpha: 0.4)),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    );
-  }
-}
-
-// ── Cycle pattern row ──────────────────────────────────────────────────────────
-
-class _CyclePatternRow extends StatelessWidget {
-  final int index;
-  final CycleData cycle;
-  const _CyclePatternRow({required this.index, required this.cycle});
-
-  @override
-  Widget build(BuildContext context) {
-    final rangeEnd = cycle.periodStart.add(Duration(days: cycle.cycleLength - 1));
-    final rangeLabel = '${_fmtMD(cycle.periodStart)} – ${_fmtMD(rangeEnd)}';
-    final markerRatio = ((cycle.cycleLength - 14) / cycle.cycleLength).clamp(0.05, 0.95);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 74,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Cycle $index',
-                  style: _inter(13, weight: FontWeight.w600)),
-              const SizedBox(height: 2),
-              Text('${cycle.cycleLength} days',
-                  style: _inter(11, color: AppTheme.textSec)),
-            ],
-          ),
-        ),
-        Expanded(
-          child: SizedBox(
-            height: 22,
-            child: _CyclePatternTrack(markerRatio: markerRatio),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(rangeLabel, style: _inter(11, color: AppTheme.textSec)),
-      ],
-    );
-  }
-}
-
-class _CyclePatternTrack extends StatelessWidget {
-  final double markerRatio;
-  const _CyclePatternTrack({required this.markerRatio});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        const markerSize = 20.0;
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            CustomPaint(
-              size: Size(w, 22),
-              painter: _CyclePatternDotsPainter(markerRatio: markerRatio),
-            ),
-            Positioned(
-              left: (markerRatio * w - markerSize / 2).clamp(0.0, w - markerSize),
-              child: Container(
-                width: markerSize,
-                height: markerSize,
-                decoration: const BoxDecoration(
-                  color: _kToday,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.circle, color: Colors.white, size: 8),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _CyclePatternDotsPainter extends CustomPainter {
-  final double markerRatio;
-  const _CyclePatternDotsPainter({required this.markerRatio});
-
-  static const _dotCount = 26;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final gap = size.width / (_dotCount - 1);
-    for (int i = 0; i < _dotCount; i++) {
-      final ratio = i / (_dotCount - 1);
-      if ((ratio - markerRatio).abs() < 0.06) continue;
-      final color = ratio < markerRatio
-          ? AppTheme.hrvColor.withValues(alpha: 0.7)
-          : AppTheme.womenColor.withValues(alpha: 0.45);
-      canvas.drawCircle(
-        Offset(i * gap, size.height / 2),
-        2.2,
-        Paint()..color = color,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_CyclePatternDotsPainter old) =>
-      old.markerRatio != markerRatio;
-}
-
-class _TempGaugePainter extends CustomPainter {
-  final double delta;
-  const _TempGaugePainter({required this.delta});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final midY = size.height / 2;
-    
-    // Draw baseline
-    canvas.drawLine(
-      Offset(0, midY),
-      Offset(size.width, midY),
-      Paint()..color = Colors.white.withValues(alpha: 0.2)..strokeWidth = 2,
-    );
-
-    // Draw baseline tick
-    canvas.drawLine(
-      Offset(size.width / 2, midY - 6),
-      Offset(size.width / 2, midY + 6),
-      Paint()..color = Colors.white.withValues(alpha: 0.5)..strokeWidth = 2,
-    );
-
-    // Calculate dot x position
-    // Range is -1.0 to +1.0
-    final clampedDelta = delta.clamp(-1.0, 1.0);
-    final ratio = (clampedDelta + 1.0) / 2.0; // 0.0 to 1.0
-    final x = ratio * size.width;
-
-    // Draw dot
-    canvas.drawCircle(
-      Offset(x, midY),
-      6,
-      Paint()..color = AppTheme.tempColor,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_TempGaugePainter old) => old.delta != delta;
-}
-
-// ── Stress gauge painter ────────────────────────────────────────────────────────
-
-class _StressGaugePainter extends CustomPainter {
-  final int min;
-  final int max;
-  final int latest;
-
-  const _StressGaugePainter({required this.min, required this.max, required this.latest});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final midY = size.height / 2;
-    
-    // Draw background track
-    final trackRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, midY - 4, size.width, 8),
-      const Radius.circular(4),
-    );
-    canvas.drawRRect(trackRect, Paint()..color = Colors.white.withValues(alpha: 0.1));
-
-    if (max > 0) {
-      // Draw range bar
-      final startX = (min / 100.0).clamp(0.0, 1.0) * size.width;
-      final endX = (max / 100.0).clamp(0.0, 1.0) * size.width;
-      
-      final rangeRect = RRect.fromRectAndRadius(
-        Rect.fromLTRB(startX, midY - 4, endX, midY + 4),
-        const Radius.circular(4),
-      );
-      canvas.drawRRect(rangeRect, Paint()..color = AppTheme.stressColor.withValues(alpha: 0.4));
-    }
-
-    // Draw latest dot
-    final latestX = (latest / 100.0).clamp(0.0, 1.0) * size.width;
-    canvas.drawCircle(
-      Offset(latestX, midY),
-      8,
-      Paint()..color = AppTheme.stressColor,
-    );
-    // Draw white border for dot
-    canvas.drawCircle(
-      Offset(latestX, midY),
-      8,
-      Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_StressGaugePainter old) => old.min != min || old.max != max || old.latest != latest;
-}
-
-// ── Small supporting widgets ───────────────────────────────────────────────────
-
-class _LegDot extends StatelessWidget {
-  final Color color;
-  final String label;
-  const _LegDot(this.color, this.label);
-
-  @override
-  Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 4),
-          Text(label, style: _inter(10, color: AppTheme.textSec)),
-        ],
-      );
-}
-
-class _SetupField extends StatelessWidget {
-  final String label;
-  final Widget child;
-  const _SetupField({required this.label, required this.child});
-
-  @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: _inter(10,
-                  weight: FontWeight.w700,
-                  color: AppTheme.textSec,
-                  letterSpacing: 1)),
-          const SizedBox(height: 6),
-          child,
-        ],
-      );
-}
-
-class _StepperTile extends StatelessWidget {
-  final int value;
-  final String unit;
-  final int min;
-  final int max;
-  final ValueChanged<int> onChanged;
-
-  const _StepperTile({
-    required this.value,
-    required this.unit,
-    required this.min,
-    required this.max,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-            color: AppTheme.card2,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.div)),
-        child: Row(children: [
-          GestureDetector(
-            onTap: value > min ? () => onChanged(value - 1) : null,
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                  color: AppTheme.div,
-                  borderRadius: BorderRadius.circular(8)),
-              child: Icon(Icons.remove_rounded,
-                  color: value > min ? Colors.white : AppTheme.textSec,
-                  size: 18),
-            ),
-          ),
-          Expanded(
-            child: Center(
-              child: RichText(
-                text: TextSpan(children: [
-                  TextSpan(
-                      text: '$value ',
-                      style: _inter(20, weight: FontWeight.w700)),
-                  TextSpan(text: unit, style: _inter(13, color: AppTheme.textSec)),
-                ]),
-              ),
-            ),
-          ),
-          GestureDetector(
-            onTap: value < max ? () => onChanged(value + 1) : null,
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                  color: AppTheme.womenColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: AppTheme.womenColor.withValues(alpha: 0.3))),
-              child: Icon(Icons.add_rounded,
-                  color: value < max ? AppTheme.womenColor : AppTheme.textSec,
-                  size: 18),
-            ),
-          ),
-        ]),
-      );
-}

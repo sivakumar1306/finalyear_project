@@ -377,7 +377,7 @@ class _OtaScreenState extends State<OtaScreen> {
                             ? (_downloadProgress / 100).clamp(0.0, 1.0)
                             : (_flashProgress / 100).clamp(0.0, 1.0),
                         minHeight: 10,
-                        backgroundColor: const Color(0x1AFFFFFF),
+                        backgroundColor: AppTheme.white10,
                         valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.gold),
                       ),
                     ),
@@ -410,7 +410,7 @@ class _OtaScreenState extends State<OtaScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.gold,
                   foregroundColor: Colors.black,
-                  disabledBackgroundColor: const Color(0x1AFFFFFF),
+                  disabledBackgroundColor: AppTheme.white10,
                   disabledForegroundColor: Colors.white38,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(26),

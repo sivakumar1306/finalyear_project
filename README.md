@@ -1,24 +1,44 @@
-# Qring_flutter
+# SUNDR — Smart Ring Health Companion
 
+A Flutter + native Android health-monitoring app for the QRing-class BLE smart ring. Continuous
+vitals tracking (heart rate, SpO2, blood pressure, stress, HRV, sleep, temperature, steps),
+women's-health cycle prediction, fall prediction with emergency SMS/call escalation, workout
+tracking, reminders, and a glassmorphic dark UI per `DESIGN.md`.
 
+## Repo layout
 
-## SUNDR Release Notes 
-**Date:** 2026-08-08
-`<Sundr-Aug08-R1>`
-*Progress against Meditation Mode, Prayer History, Vitals Trends & Alarms UI*
+| Path | Contents |
+|---|---|
+| `lib/` | Flutter app: `screens/` (home, health, settings, onboarding, …), `providers/` (BleProvider, WorkoutProvider, …), `services/` (BleService, SupabaseService, …), `widgets/` (shared cards, charts, typography), `models/`, `theme/` |
+| `lib/_deprecated/` | Dead code kept for reference; not imported anywhere |
+| `android/` | Native host: `BlePlugin.kt` Method/EventChannel bridge, Room DB, foreground services, fall-risk analysis (package `com.sundr.myapp`) |
+| `ios/`, `linux/`, `macos/` | Scaffolding only — Android is the active target |
+| `architecture/`, `specs/` | Architecture docs and feature specifications |
+| `docs/archive/` | Historical evaluation artifacts (dated snapshots, may reference old names) |
+| `supabase/` | Backend schema/migrations |
 
----
+## Quick start
 
-* **Meditation & Prayer Sessions:** Direct navigation to session screens; automatic restoration of system "Do Not Disturb" upon completion.
-* **Data Persistence:** Resolved database schema inconsistencies for reliable offline/online session history sync. Added actionable empty-state prompts.
-* **Vitals Visualization:** Upgraded calmness and heart rate charts to feature dynamic Y-axis scaling, cubic spline curves, and ambient glow effects.
-* **UI Refinements:** Expanded the "serenity circle" badge to prevent text truncation and aligned Alarms screen styling with core design tokens.
+```sh
+flutter pub get
+flutter run          # requires a real BLE-capable Android device for ring features
+```
 
-**Date:** 2026-08-09
-`<Sundr-Aug09-R1>`
-*FSR pipeline updated and crash fixes enabled*
- 
- ---
+- The vendor BLE SDK is checked in at `android/app/libs/qring_sdk_1.0.0.50.aar` — the build needs it.
+- Release builds use `key.properties` (see `android/app/build.gradle.kts` and `key.properties.example`).
 
- * **FSR:** Upgraded the entire fall prediction pipeline to V2 from V1 and made several improvements to its flow
- * **Stability & Bug Fixes:** Resolved unexpected app crashes on Android when connecting the ring or starting a workout in the background. Added missing permissions to ensure seamless background data synchronization.
+## Verification
+
+```sh
+flutter analyze --no-fatal-infos
+flutter test
+flutter build apk --debug
+```
+
+## Docs
+
+- `CLAUDE.md` / `DESIGN.md` — design system rules (read before touching UI)
+- `KNOWLEDGE_TRANSFER.md` — the full codebase orientation document
+- `Architecture.md` + `architecture/` — system architecture
+- `specs/` — feature specifications
+- `FALL_DETECTION_STATUS.md` — fall-prediction pipeline status

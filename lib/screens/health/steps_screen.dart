@@ -9,16 +9,13 @@ import '../../widgets/glass_icon_button.dart';
 import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
-import '../settings/card_settings_screen.dart';
+import '../settings/goal_setting_screen.dart';
 import 'activity_description_screen.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
+import '../../theme/app_theme.dart';
 
 // ── Design tokens ───────────────────────────────────────────────────────────
-const _kBg = Color(0xFF050505);
-const _kStepsColor = Color(0xFF4ADE80);
-const _kDistColor = Color(0xFF60A5FA);
-const _kCalColor = Color(0xFFFB923C);
 
 const List<String> _monthAbbr = [
   'Jan',
@@ -523,7 +520,7 @@ class _StepsScreenState extends State<StepsScreen> {
           label: 'Goal setting',
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const CardSettingsScreen()),
+            MaterialPageRoute(builder: (_) => const GoalSettingScreen()),
           ),
         ),
       ],
@@ -568,9 +565,9 @@ class _StepsScreenState extends State<StepsScreen> {
     return RepaintBoundary(
       key: _screenshotKey,
       child: Scaffold(
-        backgroundColor: _kBg,
+        backgroundColor: AppTheme.bg,
         appBar: AppBar(
-          backgroundColor: _kBg,
+          backgroundColor: AppTheme.bg,
           elevation: 0,
           centerTitle: true,
           leadingWidth: 70,
@@ -597,7 +594,7 @@ class _StepsScreenState extends State<StepsScreen> {
           ],
         ),
         body: RefreshIndicator(
-          color: const Color(0xFFC9A86E),
+          color: AppTheme.gold,
           backgroundColor: const Color(0xFF1C1C1C),
           onRefresh: () => _loadDay(_selectedDate, force: true),
           child: SingleChildScrollView(
@@ -660,7 +657,7 @@ class _StepsScreenState extends State<StepsScreen> {
                             ),
                             child: const Icon(
                               Icons.fitness_center_rounded,
-                              color: Color(0xFFE08A4A),
+                              color: AppTheme.focus,
                               size: 18,
                             ),
                           ),
@@ -696,7 +693,7 @@ class _StepsScreenState extends State<StepsScreen> {
                           child: _StatCard(
                             label: 'Total Steps',
                             value: _dispSteps > 0 ? '$_dispSteps' : '-- --',
-                            color: _kStepsColor,
+                            color: AppTheme.softGreen,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -706,7 +703,7 @@ class _StepsScreenState extends State<StepsScreen> {
                             value: _dispDistM > 0
                                 ? '${(_dispDistM / 1000).toStringAsFixed(2)} km'
                                 : '-- --',
-                            color: _kDistColor,
+                            color: AppTheme.softBlue,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -714,7 +711,7 @@ class _StepsScreenState extends State<StepsScreen> {
                           child: _StatCard(
                             label: 'Total Calories',
                             value: _dispCal > 0 ? '$_dispCal' : '-- --',
-                            color: _kCalColor,
+                            color: AppTheme.softOrange,
                           ),
                         ),
                       ],
@@ -729,7 +726,7 @@ class _StepsScreenState extends State<StepsScreen> {
                       title: 'STEPS',
                       subtitle: _dayLabel.toUpperCase(),
                       summary: _daySteps > 0 ? '$_daySteps steps' : '0 steps',
-                      color: _kStepsColor,
+                      color: AppTheme.softGreen,
                       values: _toHourlyInt(_stepsSlots),
                       xLabels: _hourXLabels,
                       loading: _loading,
@@ -742,7 +739,7 @@ class _StepsScreenState extends State<StepsScreen> {
                       summary: _dayDistM > 0
                           ? '${_dayDistM.toStringAsFixed(0)} m'
                           : '0 km',
-                      color: _kDistColor,
+                      color: AppTheme.softBlue,
                       values: _toHourlyDbl(_distSlots),
                       xLabels: _hourXLabels,
                       loading: _loading,
@@ -753,7 +750,7 @@ class _StepsScreenState extends State<StepsScreen> {
                       title: 'CALORIES',
                       subtitle: _dayLabel.toUpperCase(),
                       summary: _dayCal > 0 ? '$_dayCal kcal' : '0 kcal',
-                      color: _kCalColor,
+                      color: AppTheme.softOrange,
                       values: _toHourlyInt(_calSlots),
                       xLabels: _hourXLabels,
                       loading: _loading,
@@ -809,7 +806,7 @@ class _ActivityScore extends StatelessWidget {
           style: _t(
             10,
             w: FontWeight.w700,
-            c: const Color(0xFFC9A86E),
+            c: AppTheme.gold,
             ls: 1.6,
           ),
         ),
@@ -819,7 +816,7 @@ class _ActivityScore extends StatelessWidget {
                 width: 48,
                 height: 48,
                 child: CircularProgressIndicator(
-                  color: Color(0xFFC9A86E),
+                  color: AppTheme.gold,
                   strokeWidth: 2,
                 ),
               )
@@ -1153,11 +1150,11 @@ class _BarPainter extends CustomPainter {
       // Select color based on ratio (as seen in Graphs-Activity.png)
       Color barColor;
       if (ratio >= 0.9) {
-        barColor = const Color(0xFFC9A86E);
+        barColor = AppTheme.gold;
       } else if (ratio >= 0.65) {
         barColor = Colors.white.withValues(alpha: 0.85);
       } else {
-        barColor = const Color(0xFF6BC99B);
+        barColor = AppTheme.stressColor;
       }
 
       if (selectedIndex == i) {
@@ -1223,7 +1220,7 @@ class _BarPainter extends CustomPainter {
           Rect.fromLTWH(rectLeft, rectTop, tooltipW, tooltipH),
           const Radius.circular(6),
         ),
-        Paint()..color = const Color(0xFF000000),
+        Paint()..color = Colors.black,
       );
 
       final path = Path();
@@ -1238,7 +1235,7 @@ class _BarPainter extends CustomPainter {
       }
       path.close();
 
-      canvas.drawPath(path, Paint()..color = const Color(0xFF000000));
+      canvas.drawPath(path, Paint()..color = Colors.black);
 
       textPainter.paint(canvas, Offset(rectLeft + padX, rectTop + padY));
     }

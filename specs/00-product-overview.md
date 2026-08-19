@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Product name** | SUNDR (package: `qring_flutter`) |
+| **Product name** | SUNDR (package: `sundr`) |
 | **Category** | Smart-ring companion / luxury health monitoring |
 | **Primary platform** | Android (BLE + foreground services) |
 | **Backend** | Supabase (Auth + Postgres); separate REST chat API |

@@ -8,6 +8,7 @@ import '../../services/health_connect_service.dart';
 import '../../services/local_vitals_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/real_time_card.dart';
 import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
@@ -15,15 +16,14 @@ import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
+import '../../widgets/legend_dot.dart';
+import '../../widgets/metric_bar_painter.dart';
+import '../../widgets/metric_chart_card.dart';
+import '../../widgets/metric_stat_card.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
 
-const _kCard = AppTheme.card;
-const _kBorder = AppTheme.div;
-const _kGrid = Color(0xFF222222);
-const _kSec = Color(0xFF666666);
-const _kSec2 = AppTheme.textSec;
 
 TextStyle _inter(
   double size, {
@@ -116,10 +116,10 @@ class _HrvScreenState extends State<HrvScreen> {
   }
 
   static Color _hrvColor(int v) {
-    if (v <= 0) return _kSec2;
+    if (v <= 0) return AppTheme.textSec;
     if (v < 20) return AppTheme.danger;
     if (v < 40) return AppTheme.stressColor;
-    if (v < 60) return const Color(0xFFFBBF24);
+    if (v < 60) return AppTheme.amber;
     if (v < 80) return AppTheme.success;
     return AppTheme.hrvColor;
   }
@@ -530,7 +530,7 @@ class _HrvScreenState extends State<HrvScreen> {
                   VitalRange(
                     label: 'Moderate',
                     range: '40–59',
-                    color: Color(0xFFFBBF24),
+                    color: AppTheme.amber,
                   ),
                   VitalRange(
                     label: 'Good',
@@ -629,12 +629,12 @@ class _HrvScreenState extends State<HrvScreen> {
           ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(0.5),
-            child: Container(color: _kBorder, height: 0.5),
+            child: Container(color: AppTheme.div, height: 0.5),
           ),
         ),
         body: RefreshIndicator(
           color: AppTheme.hrvColor,
-          backgroundColor: _kCard,
+          backgroundColor: AppTheme.card,
           onRefresh: () async {
             await _fetchTodayFromLocalDb();
             await _load7DayTrend();
@@ -672,7 +672,7 @@ class _HrvScreenState extends State<HrvScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text('ms', style: _inter(13, color: _kSec)),
+                    Text('ms', style: _inter(13, color: AppTheme.textTertiary)),
                     const SizedBox(width: 10),
                     if (!_loading && displayAvg > 0)
                       Container(
@@ -698,14 +698,25 @@ class _HrvScreenState extends State<HrvScreen> {
                 const SizedBox(height: 16),
 
                 // ── 3. Daily chart ─────────────────────────────────────────
-                _HRVChartCard(
+                MetricChartCard(
                   headerLabel: hasData
                       ? 'TODAY'
                       : (_isToday ? 'NO DATA YET' : _dateLabel()),
                   rangeLabel: dailyRangeLabel,
-                  values: _chartValues,
+                  yLabels: const ['100', '80', '60', '40'],
+                  loadingAccent: AppTheme.hrvColor,
+                  barCount: _chartValues.length,
                   xLabels: const ['12am', '6am', '12pm', '6pm', ''],
                   loading: _loading || _loadingDay,
+                  child: CustomPaint(
+                    painter: MetricBarPainter(
+                      values: _chartValues,
+                      maxY: 100,
+                      yLines: const [100, 80, 60, 40, 20],
+                      colorFor: (v) => _hrvBarColor(v).withValues(alpha: 0.88),
+                    ),
+                    child: const SizedBox.expand(),
+                  ),
                 ),
                 if (_dayOffline && !_isToday) ...[
                   const SizedBox(height: 8),
@@ -719,7 +730,7 @@ class _HrvScreenState extends State<HrvScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: _HRVStatCard(
+                      child: MetricStatCard(
                         label: 'AVERAGE',
                         value: displayAvg > 0 ? '$displayAvg' : '--',
                         unit: displayAvg > 0 ? 'ms' : '--',
@@ -727,7 +738,7 @@ class _HrvScreenState extends State<HrvScreen> {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: _HRVStatCard(
+                      child: MetricStatCard(
                         label: 'MINIMUM',
                         value: displayMin > 0 ? '$displayMin' : '--',
                         unit: displayMin > 0 ? 'ms' : '--',
@@ -735,7 +746,7 @@ class _HrvScreenState extends State<HrvScreen> {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: _HRVStatCard(
+                      child: MetricStatCard(
                         label: 'MAXIMUM',
                         value: displayMax > 0 ? '$displayMax' : '--',
                         unit: displayMax > 0 ? 'ms' : '--',
@@ -746,8 +757,11 @@ class _HrvScreenState extends State<HrvScreen> {
                 const SizedBox(height: 10),
 
                 // ── 4b. Real-time measurement ───────────────────────────────
-                _RealTimeCard(
-                  latestHrv: _manualHrv,
+                RealTimeCard(
+                  title: 'Real Time HRV',
+                  value: _measuring ? '···' : _manualHrv > 0 ? '$_manualHrv' : '--',
+                  unit: 'ms',
+                  accent: AppTheme.hrvColor,
                   measuring: _measuring,
                   enabled: connected && !_measuring,
                   onTap: _startMeasurement,
@@ -755,13 +769,33 @@ class _HrvScreenState extends State<HrvScreen> {
                 const SizedBox(height: 20),
 
                 // ── 5. 7-day trend ─────────────────────────────────────────
-                _HRVChartCard(
+                MetricChartCard(
                   headerLabel: 'LAST 7 DAYS TREND',
                   rangeLabel: trendRangeLabel,
-                  values: _trendValues,
+                  yLabels: const ['100', '80', '60', '40'],
+                  loadingAccent: AppTheme.hrvColor,
+                  barCount: _trendValues.length,
                   xLabels: _trendXLabels(),
                   loading: _loadingTrend,
-                  showLegend: true,
+                  footer: const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      LegendDot(color: AppTheme.danger, label: 'Very Low'),
+                      LegendDot(color: AppTheme.stressColor, label: 'Low'),
+                      LegendDot(color: AppTheme.amber, label: 'Moderate'),
+                      LegendDot(color: AppTheme.success, label: 'Good'),
+                      LegendDot(color: AppTheme.hrvColor, label: 'Excellent'),
+                    ],
+                  ),
+                  child: CustomPaint(
+                    painter: MetricBarPainter(
+                      values: _trendValues,
+                      maxY: 100,
+                      yLines: const [100, 80, 60, 40, 20],
+                      colorFor: (v) => _hrvBarColor(v).withValues(alpha: 0.88),
+                    ),
+                    child: const SizedBox.expand(),
+                  ),
                 ),
                 if (_trendOffline) ...[
                   const SizedBox(height: 8),
@@ -822,9 +856,9 @@ class _HrvScreenState extends State<HrvScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: _kCard,
+        color: AppTheme.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
+        border: Border.all(color: AppTheme.div),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -836,7 +870,7 @@ class _HrvScreenState extends State<HrvScreen> {
               style: _inter(
                 10,
                 weight: FontWeight.w600,
-                color: _kSec,
+                color: AppTheme.textTertiary,
                 letterSpacing: 0.7,
               ),
             ),
@@ -889,14 +923,14 @@ class _HrvScreenState extends State<HrvScreen> {
                             '$v',
                             style: _inter(22, weight: FontWeight.w700),
                           ),
-                          Text('ms', style: _inter(10, color: _kSec)),
+                          Text('ms', style: _inter(10, color: AppTheme.textTertiary)),
                         ],
                       ),
                     ],
                   ),
                 ),
                 if (!isLast)
-                  const Divider(color: _kBorder, height: 0.5, indent: 66),
+                  const Divider(color: AppTheme.div, height: 0.5, indent: 66),
               ],
             );
           }),
@@ -907,359 +941,12 @@ class _HrvScreenState extends State<HrvScreen> {
 }
 
 
-// ── HRV Chart Card ────────────────────────────────────────────────────────────
+// ── HRV bar color ─────────────────────────────────────────────────────────────
 
-class _HRVChartCard extends StatelessWidget {
-  final String headerLabel;
-  final String rangeLabel;
-  final List<int> values;
-  final List<String> xLabels;
-  final bool loading;
-  final bool showLegend;
-
-  const _HRVChartCard({
-    required this.headerLabel,
-    required this.rangeLabel,
-    required this.values,
-    required this.xLabels,
-    required this.loading,
-    this.showLegend = false,
-  });
-
-  static const _yAxisW = 30.0;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                headerLabel,
-                style: _inter(
-                  11,
-                  weight: FontWeight.w600,
-                  color: _kSec,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              Text(
-                rangeLabel,
-                style: _inter(
-                  11,
-                  weight: FontWeight.w500,
-                  color: const Color(0xFF999999),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 128,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: _yAxisW,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: ['100', '80', '60', '40']
-                        .map(
-                          (l) => Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: Text(l, style: _inter(10, color: _kSec)),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-                Expanded(
-                  child: loading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppTheme.hrvColor,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : CustomPaint(
-                          painter: _HRVBarPainter(values: values),
-                          child: const SizedBox.expand(),
-                        ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Day labels: equal-width slots centered under each bar.
-          // Time-of-day labels (with an empty end tick): spaceBetween ticks.
-          Padding(
-            padding: const EdgeInsets.only(left: _yAxisW),
-            child: xLabels.length == values.length &&
-                    xLabels.isNotEmpty &&
-                    xLabels.every((l) => l.isNotEmpty)
-                ? Row(
-                    children: [
-                      for (final label in xLabels)
-                        Expanded(
-                          child: Text(
-                            label,
-                            textAlign: TextAlign.center,
-                            style: _inter(10, color: _kSec),
-                          ),
-                        ),
-                    ],
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: xLabels
-                        .map((l) => Text(l, style: _inter(10, color: _kSec)))
-                        .toList(),
-                  ),
-          ),
-          if (showLegend) ...[
-            const SizedBox(height: 12),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _LegendDot(color: AppTheme.danger, label: 'Very Low'),
-                _LegendDot(color: AppTheme.stressColor, label: 'Low'),
-                _LegendDot(color: Color(0xFFFBBF24), label: 'Moderate'),
-                _LegendDot(color: AppTheme.success, label: 'Good'),
-                _LegendDot(color: AppTheme.hrvColor, label: 'Excellent'),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ── HRV Bar Painter ───────────────────────────────────────────────────────────
-
-class _HRVBarPainter extends CustomPainter {
-  final List<int> values;
-  const _HRVBarPainter({required this.values});
-
-  static const _maxY = 100.0;
-  static const _yLines = [100, 80, 60, 40, 20];
-
-  static Color _barColor(int v) {
-    if (v < 20) return AppTheme.danger;
-    if (v < 40) return AppTheme.stressColor;
-    if (v < 60) return const Color(0xFFFBBF24);
-    if (v < 80) return AppTheme.success;
-    return AppTheme.hrvColor;
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = _kGrid
-      ..strokeWidth = 0.5;
-    for (final y in _yLines) {
-      final yPos = size.height - (y / _maxY) * size.height;
-      canvas.drawLine(Offset(0, yPos), Offset(size.width, yPos), gridPaint);
-    }
-
-    if (values.isEmpty) return;
-    final nonZero = values.where((v) => v > 0).toList();
-    if (nonZero.isEmpty) {
-      return;
-    }
-
-    final n = values.length;
-    final slotW = size.width / n;
-    final barW = (slotW * 0.55).clamp(2.0, 9.0);
-
-    for (int i = 0; i < n; i++) {
-      if (values[i] <= 0) continue;
-      final ratio = (values[i] / _maxY).clamp(0.0, 1.2);
-      final barH = (ratio * size.height).clamp(2.0, size.height);
-      final x = i * slotW + (slotW - barW) / 2;
-      canvas.drawRRect(
-        RRect.fromLTRBR(
-          x,
-          size.height - barH,
-          x + barW,
-          size.height,
-          const Radius.circular(3),
-        ),
-        Paint()..color = _barColor(values[i]).withValues(alpha: 0.88),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_HRVBarPainter old) => old.values != values;
-}
-
-// ── Stat card ─────────────────────────────────────────────────────────────────
-
-class _HRVStatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final String unit;
-  const _HRVStatCard({
-    required this.label,
-    required this.value,
-    required this.unit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: _inter(
-              10,
-              weight: FontWeight.w600,
-              color: _kSec,
-              letterSpacing: 0.7,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(value, style: _inter(17, weight: FontWeight.w600)),
-              const SizedBox(width: 4),
-              Text(unit, style: _inter(11, color: _kSec)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Real-time measurement card ────────────────────────────────────────────────
-
-class _RealTimeCard extends StatelessWidget {
-  final int latestHrv;
-  final bool measuring;
-  final bool enabled;
-  final VoidCallback? onTap;
-
-  const _RealTimeCard({
-    required this.latestHrv,
-    required this.measuring,
-    required this.enabled,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final hrvText = measuring
-        ? '···'
-        : latestHrv > 0
-        ? '$latestHrv'
-        : '--';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Real Time HRV', style: _inter(14, weight: FontWeight.w500)),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    hrvText,
-                    style: _inter(
-                      15,
-                      weight: FontWeight.w600,
-                      color: measuring || latestHrv > 0 ? Colors.white : _kSec2,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text('ms', style: _inter(11, color: _kSec)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          GestureDetector(
-            onTap: enabled ? onTap : null,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF2E2E2E)),
-              ),
-              child: Center(
-                child: measuring
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: enabled ? AppTheme.hrvColor : _kSec,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : Text(
-                        'Click to start measurement',
-                        style: _inter(
-                          14,
-                          weight: FontWeight.w500,
-                          color: enabled ? Colors.white70 : _kSec,
-                        ),
-                      ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Legend dot ────────────────────────────────────────────────────────────────
-
-class _LegendDot extends StatelessWidget {
-  final Color color;
-  final String label;
-  const _LegendDot({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      CircleAvatar(radius: 3.5, backgroundColor: color),
-      const SizedBox(width: 4),
-      Text(label, style: _inter(9, color: _kSec2)),
-    ],
-  );
+Color _hrvBarColor(num v) {
+  if (v < 20) return AppTheme.danger;
+  if (v < 40) return AppTheme.stressColor;
+  if (v < 60) return AppTheme.amber;
+  if (v < 80) return AppTheme.success;
+  return AppTheme.hrvColor;
 }

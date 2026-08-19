@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qring_flutter/utils/bp_staging.dart';
+import 'package:sundr/utils/bp_staging.dart';
 
 void main() {
   group('classifyBp', () {

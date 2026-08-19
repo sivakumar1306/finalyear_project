@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qring_flutter/services/local_vitals_service.dart';
+import 'package:sundr/services/local_vitals_service.dart';
 
 void main() {
   group('LocalVitalsService date helpers', () {

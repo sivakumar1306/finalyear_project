@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qring_flutter/models/fall_prediction/context_factors.dart';
-import 'package:qring_flutter/services/fall_prediction/adaptive_weight_engine.dart';
+import 'package:sundr/models/fall_prediction/context_factors.dart';
+import 'package:sundr/services/fall_prediction/adaptive_weight_engine.dart';
 
 void main() {
   group('AdaptiveWeightEngine', () {

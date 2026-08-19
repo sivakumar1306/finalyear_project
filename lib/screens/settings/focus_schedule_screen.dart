@@ -48,7 +48,7 @@ class _FocusScheduleScreenState extends State<FocusScheduleScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF050505),
+      backgroundColor: AppTheme.bg,
       body: Stack(
         children: [
           Positioned(
@@ -200,7 +200,7 @@ class _GlowBlob extends StatelessWidget {
   const _GlowBlob({
     required this.width,
     required this.height,
-    this.color = const Color(0x0DC9A86E),
+    this.color = AppTheme.goldGlow,
   });
 
   @override

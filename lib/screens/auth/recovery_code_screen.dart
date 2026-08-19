@@ -5,6 +5,7 @@ import '../../services/supabase_service.dart';
 import '../../widgets/glass_back_button.dart';
 import 'auth_background.dart';
 import 'reset_password_screen.dart';
+import '../../theme/app_theme.dart';
 
 /// Step 2 of the password-recovery flow — enter the recovery code
 /// sent to the registered email. Supports both 6-digit and 8-digit codes,
@@ -218,7 +219,7 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
                         Container(
                           padding: const EdgeInsets.all(3),
                           decoration: BoxDecoration(
-                            color: const Color(0x1AFFFFFF),
+                            color: AppTheme.white10,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
@@ -242,7 +243,7 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
                     Text(
                       'We sent a recovery code to ${widget.email}',
                       style: const TextStyle(
-                        color: Color(0x85FFFFFF),
+                        color: AppTheme.white52,
                         fontSize: 12.5,
                         letterSpacing: 0.25,
                         height: 1.5,
@@ -275,20 +276,20 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: const Color(0x14FFFFFF),
+                              color: AppTheme.glassButtonBorder,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                  color: const Color(0x26FFFFFF), width: 0.8),
+                                  color: AppTheme.white15, width: 0.8),
                             ),
                             child: Row(
                               children: const [
                                 Icon(Icons.content_paste_rounded,
-                                    color: Color(0xFFC9A86E), size: 14),
+                                    color: AppTheme.gold, size: 14),
                                 SizedBox(width: 6),
                                 Text(
                                   'Paste Code',
                                   style: TextStyle(
-                                    color: Color(0xFFC9A86E),
+                                    color: AppTheme.gold,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -302,7 +303,7 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
                             const Text(
                               "Didn't get it? ",
                               style: TextStyle(
-                                color: Color(0x85FFFFFF),
+                                color: AppTheme.white52,
                                 fontSize: 12.5,
                               ),
                             ),
@@ -314,13 +315,13 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
                                       height: 14,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: Color(0xFFC9A86E),
+                                        color: AppTheme.gold,
                                       ),
                                     )
                                   : const Text(
                                       'Resend',
                                       style: TextStyle(
-                                        color: Color(0xFFC9A86E),
+                                        color: AppTheme.gold,
                                         fontSize: 12.5,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -378,13 +379,13 @@ class _LengthChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFC9A86E) : Colors.transparent,
+          color: selected ? AppTheme.gold : Colors.transparent,
           borderRadius: BorderRadius.circular(9),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? Colors.black : const Color(0x85FFFFFF),
+            color: selected ? Colors.black : AppTheme.white52,
             fontSize: 10.5,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
           ),
@@ -417,8 +418,8 @@ class _CodeBox extends StatelessWidget {
           width: width,
           height: 48,
           decoration: BoxDecoration(
-            color: const Color(0x0AFFFFFF),
-            border: Border.all(color: const Color(0x14FFFFFF), width: 0.5),
+            color: AppTheme.white04,
+            border: Border.all(color: AppTheme.glassButtonBorder, width: 0.5),
             borderRadius: BorderRadius.circular(14),
           ),
           child: TextField(
@@ -426,7 +427,7 @@ class _CodeBox extends StatelessWidget {
             focusNode: focusNode,
             autofocus: false,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xEDFFFFFF), fontSize: 18),
+            style: const TextStyle(color: AppTheme.white93, fontSize: 18),
             keyboardType: TextInputType.number,
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,

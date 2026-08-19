@@ -5,9 +5,9 @@ import '../theme/app_theme.dart';
 // changes propagate everywhere (DESIGN.md single-source tokens).
 const Color kCard = AppTheme.card;
 const Color kBorder = AppTheme.div;
-const Color kSec = Color(0xFF666666);
+const Color kSec = AppTheme.textTertiary;
 const Color kSec2 = AppTheme.textSec;
-const Color kGrid = Color(0xFF222222);
+const Color kGrid = AppTheme.grid;
 
 class GlassCard extends StatelessWidget {
   final Widget child;

@@ -208,70 +208,75 @@ Orb should never obstruct content.
 
 Different health metrics use different orb colors.
 
+The values below are the **active** tokens defined in `AppTheme` (`lib/theme/app_theme.dart`) and used
+everywhere: detail-screen charts, stat values, legends, and ambient orbs. The older **soft** palette
+(`#C96B6B`, `#6B82D9`, `#6BC99B`, `#C9A86E`, `#73D4F8`, `#D97A7A`, `#E3B76A`, `#D88CC8`) was a
+Phase-3 mistake that muted these tokens; it is no longer used. Do not reintroduce it.
+
 ## Heart Rate
 
 ```css
-#C96B6B
+#FF4757
 ```
 
-Soft red.
+Bright red.
 
 ---
 
 ## Sleep
 
 ```css
-#6B82D9
+#8B5CF6
 ```
 
-Soft blue.
+Violet.
 
 ---
 
 ## Stress
 
 ```css
-#6BC99B
+#F97316
 ```
 
-Soft green.
+Orange.
 
 ---
 
 ## HRV
 
 ```css
-#C9A86E
+#2DD4BF
 ```
 
-Gold.
+Teal.
 
 ---
 
 ## Blood Oxygen
 
 ```css
-#73D4F8
+#38BDF8
 ```
 
-Cyan.
+Sky blue.
 
 ---
 
 ## Blood Pressure
 
 ```css
-#D97A7A
+#818CF8
 ```
 
-Rose.
+Indigo.
 
 ---
 
 ## Temperature
 
 ```css
-#E3B76A
+#FBBF24
 ```
 
 Amber.
@@ -281,10 +286,20 @@ Amber.
 ## Women's Health
 
 ```css
-#D88CC8
+#EC4899
 ```
 
 Pink.
+
+---
+
+## Steps
+
+```css
+#F59E0B
+```
+
+Amber.
 
 ---
 

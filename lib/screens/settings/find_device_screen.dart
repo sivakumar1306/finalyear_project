@@ -176,7 +176,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                                 border: Border.all(
                                   color: _isRinging
                                       ? AppTheme.gold.withValues(alpha: 0.6)
-                                      : const Color(0x26FFFFFF),
+                                      : AppTheme.white15,
                                   width: _isRinging ? 2.0 : 1.0,
                                 ),
                                 boxShadow: _isRinging
@@ -224,7 +224,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                                   ]
                                 : [
                                     const Color(0x33FFFFFF),
-                                    const Color(0x1AFFFFFF),
+                                    AppTheme.white10,
                                   ],
                           ),
                           boxShadow: _isRinging
@@ -327,7 +327,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                   color: AppTheme.card,
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: const Color(0x1AFFFFFF),
+                    color: AppTheme.white10,
                     width: 0.5,
                   ),
                 ),
@@ -380,7 +380,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                             ? (batteryPct / 100).clamp(0.0, 1.0)
                             : 0.0,
                         minHeight: 8,
-                        backgroundColor: const Color(0x1AFFFFFF),
+                        backgroundColor: AppTheme.white10,
                         valueColor: AlwaysStoppedAnimation<Color>(
                           batteryPct > 20 ? AppTheme.gold : Colors.redAccent,
                         ),
@@ -398,7 +398,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                   color: AppTheme.card,
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: const Color(0x1AFFFFFF),
+                    color: AppTheme.white10,
                     width: 0.5,
                   ),
                 ),
@@ -479,7 +479,7 @@ class _DetailRow extends StatelessWidget {
         border: Border(
           bottom: isLast
               ? BorderSide.none
-              : const BorderSide(color: Color(0x14FFFFFF), width: 0.5),
+              : const BorderSide(color: AppTheme.glassButtonBorder, width: 0.5),
         ),
       ),
       child: Row(

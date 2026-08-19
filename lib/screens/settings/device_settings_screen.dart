@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../widgets/section_tile.dart';
+import '../../theme/app_theme.dart';
 
 class DeviceSettingsScreen extends StatelessWidget {
   const DeviceSettingsScreen({super.key});
@@ -68,7 +69,7 @@ class DeviceSettingsScreen extends StatelessWidget {
             title: 'Gesture & Touch Controls',
             subtitle: 'Wrist-flip wake, answer calls, camera shutter, tap mapping',
             icon: Icons.touch_app_rounded,
-            iconColor: const Color(0xFFC9A86E),
+            iconColor: AppTheme.gold,
             onTap: () => Navigator.pushNamed(context, '/gesture-settings'),
           ),
           SectionTile(

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'app_typography.dart';
-import 'glass_card.dart';
+import '../widgets/app_typography.dart';
+import '../widgets/glass_card.dart';
 
 class ChartCard extends StatelessWidget {
   final String headerLabel;

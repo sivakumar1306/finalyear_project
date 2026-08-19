@@ -294,7 +294,7 @@ class BleProvider extends ChangeNotifier {
 
   // ── Event listener ────────────────────────────────────────────────────────
 
-  void _listenEvents() {
+void _listenEvents() {
     _eventSub = _ble.events.listen(
       (event) {
         try {
@@ -383,7 +383,7 @@ class BleProvider extends ChangeNotifier {
   // Listen on [cameraShutterEvents] for "capture" (ring's shutter button/gesture
   // was used — trigger the phone's own camera capture) or "exit" (the ring left
   // camera mode on its own — close the phone's camera screen).
-  Future<bool> enterRingCameraMode() => _ble.takePicture();
+Future<bool> enterRingCameraMode() => _ble.takePicture();
 
   /// Tells the ring to exit its camera UI and stops the native keep-alive loop.
   /// Always call this when the camera screen is closed/disposed.
@@ -391,7 +391,7 @@ class BleProvider extends ChangeNotifier {
 
   // ── Gesture Controls (PalmScreenReq) ──────────────────────────────────────
 
-  Future<void> loadGestureSetting() async {
+Future<void> loadGestureSetting() async {
     try {
       final json = await _ble.getGestureSetting();
       final decoded = jsonDecode(json);
@@ -477,7 +477,7 @@ class BleProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _onBatteryPushEvent(Map<String, dynamic> data) {
+void _onBatteryPushEvent(Map<String, dynamic> data) {
     final percent = (data['batteryPercent'] as num?)?.toInt() ?? -1;
     final charging = data['charging'] as bool? ?? false;
     if (percent < 0) return;
@@ -540,7 +540,7 @@ class BleProvider extends ChangeNotifier {
 
   /// Best-effort two-way sync: forwards the latest Room reading of [vital] to
   /// Google Health Connect (silently no-ops when not connected/authorized).
-  Future<void> _pushToHealthConnect(String vital) async {
+Future<void> _pushToHealthConnect(String vital) async {
     try {
       final hc = HealthConnectService.instance;
       final m = jsonDecode(await _ble.getLatestReading(vital));
@@ -579,7 +579,7 @@ class BleProvider extends ChangeNotifier {
   // specific alert key. See NotificationPrefs / postHealthAlert (BlePlugin.kt
   // -> AlertNotifier.notifyAnomaly).
 
-  Future<void> _maybeAlert(
+Future<void> _maybeAlert(
     String key,
     bool condition, {
     required String title,
@@ -617,8 +617,7 @@ class BleProvider extends ChangeNotifier {
     await _loadTodayVitalsFromLocal();
   }
 
-  /// Dev/testing only — fires the real fall-alert notification pipeline on demand.
-  Future<void> simulateFallEvent() => _ble.simulateFallEvent();
+
 
   /// Latest score computed by the native FallRiskAnalyzer, or null if it hasn't
   /// logged anything yet (e.g. no vital reading has been saved since install).
@@ -654,10 +653,7 @@ class BleProvider extends ChangeNotifier {
   /// genuine ring reading takes, so FallRiskAnalyzer can be verified end-to-end.
   Future<void> clearMockVitals() => _ble.clearMockVitals();
 
-  Future<void> simulateFallRiskTrigger() => _ble.simulateFallRiskTrigger();
 
-  /// Client-demo only — see FallPredictionNotifier.kt / BlePlugin.simulateFallPrediction.
-  Future<void> simulateFallPrediction() => _ble.simulateFallPrediction();
 
   /// Call on cold start (Home initState) and on app resume — picks up a pending
   /// fall prediction whether the app was opened via the notification or directly
@@ -832,7 +828,7 @@ class BleProvider extends ChangeNotifier {
   }
 
   /// Emergency contacts — persisted natively (Room), not Flutter widget state.
-  Future<List<Map<String, dynamic>>> getEmergencyContacts() async {
+Future<List<Map<String, dynamic>>> getEmergencyContacts() async {
     final json = await _ble.getEmergencyContacts();
     final decoded = jsonDecode(json);
     if (decoded is! List) return [];
@@ -919,7 +915,7 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  bool _notifyBatching = false;
+bool _notifyBatching = false;
   bool _notifyQueued = false;
 
   bool _microtaskNotifyScheduled = false;
@@ -971,7 +967,7 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadTodayVitalsFromLocal() async {
+Future<void> _loadTodayVitalsFromLocal() async {
     _beginNotifyBatch();
     try {
       await Future.wait([
@@ -1292,7 +1288,7 @@ class BleProvider extends ChangeNotifier {
 
   // ── Device management ─────────────────────────────────────────────────────
 
-  Future<void> _loadSavedDevice() async {
+Future<void> _loadSavedDevice() async {
     final prefs = await SharedPreferences.getInstance();
     _deviceName = prefs.getString('device_name') ?? '';
     _deviceAddress = prefs.getString('device_address') ?? '';
@@ -1391,7 +1387,7 @@ class BleProvider extends ChangeNotifier {
   // recorded" calls: HRV and Temperature (loop-measured readings are backed by these
   // ring-stored series too, so pulling them keeps gaps filled), plus Sleep (out of
   // scope for this pipeline).
-  Future<void> syncAllFromRing() async {
+Future<void> syncAllFromRing() async {
     if (_isSyncing || !_isConnected) return;
     final myGen = ++_syncGen;
     bool alive() => _syncGen == myGen;
@@ -1455,7 +1451,7 @@ class BleProvider extends ChangeNotifier {
 
   // ── Parse & save helpers (used by sync, no setState) ─────────────────────
 
-  void _parseAndSaveHrv(String jsonStr) {
+void _parseAndSaveHrv(String jsonStr) {
     try {
       final decoded = jsonDecode(jsonStr);
       if (decoded == null || decoded is! Map<String, dynamic>) return;
@@ -1674,7 +1670,7 @@ class BleProvider extends ChangeNotifier {
 
   // ── Supabase load-on-startup ──────────────────────────────────────────────
 
-  Future<void> _loadTodayFromSupabase() async {
+Future<void> _loadTodayFromSupabase() async {
     try {
       final user = SupabaseService.currentUser;
       if (user == null) return;
@@ -1878,7 +1874,7 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> syncTodayStepsFromRing() async {
+Future<void> syncTodayStepsFromRing() async {
     if (_syncingSteps) return;
     _syncingSteps = true;
     notifyListeners();
@@ -1920,7 +1916,7 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> findDevice({bool enable = true}) async {
+Future<bool> findDevice({bool enable = true}) async {
     try {
       return await _ble.findDevice(enable: enable);
     } catch (e) {

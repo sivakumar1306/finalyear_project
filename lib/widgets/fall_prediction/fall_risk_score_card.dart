@@ -120,9 +120,9 @@ class FallRiskScoreCard extends StatelessWidget {
                         title: 'Heart Rate',
                         value: bleProvider.todayAvgHr > 0 ? bleProvider.todayAvgHr.toString() : '--',
                         unit: 'bpm',
-                        valueColor: const Color(0xFFC96B6B),
+                        valueColor: AppTheme.hrColor,
                         showChevron: true,
-                        trailing: const Icon(Icons.waves_rounded, color: Color(0xFFC96B6B), size: 28),
+                        trailing: const Icon(Icons.waves_rounded, color: AppTheme.hrColor, size: 28),
                         subtitle: bleProvider.todayMinHr > 0 && bleProvider.todayMaxHr > 0 
                             ? 'Range: ${bleProvider.todayMinHr}-${bleProvider.todayMaxHr}bpm'
                             : null,
@@ -137,9 +137,9 @@ class FallRiskScoreCard extends StatelessWidget {
                         title: 'Temperature',
                         value: bleProvider.latestTempC > 0 ? bleProvider.latestTempC.toStringAsFixed(1) : '--',
                         unit: '°C',
-                        valueColor: const Color(0xFFE3B76A),
+                        valueColor: AppTheme.tempColor,
                         subtitle: bleProvider.latestTempC <= 0 ? 'No data' : (bleProvider.latestTempC < 36.0 ? 'Low' : (bleProvider.latestTempC <= 37.2 ? 'Normal' : 'Elevated')),
-                        subtitleColor: const Color(0xFFE3B76A),
+                        subtitleColor: AppTheme.tempColor,
                         showChevron: true,
                       ),
                     ),
@@ -180,9 +180,9 @@ class _MiniCard extends StatelessWidget {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: const Color(0x0FFFFFFF),
+        color: AppTheme.glassCard,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0x17FFFFFF), width: 0.5),
+        border: Border.all(color: AppTheme.glassBorder, width: 0.5),
       ),
       child: Stack(
         fit: StackFit.expand,

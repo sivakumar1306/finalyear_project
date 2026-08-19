@@ -237,7 +237,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                         decoration: BoxDecoration(
                           color: const Color(0xEC12100D),
                           border: Border.all(
-                            color: const Color(0x33C9A86E),
+                            color: AppTheme.goldTint,
                             width: 0.8,
                           ),
                           borderRadius: BorderRadius.circular(28),
@@ -282,7 +282,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                             TextSpan(
                                               text: "I'm ",
                                               style: TextStyle(
-                                                  color: Color(0xEBFFFFFF)),
+                                                  color: AppTheme.white92),
                                             ),
                                             TextSpan(
                                               text: "listening...",
@@ -300,17 +300,17 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                       width: 32,
                                       height: 32,
                                       decoration: BoxDecoration(
-                                        color: const Color(0x1AFFFFFF),
+                                        color: AppTheme.white10,
                                         shape: BoxShape.circle,
                                         border: Border.all(
-                                          color: const Color(0x26FFFFFF),
+                                          color: AppTheme.white15,
                                           width: 0.5,
                                         ),
                                       ),
                                       child: const Icon(
                                         Icons.close_rounded,
                                         size: 16,
-                                        color: Color(0xD9FFFFFF),
+                                        color: AppTheme.white85,
                                       ),
                                     ),
                                   ),
@@ -337,7 +337,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                     color: const Color(0x0EFFFFFF),
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: const Color(0x14FFFFFF),
+                                      color: AppTheme.glassButtonBorder,
                                       width: 0.5,
                                     ),
                                   ),
@@ -383,7 +383,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                                                                             fontSize: 13,
                                               fontWeight: FontWeight.w400,
                                               fontStyle: FontStyle.italic,
-                                              color: Color(0x80FFFFFF),
+                                              color: AppTheme.white50,
                                             ),
                                           ),
                                         ),
@@ -429,9 +429,9 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 20, vertical: 10),
                                       decoration: BoxDecoration(
-                                        color: const Color(0x1AFFFFFF),
+                                        color: AppTheme.white10,
                                         border: Border.all(
-                                          color: const Color(0x26FFFFFF),
+                                          color: AppTheme.white15,
                                           width: 0.5,
                                         ),
                                         borderRadius: BorderRadius.circular(100),
@@ -441,7 +441,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                         style: TextStyle(
                                                                                     fontSize: 13,
                                           fontWeight: FontWeight.w500,
-                                          color: Color(0xD9FFFFFF),
+                                          color: AppTheme.white85,
                                         ),
                                       ),
                                     ),
@@ -471,7 +471,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                             width: 10,
                                             height: 10,
                                             decoration: BoxDecoration(
-                                              color: const Color(0xFF050505),
+                                              color: AppTheme.bg,
                                               borderRadius:
                                                   BorderRadius.circular(2),
                                             ),
@@ -482,7 +482,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
                                             style: TextStyle(
                                                                                             fontSize: 13,
                                               fontWeight: FontWeight.w700,
-                                              color: Color(0xFF050505),
+                                              color: AppTheme.bg,
                                             ),
                                           ),
                                         ],
@@ -577,19 +577,19 @@ class _MicCircle extends StatelessWidget {
                   center: Alignment.center,
                   radius: 0.5,
                   colors: [
-                    Color(0xFFE0BC85),
-                    Color(0xFFC9A86E),
-                    Color(0xFF8E7A55),
+                    AppTheme.goldMuted,
+                    AppTheme.gold,
+                    AppTheme.goldDusk,
                   ],
                   stops: [0.0, 0.5, 1.0],
                 ),
                 boxShadow: const [
-                  BoxShadow(color: Color(0x33C9A86E), blurRadius: 60),
+                  BoxShadow(color: AppTheme.goldTint, blurRadius: 60),
                   BoxShadow(color: Color(0x66C9A86E), blurRadius: 30),
                 ],
               ),
             ),
-            const Icon(Icons.mic_rounded, size: 28, color: Color(0xD9050505)),
+            const Icon(Icons.mic_rounded, size: 28, color: AppTheme.bgDim),
           ],
         ),
       ),

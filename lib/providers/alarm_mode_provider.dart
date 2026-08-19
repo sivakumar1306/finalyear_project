@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../config.dart';
 import '../services/prayer_schedule_prefs.dart';
+import '../theme/app_theme.dart';
 
 int _msUntil(TimeOfDay target) {
   final now = DateTime.now();
@@ -110,7 +111,7 @@ Future<void> _promptDndAccess(BuildContext context, AlarmModeProvider provider) 
   final openSettings = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      backgroundColor: const Color(0xFF111111),
+      backgroundColor: AppTheme.card,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: const Text(
         'Do Not Disturb access needed',

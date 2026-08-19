@@ -654,7 +654,7 @@ class _AccountActionRow extends StatelessWidget {
                 color: AppTheme.card2,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: const Color(0xFFAAAAAA), size: 17),
+              child: Icon(icon, color: AppTheme.iconFaint, size: 17),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -703,7 +703,7 @@ class _ProfileRow extends StatelessWidget {
                 color: AppTheme.card2,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: const Color(0xFFAAAAAA), size: 17),
+              child: Icon(icon, color: AppTheme.iconFaint, size: 17),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -754,7 +754,7 @@ class _ContactRow extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.local_hospital_outlined,
-                color: Color(0xFFAAAAAA),
+                color: AppTheme.iconFaint,
                 size: 17,
               ),
             ),
