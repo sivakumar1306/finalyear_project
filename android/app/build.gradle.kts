@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android") version "2.3.20" apply true
+    id("org.jetbrains.kotlin.android") version "2.2.20" apply true
     id("com.google.devtools.ksp")
     id("dev.flutter.flutter-gradle-plugin")
 }
