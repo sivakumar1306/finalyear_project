@@ -77,8 +77,8 @@ object FallRiskAnalyzer {
         val context = appContext ?: return
         val repo = repository ?: return
         lastAlertAt = measuredAt
-        val hr = (result.components["hr"] as? Int) ?: 0
-        FallPredictionNotifier.notifyPrediction(context, hr, simulated = simulated)
+        val msg = (result.components["primaryMessage"] as? String) ?: "A fall-related alert is active."
+        FallPredictionNotifier.notifyPrediction(context, msg, simulated = simulated)
         // Simulations must never reach the real emergency pipeline.
         if (!simulated) {
             EmergencySmsSender.schedule(context, reason = "prediction")
@@ -108,12 +108,23 @@ object FallRiskAnalyzer {
         val since = now - BASELINE_WINDOW_MS
         val components = mutableMapOf<String, Any>()
 
+        var maxSignal = 0f
+        var primaryMessage = "A fall-related alert is active."
+
+        fun updateMax(signal: Float, msg: String) {
+            if (signal > maxSignal) {
+                maxSignal = signal
+                primaryMessage = msg
+            }
+        }
+
         // SpO2 critical override — the one signal the source doc's design got unambiguously
         // right: severe hypoxia is an emergency regardless of fall context.
         val latestSpo2 = repo.latestSpo2()
         if (latestSpo2 != null && latestSpo2.valuePct < CRITICAL_SPO2) {
             components["spo2"] = latestSpo2.valuePct
             components["override"] = "spo2_critical"
+            components["primaryMessage"] = "Your blood oxygen dropped critically to ${latestSpo2.valuePct}%."
             return ScoreResult(100, "OVERRIDE", components)
         }
 
@@ -135,20 +146,27 @@ object FallRiskAnalyzer {
         if (hr != null) {
             components["hr"] = hr
             components["sedentary"] = sedentary
-            signals += when {
+            val sig = when {
                 sedentary && (hr > 120 || hr < 45) -> 1f
                 sedentary && (hr > 100 || hr < 50) -> 0.5f
                 else -> 0f
+            }
+            signals += sig
+            if (sig > 0f) {
+                val action = if (hr > 100) "rose to $hr BPM" else "dropped to $hr BPM"
+                updateMax(sig, "Your heart rate $action while you seemed to be in-active for the last 10 minutes.")
             }
         }
 
         // SpO2 below the soft threshold (critical band already handled above).
         if (latestSpo2 != null) {
             components["spo2"] = latestSpo2.valuePct
-            signals += if (latestSpo2.valuePct < 92) {
+            val sig = if (latestSpo2.valuePct < 92) {
                 normalise((92 - latestSpo2.valuePct).toFloat(), 0f, 8f)
-            } else {
-                0f
+            } else 0f
+            signals += sig
+            if (sig > 0f) {
+                updateMax(sig, "Your blood oxygen dropped to ${latestSpo2.valuePct}% (below baseline).")
             }
         }
 
@@ -158,7 +176,11 @@ object FallRiskAnalyzer {
             components["sbp"] = latestBp.systolic
             components["dbp"] = latestBp.diastolic
             val pulsePressure = latestBp.systolic - latestBp.diastolic
-            signals += if (latestBp.systolic >= 160 || pulsePressure >= 80) 1f else 0f
+            val sig = if (latestBp.systolic >= 160 || pulsePressure >= 80) 1f else 0f
+            signals += sig
+            if (sig > 0f) {
+                updateMax(sig, "Your blood pressure spiked unusually high (${latestBp.systolic}/${latestBp.diastolic}).")
+            }
         }
 
         // Stress spike vs. its own rolling baseline.
@@ -170,7 +192,11 @@ object FallRiskAnalyzer {
             val jump = latest - avg
             components["stress"] = latest
             components["stressBaseline"] = avg
-            signals += if (latest >= 75 || jump >= 25) 1f else normalise(jump.toFloat(), 0f, 25f)
+            val sig = if (latest >= 75 || jump >= 25) 1f else normalise(jump.toFloat(), 0f, 25f)
+            signals += sig
+            if (sig > 0f) {
+                updateMax(sig, "Your stress level spiked abnormally high.")
+            }
         }
 
         // HRV drop vs. rolling baseline.
@@ -182,11 +208,18 @@ object FallRiskAnalyzer {
             components["hrvBaseline"] = baseline
             if (baseline > 0) {
                 val dropRatio = (baseline - latest) / baseline
-                signals += if (dropRatio >= 0.15) normalise(dropRatio.toFloat(), 0.15f, 0.5f) else 0f
+                val sig = if (dropRatio >= 0.15) normalise(dropRatio.toFloat(), 0.15f, 0.5f) else 0f
+                signals += sig
+                if (sig > 0f) {
+                    val pct = (dropRatio * 100).toInt()
+                    updateMax(sig, "Your heart rate variability dropped by $pct% from baseline.")
+                }
             }
         }
 
         if (signals.isEmpty()) return ScoreResult(0, "LOW", components)
+
+        components["primaryMessage"] = primaryMessage
 
         val score = (signals.average() * 100).toInt().coerceIn(0, 100)
         val tier = when {

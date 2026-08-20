@@ -102,7 +102,8 @@ class BleProvider extends ChangeNotifier {
   // Fall-prediction banner (client demo) — set when a prediction notification tap
   // opens/resumes the app; Home screen shows the banner until "Take action"/"ignore".
   bool _showFallPredictionBanner = false;
-  int _fallPredictionHr = 0;
+  String _fallPredictionMessage = '';
+  String get fallPredictionMessage => _fallPredictionMessage;
   String _fallPredictionTier = 'low';
 
   // Edge-tracking for user-configurable health alerts (Select Notifications screen):
@@ -200,7 +201,6 @@ class BleProvider extends ChangeNotifier {
   double get syncProgress => _syncProgress;
 
   bool get showFallPredictionBanner => _showFallPredictionBanner;
-  int get fallPredictionHr => _fallPredictionHr;
   String get fallPredictionTier => _fallPredictionTier;
 
   bool get emergencySmsActive => _emergencySmsActive;
@@ -672,11 +672,11 @@ Future<void> _maybeAlert(
       return;
     }
     // Already showing with same state — avoid redundant rebuilds on every resume.
-    final hr = (decoded['hr'] as num?)?.toInt() ?? 122;
-    if (_showFallPredictionBanner && _fallPredictionHr == hr) return;
+    final message = decoded['message'] as String? ?? 'A fall-related alert is active.';
+    if (_showFallPredictionBanner && _fallPredictionMessage == message) return;
 
     _showFallPredictionBanner = true;
-    _fallPredictionHr = hr;
+    _fallPredictionMessage = message;
 
     // Check latest risk log score to determine tier matching the existing _tierFromScore logic
     final risk = await getFallRiskScore();
@@ -699,7 +699,7 @@ Future<void> _maybeAlert(
   void simulateMediumFallPredictionBanner() {
     _showFallPredictionBanner = true;
     _fallPredictionTier = 'medium';
-    _fallPredictionHr = 122; // Hardcode a simulated elevated HR
+    _fallPredictionMessage = 'Your heart rate rose to 122 BPM while you seemed to be in-active for the last 10 minutes.'; // Hardcode a simulated elevated HR message
     notifyListeners();
   }
 

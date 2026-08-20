@@ -23,7 +23,7 @@ class MainActivity : FlutterFragmentActivity() {
         const val PHONE_MODE_METHOD_CHANNEL = "$PACKAGE_NAME/phone_mode"
 
         var pendingFallPrediction = false
-        var pendingFallPredictionHr = 0
+        var pendingFallPredictionMessage = ""
     }
 
     private var blePlugin: BlePlugin? = null
@@ -58,8 +58,8 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(FallPredictionNotifier.EXTRA_FALL_PREDICTION, false) == true) {
-            val hr = intent.getIntExtra(FallPredictionNotifier.EXTRA_FALL_PREDICTION_HR, 0)
-            FallPredictionNotifier.markPending(this, hr)
+            val msg = intent.getStringExtra(FallPredictionNotifier.EXTRA_FALL_PREDICTION_MESSAGE) ?: "A fall-related alert is active."
+            FallPredictionNotifier.markPending(this, msg)
         }
     }
 

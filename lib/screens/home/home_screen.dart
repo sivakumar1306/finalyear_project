@@ -765,9 +765,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   else
                     FallPredictionBanner(
                       tier: ble.fallPredictionTier,
-                      hr: ble.fallPredictionHr > 0
-                          ? ble.fallPredictionHr
-                          : ble.todayMaxHr,
+                      message: ble.fallPredictionMessage.isNotEmpty 
+                          ? ble.fallPredictionMessage 
+                          : 'A fall-related alert is active.',
                       smsSecondsRemaining: ble.emergencySmsActive
                           ? ble.emergencySmsSecondsRemaining
                           : null,
@@ -1060,7 +1060,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return;
     }
 
-    final result = await ble.sendEmergencySms();
+    final isHigh = ble.fallPredictionTier == 'high' || ble.emergencySmsActive;
+    final message = isHigh 
+        ? "You might fall soon... We have detected multiple signs that you might fall down in the next 2-3 minutes. Take a seat and contact your caretaker. — Sent by SUNDR Fall Detection"
+        : (ble.fallPredictionMessage.isNotEmpty
+            ? "We are concerned ... ${ble.fallPredictionMessage} — Sent by SUNDR Fall Detection"
+            : "We are concerned ... A fall-related alert is active. Please check on me as soon as possible. — Sent by SUNDR Fall Detection");
+
+    final result = await ble.sendEmergencySms(message: message);
     if (!mounted) return;
     final ok = result['ok'] == true;
     final sent = (result['sentCount'] as num?)?.toInt() ?? 0;

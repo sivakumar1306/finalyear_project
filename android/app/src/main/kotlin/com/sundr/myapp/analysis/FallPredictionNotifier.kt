@@ -25,16 +25,16 @@ object FallPredictionNotifier {
     private const val CHANNEL_ID = "qring_fall_predictions"
     const val NOTIFICATION_ID = 2002
     const val EXTRA_FALL_PREDICTION = "fall_prediction"
-    const val EXTRA_FALL_PREDICTION_HR = "fall_prediction_hr"
+    const val EXTRA_FALL_PREDICTION_MESSAGE = "fall_prediction_message"
 
     private const val PREFS = "qring_fall_prediction"
     private const val KEY_PENDING = "pending"
-    private const val KEY_HR = "hr"
+    private const val KEY_MESSAGE = "message"
 
-    fun notifyPrediction(context: Context, hr: Int, simulated: Boolean = false) {
+    fun notifyPrediction(context: Context, message: String, simulated: Boolean = false) {
         // Persist immediately so a cold start / launcher open still picks this up —
         // previously the flag lived only on the notification PendingIntent extras.
-        markPending(context, hr)
+        markPending(context, message)
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureChannel(manager)
@@ -46,7 +46,7 @@ object FallPredictionNotifier {
                 Intent(context, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     putExtra(EXTRA_FALL_PREDICTION, true)
-                    putExtra(EXTRA_FALL_PREDICTION_HR, hr)
+                    putExtra(EXTRA_FALL_PREDICTION_MESSAGE, message)
                 },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
@@ -93,14 +93,14 @@ object FallPredictionNotifier {
     }
 
     /** Write pending prediction so any subsequent app open can surface the alert. */
-    fun markPending(context: Context, hr: Int) {
+    fun markPending(context: Context, message: String) {
         MainActivity.pendingFallPrediction = true
-        MainActivity.pendingFallPredictionHr = hr
+        MainActivity.pendingFallPredictionMessage = message
         context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putBoolean(KEY_PENDING, true)
-            .putInt(KEY_HR, hr)
+            .putString(KEY_MESSAGE, message)
             .apply()
     }
 
@@ -112,18 +112,18 @@ object FallPredictionNotifier {
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (!prefs.getBoolean(KEY_PENDING, false)) return
         MainActivity.pendingFallPrediction = true
-        MainActivity.pendingFallPredictionHr = prefs.getInt(KEY_HR, 0)
+        MainActivity.pendingFallPredictionMessage = prefs.getString(KEY_MESSAGE, "") ?: ""
     }
 
     /** User dismissed the in-app banner — stop resurfacing until the next prediction. */
     fun clearPending(context: Context) {
         MainActivity.pendingFallPrediction = false
-        MainActivity.pendingFallPredictionHr = 0
+        MainActivity.pendingFallPredictionMessage = ""
         context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putBoolean(KEY_PENDING, false)
-            .putInt(KEY_HR, 0)
+            .putString(KEY_MESSAGE, "")
             .apply()
     }
 

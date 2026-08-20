@@ -2953,7 +2953,7 @@ class BlePlugin(private val context: Context) {
 
     private fun sendEmergencySms(call: MethodCall, result: MethodChannel.Result) {
         val message = call.argument<String>("message")
-            ?: EmergencySmsSender.DEFAULT_MESSAGE
+            ?: EmergencySmsSender.getMessageForReason("manual")
         repo().ioScope.launch {
             val status = try {
                 EmergencySmsSender.sendNow(context, message)
@@ -2989,11 +2989,11 @@ class BlePlugin(private val context: Context) {
     private fun consumeFallPredictionFlag(result: MethodChannel.Result) {
         FallPredictionNotifier.restorePending(context)
         val pending = MainActivity.pendingFallPrediction
-        val hr = MainActivity.pendingFallPredictionHr
+        val message = MainActivity.pendingFallPredictionMessage
         if (pending) {
             FallPredictionNotifier.clearPending(context)
         }
-        result.success(gson.toJson(mapOf("pending" to pending, "hr" to hr)))
+        result.success(gson.toJson(mapOf("pending" to pending, "message" to message)))
     }
 
     private fun clearFallPredictionFlag(result: MethodChannel.Result) {

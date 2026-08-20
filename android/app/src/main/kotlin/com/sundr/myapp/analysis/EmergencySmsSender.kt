@@ -46,8 +46,14 @@ object EmergencySmsSender {
     // Avoid re-spamming contacts if another high-risk reading arrives during/after a send.
     private const val SEND_COOLDOWN_MS = 15 * 60_000L
 
-    const val DEFAULT_MESSAGE =
-        "I may have fallen and need help. Please check on me as soon as possible. — Sent by SUNDR Fall Detection"
+    fun getMessageForReason(reason: String, hr: Int? = null): String {
+        return when (reason) {
+            "fall" -> "We have detected a fall. We have detected that you may have potentially fallen. — Sent by SUNDR Fall Detection"
+            "prediction" -> "You might fall soon... We have detected multiple signs that you might fall down in the next 2-3 minutes. Take a seat and contact your caretaker. — Sent by SUNDR Fall Detection"
+            "heart_rate" -> "We are concerned ... Your heart rate rose to ${hr ?: "a high"} BPM while you seemed to be in-active for the last 10 minutes. — Sent by SUNDR Fall Detection"
+            else -> "I may have fallen and need help. Please check on me as soon as possible. — Sent by SUNDR Fall Detection"
+        }
+    }
 
     private val handler = Handler(Looper.getMainLooper())
     private var tickRunnable: Runnable? = null
@@ -142,14 +148,14 @@ object EmergencySmsSender {
      * Send immediately to all contacts (manual Message action). Bypasses countdown.
      * Returns a status map suitable for MethodChannel JSON.
      */
-    fun sendNow(context: Context, message: String = DEFAULT_MESSAGE): Map<String, Any?> {
+    fun sendNow(context: Context, message: String? = null): Map<String, Any?> {
         val app = context.applicationContext
         // Manual send supersedes any pending countdown.
         stopTicking()
         active = false
         prefs(app).edit().putBoolean(KEY_ACTIVE, false).putLong(KEY_SEND_AT, 0L).apply()
         NotificationManagerCompat.from(app).cancel(NOTIFICATION_ID)
-        return performSend(app, message)
+        return performSend(app, message ?: getMessageForReason("manual"))
     }
 
     /** Snapshot for Flutter polling — remaining seconds, last send, errors. */
@@ -189,7 +195,7 @@ object EmergencySmsSender {
             active = false
             prefs.edit().putBoolean(KEY_ACTIVE, false).apply()
             ReadingRepository.getInstance(app).ioScope.launch {
-                performSend(app, DEFAULT_MESSAGE)
+                performSend(app, getMessageForReason(reason))
             }
             return
         }
@@ -213,7 +219,7 @@ object EmergencySmsSender {
                     tickRunnable = null
                     // Room + SmsManager off the main thread.
                     ReadingRepository.getInstance(app).ioScope.launch {
-                        performSend(app, DEFAULT_MESSAGE)
+                        performSend(app, getMessageForReason(reason))
                     }
                     return
                 }

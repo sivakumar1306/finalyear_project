@@ -406,9 +406,9 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     final realScore = fallProvider.currentResult?.frs24.value.toInt() ?? 0;
     final tier = _debugTier ?? _tierFromScore(realScore);
 
-    int hr = ble.fallPredictionHr > 0 ? ble.fallPredictionHr : ble.todayAvgHr;
-    if (hr == 0) hr = ble.todayMaxHr;
-    if (hr == 0) hr = 122; // Fallback so it doesn't say "rose to 0 BPM"
+    final String message = ble.fallPredictionMessage.isNotEmpty
+        ? ble.fallPredictionMessage
+        : 'Your heart rate rose to 122 BPM while you seemed to be in-active for the last 10 minutes.'; // Fallback
     
     final showAlert = tier != FallTier.low && _ignoredForTier != tier;
 
@@ -531,7 +531,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
           if (showAlert || ble.emergencySmsActive) ...[
             HeroCard(
               tier: ble.emergencySmsActive ? FallTier.high : tier,
-              hr: hr,
+              message: message,
               smsSecondsRemaining: ble.emergencySmsActive
                   ? ble.emergencySmsSecondsRemaining
                   : null,

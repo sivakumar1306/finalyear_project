@@ -182,7 +182,7 @@ class HomeAiInsightSnippetState extends State<HomeAiInsightSnippet> {
 
 class FallPredictionBanner extends StatelessWidget {
   final String tier;
-  final int hr;
+  final String message;
   final int? smsSecondsRemaining;
   final bool smsHasPermission;
   final VoidCallback onCardTap;
@@ -192,7 +192,7 @@ class FallPredictionBanner extends StatelessWidget {
   const FallPredictionBanner({
     super.key,
     this.tier = 'low',
-    required this.hr,
+    required this.message,
     this.smsSecondsRemaining,
     this.smsHasPermission = true,
     required this.onCardTap,
@@ -216,9 +216,7 @@ class FallPredictionBanner extends StatelessWidget {
               : 'SMS will be sent to all emergency contacts in $countdown seconds. Tap Cancel if you are okay.')
         : (isHigh 
               ? 'We have detected multiple signs that you might fall down in the next 2-3 minutes. Take a seat and contact your caretaker.'
-              : (hr > 0
-                  ? 'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.'
-                  : 'A fall-related alert is active. Take action or ignore if you are okay.'));
+              : message);
 
     return ShrinkButton(
       onTap: onCardTap,

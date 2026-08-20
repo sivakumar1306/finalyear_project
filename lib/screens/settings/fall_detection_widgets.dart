@@ -37,7 +37,7 @@ class SectionLabel extends StatelessWidget {
 
 class HeroCard extends StatelessWidget {
   final FallTier tier;
-  final int hr;
+  final String message;
   final int? smsSecondsRemaining;
   final bool smsHasPermission;
   final VoidCallback onPrimaryAction;
@@ -45,7 +45,7 @@ class HeroCard extends StatelessWidget {
   const HeroCard({
     super.key,
     required this.tier,
-    required this.hr,
+    required this.message,
     this.smsSecondsRemaining,
     this.smsHasPermission = true,
     required this.onPrimaryAction,
@@ -67,7 +67,7 @@ class HeroCard extends StatelessWidget {
         : (isHigh
               ? 'We have detected multiple signs that you might fall down in the next 2-3 minutes. '
                     'Take a seat and contact your caretaker.'
-              : 'Your heart rate rose to $hr BPM while you seemed to be in-active for the last 10 minutes.');
+              : message);
 
     return Container(
       padding: const EdgeInsets.all(20),
