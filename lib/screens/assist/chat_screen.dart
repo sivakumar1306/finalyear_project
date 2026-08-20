@@ -78,6 +78,11 @@ class _ChatScreenState extends State<ChatScreen> {
       final prefs = await SharedPreferences.getInstance();
       String? conversationId = prefs.getString(_conversationPrefsKey(userId));
 
+      if (conversationId == 'NEW_CHAT') {
+        // User explicitly started a new chat; do not restore past conversations
+        return;
+      }
+
       // No cached conversation id yet on this device — fall back to the
       // most recent conversation stored on the server for this user.
       if (conversationId == null) {
@@ -203,7 +208,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final userId = SupabaseService.currentUser?.id;
     if (userId != null) {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_conversationPrefsKey(userId));
+      await prefs.setString(_conversationPrefsKey(userId), 'NEW_CHAT');
     }
   }
 
