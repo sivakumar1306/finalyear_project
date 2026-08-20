@@ -239,17 +239,9 @@ class _HrvScreenState extends State<HrvScreen> {
           final currentSlot = (now.hour * 60 + now.minute) ~/ 30;
           if (currentSlot >= 0 && currentSlot < totalSlots) {
             slots[currentSlot] = liveVal;
-}
+          }
+        }
       }
-    } catch (e, st) {
-      IncidentService.reportUnhandled(
-        source: 'hrv_screen',
-        error: e,
-        stackTrace: st,
-        customMessage: '_saveSingleMeasurement failed',
-      );
-    }
-  }
       setState(() {
         _chartValues = slots;
         _avgHrv = avg;
