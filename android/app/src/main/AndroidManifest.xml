@@ -145,6 +145,13 @@
             android:enabled="true"
             android:exported="false" />
 
+        <!-- SENT / DELIVERED receipts for EmergencySmsSender — explicit-component
+             PendingIntents only, so exported=false is safe. -->
+        <receiver
+            android:name=".analysis.EmergencySmsResultReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
         <receiver
             android:name=".analysis.SafetyLiveUpdateDismissReceiver"
             android:enabled="true"

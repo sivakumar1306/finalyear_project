@@ -30,11 +30,17 @@ import 'screens/settings/account_system_settings_screen.dart';
 import 'screens/settings/profile_edit_screen.dart';
 import 'screens/settings/faq_screen.dart';
 import 'screens/prayer/prayer_session_screen.dart';
+import 'screens/companion/companion_alert_screen.dart';
 import 'theme/app_theme.dart';
 import 'theme/app_scroll_behavior.dart';
 
 class SundrApp extends StatelessWidget {
   const SundrApp({super.key});
+
+  /// Global navigator key — lets headless services (FCM push, background
+  /// handlers) navigate without a BuildContext.
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +49,7 @@ class SundrApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme(),
       scrollBehavior: const AppScrollBehavior(),
+      navigatorKey: navigatorKey,
       initialRoute: '/',
       routes: {
         '/': (_) => const SplashScreen(),
@@ -79,6 +86,7 @@ class SundrApp extends StatelessWidget {
         '/profile-edit': (_) => const ProfileEditScreen(),
         '/faq': (_) => const FaqScreen(),
         '/prayer-session': (_) => const PrayerSessionScreen(),
+        '/companion-alert': (_) => const CompanionAlertScreen(),
       },
     );
   }
