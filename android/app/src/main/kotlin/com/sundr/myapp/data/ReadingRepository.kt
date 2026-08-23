@@ -48,6 +48,12 @@ class ReadingRepository private constructor(context: Context) {
 
     suspend fun insertHeartRate(bpm: Int, cycleId: Long, source: String, deviceAddress: String? = null): Long =
         withContext(Dispatchers.IO) {
+            // Final gate: an implausible value would otherwise roll into every daily
+            // avg/min/max summary (home cards, trends, Supabase sync, fall-risk analysis).
+            if (!VitalRanges.isValidBpm(bpm)) {
+                Log.w(TAG, "Rejected implausible heart rate reading: $bpm bpm (source=$source)")
+                return@withContext -1L
+            }
             val at = System.currentTimeMillis()
             val id = db.heartRateDao().insert(
                 HeartRateReadingEntity(

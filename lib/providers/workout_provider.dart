@@ -310,7 +310,10 @@ class WorkoutProvider extends ChangeNotifier {
         try {
           final hr = await _ble.readHeartRate();
           if (!_isWorkoutActive) break;
-          if (hr != null && hr > 0) {
+          // Plausible-range guard (mirrors native VitalRanges): sentinels/junk must
+          // not skew the live reading or the session's average.
+          const hrMin = 30, hrMax = 220;
+          if (hr != null && hr >= hrMin && hr <= hrMax) {
             if (_hrReadings.length >= 500) {
               _hrSum -= _hrReadings.removeAt(0);
             }

@@ -34,6 +34,19 @@ android {
         versionName = flutter.versionName
     }
 
+    // App UI is English-only; drop the ~85 translated resource tables that
+    // AndroidX/vendor libs bundle for other locales.
+    androidResources {
+        localeFilters += listOf("en")
+    }
+
+    // AGP 9.3.x lint crashes with NoSuchMethodError (JavaDocParser.parseDataItem)
+    // while analyzing Flutter plugin sources (e.g. :camera_android_camerax),
+    // aborting every release build. Vital lint adds no size benefit anyway.
+    lint {
+        checkReleaseBuilds = false
+    }
+
     signingConfigs {
         if (keystorePropertiesFile.exists()) {
             create("release") {

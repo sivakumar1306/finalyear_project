@@ -443,7 +443,10 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     try {
       final hr = await _ble.readHeartRate();
       if (!mounted) return;
-      if (hr != null && hr > 0) {
+      // Physiologically plausible gate (mirrors native VitalRanges.isValidBpm): a
+      // junk/sentinel value must never be blended into today's avg/min/max.
+      const hrMin = 30, hrMax = 220;
+      if (hr != null && hr >= hrMin && hr <= hrMax) {
         final newMin = (_minHr > 0 && _minHr < hr) ? _minHr : hr;
         final newMax = (_maxHr > hr) ? _maxHr : hr;
         final newAvg = _avgHr > 0 ? ((_avgHr + hr) ~/ 2) : hr;

@@ -243,25 +243,59 @@ object MeasurementLoopManager {
             onDone()
         }
         watchForPreempt(done) { finishWithStop() }
+
+        // The ring streams intermediate StartHeartRateRsp frames while measuring, and early
+        // warm-up frames are often spuriously high (motion artifact / partial PPG). Accepting
+        // the first non-zero callback biased daily averages high. Instead: collect plausible
+        // candidates, persist once two consecutive readings agree (median), or fall back to
+        // the median of what we have when the measurement times out.
+        //
+        // Extraction must also be frame-type aware. Per SDK StartHeartRateRsp.acceptData:
+        //   type 12 = vital frame      -> heart == value == data[2] (HR)
+        //   type 13 = HR + raw PPG     -> heartRate = data[3]
+        //   type 14 = SpO2 + raw PPG   -> bloodOxygen = data[3], heartRate stays 0
+        //   other   = BP/temperature   -> value is an unrelated byte (can be huge)
+        // All manual-mode commands share one response slot in the SDK singleton, so a frame
+        // belonging to another vital can be delivered to this callback; reading getValue()
+        // from such a frame persisted SpO2 (~95-100) or junk bytes as bpm.
+        // BLE callbacks may arrive off the main thread while the timeout below fires on it,
+        // so all access to samples is guarded by its own monitor.
+        val samples = mutableListOf<Int>()
+        val sampleLock = Any()
+        fun extractBpm(rsp: StartHeartRateRsp): Int? {
+            if (rsp.getHeartRate() > 0) return rsp.getHeartRate()
+            if (rsp.type.toInt() == 12) return rsp.value
+            return null
+        }
         try {
             BleOperateManager.getInstance().manualModeHeart(
                 ICommandResponse<StartHeartRateRsp> { rsp ->
                     if (done.get()) return@ICommandResponse
-                    // Don't gate on rsp.status == RESULT_OK here — a manual heart rate
+                    // Don't bail out on rsp.status != RESULT_OK here — a manual heart rate
                     // measurement sends several intermediate callbacks while still measuring,
-                    // and not all of them report RESULT_OK. The previous code bailed out via
-                    // finishWithStop() on the first non-OK response, before a real reading
-                    // ever arrived — which is why HR consistently failed while every other
-                    // vital (none of which gate on status) succeeded on the same connection.
-                    // Just wait for a genuine value like SpO2/Stress/BP/HRV do; let
-                    // MEASURE_TIMEOUT_MS below handle the case where none ever comes.
-                    val value = if (rsp.getHeartRate() > 0) rsp.getHeartRate() else rsp.getValue()
-                    Log.d(TAG, "measureHeartRate: status=${rsp.status} heartRate=${rsp.getHeartRate()} value=${rsp.getValue()}")
-                    if (value > 0 && done.compareAndSet(false, true)) {
-                        persist(Vital.HEART_RATE, cycleId, value.toDouble()) {
-                            repository.insertHeartRate(value, cycleId, "auto_cycle")
+                    // and not all of them report RESULT_OK. Just wait for a genuine value;
+                    // MEASURE_TIMEOUT_MS below handles the case where none ever comes.
+                    val candidate = extractBpm(rsp)
+                    Log.d(TAG, "measureHeartRate: status=${rsp.status} heartRate=${rsp.getHeartRate()} value=${rsp.getValue()} candidate=$candidate")
+                    if (candidate != null && com.sundr.myapp.data.VitalRanges.isValidBpm(candidate)) {
+                        var accepted: Int? = null
+                        synchronized(sampleLock) {
+                            if (done.get()) return@ICommandResponse
+                            samples.add(candidate)
+                            if (samples.size >= 2) {
+                                val prev = samples[samples.size - 2]
+                                if (kotlin.math.abs(candidate - prev) <= 8) {
+                                    val sorted = samples.sorted()
+                                    accepted = sorted[sorted.size / 2]
+                                }
+                            }
                         }
-                        finishWithStop()
+                        if (accepted != null && done.compareAndSet(false, true)) {
+                            persist(Vital.HEART_RATE, cycleId, accepted!!.toDouble()) {
+                                repository.insertHeartRate(accepted!!, cycleId, "auto_cycle")
+                            }
+                            finishWithStop()
+                        }
                     }
                 },
                 false
@@ -272,7 +306,24 @@ object MeasurementLoopManager {
             return
         }
         handler.postDelayed({
-            if (done.compareAndSet(false, true)) finishWithStop()
+            // Timeout: accept a single plausible sample (some rings emit exactly one final
+            // value), otherwise the median of everything collected. Never persist an
+            // isolated warm-up spike when later stable readings contradicted it.
+            var median: Int? = null
+            synchronized(sampleLock) {
+                if (samples.isNotEmpty()) {
+                    val sorted = samples.sorted()
+                    median = sorted[sorted.size / 2]
+                }
+            }
+            if (done.compareAndSet(false, true)) {
+                if (median != null) {
+                    persist(Vital.HEART_RATE, cycleId, median!!.toDouble()) {
+                        repository.insertHeartRate(median!!, cycleId, "auto_cycle")
+                    }
+                }
+                finishWithStop()
+            }
         }, MEASURE_TIMEOUT_MS)
     }
 
