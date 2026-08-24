@@ -619,17 +619,17 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              _SuggestionChip(
-                text: 'How does my sleep look this week?',
-                onTap: _sendMessage,
-              ),
-              const SizedBox(height: 8),
-              _SuggestionChip(text: 'I have a headache', onTap: _sendMessage),
-              const SizedBox(height: 8),
-              _SuggestionChip(
-                text: 'What vitamins should I take?',
-                onTap: _sendMessage,
-              ),
+              for (final question in (InsightsHeaderState.suggestedQuestions ?? [
+                'How does my sleep look this week?',
+                'I have a headache',
+                'What vitamins should I take?',
+              ])) ...[
+                _SuggestionChip(
+                  text: question,
+                  onTap: _sendMessage,
+                ),
+                const SizedBox(height: 8),
+              ],
             ],
           ),
         ],
