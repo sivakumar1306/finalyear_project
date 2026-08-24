@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 import '../../widgets/app_typography.dart';
 
-class AboutScreen extends StatelessWidget {
+class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
+
+  @override
+  State<AboutScreen> createState() => _AboutScreenState();
+}
+
+class _AboutScreenState extends State<AboutScreen> {
+  late final Future<PackageInfo> _packageInfo = PackageInfo.fromPlatform();
 
   @override
   Widget build(BuildContext context) {
@@ -49,9 +57,18 @@ class AboutScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Text(
-              'Version 1.0.0 (Build 1)',
-              style: AppTypography.inter(fontSize: 14, color: AppTheme.textSec),
+            FutureBuilder<PackageInfo>(
+              future: _packageInfo,
+              builder: (context, snapshot) {
+                final info = snapshot.data;
+                return Text(
+                  info == null
+                      ? ''
+                      : 'Version ${info.version} (Build ${info.buildNumber})',
+                  style:
+                      AppTypography.inter(fontSize: 14, color: AppTheme.textSec),
+                );
+              },
             ),
             const SizedBox(height: 32),
             Container(
