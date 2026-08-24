@@ -16,6 +16,7 @@ import 'providers/fall_prediction/fall_prediction_provider.dart';
 import 'services/supabase_service.dart';
 import 'services/incident_service.dart';
 import 'services/ble_service.dart';
+import 'services/push_notification_service.dart';
 import 'config.dart';
 import 'app.dart';
 import 'theme/app_theme.dart';
@@ -161,6 +162,9 @@ void main() async {
       try {
         await Future.wait([SupabaseService.initialize(), _syncLoggedInFlag()]);
         await _configureNativeSync();
+        // FCM companion alerts (Part 3) — dormant until Firebase constants are
+        // configured in AppConfig; never blocks startup.
+        unawaited(PushNotificationService.instance.initialize());
       } catch (e, st) {
         debugPrint('Startup init failed (continuing offline): $e\n$st');
       }

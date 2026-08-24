@@ -4,17 +4,19 @@
 # strip the @SerializedName annotations meant to guard against exactly that,
 # silently breaking every screen that reads raw local-DB readings.
 -keep class com.sundr.myapp.data.** { *; }
--keepattributes Signature
--keepattributes *Annotation*
 
-# Gson uses reflection extensively; without these, TypeAdapter generation for
-# arbitrary classes can break under R8 in ways that are hard to notice locally.
--keepattributes EnclosingMethod
--keepattributes InnerClasses
--dontwarn sun.misc.**
--keep class com.google.gson.** { *; }
+# Attributes required by Gson reflection (runtime annotations like @SerializedName,
+# generic signatures for TypeToken subclasses, anonymous/local class info).
+-keepattributes Signature,EnclosingMethod,InnerClasses
+-keepattributes AnnotationDefault
+-keepattributes RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations,RuntimeVisibleTypeAnnotations
+
+# Gson 2.10.x ships its own consumer R8 rules, so no blanket -keep on gson.**
+# (that would block R8 from stripping unused Gson internals). Only TypeToken
+# subclasses created reflectively need explicit keeping here.
 -keep class com.google.gson.reflect.TypeToken { *; }
 -keep class * extends com.google.gson.reflect.TypeToken
+-dontwarn sun.misc.**
 
 # Vendor QRing / Oudmon BLE SDK (AAR) — R8 must not strip reflection/JNI entry points.
 -keep class com.oudmon.** { *; }

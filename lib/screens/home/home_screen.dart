@@ -1070,13 +1070,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final result = await ble.sendEmergencySms(message: message);
     if (!mounted) return;
     final ok = result['ok'] == true;
-    final sent = (result['sentCount'] as num?)?.toInt() ?? 0;
+    final queued = (result['queuedCount'] as num?)?.toInt() ?? 0;
     final err = result['error'] as String?;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           ok
-              ? 'SMS sent to $sent emergency contact${sent == 1 ? '' : 's'}'
+              ? 'Sending emergency SMS to $queued contact${queued == 1 ? '' : 's'}… '
+                  'delivery is confirmed as it arrives'
               : (err ?? 'Failed to send emergency SMS'),
         ),
       ),

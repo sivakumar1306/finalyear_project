@@ -946,8 +946,16 @@ class BlePlugin(private val context: Context) {
                         if (done.get()) return@ICommandResponse
 
                         if (rsp.status == BaseRspCmd.RESULT_OK) {
-                            val value = if (rsp.getHeartRate() > 0) rsp.getHeartRate() else rsp.getValue()
-                            if (value > 0 && done.compareAndSet(false, true)) {
+                            // Only trust HR-carrying frames. Per SDK StartHeartRateRsp.acceptData,
+                            // type 13 sets heartRate; type 12 (vital frame) carries HR in value.
+                            // Other types leave heartRate=0 while value holds SpO2 or unrelated
+                            // bytes — accepting getValue() from those persisted junk as bpm.
+                            val value = when {
+                                rsp.getHeartRate() > 0 -> rsp.getHeartRate()
+                                rsp.type.toInt() == 12 -> rsp.value
+                                else -> 0
+                            }
+                            if (com.sundr.myapp.data.VitalRanges.isValidBpm(value) && done.compareAndSet(false, true)) {
                                 try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
                                 MeasurementCoordinator.release(owner)
                                 mainHandler.post { result.success(value) }

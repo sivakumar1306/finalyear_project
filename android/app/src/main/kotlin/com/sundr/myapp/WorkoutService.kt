@@ -246,7 +246,9 @@ class WorkoutService : Service() {
                         var latest = 0
                         for (el in arr) {
                             val v = try { el.asInt } catch (_: Exception) { 0 }
-                            if (v > 0) latest = v
+                            // Day-array slots hold raw bytes: 0 = no data, 0xFF can appear as
+                            // an invalid sentinel, so a bare v > 0 check let 255 through.
+                            if (com.sundr.myapp.data.VitalRanges.isValidBpm(v)) latest = v
                         }
                         if (latest > 0) {
                             prefs.edit().putLong("flutter.workout_latest_hr", latest.toLong()).apply()

@@ -90,3 +90,5 @@ something.md
 
 # DevTools settings
 devtools_options.yaml
+# Widget Preview related
+.widget_preview/

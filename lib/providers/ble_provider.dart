@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ble_service.dart';
@@ -120,6 +121,14 @@ class BleProvider extends ChangeNotifier {
   String? _emergencySmsLastError;
   Timer? _emergencySmsPollTimer;
 
+  // Honest receipt state (Part 1 of the alerting plan) — confirmed sent/delivered
+  // counts arrive via native SENT/DELIVERED receipts, not optimistic dispatch.
+  bool _emergencySmsSendInProgress = false;
+  int _emergencySmsQueuedCount = 0;
+  int _emergencySmsDeliveredCount = 0;
+  int _emergencySmsFailedCount = 0;
+  List<Map<String, dynamic>> _emergencySmsPerContact = [];
+
   // Ring camera / photo control — broadcasts native "cameraShutter" events
   // ("capture" | "exit") so a camera screen can react without owning its own
   // EventChannel subscription. See BlePlugin.kt's takePicture()/exitCameraMode().
@@ -209,6 +218,14 @@ class BleProvider extends ChangeNotifier {
   bool get emergencySmsHasPermission => _emergencySmsHasPermission;
   int get emergencySmsLastSentCount => _emergencySmsLastSentCount;
   String? get emergencySmsLastError => _emergencySmsLastError;
+
+  // Honest receipt state (confirmed by native SENT/DELIVERED receipts).
+  bool get emergencySmsSendInProgress => _emergencySmsSendInProgress;
+  int get emergencySmsQueuedCount => _emergencySmsQueuedCount;
+  int get emergencySmsDeliveredCount => _emergencySmsDeliveredCount;
+  int get emergencySmsFailedCount => _emergencySmsFailedCount;
+  List<Map<String, dynamic>> get emergencySmsPerContact =>
+      List.unmodifiable(_emergencySmsPerContact);
 
   /// When true, a corroborated fall *detection* immediately calls the first emergency contact.
   bool _autoCallOnFallEnabled = false;
@@ -716,7 +733,8 @@ Future<void> _maybeAlert(
     await refreshEmergencySmsStatus();
   }
 
-  /// Poll native countdown state. Starts a 1s timer while a countdown is active.
+  /// Poll native countdown state. Starts a 1s timer while a countdown is active
+  /// or while SMS receipts are still arriving after a dispatch.
   Future<void> refreshEmergencySmsStatus() async {
     try {
       final json = await _ble.getEmergencySmsStatus();
@@ -729,13 +747,28 @@ Future<void> _maybeAlert(
       final lastCount = (decoded['lastSentCount'] as num?)?.toInt() ?? 0;
       final lastError = decoded['lastError'] as String?;
 
+      // Honest receipt state (Part 1).
+      final sendInProgress = decoded['sendInProgress'] == true;
+      final queuedCount = (decoded['queuedCount'] as num?)?.toInt() ?? 0;
+      final deliveredCount = (decoded['deliveredCount'] as num?)?.toInt() ?? 0;
+      final failedCount = (decoded['failedCount'] as num?)?.toInt() ?? 0;
+      final perContact = (decoded['perContact'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+
       final changed =
           active != _emergencySmsActive ||
           remaining != _emergencySmsSecondsRemaining ||
           reason != _emergencySmsReason ||
           hasPerm != _emergencySmsHasPermission ||
           lastCount != _emergencySmsLastSentCount ||
-          lastError != _emergencySmsLastError;
+          lastError != _emergencySmsLastError ||
+          sendInProgress != _emergencySmsSendInProgress ||
+          queuedCount != _emergencySmsQueuedCount ||
+          deliveredCount != _emergencySmsDeliveredCount ||
+          failedCount != _emergencySmsFailedCount ||
+          !listEquals(perContact, _emergencySmsPerContact);
 
       _emergencySmsActive = active;
       _emergencySmsSecondsRemaining = remaining;
@@ -743,8 +776,13 @@ Future<void> _maybeAlert(
       _emergencySmsHasPermission = hasPerm;
       _emergencySmsLastSentCount = lastCount;
       _emergencySmsLastError = lastError;
+      _emergencySmsSendInProgress = sendInProgress;
+      _emergencySmsQueuedCount = queuedCount;
+      _emergencySmsDeliveredCount = deliveredCount;
+      _emergencySmsFailedCount = failedCount;
+      _emergencySmsPerContact = perContact;
 
-      if (active) {
+      if (active || sendInProgress) {
         _ensureEmergencySmsPoll();
       } else {
         _stopEmergencySmsPoll();
