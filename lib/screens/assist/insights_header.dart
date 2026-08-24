@@ -26,6 +26,14 @@ class InsightsHeaderState extends State<InsightsHeader>
     return daysUsed != null && daysUsed > 0;
   }
 
+  static List<String>? get suggestedQuestions {
+    final list = _cache?['suggested_questions'] as List?;
+    if (list != null && list.isNotEmpty) {
+      return list.map((e) => e.toString()).toList();
+    }
+    return null;
+  }
+
   Future<Map<String, dynamic>>? _insightsFuture;
   Map<String, dynamic>? _cachedData;
 
