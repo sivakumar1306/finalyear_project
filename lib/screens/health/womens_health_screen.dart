@@ -5,7 +5,7 @@ import '../../services/supabase_service.dart';
 import '../../services/incident_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
-import '../../widgets/glass_menu.dart';
+
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import 'package:provider/provider.dart';
@@ -98,7 +98,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   int _setupPeriodLen = 5;
   bool _savingSetup = false;
 
-  final _moreButtonKey = GlobalKey();
+
   final _screenshotKey = GlobalKey();
 
   static const _phaseColors = {
@@ -267,84 +267,6 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     }
   }
 
-  // ── Three-dot menu ──────────────────────────────────────────────────────────
-
-  void _openMenu() {
-    showGlassMenu(
-      context: context,
-      anchorKey: _moreButtonKey,
-      items: [
-        GlassMenuItem(
-          label: 'Share',
-          onTap: () =>
-              shareScreenshot(_screenshotKey, text: 'My Cycle — SUNDR'),
-        ),
-        GlassMenuItem(
-          label: 'Note',
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => VitalNoteScreen(
-                title: 'Women\'s Health',
-                heading: 'About Your Cycle',
-                intro:
-                    'Your menstrual cycle moves through four phases — each with '
-                    'its own hormonal rhythm that can shift your temperature, '
-                    'sleep, and stress levels.',
-                ranges: [
-                  VitalRange(
-                    label: 'Menstrual',
-                    range: 'Days 1–5',
-                    color: _phaseColors['Menstrual']!,
-                  ),
-                  VitalRange(
-                    label: 'Follicular',
-                    range: 'Days 6–13',
-                    color: _phaseColors['Follicular']!,
-                  ),
-                  VitalRange(
-                    label: 'Ovulation',
-                    range: 'Days 14–15',
-                    color: _phaseColors['Ovulation']!,
-                  ),
-                  VitalRange(
-                    label: 'Luteal',
-                    range: 'Days 16–28',
-                    color: _phaseColors['Luteal']!,
-                  ),
-                ],
-                tips: const [
-                  VitalTip(
-                    icon: Icons.thermostat_rounded,
-                    color: AppTheme.tempColor,
-                    title: 'Temperature rises after ovulation',
-                    tip:
-                        'A small, sustained rise in basal temperature is a '
-                        'common sign that ovulation has occurred.',
-                  ),
-                  VitalTip(
-                    icon: Icons.bedtime_rounded,
-                    color: AppTheme.sleepColor,
-                    title: 'Sleep can get lighter pre-period',
-                    tip:
-                        'Rising progesterone in the late luteal phase can make '
-                        'sleep feel lighter or more restless.',
-                  ),
-                ],
-                didYouKnow:
-                    'Cycle length naturally varies month to month — anywhere '
-                    'from 21 to 35 days is considered typical.',
-              ),
-            ),
-          ),
-        ),
-        GlassMenuItem(
-          label: 'Log Period',
-          onTap: _showNewCycleSheet,
-        ),
-      ],
-    );
-  }
 
   // ── Build ──────────────────────────────────────────────────────────────────
 
@@ -432,9 +354,62 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
         actions: [
           if (_cycles.isNotEmpty)
             IconButton(
-              key: _moreButtonKey,
-              icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
-              onPressed: _openMenu,
+              icon: const Icon(Icons.info_outline_rounded, color: Colors.white),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => VitalNoteScreen(
+                    title: 'Women\'s Health',
+                    heading: 'About Your Cycle',
+                    intro:
+                        'Your menstrual cycle moves through four phases — each with '
+                        'its own hormonal rhythm that can shift your temperature, '
+                        'sleep, and stress levels.',
+                    ranges: [
+                      VitalRange(
+                        label: 'Menstrual',
+                        range: 'Days 1–5',
+                        color: _phaseColors['Menstrual']!,
+                      ),
+                      VitalRange(
+                        label: 'Follicular',
+                        range: 'Days 6–13',
+                        color: _phaseColors['Follicular']!,
+                      ),
+                      VitalRange(
+                        label: 'Ovulation',
+                        range: 'Days 14–15',
+                        color: _phaseColors['Ovulation']!,
+                      ),
+                      VitalRange(
+                        label: 'Luteal',
+                        range: 'Days 16–28',
+                        color: _phaseColors['Luteal']!,
+                      ),
+                    ],
+                    tips: const [
+                      VitalTip(
+                        icon: Icons.thermostat_rounded,
+                        color: AppTheme.tempColor,
+                        title: 'Temperature rises after ovulation',
+                        tip: 'A small, sustained rise in basal temperature is a common sign that ovulation has occurred.',
+                      ),
+                      VitalTip(
+                        icon: Icons.bedtime_rounded,
+                        color: AppTheme.sleepColor,
+                        title: 'Sleep can get lighter pre-period',
+                        tip: 'Rising progesterone in the late luteal phase can make sleep feel lighter or more restless.',
+                      ),
+                    ],
+                    didYouKnow: 'Cycle length naturally varies month to month — anywhere from 21 to 35 days is considered typical.',
+                  ),
+                ),
+              ),
+            ),
+          if (_cycles.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.share_rounded, color: Colors.white),
+              onPressed: () => shareScreenshot(_screenshotKey, text: 'My Cycle — SUNDR'),
             ),
         ],
       );
@@ -596,54 +571,72 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     final day = _currentCycleDay;
     final c = _latest!;
 
-    return Center(
-      child: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.womenColor.withValues(alpha: 0.16),
-              blurRadius: 70,
-              spreadRadius: 6,
-            ),
-          ],
-        ),
-        child: SizedBox(
-          width: 210,
-          height: 210,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              CustomPaint(
-                size: const Size(210, 210),
-                painter: CycleRingPainter(
-                  currentDay: day,
-                  cycleLength: c.cycleLength,
+    return Column(
+      children: [
+        Center(
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.womenColor.withValues(alpha: 0.16),
+                  blurRadius: 70,
+                  spreadRadius: 6,
                 ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
+              ],
+            ),
+            child: SizedBox(
+              width: 210,
+              height: 210,
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  Text(
-                    'Day $day',
-                    style: _inter(30, weight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'CYCLE DAY',
-                    style: _inter(
-                      11,
-                      color: AppTheme.womenColor,
-                      weight: FontWeight.w700,
-                      letterSpacing: 1.4,
+                  CustomPaint(
+                    size: const Size(210, 210),
+                    painter: CycleRingPainter(
+                      currentDay: day,
+                      cycleLength: c.cycleLength,
                     ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Day $day',
+                        style: _inter(30, weight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'CYCLE DAY',
+                        style: _inter(
+                          11,
+                          color: AppTheme.womenColor,
+                          weight: FontWeight.w700,
+                          letterSpacing: 1.4,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
-      ),
+        const SizedBox(height: 24),
+        OutlinedButton.icon(
+          onPressed: _showNewCycleSheet,
+          icon: const Icon(Icons.add_rounded, size: 18),
+          label: const Text('Log Period'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.white,
+            side: BorderSide(color: AppTheme.womenColor.withValues(alpha: 0.5)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          ),
+        ),
+      ],
     );
   }
 
@@ -655,7 +648,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
 
     final phaseName = res.estimatedPhase.displayName;
     final summary = res.estimatedPhase.physiologicalSummary;
-    final score = res.confidenceScore.round();
+
     final reasons = res.explainableReasons;
     final isVitalsOnly = res.isVitalsOnlyPath;
 
@@ -684,33 +677,27 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 child: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFA855F7), size: 18),
               ),
               const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ADAPTIVE WOMEN\'S HEALTH ENGINE',
-                    style: _inter(11, color: const Color(0xFFA855F7), weight: FontWeight.w700, letterSpacing: 1.2),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    isVitalsOnly ? 'Wearable Vitals-Only Inference' : 'Smart Ring Vitals + Calendar Engine',
-                    style: _inter(12, color: AppTheme.textSec),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppTheme.hrvColor.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppTheme.hrvColor.withValues(alpha: 0.4)),
-                ),
-                child: Text(
-                  '$score% Confidence',
-                  style: _inter(12, color: AppTheme.hrvColor, weight: FontWeight.bold),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'ADAPTIVE WOMEN\'S HEALTH ENGINE',
+                      style: _inter(11, color: const Color(0xFFA855F7), weight: FontWeight.w700, letterSpacing: 1.2),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isVitalsOnly ? 'Wearable Vitals-Only Inference' : 'Smart Ring Vitals + Calendar Engine',
+                      style: _inter(12, color: AppTheme.textSec),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ],
                 ),
               ),
+
             ],
           ),
           const SizedBox(height: 16),
@@ -833,13 +820,14 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
               subtitle: _fmtTillDate(c.fertileEnd),
             ),
           ),
-          Expanded(
-            child: PredictionCol(
-              label: 'Phase',
-              value: phase.isEmpty ? '--' : phase,
-              subtitle: _fmtTillDate(phaseEnd),
+          if (_awheResult == null)
+            Expanded(
+              child: PredictionCol(
+                label: 'Phase',
+                value: phase.isEmpty ? '--' : phase,
+                subtitle: _fmtTillDate(phaseEnd),
+              ),
             ),
-          ),
         ],
       ),
     );
