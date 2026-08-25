@@ -5,7 +5,7 @@ import '../../services/supabase_service.dart';
 import '../../services/incident_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
-import '../../widgets/glass_menu.dart';
+
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import 'package:provider/provider.dart';
@@ -15,6 +15,8 @@ import '../../services/womens_health_prediction_service.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/legend_dot.dart';
 import 'womens_health_widgets.dart';
+import '../../services/notification_prefs.dart';
+import '../../widgets/glass_menu.dart';
 
 // ── Design tokens (glass card system per DESIGN.md) ────────────────────────
 
@@ -97,9 +99,11 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   int _setupCycleLen = 28;
   int _setupPeriodLen = 5;
   bool _savingSetup = false;
+  
+  DateTime _calendarMonth = DateTime.now();
 
-  final _moreButtonKey = GlobalKey();
   final _screenshotKey = GlobalKey();
+  final _moreButtonKey = GlobalKey();
 
   static const _phaseColors = {
     'Menstrual': AppTheme.danger,
@@ -157,8 +161,15 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       if (!mounted) return;
 
       final ble = context.read<BleProvider>();
+      
+      // Normalize temperature: 50 is baseline (36.5C). 55 is elevated (+0.5C).
+      double normalizedTemp = 50.0;
+      if (ble.latestTempC > 0) {
+        normalizedTemp = 50.0 + ((ble.latestTempC - 36.5) * 10);
+      }
+
       final metrics = HealthMetrics(
-        temperature: (ble.todayAvgSpo2 > 0 ? ble.todayAvgSpo2.toDouble() : 50.0).clamp(0, 100),
+        temperature: normalizedTemp.clamp(0, 100),
         hrv: ble.todayAvgHrv.toDouble().clamp(0, 100),
         heartRate: ble.todayAvgHr.toDouble().clamp(0, 100),
         sleepQuality: ble.todaySleepScore.toDouble().clamp(0, 100),
@@ -267,84 +278,6 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     }
   }
 
-  // ── Three-dot menu ──────────────────────────────────────────────────────────
-
-  void _openMenu() {
-    showGlassMenu(
-      context: context,
-      anchorKey: _moreButtonKey,
-      items: [
-        GlassMenuItem(
-          label: 'Share',
-          onTap: () =>
-              shareScreenshot(_screenshotKey, text: 'My Cycle — SUNDR'),
-        ),
-        GlassMenuItem(
-          label: 'Note',
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => VitalNoteScreen(
-                title: 'Women\'s Health',
-                heading: 'About Your Cycle',
-                intro:
-                    'Your menstrual cycle moves through four phases — each with '
-                    'its own hormonal rhythm that can shift your temperature, '
-                    'sleep, and stress levels.',
-                ranges: [
-                  VitalRange(
-                    label: 'Menstrual',
-                    range: 'Days 1–5',
-                    color: _phaseColors['Menstrual']!,
-                  ),
-                  VitalRange(
-                    label: 'Follicular',
-                    range: 'Days 6–13',
-                    color: _phaseColors['Follicular']!,
-                  ),
-                  VitalRange(
-                    label: 'Ovulation',
-                    range: 'Days 14–15',
-                    color: _phaseColors['Ovulation']!,
-                  ),
-                  VitalRange(
-                    label: 'Luteal',
-                    range: 'Days 16–28',
-                    color: _phaseColors['Luteal']!,
-                  ),
-                ],
-                tips: const [
-                  VitalTip(
-                    icon: Icons.thermostat_rounded,
-                    color: AppTheme.tempColor,
-                    title: 'Temperature rises after ovulation',
-                    tip:
-                        'A small, sustained rise in basal temperature is a '
-                        'common sign that ovulation has occurred.',
-                  ),
-                  VitalTip(
-                    icon: Icons.bedtime_rounded,
-                    color: AppTheme.sleepColor,
-                    title: 'Sleep can get lighter pre-period',
-                    tip:
-                        'Rising progesterone in the late luteal phase can make '
-                        'sleep feel lighter or more restless.',
-                  ),
-                ],
-                didYouKnow:
-                    'Cycle length naturally varies month to month — anywhere '
-                    'from 21 to 35 days is considered typical.',
-              ),
-            ),
-          ),
-        ),
-        GlassMenuItem(
-          label: 'Log Period',
-          onTap: _showNewCycleSheet,
-        ),
-      ],
-    );
-  }
 
   // ── Build ──────────────────────────────────────────────────────────────────
 
@@ -396,13 +329,14 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 const SizedBox(height: 20),
                 _buildRingSection(),
                 const SizedBox(height: 20),
+                _buildPredictionCard(),
+                const SizedBox(height: 14),
+                _buildCalendarCard(),
+                const SizedBox(height: 14),
                 if (_awheResult != null) ...[
                   _buildAwheCard(),
                   const SizedBox(height: 14),
                 ],
-                _buildPredictionCard(),
-                const SizedBox(height: 14),
-                _buildCalendarCard(),
                 const SizedBox(height: 14),
                 _buildCyclePatternsCard(),
                 const SizedBox(height: 14),
@@ -420,6 +354,80 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     );
   }
 
+  void _openMenu() {
+    showGlassMenu(
+      context: context,
+      anchorKey: _moreButtonKey,
+      items: [
+        GlassMenuItem(
+          label: 'History',
+          onTap: _showHistorySheet,
+        ),
+        GlassMenuItem(
+          label: 'Settings',
+          onTap: _showSettingsSheet,
+        ),
+        GlassMenuItem(
+          label: 'Info',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => VitalNoteScreen(
+                title: 'Women\'s Health',
+                heading: 'About Your Cycle',
+                intro:
+                    'Your menstrual cycle moves through four phases — each with '
+                    'its own hormonal rhythm that can shift your temperature, '
+                    'sleep, and stress levels.',
+                ranges: [
+                  VitalRange(
+                    label: 'Menstrual',
+                    range: 'Days 1–5',
+                    color: _phaseColors['Menstrual']!,
+                  ),
+                  VitalRange(
+                    label: 'Follicular',
+                    range: 'Days 6–13',
+                    color: _phaseColors['Follicular']!,
+                  ),
+                  VitalRange(
+                    label: 'Ovulation',
+                    range: 'Days 14–15',
+                    color: _phaseColors['Ovulation']!,
+                  ),
+                  VitalRange(
+                    label: 'Luteal',
+                    range: 'Days 16–28',
+                    color: _phaseColors['Luteal']!,
+                  ),
+                ],
+                tips: const [
+                  VitalTip(
+                    icon: Icons.thermostat_rounded,
+                    color: AppTheme.tempColor,
+                    title: 'Temperature rises after ovulation',
+                    tip: 'A small, sustained rise in basal temperature is a common sign that ovulation has occurred.',
+                  ),
+                  VitalTip(
+                    icon: Icons.bedtime_rounded,
+                    color: AppTheme.sleepColor,
+                    title: 'Sleep can get lighter pre-period',
+                    tip: 'Rising progesterone in the late luteal phase can make sleep feel lighter or more restless.',
+                  ),
+                ],
+                didYouKnow: 'Cycle length naturally varies month to month — anywhere from 21 to 35 days is considered typical.',
+              ),
+            ),
+          ),
+        ),
+        GlassMenuItem(
+          label: 'Share',
+          onTap: () => shareScreenshot(_screenshotKey, text: 'My Cycle — SUNDR'),
+        ),
+      ],
+    );
+  }
+
   AppBar _appBar() => AppBar(
         backgroundColor: AppTheme.bg,
         foregroundColor: Colors.white,
@@ -433,11 +441,284 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
           if (_cycles.isNotEmpty)
             IconButton(
               key: _moreButtonKey,
-              icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+              icon: const Icon(Icons.more_vert, color: Colors.white),
               onPressed: _openMenu,
             ),
         ],
       );
+
+  Widget _buildToggle({required String label, required bool value, required ValueChanged<bool> onChanged}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: _inter(14, weight: FontWeight.w500)),
+          Transform.scale(
+            scale: 0.85,
+            child: Switch(
+              value: value,
+              onChanged: onChanged,
+              activeTrackColor: AppTheme.womenColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSettingsSheet() async {
+    setState(() {
+      _setupPeriodStart = _latest?.periodStart ?? DateTime.now();
+      _setupCycleLen = _latest?.cycleLength ?? 28;
+      _setupPeriodLen = _latest?.periodLength ?? 5;
+    });
+
+    final prefs = await NotificationPrefs.load();
+    bool periodRem = prefs['Next Period Reminder'] ?? true;
+    bool fertRem = prefs['Fertility Window'] ?? true;
+    bool ovuRem = prefs['Ovulation Reminder'] ?? true;
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.card,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) => Padding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              left: 20,
+              right: 20,
+              top: 20),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: AppTheme.div,
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('Edit Cycle Settings', style: _inter(18, weight: FontWeight.w700)),
+                const SizedBox(height: 20),
+                SetupField(
+                  label: 'TYPICAL CYCLE LENGTH',
+                  child: StepperTile(
+                    value: _setupCycleLen,
+                    unit: 'days',
+                    min: 21,
+                    max: 40,
+                    onChanged: (v) => setModal(() => _setupCycleLen = v),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SetupField(
+                  label: 'TYPICAL PERIOD LENGTH',
+                  child: StepperTile(
+                    value: _setupPeriodLen,
+                    unit: 'days',
+                    min: 2,
+                    max: 10,
+                    onChanged: (v) => setModal(() => _setupPeriodLen = v),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text('NOTIFICATIONS', style: _inter(11, weight: FontWeight.w600, color: AppTheme.textSec, letterSpacing: 1.5)),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppTheme.card2,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.div)
+                  ),
+                  child: Column(
+                    children: [
+                      _buildToggle(
+                        label: 'Next Period Reminder',
+                        value: periodRem,
+                        onChanged: (v) {
+                          setModal(() => periodRem = v);
+                          NotificationPrefs.setEnabled('Next Period Reminder', v);
+                        },
+                      ),
+                      const Divider(height: 1, color: AppTheme.div),
+                      _buildToggle(
+                        label: 'Fertility Window',
+                        value: fertRem,
+                        onChanged: (v) {
+                          setModal(() => fertRem = v);
+                          NotificationPrefs.setEnabled('Fertility Window', v);
+                        },
+                      ),
+                      const Divider(height: 1, color: AppTheme.div),
+                      _buildToggle(
+                        label: 'Ovulation Reminder',
+                        value: ovuRem,
+                        onChanged: (v) {
+                          setModal(() => ovuRem = v);
+                          NotificationPrefs.setEnabled('Ovulation Reminder', v);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 28),
+                GestureDetector(
+                  onTap: _savingSetup ? null : () async {
+                    setModal(() => _savingSetup = true);
+                    try {
+                      final user = SupabaseService.currentUser;
+                      if (user != null && _latest != null) {
+                        await SupabaseService.saveCycle(
+                          userId: user.id,
+                          periodStart: _setupPeriodStart,
+                          cycleLength: _setupCycleLen,
+                          periodLength: _setupPeriodLen,
+                        );
+                        await _load();
+                      }
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    } catch (e) {
+                      if (ctx.mounted) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.danger));
+                      }
+                    } finally {
+                      setModal(() => _savingSetup = false);
+                    }
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [AppTheme.womenColor, Color(0xFFA21B6A)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Center(
+                      child: _savingSetup
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2.5))
+                          : Text('Save Changes',
+                              style: _inter(16, weight: FontWeight.w700)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showHistorySheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.card,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: SizedBox(
+            height: MediaQuery.of(ctx).size.height * 0.7,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: AppTheme.div,
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Period History', style: _inter(18, weight: FontWeight.w700)),
+                    Text('Swipe to delete', style: _inter(12, color: AppTheme.textSec)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _cycles.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 16),
+                    itemBuilder: (context, index) {
+                      final cycle = _cycles[index];
+                      return Dismissible(
+                        key: ValueKey(cycle.id),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          decoration: BoxDecoration(
+                            color: AppTheme.danger,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
+                        ),
+                        onDismissed: (direction) {
+                          final removedCycle = _cycles[index];
+                          setModal(() {
+                            _cycles.removeAt(index);
+                          });
+                          
+                          final user = SupabaseService.currentUser;
+                          if (user != null) {
+                            SupabaseService.deleteCycle(
+                              userId: user.id,
+                              periodStart: removedCycle.periodStart,
+                            ).then((_) {
+                              _load();
+                            }).catchError((e) {
+                              setModal(() {
+                                _cycles.insert(index, removedCycle);
+                              });
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(content: Text('Failed to delete'), backgroundColor: AppTheme.danger)
+                                );
+                              }
+                            });
+                          }
+                        },
+                        child: CyclePatternRow(
+                          index: _cycles.length - index,
+                          cycle: cycle,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   // ── Gender gate ────────────────────────────────────────────────────────────
 
@@ -596,54 +877,72 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     final day = _currentCycleDay;
     final c = _latest!;
 
-    return Center(
-      child: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.womenColor.withValues(alpha: 0.16),
-              blurRadius: 70,
-              spreadRadius: 6,
-            ),
-          ],
-        ),
-        child: SizedBox(
-          width: 210,
-          height: 210,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              CustomPaint(
-                size: const Size(210, 210),
-                painter: CycleRingPainter(
-                  currentDay: day,
-                  cycleLength: c.cycleLength,
+    return Column(
+      children: [
+        Center(
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.womenColor.withValues(alpha: 0.16),
+                  blurRadius: 70,
+                  spreadRadius: 6,
                 ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
+              ],
+            ),
+            child: SizedBox(
+              width: 210,
+              height: 210,
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  Text(
-                    'Day $day',
-                    style: _inter(30, weight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'CYCLE DAY',
-                    style: _inter(
-                      11,
-                      color: AppTheme.womenColor,
-                      weight: FontWeight.w700,
-                      letterSpacing: 1.4,
+                  CustomPaint(
+                    size: const Size(210, 210),
+                    painter: CycleRingPainter(
+                      currentDay: day,
+                      cycleLength: c.cycleLength,
                     ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Day $day',
+                        style: _inter(30, weight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'CYCLE DAY',
+                        style: _inter(
+                          11,
+                          color: AppTheme.womenColor,
+                          weight: FontWeight.w700,
+                          letterSpacing: 1.4,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
-      ),
+        const SizedBox(height: 24),
+        OutlinedButton.icon(
+          onPressed: () => _showLogSheet(DateTime.now()),
+          icon: const Icon(Icons.add_rounded, size: 18),
+          label: const Text('Log Period'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.white,
+            side: BorderSide(color: AppTheme.womenColor.withValues(alpha: 0.5)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          ),
+        ),
+      ],
     );
   }
 
@@ -655,9 +954,8 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
 
     final phaseName = res.estimatedPhase.displayName;
     final summary = res.estimatedPhase.physiologicalSummary;
-    final score = res.confidenceScore.round();
+
     final reasons = res.explainableReasons;
-    final isVitalsOnly = res.isVitalsOnlyPath;
 
     return _glassCard(
       padding: const EdgeInsets.all(18),
@@ -684,33 +982,27 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 child: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFA855F7), size: 18),
               ),
               const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ADAPTIVE WOMEN\'S HEALTH ENGINE',
-                    style: _inter(11, color: const Color(0xFFA855F7), weight: FontWeight.w700, letterSpacing: 1.2),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    isVitalsOnly ? 'Wearable Vitals-Only Inference' : 'Smart Ring Vitals + Calendar Engine',
-                    style: _inter(12, color: AppTheme.textSec),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppTheme.hrvColor.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppTheme.hrvColor.withValues(alpha: 0.4)),
-                ),
-                child: Text(
-                  '$score% Confidence',
-                  style: _inter(12, color: AppTheme.hrvColor, weight: FontWeight.bold),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CYCLE INSIGHTS',
+                      style: _inter(11, color: const Color(0xFFA855F7), weight: FontWeight.w700, letterSpacing: 1.2),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Your Daily Readiness',
+                      style: _inter(12, color: AppTheme.textSec),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ],
                 ),
               ),
+
             ],
           ),
           const SizedBox(height: 16),
@@ -719,18 +1011,6 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
               Text(
                 phaseName,
                 style: _inter(18, weight: FontWeight.bold, color: Colors.white),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppTheme.womenColor.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  res.confidenceLevel.toUpperCase(),
-                  style: _inter(10, color: AppTheme.womenColor, weight: FontWeight.w700),
-                ),
               ),
             ],
           ),
@@ -742,7 +1022,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
           if (reasons.isNotEmpty) ...[
             const SizedBox(height: 14),
             Text(
-              'PHYSIOLOGICAL SUPPORTING REASONS',
+              'WHAT YOUR RING IS NOTICING:',
               style: _inter(10, color: AppTheme.textSec, weight: FontWeight.w700, letterSpacing: 1.1),
             ),
             const SizedBox(height: 8),
@@ -833,13 +1113,14 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
               subtitle: _fmtTillDate(c.fertileEnd),
             ),
           ),
-          Expanded(
-            child: PredictionCol(
-              label: 'Phase',
-              value: phase.isEmpty ? '--' : phase,
-              subtitle: _fmtTillDate(phaseEnd),
+          if (_awheResult == null)
+            Expanded(
+              child: PredictionCol(
+                label: 'Phase',
+                value: phase.isEmpty ? '--' : phase,
+                subtitle: _fmtTillDate(phaseEnd),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -850,8 +1131,8 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   Widget _buildCalendarCard() {
     final now = DateTime.now();
     final today = _d(now);
-    final firstOfMonth = DateTime(now.year, now.month, 1);
-    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    final firstOfMonth = DateTime(_calendarMonth.year, _calendarMonth.month, 1);
+    final daysInMonth = DateTime(_calendarMonth.year, _calendarMonth.month + 1, 0).day;
     final startOffset = firstOfMonth.weekday % 7; // Sunday-first
     final gridStart = firstOfMonth.subtract(Duration(days: startOffset));
     final weeksNeeded = ((startOffset + daysInMonth) / 7).ceil();
@@ -862,7 +1143,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       final d = _d(date);
       return CalCell(
         date: date,
-        inMonth: date.month == now.month && date.year == now.year,
+        inMonth: date.month == _calendarMonth.month && date.year == _calendarMonth.year,
         isPeriod: _periodDays.contains(d),
         isFertile: _fertileDays.contains(d),
         isOvulation: _ovulationDays.contains(d),
@@ -877,11 +1158,32 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     return _glassCard(
       child: Column(
         children: [
-          Text(
-            '${_fmtMD(now)}, ${_kWeekdaysFull[now.weekday - 1]}',
-            style: _inter(14, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left_rounded, color: Colors.white),
+                onPressed: () {
+                  setState(() {
+                    _calendarMonth = DateTime(_calendarMonth.year, _calendarMonth.month - 1);
+                  });
+                },
+              ),
+              Text(
+                '${_kMonthsShort[_calendarMonth.month - 1]} ${_calendarMonth.year}',
+                style: _inter(16, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9)),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right_rounded, color: Colors.white),
+                onPressed: () {
+                  setState(() {
+                    _calendarMonth = DateTime(_calendarMonth.year, _calendarMonth.month + 1);
+                  });
+                },
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Row(
             children: _kWeekdaysShort
                 .map((h) => Expanded(
@@ -983,19 +1285,23 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       weight = FontWeight.w700;
     }
 
-    return Center(
-      child: Container(
-        width: 28,
-        height: 28,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: bg,
-          shape: BoxShape.circle,
-          border: border,
-        ),
-        child: Text(
-          '${c.date.day}',
-          style: _inter(12, color: textColor, weight: weight),
+    return GestureDetector(
+      onTap: () => _showLogSheet(c.date),
+      behavior: HitTestBehavior.opaque,
+      child: Center(
+        child: Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bg,
+            shape: BoxShape.circle,
+            border: border,
+          ),
+          child: Text(
+            '${c.date.day}',
+            style: _inter(12, color: textColor, weight: weight),
+          ),
         ),
       ),
     );
@@ -1345,12 +1651,12 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     );
   }
 
-  // ── New cycle bottom sheet ─────────────────────────────────────────────────
-
-  Future<void> _showNewCycleSheet() async {
-    DateTime newStart = DateTime.now();
-    int newCycleLen = _latest?.cycleLength ?? 28;
-    int newPeriodLen = _latest?.periodLength ?? 5;
+  // ── Log Period bottom sheet ────────────────────────────────────────────────
+  
+  Future<void> _showLogSheet(DateTime initialDate) async {
+    DateTime selectedDate = initialDate;
+    String flow = 'Medium';
+    String pain = 'Mild';
     bool saving = false;
 
     await showModalBottomSheet(
@@ -1381,69 +1687,80 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text('Log New Period', style: _inter(18, weight: FontWeight.w700)),
-                const SizedBox(height: 20),
-
-                SetupField(
-                  label: 'PERIOD START DATE',
-                  child: GestureDetector(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: ctx,
-                        initialDate: newStart,
-                        firstDate:
-                            DateTime.now().subtract(const Duration(days: 180)),
-                        lastDate: DateTime.now(),
-                        builder: (c, child) => Theme(
-                          data: ThemeData.dark().copyWith(
-                              colorScheme: const ColorScheme.dark(
-                                  primary: AppTheme.womenColor,
-                                  surface: AppTheme.card)),
-                          child: child!,
-                        ),
-                      );
-                      if (picked != null) setModal(() => newStart = picked);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                          color: AppTheme.card2,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.div)),
-                      child: Row(children: [
-                        const Icon(Icons.calendar_today_rounded,
-                            color: AppTheme.womenColor, size: 18),
-                        const SizedBox(width: 10),
-                        Text(_fmt(newStart), style: _inter(14, weight: FontWeight.w500)),
-                        const Spacer(),
-                        const Icon(Icons.chevron_right_rounded,
-                            color: AppTheme.textSec),
-                      ]),
+                Text('Log Period & Symptoms', style: _inter(18, weight: FontWeight.w700)),
+                const SizedBox(height: 12),
+                
+                // Inline Calendar
+                Theme(
+                  data: ThemeData.dark().copyWith(
+                    colorScheme: const ColorScheme.dark(
+                      primary: AppTheme.womenColor,
+                      surface: AppTheme.card,
+                    ),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppTheme.card2,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppTheme.div),
+                    ),
+                    child: CalendarDatePicker(
+                      initialDate: selectedDate,
+                      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                      lastDate: DateTime.now(),
+                      onDateChanged: (d) => setModal(() => selectedDate = d),
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                SetupField(
-                  label: 'CYCLE LENGTH',
-                  child: StepperTile(
-                    value: newCycleLen,
-                    unit: 'days',
-                    min: 21,
-                    max: 40,
-                    onChanged: (v) => setModal(() => newCycleLen = v),
-                  ),
+                const SizedBox(height: 20),
+                
+                Text('FLOW', style: _inter(12, weight: FontWeight.w600, color: AppTheme.textSec)),
+                const SizedBox(height: 8),
+                Row(
+                  children: ['Light', 'Medium', 'Heavy'].map((f) {
+                    final sel = flow == f;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => setModal(() => flow = f),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: sel ? AppTheme.womenColor.withValues(alpha: 0.2) : AppTheme.card2,
+                            border: Border.all(color: sel ? AppTheme.womenColor : AppTheme.div),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(f, style: _inter(13, color: sel ? AppTheme.womenColor : Colors.white, weight: sel ? FontWeight.w600 : FontWeight.w400)),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
-                const SizedBox(height: 12),
-                SetupField(
-                  label: 'PERIOD LENGTH',
-                  child: StepperTile(
-                    value: newPeriodLen,
-                    unit: 'days',
-                    min: 2,
-                    max: 10,
-                    onChanged: (v) => setModal(() => newPeriodLen = v),
-                  ),
+                const SizedBox(height: 16),
+
+                Text('PAIN', style: _inter(12, weight: FontWeight.w600, color: AppTheme.textSec)),
+                const SizedBox(height: 8),
+                Row(
+                  children: ['None', 'Mild', 'Severe'].map((p) {
+                    final sel = pain == p;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => setModal(() => pain = p),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: sel ? AppTheme.womenColor.withValues(alpha: 0.2) : AppTheme.card2,
+                            border: Border.all(color: sel ? AppTheme.womenColor : AppTheme.div),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(p, style: _inter(13, color: sel ? AppTheme.womenColor : Colors.white, weight: sel ? FontWeight.w600 : FontWeight.w400)),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
                 const SizedBox(height: 24),
 
@@ -1452,17 +1769,55 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                       ? null
                       : () async {
                           setModal(() => saving = true);
-                          final user = SupabaseService.currentUser;
-                          if (user != null) {
-                            await SupabaseService.saveCycle(
-                              userId: user.id,
-                              periodStart: newStart,
-                              cycleLength: newCycleLen,
-                              periodLength: newPeriodLen,
+                          try {
+                            final user = SupabaseService.currentUser;
+                            if (user != null) {
+                              // Check if selectedDate falls within an actual logged cycle
+                              bool inActualCycle = false;
+                              for (final c in _cycles) {
+                                final start = _d(c.periodStart);
+                                final end = _d(c.periodStart.add(Duration(days: c.periodLength - 1)));
+                                final target = _d(selectedDate);
+                                if (target.compareTo(start) >= 0 && target.compareTo(end) <= 0) {
+                                  inActualCycle = true;
+                                  break;
+                                }
+                              }
+
+                              if (!inActualCycle) {
+                                await SupabaseService.saveCycle(
+                                  userId: user.id,
+                                  periodStart: selectedDate,
+                                  cycleLength: _latest?.cycleLength ?? 28,
+                                  periodLength: _latest?.periodLength ?? 5,
+                                );
+                              }
+                              
+                              await SupabaseService.upsertSymptoms(
+                                userId: user.id,
+                                date: selectedDate,
+                                notes: 'Flow: $flow, Pain: $pain',
+                              );
+                            }
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            await _load();
+                          } catch (e, st) {
+                            setModal(() => saving = false);
+                            IncidentService.reportUnhandled(
+                              source: 'womens_health_screen_save',
+                              error: e,
+                              stackTrace: st,
+                              customMessage: 'Failed to save period log',
                             );
+                            if (ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to save. Please try again.'),
+                                  backgroundColor: AppTheme.danger,
+                                )
+                              );
+                            }
                           }
-                          if (ctx.mounted) Navigator.pop(ctx);
-                          await _load();
                         },
                   child: Container(
                     width: double.infinity,
