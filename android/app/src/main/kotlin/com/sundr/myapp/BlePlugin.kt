@@ -1081,7 +1081,7 @@ class BlePlugin(private val context: Context) {
         val done = AtomicBoolean(false)
         try {
             LargeDataHandler.getInstance().syncIntervalBloodOxygenWithCallback(0, object : com.oudmon.ble.base.communication.IIntervalBloodOxygenCallback {
-                override fun readIntervalBloodOxygen(data: com.oudmon.ble.base.communication.bigData.bean.IntervalBloodOxygenEntity?) {
+                override fun readIntervalBloodOxygen(data: IntervalBloodOxygenEntity?) {
                     if (done.getAndSet(true)) return
                     if (data == null) { mainHandler.post { result.success(gson.toJson(mapOf("inserted" to 0))) }; return }
                     val intervalMin = try { data.interval } catch (_: Exception) { 10 }
