@@ -61,6 +61,9 @@ class _HrvScreenState extends State<HrvScreen> {
   bool _dayOffline = false;
   bool _trendOffline = false;
   int _manualHrv = 0;
+  int _latestHrv = 0;
+  // ignore: unused_field
+  int _latestHrvAt = 0;
 
   DateTime _selectedDate = DateTime.now();
 
@@ -89,19 +92,26 @@ class _HrvScreenState extends State<HrvScreen> {
   int get _displayAvg {
     if (!_isToday) return _dayAvg;
     if (_avgHrv > 0) return _avgHrv;
-    try { return context.read<BleProvider>().todayAvgHrv; } catch(_) { return 0; }
+    try { return context.watch<BleProvider>().todayAvgHrv; } catch(_) { return 0; }
   }
 
   int get _displayMin {
     if (!_isToday) return _dayMin;
     if (_minHrv > 0) return _minHrv;
-    return 0; // BleProvider doesn't track min/max HRV for today yet
+    try { return context.watch<BleProvider>().todayMinHrv; } catch(_) { return 0; }
   }
 
   int get _displayMax {
     if (!_isToday) return _dayMax;
     if (_maxHrv > 0) return _maxHrv;
-    return 0; // BleProvider doesn't track min/max HRV for today yet
+    try { return context.watch<BleProvider>().todayMaxHrv; } catch(_) { return 0; }
+  }
+
+  int get _displayLatestLocal {
+    if (!_isToday) return 0;
+    if (_manualHrv > 0) return _manualHrv;
+    if (_latestHrv > 0) return _latestHrv;
+    return 0;
   }
 
   String _fmt(DateTime d) =>
@@ -233,23 +243,27 @@ class _HrvScreenState extends State<HrvScreen> {
 
       if (!mounted) return;
       final avg = (summary['avg'] as num?)?.round() ?? 0;
-      if (!slots.any((v) => v > 0) && mounted) {
-        final liveVal = context.read<BleProvider>().todayAvgHrv;
-        if (liveVal > 0) {
-          final currentSlot = (now.hour * 60 + now.minute) ~/ 30;
-          if (currentSlot >= 0 && currentSlot < totalSlots) {
-            slots[currentSlot] = liveVal;
-          }
-        }
-      }
+      final latest = (summary['lastValue'] as num?)?.toInt() ?? 0;
+      final latestAt = (summary['lastMeasuredAt'] as num?)?.toInt() ?? 0;
       setState(() {
         _chartValues = slots;
         _avgHrv = avg;
         _minHrv = (summary['min'] as num? ?? 0).toInt();
         _maxHrv = (summary['max'] as num? ?? 0).toInt();
+        if (latest > 0) {
+          _latestHrv = latest;
+          _latestHrvAt = latestAt;
+        }
         _selectedDate = now;
       });
-      if (avg > 0 && mounted) context.read<BleProvider>().updateHrvLatest(avg);
+      if (avg > 0 && mounted) {
+        final minV = (summary['min'] as num?)?.toInt() ?? 0;
+        final maxV = (summary['max'] as num?)?.toInt() ?? 0;
+        context.read<BleProvider>().updateHrvData(avg, minV, maxV, latest);
+      }
+      if (latest > 0 && mounted) {
+        context.read<BleProvider>().updateHrvLatestDetailed(latest, latestAt);
+      }
     } catch (_) {
       // Local DB read failing isn't worth surfacing loudly — chart just stays blank.
     } finally {
@@ -271,6 +285,8 @@ class _HrvScreenState extends State<HrvScreen> {
       try {
         final m = jsonDecode(result) as Map<String, dynamic>;
         liveVal = (m['value'] as num?)?.toInt() ?? 0;
+        if (liveVal <= 0) liveVal = (m['hrv'] as num?)?.toInt() ?? 0;
+        if (liveVal <= 0) liveVal = (m['valueMs'] as num?)?.toInt() ?? 0;
       } catch (e, st) {
         IncidentService.reportUnhandled(
           source: 'hrv_screen',
@@ -280,17 +296,41 @@ class _HrvScreenState extends State<HrvScreen> {
         );
       }
       if (!mounted) return;
-      setState(() {
-        _measuring = false;
-        if (liveVal > 0) _manualHrv = liveVal;
-      });
-      if (liveVal > 0) await _saveSingleMeasurement(liveVal);
+      if (liveVal > 0) {
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
+        setState(() {
+          _measuring = false;
+          _manualHrv = liveVal;
+          _latestHrv = liveVal;
+          _latestHrvAt = nowMs;
+        });
+        try { context.read<BleProvider>().updateHrvLatestDetailed(liveVal, nowMs); } catch (_) {}
+        try { await _ble.insertHrv(valueMs: liveVal, measuredAtMs: nowMs, source: 'manual'); } catch (_) {}
+        try {
+          final summaryJson = await _ble.getTodaySummary('hrv');
+          final summary = jsonDecode(summaryJson) as Map<String, dynamic>;
+          final count = (summary['count'] as num?)?.toInt() ?? 1;
+          final avg = (summary['avg'] as num?)?.round() ?? liveVal;
+          final minVal = (summary['min'] as num?)?.toInt() ?? liveVal;
+          final maxVal = (summary['max'] as num?)?.toInt() ?? liveVal;
+          if (mounted) {
+            setState(() { _avgHrv = avg; _minHrv = minVal; _maxHrv = maxVal; });
+            try { context.read<BleProvider>().updateHrvData(avg, minVal, maxVal, liveVal); } catch (_) {}
+          }
+          final user = SupabaseService.currentUser;
+          if (user != null) {
+            await SupabaseService.upsertHrv(userId: user.id, date: DateTime.now(), avgHrv: avg, minHrv: minVal, maxHrv: maxVal, sampleCount: count);
+          }
+          await _fetchTodayFromLocalDb();
+        } catch (_) {
+          await _saveSingleMeasurement(liveVal);
+        }
+      } else {
+        setState(() => _measuring = false);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _measuring = false);
-      // Real HRV readings take ~50s on-device (confirmed against the official QRing
-      // app) — surface the actual error instead of failing silently so a timeout is
-      // distinguishable from e.g. a disconnect.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('HRV measurement failed: $e'),
@@ -392,12 +432,14 @@ class _HrvScreenState extends State<HrvScreen> {
         final avg = (row['avg_hrv'] as num? ?? 0).toInt();
         final minV = (row['min_hrv'] as num? ?? 0).toInt();
         final maxV = (row['max_hrv'] as num? ?? 0).toInt();
-        if (!_local.hasData(local) || avg > 0) {
-          setState(() {
-            if (avg > 0) _dayAvg = avg;
-            if (minV > 0) _dayMin = minV;
-            if (maxV > 0) _dayMax = maxV;
-          });
+        if (!_local.hasData(local)) {
+          if (avg > 0 || minV > 0 || maxV > 0) {
+            setState(() {
+              if (avg > 0) _dayAvg = avg;
+              if (minV > 0) _dayMin = minV;
+              if (maxV > 0) _dayMax = maxV;
+            });
+          }
         }
         await _local.cacheSimpleDay(
           vital: 'hrv',
@@ -469,7 +511,8 @@ class _HrvScreenState extends State<HrvScreen> {
         });
         final valid = rows.where((r) => r['min_hrv'] != null).toList();
         if (!mounted) return;
-        if (vals.any((v) => v > 0)) {
+        final hasLocalTrend = localVals.any((v) => v > 0);
+        if (!hasLocalTrend && vals.any((v) => v > 0)) {
           setState(() {
             _trendValues = vals;
             _trendMin = valid.isEmpty
@@ -614,17 +657,24 @@ class _HrvScreenState extends State<HrvScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final connected = context.watch<BleProvider>().isConnected;
+    final ble = context.watch<BleProvider>();
+    final connected = ble.isConnected;
 
     final displayAvg = _displayAvg;
     final displayMin = _displayMin;
     final displayMax = _displayMax;
+    final localLatest = _displayLatestLocal;
+    final providerLatest = ble.latestHrv;
+    final displayLatest = localLatest > 0 ? localLatest : providerLatest;
 
     final hrvText = _loading
         ? '···'
+        : displayLatest > 0
+        ? '$displayLatest'
         : displayAvg > 0
         ? '$displayAvg'
         : '--';
+    final isStale = !_loading && displayLatest == 0 && displayAvg > 0;
 
     final hasData = _hasRingData;
     final dailyRangeLabel = hasData
@@ -694,32 +744,44 @@ class _HrvScreenState extends State<HrvScreen> {
                 const SizedBox(height: 2),
                 Text(
                   hrvText,
-                  style: _inter(52, weight: FontWeight.w300, height: 1.1),
+                  style: _inter(52, weight: FontWeight.w300, height: 1.1, color: isStale ? Colors.white.withValues(alpha: 0.6) : Colors.white),
                 ),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text('ms', style: _inter(13, color: AppTheme.textTertiary)),
                     const SizedBox(width: 10),
-                    if (!_loading && displayAvg > 0)
+                    if (!_loading && (displayLatest > 0 ? _hrvLabel(displayLatest) != '--' : displayAvg > 0))
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: _hrvColor(displayAvg).withValues(alpha: 0.15),
+                          color: _hrvColor(displayLatest > 0 ? displayLatest : displayAvg).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          _hrvLabel(displayAvg),
+                          _hrvLabel(displayLatest > 0 ? displayLatest : displayAvg),
                           style: _inter(
                             11,
                             weight: FontWeight.w600,
-                            color: _hrvColor(displayAvg),
+                            color: _hrvColor(displayLatest > 0 ? displayLatest : displayAvg),
                           ),
                         ),
                       ),
+                    if (isStale && displayAvg > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                        ),
+                        child: Text('avg · no fresh reading', style: _inter(10, color: AppTheme.textTertiary)),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 16),

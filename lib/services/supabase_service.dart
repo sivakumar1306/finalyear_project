@@ -902,6 +902,22 @@ class SupabaseService {
     return m != null ? SymptomRecord.fromMap(m) : null;
   }
 
+  // ── Phase 2 Detailed Health (ECG/Breath/Sugar) typed wrappers ──
+  static Future<List<Map<String, dynamic>>> getEcgHistory({required String userId, required DateTime from, required DateTime to}) async {
+    final data = await client.from('user_ecg').select().eq('user_id', userId).gte('measured_at', from.toUtc().toIso8601String()).lte('measured_at', to.toUtc().toIso8601String()).order('measured_at');
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  static Future<List<Map<String, dynamic>>> getBreathHistory({required String userId, required DateTime from, required DateTime to}) async {
+    final data = await client.from('user_breath_sessions').select().eq('user_id', userId).gte('started_at', from.toUtc().toIso8601String()).lte('started_at', to.toUtc().toIso8601String()).order('started_at');
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  static Future<List<Map<String, dynamic>>> getSugarHistory({required String userId, required DateTime from, required DateTime to}) async {
+    final data = await client.from('user_blood_sugar').select().eq('user_id', userId).gte('measured_at', from.toUtc().toIso8601String()).lte('measured_at', to.toUtc().toIso8601String()).order('measured_at');
+    return List<Map<String, dynamic>>.from(data);
+  }
+
   // ── Firmware OTA Updates ──────────────────────────────────────────
 
   static Future<List<Map<String, dynamic>>> getFirmwareUpdates() async {

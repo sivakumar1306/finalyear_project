@@ -41,15 +41,21 @@ class BleProvider extends ChangeNotifier {
   bool _syncingSteps = false;
   List<int> _todayStepsByInterval = [];
 
-  // Heart rate state
+  // Heart rate state — avg/min/max are daily aggregates, latest is the most
+  // recent single reading (QRing-style hero value). latest is surfaced
+  // separately so CURRENT can show live BPM instead of stale AVG.
   int _todayAvgHr = 0;
   int _todayMinHr = 0;
   int _todayMaxHr = 0;
+  int _latestHr = 0;
+  int _latestHrMeasuredAt = 0;
 
-  // SpO2 state
+  // SpO2 state — avg/min/max are daily aggregates, latest is QRing-style hero.
   int _todayAvgSpo2 = 0;
   int _todayMinSpo2 = 0;
   int _todayMaxSpo2 = 0;
+  int _latestSpo2 = 0;
+  int _latestSpo2MeasuredAt = 0;
 
   // Blood Pressure state
   int _latestBpSbp = 0;
@@ -61,8 +67,12 @@ class BleProvider extends ChangeNotifier {
   int _todayMinStress = 0;
   int _todayMaxStress = 0;
 
-  // HRV state
+  // HRV state — avg/min/max + latest hero (mirrors HR/SpO2 pattern).
   int _todayAvgHrv = 0;
+  int _todayMinHrv = 0;
+  int _todayMaxHrv = 0;
+  int _latestHrv = 0;
+  int _latestHrvMeasuredAt = 0;
 
   // Sleep state
   int _todaySleepDuration = 0; // seconds
@@ -184,10 +194,24 @@ class BleProvider extends ChangeNotifier {
   int get todayAvgHr => _todayAvgHr;
   int get todayMinHr => _todayMinHr;
   int get todayMaxHr => _todayMaxHr;
+  int get latestHr => _latestHr;
+  int get latestHrMeasuredAt => _latestHrMeasuredAt;
+  /// Freshness helper: hero CURRENT should grey out if latest is older than this.
+  bool get isLatestHrStale {
+    if (_latestHr <= 0 || _latestHrMeasuredAt <= 0) return true;
+    final ageMs = DateTime.now().millisecondsSinceEpoch - _latestHrMeasuredAt;
+    return ageMs > 30 * 60 * 1000; // 30 min
+  }
 
   int get todayAvgSpo2 => _todayAvgSpo2;
   int get todayMinSpo2 => _todayMinSpo2;
   int get todayMaxSpo2 => _todayMaxSpo2;
+  int get latestSpo2 => _latestSpo2;
+  int get latestSpo2MeasuredAt => _latestSpo2MeasuredAt;
+  bool get isLatestSpo2Stale {
+    if (_latestSpo2 <= 0 || _latestSpo2MeasuredAt <= 0) return true;
+    return DateTime.now().millisecondsSinceEpoch - _latestSpo2MeasuredAt > 30*60*1000;
+  }
 
   int get latestBpSbp => _latestBpSbp;
   int get latestBpDbp => _latestBpDbp;
@@ -196,6 +220,14 @@ class BleProvider extends ChangeNotifier {
   int get todayMinStress => _todayMinStress;
   int get todayMaxStress => _todayMaxStress;
   int get todayAvgHrv => _todayAvgHrv;
+  int get todayMinHrv => _todayMinHrv;
+  int get todayMaxHrv => _todayMaxHrv;
+  int get latestHrv => _latestHrv;
+  int get latestHrvMeasuredAt => _latestHrvMeasuredAt;
+  bool get isLatestHrvStale {
+    if (_latestHrv <= 0 || _latestHrvMeasuredAt <= 0) return true;
+    return DateTime.now().millisecondsSinceEpoch - _latestHrvMeasuredAt > 30*60*1000;
+  }
 
   int get todaySleepDuration => _todaySleepDuration;
   int get todaySleepScore => _todaySleepScore;
@@ -258,10 +290,22 @@ class BleProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateHrLatest(int latestBpm, int measuredAtMs) {
+    _latestHr = latestBpm;
+    _latestHrMeasuredAt = measuredAtMs;
+    notifyListeners();
+  }
+
   void updateSpo2Data(int avg, int min, int max) {
     _todayAvgSpo2 = avg;
     _todayMinSpo2 = min;
     _todayMaxSpo2 = max;
+    notifyListeners();
+  }
+
+  void updateSpo2Latest(int latestPct, int measuredAtMs) {
+    _latestSpo2 = latestPct;
+    _latestSpo2MeasuredAt = measuredAtMs;
     notifyListeners();
   }
 
@@ -278,6 +322,23 @@ class BleProvider extends ChangeNotifier {
 
   void updateHrvLatest(int avgHrv) {
     _todayAvgHrv = avgHrv;
+    notifyListeners();
+  }
+
+  void updateHrvData(int avg, int min, int max, int latest) {
+    _todayAvgHrv = avg;
+    _todayMinHrv = min;
+    _todayMaxHrv = max;
+    if (latest > 0) {
+      _latestHrv = latest;
+      _latestHrvMeasuredAt = DateTime.now().millisecondsSinceEpoch;
+    }
+    notifyListeners();
+  }
+
+  void updateHrvLatestDetailed(int latestMs, int measuredAtMs) {
+    _latestHrv = latestMs;
+    _latestHrvMeasuredAt = measuredAtMs;
     notifyListeners();
   }
 
@@ -552,6 +613,7 @@ void _onBatteryPushEvent(Map<String, dynamic> data) {
       case 'HRV':
       case 'hrv':
         _refreshHrvFromLocal();
+        unawaited(_pushToHealthConnect('hrv'));
         break;
     }
   }
@@ -1065,12 +1127,45 @@ Future<void> _loadTodayVitalsFromLocal() async {
       final m =
           jsonDecode(await _ble.getTodaySummary('heart_rate'))
               as Map<String, dynamic>;
-      if ((m['count'] as num? ?? 0) <= 0) return false;
+      if ((m['count'] as num? ?? 0) <= 0) {
+        // No aggregate today — try to at least show latest discrete point.
+        try {
+          final lm = jsonDecode(await _ble.getLatestReading('heart_rate'));
+          if (lm is Map<String, dynamic>) {
+            final ts = (lm['measuredAt'] as num?)?.toInt() ?? 0;
+            if (_isTodayTimestamp(ts)) {
+              _latestHr = (lm['valueBpm'] as num?)?.toInt() ?? 0;
+              _latestHrMeasuredAt = ts;
+              if (_latestHr > 0) notifyListeners();
+            }
+          }
+        } catch (_) {}
+        return false;
+      }
       _todayAvgHr = (m['avg'] as num?)?.round() ?? 0;
       _todayMinHr = (m['min'] as num?)?.toInt() ?? 0;
       _todayMaxHr = (m['max'] as num?)?.toInt() ?? 0;
-      notifyListeners();
       final last = (m['lastValue'] as num?)?.toInt() ?? 0;
+      final lastAt = (m['lastMeasuredAt'] as num?)?.toInt() ?? 0;
+      if (last > 0) {
+        _latestHr = last;
+        _latestHrMeasuredAt = lastAt != 0
+            ? lastAt
+            : DateTime.now().millisecondsSinceEpoch;
+      } else {
+        // summary lacked lastValue (older DB) — fallback to latestReading
+        try {
+          final lm = jsonDecode(await _ble.getLatestReading('heart_rate'));
+          if (lm is Map<String, dynamic>) {
+            final ts = (lm['measuredAt'] as num?)?.toInt() ?? 0;
+            if (_isTodayTimestamp(ts)) {
+              _latestHr = (lm['valueBpm'] as num?)?.toInt() ?? _latestHr;
+              _latestHrMeasuredAt = ts != 0 ? ts : _latestHrMeasuredAt;
+            }
+          }
+        } catch (_) {}
+      }
+      notifyListeners();
       if (last > 0) {
         _maybeAlert(
           'High Heart Rate',
@@ -1098,12 +1193,41 @@ Future<void> _loadTodayVitalsFromLocal() async {
       final m =
           jsonDecode(await _ble.getTodaySummary('spo2'))
               as Map<String, dynamic>;
-      if ((m['count'] as num? ?? 0) <= 0) return false;
+      if ((m['count'] as num? ?? 0) <= 0) {
+        try {
+          final lm = jsonDecode(await _ble.getLatestReading('spo2'));
+          if (lm is Map<String, dynamic>) {
+            final ts = (lm['measuredAt'] as num?)?.toInt() ?? 0;
+            if (_isTodayTimestamp(ts)) {
+              _latestSpo2 = (lm['valuePct'] as num?)?.toInt() ?? 0;
+              _latestSpo2MeasuredAt = ts;
+              if (_latestSpo2 > 0) notifyListeners();
+            }
+          }
+        } catch (_) {}
+        return false;
+      }
       _todayAvgSpo2 = (m['avg'] as num?)?.round() ?? 0;
       _todayMinSpo2 = (m['min'] as num?)?.toInt() ?? 0;
       _todayMaxSpo2 = (m['max'] as num?)?.toInt() ?? 0;
-      notifyListeners();
       final last = (m['lastValue'] as num?)?.toInt() ?? 0;
+      final lastAt = (m['lastMeasuredAt'] as num?)?.toInt() ?? 0;
+      if (last > 0) {
+        _latestSpo2 = last;
+        _latestSpo2MeasuredAt = lastAt != 0 ? lastAt : DateTime.now().millisecondsSinceEpoch;
+      } else {
+        try {
+          final lm = jsonDecode(await _ble.getLatestReading('spo2'));
+          if (lm is Map<String, dynamic>) {
+            final ts = (lm['measuredAt'] as num?)?.toInt() ?? 0;
+            if (_isTodayTimestamp(ts)) {
+              _latestSpo2 = (lm['valuePct'] as num?)?.toInt() ?? _latestSpo2;
+              _latestSpo2MeasuredAt = ts != 0 ? ts : _latestSpo2MeasuredAt;
+            }
+          }
+        } catch (_) {}
+      }
+      notifyListeners();
       if (last > 0) {
         _maybeAlert(
           'High SpO2',
@@ -1330,8 +1454,40 @@ Future<void> _loadTodayVitalsFromLocal() async {
       final m =
           jsonDecode(await _ble.getTodaySummary('hrv'))
               as Map<String, dynamic>;
-      if ((m['count'] as num? ?? 0) <= 0) return false;
+      if ((m['count'] as num? ?? 0) <= 0) {
+        try {
+          final lm = jsonDecode(await _ble.getLatestReading('hrv'));
+          if (lm is Map<String, dynamic>) {
+            final ts = (lm['measuredAt'] as num?)?.toInt() ?? 0;
+            if (_isTodayTimestamp(ts)) {
+              _latestHrv = (lm['valueMs'] as num?)?.toInt() ?? 0;
+              _latestHrvMeasuredAt = ts;
+              if (_latestHrv > 0) notifyListeners();
+            }
+          }
+        } catch (_) {}
+        return false;
+      }
       _todayAvgHrv = (m['avg'] as num?)?.round() ?? 0;
+      _todayMinHrv = (m['min'] as num?)?.toInt() ?? 0;
+      _todayMaxHrv = (m['max'] as num?)?.toInt() ?? 0;
+      final last = (m['lastValue'] as num?)?.toInt() ?? 0;
+      final lastAt = (m['lastMeasuredAt'] as num?)?.toInt() ?? 0;
+      if (last > 0) {
+        _latestHrv = last;
+        _latestHrvMeasuredAt = lastAt != 0 ? lastAt : DateTime.now().millisecondsSinceEpoch;
+      } else {
+        try {
+          final lm = jsonDecode(await _ble.getLatestReading('hrv'));
+          if (lm is Map<String, dynamic>) {
+            final ts = (lm['measuredAt'] as num?)?.toInt() ?? 0;
+            if (_isTodayTimestamp(ts)) {
+              _latestHrv = (lm['valueMs'] as num?)?.toInt() ?? _latestHrv;
+              _latestHrvMeasuredAt = ts != 0 ? ts : _latestHrvMeasuredAt;
+            }
+          }
+        } catch (_) {}
+      }
       notifyListeners();
       return true;
     } catch (_) {
@@ -1394,6 +1550,14 @@ Future<void> _loadSavedDevice() async {
     // blood-oxygen SDK crash at 12:03 AM.
     try {
       await _ble.setTime();
+    } catch (e, st) {
+      _recordError(e, st);
+    }
+    // Ensure ring autonomous HR interval is configured (QRing firmware logs even
+    // when phone disconnected; official app defaults to 30/60 min, we use 10 min
+    // for denser data to keep AVG from pinning to early 87).
+    try {
+      await _ble.setHeartRateSetting(enable: true, interval: 10).timeout(const Duration(seconds: 5));
     } catch (e, st) {
       _recordError(e, st);
     }
@@ -1477,12 +1641,53 @@ Future<void> syncAllFromRing() async {
       _syncStep = 'Temperature';
       notifyListeners();
 
-      // 3. Temperature (66% → 100%) — use syncAutoTemperature to fetch from ring
+      // 3. Temperature (66% → 90%) — use syncAutoTemperature to fetch from ring
       try {
         final json = await _ble.syncAutoTemperature().timeout(
           const Duration(seconds: 15),
         );
         _parseAndSaveTemp(json);
+      } catch (e, st) {
+        _recordError(e, st);
+      }
+      if (!alive()) return;
+      _syncProgress = 0.90;
+      _syncStep = 'Heart Rate Interval';
+      notifyListeners();
+
+      // 4. Heart Rate interval backlog (QRing heart_rate_detail blob → per-point rows)
+      // Pulls ring's autonomous interval logs even when phone was disconnected,
+      // backfilling hourly chart gaps and de-pinning AVG from early 87.
+      try {
+        final res = await _ble.syncIntervalHeartRateDetail().timeout(const Duration(seconds: 22));
+        debugPrint('[BleProvider] syncIntervalHeartRateDetail: $res');
+        await _refreshHrFromLocal();
+      } catch (e, st) {
+        _recordError(e, st);
+      }
+      if (!alive()) return;
+      _syncProgress = 0.92;
+      _syncStep = 'SpO₂ Interval';
+      notifyListeners();
+
+      // 5. SpO₂ interval backlog
+      try {
+        final res = await _ble.syncIntervalSpo2Detail().timeout(const Duration(seconds: 22));
+        debugPrint('[BleProvider] syncIntervalSpo2Detail: $res');
+        await _refreshSpo2FromLocal();
+      } catch (e, st) {
+        _recordError(e, st);
+      }
+      if (!alive()) return;
+      _syncProgress = 0.96;
+      _syncStep = 'Temperature Interval';
+      notifyListeners();
+
+      // 6. Temperature interval backlog
+      try {
+        final res = await _ble.syncIntervalTemperatureDetail().timeout(const Duration(seconds: 22));
+        debugPrint('[BleProvider] syncIntervalTemperatureDetail: $res');
+        await _refreshTempFromLocal();
       } catch (e, st) {
         _recordError(e, st);
       }
