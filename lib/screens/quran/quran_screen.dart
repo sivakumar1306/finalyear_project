@@ -8,8 +8,8 @@ import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/glass_card.dart';
 
-TextStyle _inter(double size, {FontWeight weight = FontWeight.w400, Color color = Colors.white, double? letterSpacing}) =>
-    AppTypography.inter(fontSize: size, fontWeight: weight, color: color, letterSpacing: letterSpacing);
+TextStyle _inter(double size, {FontWeight weight = FontWeight.w400, Color color = Colors.white, double? letterSpacing, double? height}) =>
+    AppTypography.inter(fontSize: size, fontWeight: weight, color: color, letterSpacing: letterSpacing, height: height);
 
 class QuranScreen extends StatefulWidget {
   const QuranScreen({super.key});
