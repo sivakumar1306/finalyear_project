@@ -1113,14 +1113,13 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
               subtitle: _fmtTillDate(c.fertileEnd),
             ),
           ),
-          if (_awheResult == null)
-            Expanded(
-              child: PredictionCol(
-                label: 'Phase',
-                value: phase.isEmpty ? '--' : phase,
-                subtitle: _fmtTillDate(phaseEnd),
-              ),
+          Expanded(
+            child: PredictionCol(
+              label: 'Phase',
+              value: phase.isEmpty ? '--' : phase,
+              subtitle: _fmtTillDate(phaseEnd),
             ),
+          ),
         ],
       ),
     );
