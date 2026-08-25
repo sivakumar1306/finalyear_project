@@ -376,6 +376,22 @@ class BleService {
       }) ??
       '[]';
 
+  Future<String> getContinuousSugar() async {
+    try {
+      return await _methodChannel.invokeMethod<String>('getContinuousSugar') ?? '[]';
+    } catch (_) {
+      return '[]';
+    }
+  }
+
+  Future<String> startEcgMeasure() async {
+    try {
+      return await _methodChannel.invokeMethod<String>('startEcgMeasure') ?? '{}';
+    } catch (_) {
+      return '{}';
+    }
+  }
+
   Future<String> getTemperatureSetting() async =>
       await _methodChannel.invokeMethod<String>('getTemperatureSetting') ??
       '{}';
@@ -659,6 +675,71 @@ class BleService {
         'vital': vital,
       }) ??
       '{}';
+
+  /// Persist a single manual heart rate reading directly to Room (QRing-style
+  /// app_heart). Used by heart_rate_screen after readHeartRate() so hourly
+  /// chart + daily aggregate include it instead of blending avg ~/2.
+  Future<bool> insertHeartRate({
+    required int valueBpm,
+    int? measuredAtMs,
+    String source = 'manual',
+  }) async =>
+      await _methodChannel.invokeMethod<bool>('insertHeartRate', {
+        'valueBpm': valueBpm,
+        'measuredAt': measuredAtMs ?? DateTime.now().millisecondsSinceEpoch,
+        'source': source,
+      }) ??
+      false;
+
+  Future<bool> insertSpo2({
+    required int valuePct,
+    int? measuredAtMs,
+    String source = 'manual',
+  }) async =>
+      await _methodChannel.invokeMethod<bool>('insertSpo2', {
+        'valuePct': valuePct,
+        'measuredAt': measuredAtMs ?? DateTime.now().millisecondsSinceEpoch,
+        'source': source,
+      }) ??
+      false;
+
+  Future<bool> insertHrv({
+    required int valueMs,
+    int? measuredAtMs,
+    String source = 'manual',
+  }) async =>
+      await _methodChannel.invokeMethod<bool>('insertHrv', {
+        'valueMs': valueMs,
+        'measuredAt': measuredAtMs ?? DateTime.now().millisecondsSinceEpoch,
+        'source': source,
+      }) ??
+      false;
+
+  Future<bool> insertTemperature({
+    required double valueC,
+    int? measuredAtMs,
+    String source = 'manual',
+  }) async =>
+      await _methodChannel.invokeMethod<bool>('insertTemperature', {
+        'valueC': valueC,
+        'measuredAt': measuredAtMs ?? DateTime.now().millisecondsSinceEpoch,
+        'source': source,
+      }) ??
+      false;
+
+  /// Trigger bulk pull of ring's autonomous interval logs (QRing
+  /// heart_rate_detail blob → per-point rows). Call on connect / resume.
+  Future<String> syncIntervalHeartRateDetail() async =>
+      await _methodChannel.invokeMethod<String>('syncIntervalHeartRateDetail') ??
+      '[]';
+
+  Future<String> syncIntervalSpo2Detail() async =>
+      await _methodChannel.invokeMethod<String>('syncIntervalSpo2Detail') ??
+      '[]';
+
+  Future<String> syncIntervalTemperatureDetail() async =>
+      await _methodChannel.invokeMethod<String>('syncIntervalTemperatureDetail') ??
+      '[]';
 
   Future<String> getStepsToday() async =>
       await _methodChannel.invokeMethod<String>('getStepsToday') ?? '{}';

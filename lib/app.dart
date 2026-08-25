@@ -26,6 +26,19 @@ import 'screens/settings/fall_detection_screen.dart';
 import 'screens/reminders/ring_reminder_screen.dart';
 import 'screens/ota/ota_screen.dart';
 import 'screens/sugar_lipids/sugar_lipids_screen.dart';
+import 'screens/health/breath_screen.dart';
+import 'screens/health/ecg_screen.dart';
+import 'screens/health/blood_sugar_screen.dart';
+import 'screens/quran/quran_screen.dart';
+import 'screens/quran/qibla_screen.dart';
+import 'screens/social/friends_screen.dart';
+import 'screens/nutrition/nutrition_screen.dart';
+import 'screens/watchface/watchface_store_screen.dart';
+import 'screens/workouts/sport_type_detail_screen.dart';
+import 'screens/album/album_screen.dart';
+import 'screens/ebook/ebook_screen.dart';
+import 'screens/music/music_album_screen.dart';
+import 'screens/workouts/gps_trace_screen.dart';
 import 'screens/settings/account_system_settings_screen.dart';
 import 'screens/settings/profile_edit_screen.dart';
 import 'screens/settings/faq_screen.dart';
@@ -81,6 +94,19 @@ class SundrApp extends StatelessWidget {
             const RingReminderScreen(type: RingReminderType.sedentary),
         '/ota': (_) => const OtaScreen(),
         '/sugar-lipids': (_) => const SugarLipidsScreen(),
+        '/blood-sugar': (_) => const BloodSugarScreen(),
+        '/breath': (_) => const BreathScreen(),
+        '/ecg': (_) => const EcgScreen(),
+        '/quran': (_) => const QuranScreen(),
+        '/qibla': (_) => const QiblaScreen(),
+        '/friends': (_) => const FriendsScreen(),
+        '/nutrition': (_) => const NutritionScreen(),
+        '/watchface': (_) => const WatchfaceStoreScreen(),
+        '/sport-detail': (_) => const SportTypeDetailScreen(type: 'Running'),
+        '/album': (_) => const AlbumScreen(),
+        '/ebook': (_) => const EbookScreen(),
+        '/music': (_) => const MusicAlbumScreen(),
+        '/gps-trace': (_) => const GpsTraceScreen(),
         '/womens-health': (_) => const WomensHealthScreen(),
         '/account-system-settings': (_) => const AccountSystemSettingsScreen(),
         '/profile-edit': (_) => const ProfileEditScreen(),

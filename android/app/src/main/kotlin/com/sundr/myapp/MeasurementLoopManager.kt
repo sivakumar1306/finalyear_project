@@ -260,6 +260,9 @@ object MeasurementLoopManager {
         // from such a frame persisted SpO2 (~95-100) or junk bytes as bpm.
         // BLE callbacks may arrive off the main thread while the timeout below fires on it,
         // so all access to samples is guarded by its own monitor.
+        // QRing comparison: firmware interval blob is already pre-averaged; phone-side
+        // polling is warm-up prone, so we relax the 8 bpm agreement to 12 bpm and use
+        // lower-median (not upper-median) to avoid biasing toward early warm-up 87.
         val samples = mutableListOf<Int>()
         val sampleLock = Any()
         fun extractBpm(rsp: StartHeartRateRsp): Int? {
@@ -284,9 +287,9 @@ object MeasurementLoopManager {
                             samples.add(candidate)
                             if (samples.size >= 2) {
                                 val prev = samples[samples.size - 2]
-                                if (kotlin.math.abs(candidate - prev) <= 8) {
+                                if (kotlin.math.abs(candidate - prev) <= 12) {
                                     val sorted = samples.sorted()
-                                    accepted = sorted[sorted.size / 2]
+                                    accepted = sorted[(sorted.size - 1) / 2]
                                 }
                             }
                         }
@@ -306,14 +309,15 @@ object MeasurementLoopManager {
             return
         }
         handler.postDelayed({
-            // Timeout: accept a single plausible sample (some rings emit exactly one final
-            // value), otherwise the median of everything collected. Never persist an
-            // isolated warm-up spike when later stable readings contradicted it.
+            // Timeout: accept median of what we have. Require at least 2 samples to avoid
+            // persisting an isolated warm-up 87 when the sensor only emitted one spike.
+            // If only one sample arrived but it's plausible, we still persist it (some rings
+            // emit exactly one final value) — single-sample case kept for compatibility.
             var median: Int? = null
             synchronized(sampleLock) {
                 if (samples.isNotEmpty()) {
                     val sorted = samples.sorted()
-                    median = sorted[sorted.size / 2]
+                    median = sorted[(sorted.size - 1) / 2]
                 }
             }
             if (done.compareAndSet(false, true)) {

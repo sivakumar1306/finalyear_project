@@ -1,0 +1,853 @@
+{
+  "quran": [
+    {
+      "chapterTitle": {
+        "arabic": "الفاتحة",
+        "chinese": "第1章 开端章",
+        "english": "Chapter 1: The Beginning"
+      },
+      "chapterListChinese": [
+        "奉至仁至慈的真主之名",
+        "一切赞颂，全归真主，全世界的主。",
+        "至仁至慈的主。",
+        "报应日的主。",
+        "我们只崇拜你，只求你右助。",
+        "求你引导我们上正路。",
+        "你所右助者的路，不是受谴怒者的路，也不是迷误者的路。"
+      ],
+      "chapterListEnglish": [
+        "In the name of Allah, the Most Gracious, the Most Merciful",
+        "All praise is due to Allah, the Lord of the Worlds.",
+        "The Most Gracious, the Most Merciful.",
+        "The Lord of the Day of Judgment.",
+        "We worship none but You, and seek Your help.",
+        "Guide us to the straight path.",
+        "The path of those You help is not the path of those on whom You have anger, nor of those who have gone astray."
+      ],
+      "chapterListArabic": [
+        "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
+        "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
+        "الرَّحْمَٰنِ الرَّحِيمِ",
+        "مَالِكِ يَوْمِ الدِّينِ",
+        "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ",
+        "اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ",
+        "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ"
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "البقرة",
+        "chinese": "第2章 黄牛章",
+        "english": "Chapter 2: Scalper Chapter"
+      },
+      "chapterListChinese": [
+        "艾列弗，俩目，米目。",
+        "这部经，其中毫无可疑，是敬畏者的向导。",
+        "他们确信幽玄，谨守拜功，并分捨我所给与他们的。",
+        "他们确信降示你的经典，和在你以前降示的经典，并且笃信后世。",
+        "这等人，是遵守他们的主的正道的；这等人，确是成功的。",
+        "不信道者，你对他们加以警告与否，这在他们是一样的，他们毕竟不信道。",
+        "真主已封闭他们的心和耳，他们的眼上有翳膜；他们将受重大的刑罚。",
+        "有些人说：「我们已信真主和末日了。」其实，他们绝不是信士。",
+        "他们想欺瞒真主和信士，其实，他们只是自欺，却不觉悟。",
+        "他们的心裡有病，故真主增加他们的心病；他们将为说谎而遭受重大的刑罚。"
+      ],
+      "chapterListEnglish": [
+        "Aleph, Lammu, and Mim.",
+        "This Book contains no doubt; it is a guide for the pious.",
+        "They believe in the Unknown, perform the prayer, and share what We have provided for them.",
+        "They believe in what was revealed to you and in what was revealed before you, and believe in the Hereafter.",
+        "These are the ones who follow the straight path of their Lord; these are the successful ones.",
+        "As for those who disbelieve, it makes no difference to them whether you warn them or not; they do not believe.",
+        "Allah has sealed their hearts and their ears, and a film is on their eyes; they will have a great punishment.",
+        "Some say, ‘We believe in Allah and the Last Day,’ but they are not believers.",
+        "They seek to deceive Allah and the believers, but they deceive only themselves and do not realize it.",
+        "There is sickness in their hearts, so Allah has increased their sickness; they will have a great punishment for lying."
+      ],
+      "chapterListArabic": [
+        "الم",
+        "ذَٰلِكَ الْكِتَابُ لَا رَيْبَ ۛ فِيهِ ۛ هُدًى لِّلْمُتَّقِينَ",
+        "الَّذِينَ يُؤْمِنُونَ بِالْغَيْبِ وَيُقِيمُونَ الصَّلَاةَ وَمِمَّا رَزَقْنَاهُمْ يُنفِقُونَ",
+        "وَالَّذِينَ يُؤْمِنُونَ بِمَا أُنزِلَ إِلَيْكَ وَمَا أُنزِلَ مِن قَبْلِكَ وَبِالْآخِرَةِ هُمْ يُوقِنُونَ",
+        "أُولَٰئِكَ عَلَىٰ هُدًى مِّن رَّبِّهِمْ ۖ وَأُولَٰئِكَ هُمُ الْمُفْلِحُونَ",
+        "إِنَّ الَّذِينَ كَفَرُوا سَوَاءٌ عَلَيْهِمْ أَأَنذَرْتَهُمْ أَمْ لَمْ تُنذِرْهُمْ لَا يُؤْمِنُونَ",
+        "خَتَمَ اللَّهُ عَلَىٰ قُلُوبِهِمْ وَعَلَىٰ سَمْعِهِمْ ۖ وَعَلَىٰ أَبْصَارِهِمْ غِشَاوَةٌ ۖ وَلَهُمْ عَذَابٌ عَظِيمٌ",
+        "وَمِنَ النَّاسِ مَن يَقُولُ آمَنَّا بِاللَّهِ وَبِالْيَوْمِ الْآخِرِ وَمَا هُم بِمُؤْمِنِينَ",
+        "يُخَادِعُونَ اللَّهَ وَالَّذِينَ آمَنُوا وَمَا يَخْدَعُونَ إِلَّا أَنفُسَهُمْ وَمَا يَشْعُرُونَ",
+        "فِي قُلُوبِهِم مَّرَضٌ فَزَادَهُمُ اللَّهُ مَرَضًا ۖ وَلَهُمْ عَذَابٌ أَلِيمٌ بِمَا كَانُوا يَكْذِبُونَ"
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "آل عمران",
+        "chinese": "第3章 姆兰的家属章",
+        "english": "Chapter 3: Mulan's Family"
+      },
+      "chapterListChinese": [
+        "艾列弗，俩目，米目。",
+        "真主，除他外，绝无应受崇拜的；他是永生不灭的，是维护万物的。",
+        "他降示你这部包含真理的经典，以証实以前的一切天经；他曾降示《讨拉特》和《引支勒》",
+        "于此经之前，以作世人的向导；又降示証据。不信真主的蹟象的人，必定要受严厉的刑罚。真主是万能的，是惩恶的。",
+        "真主确是天地间任何物所不能瞒的。",
+        "你们在子宫裡的时候，他随意地以形状赋于你们。除他外，绝无应受崇拜的；他确是万能的，确是至睿的。",
+        "他降示你这部经典，其中有许多明确的节文，是全经的基本；还有别的许多隐微的节文。心存邪念的人，遵从隐微的节文，企图淆惑人心，探求经义的究竟。只有真主和学问精通的人，才知道经义的究竟。他们说：「我们已确信它，明确的和隐微的，都是从我们的主那裡降示的。惟有理智的人，才会觉悟。",
+        "我们的主啊！在你引导我们之后，求你不要使我们的心背离正道，求你把从你那裡发出的恩惠，赏赐我们；你确是博施的。",
+        "我们的主啊！在无疑之日，你必定集合世人。真主确是不爽约的。」",
+        "不信道者所有的财产和子嗣，对真主的刑罚，不能脾益他们一丝毫。这等人是火狱的燃料。"
+      ],
+      "chapterListEnglish": [
+        "Aleph, Lam, Mim.",
+        "There is no god but Allah; He is the Everlasting, the Sustainer of all things.",
+        "He has revealed to you this Book of truth, confirming all the Books before it; He revealed the Torah and the Gospel.",
+        "Before this Book, it was a guide for mankind; He also revealed the Proof. Those who disbelieve in Allah's signs will surely be punished severely. Allah is Mighty, the Punisher of Evil.",
+        "Surely, Allah is beyond the reach of anything in the heavens and the earth.",
+        "He gave you form in the womb as He pleased. There is no god but Allah; He is Mighty, the Wise.",
+        " ‘He has revealed to you this Book, containing many clear verses, which form the basis of the Book, and others, which are cryptic. Those with evil intentions follow the cryptic verses in an attempt to confuse people and seek its true meaning. Only Allah and the learned know its true meaning. They say, 'We believe in it, both the clear and the cryptic, and it is from our Lord. Only those who understand will understand.'",
+        "Our Lord! Do not turn our hearts away from the right path after You have guided us, and grant us Your bounty; You are indeed the Bountiful.",
+        "Our Lord! You will surely gather the people on the Day when there is no doubt. Allah is never slack.",
+        "The wealth and offspring of the disbelievers will not benefit them in the least from Allah's punishment. Such people are fuel for the Fire."
+      ],
+      "chapterListArabic": [
+        "الم",
+        "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ",
+        "نَزَّلَ عَلَيْكَ الْكِتَابَ بِالْحَقِّ مُصَدِّقًا لِّمَا بَيْنَ يَدَيْهِ وَأَنزَلَ التَّوْرَاةَ وَالْإِنجِيلَ",
+        "مِن قَبْلُ هُدًى لِّلنَّاسِ وَأَنزَلَ الْفُرْقَانَ ۗ إِنَّ الَّذِينَ كَفَرُوا بِآيَاتِ اللَّهِ لَهُمْ عَذَابٌ شَدِيدٌ ۗ وَاللَّهُ عَزِيزٌ ذُو انتِقَامٍ",
+        "إِنَّ اللَّهَ لَا يَخْفَىٰ عَلَيْهِ شَيْءٌ فِي الْأَرْضِ وَلَا فِي السَّمَاءِ",
+        "هُوَ الَّذِي يُصَوِّرُكُمْ فِي الْأَرْحَامِ كَيْفَ يَشَاءُ ۚ لَا إِلَٰهَ إِلَّا هُوَ الْعَزِيزُ الْحَكِيمُ",
+        "هُوَ الَّذِي أَنزَلَ عَلَيْكَ الْكِتَابَ مِنْهُ آيَاتٌ مُّحْكَمَاتٌ هُنَّ أُمُّ الْكِتَابِ وَأُخَرُ مُتَشَابِهَاتٌ ۖ فَأَمَّا الَّذِينَ فِي قُلُوبِهِمْ زَيْغٌ فَيَتَّبِعُونَ مَا تَشَابَهَ مِنْهُ ابْتِغَاءَ الْفِتْنَةِ وَابْتِغَاءَ تَأْوِيلِهِ ۗ وَمَا يَعْلَمُ تَأْوِيلَهُ إِلَّا اللَّهُ ۗ وَالرَّاسِخُونَ فِي الْعِلْمِ يَقُولُونَ آمَنَّا بِهِ كُلٌّ مِّنْ عِندِ رَبِّنَا ۗ وَمَا يَذَّكَّرُ إِلَّا أُولُو الْأَلْبَابِ",
+        "رَبَّنَا لَا تُزِغْ قُلُوبَنَا بَعْدَ إِذْ هَدَيْتَنَا وَهَبْ لَنَا مِن لَّدُنكَ رَحْمَةً ۚ إِنَّكَ أَنتَ الْوَهَّابُ",
+        "رَبَّنَا إِنَّكَ جَامِعُ النَّاسِ لِيَوْمٍ لَّا رَيْبَ فِيهِ ۚ إِنَّ اللَّهَ لَا يُخْلِفُ الْمِيعَادَ",
+        "إِنَّ الَّذِينَ كَفَرُوا لَن تُغْنِيَ عَنْهُمْ أَمْوَالُهُمْ وَلَا أَوْلَادُهُم مِّنَ اللَّهِ شَيْئًا ۖ وَأُولَٰئِكَ هُمْ وَقُودُ النَّارِ"
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "النساء",
+        "chinese": "第4章 妇女章",
+        "english": "Chapter 4 Women's Chapter"
+      },
+      "chapterListChinese": [
+        "众人啊！你们当敬畏你们的主，他从一个人创造你们，他把那个人的配偶造成与他同类的，并且从他们俩创造许多男人和女人。你们当敬畏真主——你们常假借他的名义，而要求相互的权利的主——当尊重血亲。真主确是监视你们的。",
+        "你们应当把孤儿的财产交还他们，不要以（你们的）恶劣的（财产），换取（他们的）佳美的（财产）；也不要把他们的财产并入你们的财产，而加以吞蚀。这确是大罪。",
+        "如果你们恐怕不能公平对待孤儿，那末，你们可以择娶你们爱悦的女人，各娶两妻、三妻、四妻；如果你们恐怕不能公平地待遇她们，那末，你们只可以各娶一妻，或以你们的女奴为满足。这是更近于公平的。",
+        "你们应当把妇女的聘仪，当做一份赠品，交给她们。如果她们心甘情愿地把一部分聘仪让给你们，那末，你们可以乐意地加以接受和享用。",
+        "你们的财产，本是真主给你们用来维持生计的，你们不要把它交给愚人，你们当以财产的利润供给他们的衣食。你们当对他们说温和的言语。",
+        "你们当试验孤儿，直到他们达到适婚年龄；当你们看见他们能处理财产的时候，应当把他们的财产交还他们；不要在他们还没有长大的时候，赶快浪费地消耗他们的财产。富裕的监护人，应当廉洁自持；贫穷的监护人，可以取合理的生活费。你们把他们的财产交还他们的时候，应当请人作见証。真主足为监察者。",
+        "男子得享受父母和至亲所遗财产的一部分，女子也得享受父母和至亲所遗财产的一部分，无论他们所遗财产多寡，各人应得法定的部分。",
+        "析产的时候，如有亲戚、孤儿、贫民在场，你们当以一部分遗产周济他们，并对他们说温和的言语。",
+        "假若自己遗下幼弱的后裔，自己就会为他们而忧虑；这等人，应当也为别人的孤儿而忧虑，应当敬畏真主，应当对临终的病人说正当的话。",
+        "侵吞孤儿的财产的人，只是把火吞在自己的肚腹裡，他们将入在烈火之中。"
+      ],
+      "chapterListEnglish": [
+        "O mankind! Fear your Lord, Who created you from a single being, and from that person He created a spouse of his own kind, and from them both He created many men and women. Fear Allah, whose name you often claim for one another, and respect kinship. Allah is indeed watching over you.",
+        "Return the property of orphans to them, and do not exchange (your) bad (property) for (their) good (property), nor add their property to yours to devour it. That is indeed a great sin.",
+        "If you fear that you cannot treat orphans fairly, then marry the women you like, and each of you may take two, three, or four wives. If you fear that you cannot treat them fairly, then each of you may take only one wife, or be content with your slave women. This is more equitable.",
+        " ’Give women their dowries as a gift. If they willingly give you a portion of it, then accept it with joy and enjoy it.",
+        "Your wealth is given to you by God for your livelihood. Do not give it to fools. From the profit of your wealth, provide them with food and clothing. Speak kindly to them.",
+        "Test orphans until they reach marriageable age. When you see that they can manage their property, return it to them. Do not waste their property while they are still young. Guardians who are wealthy should be honest; guardians who are poor should take a reasonable living allowance. When you return their property to them, have it witnessed. God is sufficient to be the watchdog.",
+        "Men shall have a share of the inheritance of their parents and close relatives, and women shall have a share of the inheritance of their parents and close relatives. Regardless of whether the inheritance is large or small, each shall receive a legal share.",
+        "When dividing the inheritance, if there are relatives, orphans, or the needy present, give them some of it and speak kindly to them.",
+        "If one leaves behind weak children, he will worry about them. Such a person should also worry about the orphans of others and fear Allah, and speak righteous words to the dying.",
+        "Whoever devours the wealth of orphans swallows fire into his own belly; they will enter into the blazing fire."
+      ],
+      "chapterListArabic": [
+        "يَا أَيُّهَا النَّاسُ اتَّقُوا رَبَّكُمُ الَّذِي خَلَقَكُم مِّن نَّفْسٍ وَاحِدَةٍ وَخَلَقَ مِنْهَا زَوْجَهَا وَبَثَّ مِنْهُمَا رِجَالًا كَثِيرًا وَنِسَاءً ۚ وَاتَّقُوا اللَّهَ الَّذِي تَسَاءَلُونَ بِهِ وَالْأَرْحَامَ ۚ إِنَّ اللَّهَ كَانَ عَلَيْكُمْ رَقِيبًا",
+        "وَآتُوا الْيَتَامَىٰ أَمْوَالَهُمْ ۖ وَلَا تَتَبَدَّلُوا الْخَبِيثَ بِالطَّيِّبِ ۖ وَلَا تَأْكُلُوا أَمْوَالَهُمْ إِلَىٰ أَمْوَالِكُمْ ۚ إِنَّهُ كَانَ حُوبًا كَبِيرًا",
+        "وَإِنْ خِفْتُمْ أَلَّا تُقْسِطُوا فِي الْيَتَامَىٰ فَانكِحُوا مَا طَابَ لَكُم مِّنَ النِّسَاءِ مَثْنَىٰ وَثُلَاثَ وَرُبَاعَ ۖ فَإِنْ خِفْتُمْ أَلَّا تَعْدِلُوا فَوَاحِدَةً أَوْ مَا مَلَكَتْ أَيْمَانُكُمْ ۚ ذَٰلِكَ أَدْنَىٰ أَلَّا تَعُولُوا",
+        "وَآتُوا النِّسَاءَ صَدُقَاتِهِنَّ نِحْلَةً ۚ فَإِن طِبْنَ لَكُمْ عَن شَيْءٍ مِّنْهُ نَفْسًا فَكُلُوهُ هَنِيئًا مَّرِيئًا",
+        "وَلَا تُؤْتُوا السُّفَهَاءَ أَمْوَالَكُمُ الَّتِي جَعَلَ اللَّهُ لَكُمْ قِيَامًا وَارْزُقُوهُمْ فِيهَا وَاكْسُوهُمْ وَقُولُوا لَهُمْ قَوْلًا مَّعْرُوفًا",
+        "وَابْتَلُوا الْيَتَامَىٰ حَتَّىٰ إِذَا بَلَغُوا النِّكَاحَ فَإِنْ آنَسْتُم مِّنْهُمْ رُشْدًا فَادْفَعُوا إِلَيْهِمْ أَمْوَالَهُمْ ۖ وَلَا تَأْكُلُوهَا إِسْرَافًا وَبِدَارًا أَن يَكْبَرُوا ۚ وَمَن كَانَ غَنِيًّا فَلْيَسْتَعْفِفْ ۖ وَمَن كَانَ فَقِيرًا فَلْيَأْكُلْ بِالْمَعْرُوفِ ۚ فَإِنْ دَفَعْتُمْ إِلَيْهِمْ أَمْوَالَهُمْ فَأَشْهِدُوا عَلَيْهِمْ ۚ وَكَفَىٰ بِاللَّهِ حَسِيبًا",
+        "لِّلرِّجَالِ نَصِيبٌ مِّمَّا تَرَكَ الْوَالِدَانِ وَالْأَقْرَبُونَ وَلِلنِّسَاءِ نَصِيبٌ مِّمَّا تَرَكَ الْوَالِدَانِ وَالْأَقْرَبُونَ مِمَّا قَلَّ مِنْهُ أَوْ كَثُرَ ۚ نَصِيبًا مَّفْرُوضًا",
+        "وَإِذَا حَضَرَ الْقِسْمَةَ أُولُو الْقُرْبَىٰ وَالْيَتَامَىٰ وَالْمَسَاكِينُ فَارْزُقُوهُم مِّنْهُ وَقُولُوا لَهُمْ قَوْلًا مَّعْرُوفًا",
+        "وَلْيَخْشَ الَّذِينَ لَوْ تَرَكُوا مِنْ خَلْفِهِمْ ذُرِّيَّةً ضِعَافًا خَافُوا عَلَيْهِمْ فَلْيَتَّقُوا اللَّهَ وَلْيَقُولُوا قَوْلًا سَدِيدًا",
+        "إِنَّ الَّذِينَ يَأْكُلُونَ أَمْوَالَ الْيَتَامَىٰ ظُلْمًا إِنَّمَا يَأْكُلُونَ فِي بُطُونِهِمْ نَارًا ۖ وَسَيَصْلَوْنَ سَعِيرًا"
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "المائدة",
+        "chinese": "第5章 宴席章",
+        "english": "Chapter 5 Banquet"
+      },
+      "chapterListChinese": [
+        "信道的人们啊！你们当履行各种约言。除将对你们宣读者外，淮许你们吃一切牲畜，但受戒期间，或在禁地境内，不要猎取飞禽走兽。真主必定判决他所欲判决的。",
+        "信道的人们啊！你们不要亵渎真主的标识和禁月，不要侵犯作牺牲用的牲畜，不要破坏那些牲畜的项圈，不要伤害朝觐禁寺以求主的恩惠和喜悦的人。当你们开戒的时候，可以打猎。有人曾阻止你们进禁寺，你们绝不要为怨恨他们而过份。你们当为正义和敬畏而互助，不要为罪恶和横暴而互助。你们当敬畏真主，因为真主的刑罚确是严厉的。",
+        "禁止你们吃自死物、血液、猪肉，以及诵非真主之名而宰杀的、勒死的、捶死的、跌死的、觝死的、野兽吃剩的动物，但宰后才死的，仍然可吃；禁止你们吃在神石上宰杀的；禁止你们求签，那是罪恶。今天，不信道的人，对于（消灭）你们的宗教已经绝望了，故你们不要畏惧他们，你们当畏惧我。今天，我已为你们成全你们的宗教，我已完成我所赐你们的恩典，我已选择伊斯兰做你们的宗教。凡为饥荒所迫，而无意犯罪的，（虽吃禁物，毫无罪过），因为真主确是至赦的，确是至慈的。",
+        "他们问你淮许他们吃甚麽，你说：「淮许你们吃－切佳美的食物，你们曾遵真主的教诲，而加以训练的鹰犬等所为你们捕获的动物，也是可以吃的；你们放纵鹰犬的时候，当诵真主之名，并当敬畏真主。真主确是清算神速的。」",
+        "今天，淮许你们吃一切佳美的食物；曾受天经者的食物，对于你们是合法的；你们的食物，对于他们也是合法的。信道的自由女，和曾受天经的自由女，对于你们都是合法的，如果你们把他们的聘仪交给她们，但你们应当是贞节的，不可是淫荡的，也不可是有情人的。谁否认正信，谁的善功，确已无效了；他在后世，是亏折的人。",
+        "信道的人们啊！当你们起身去礼拜的时候，你们当洗脸和手，洗至于两肘，当摩头，当洗脚，洗至两踝。如果你们是不洁的，你们就当洗周身。如果你们害病或旅行，或从厕所来，或与妇女交接，而得不到水，你们就当趋向清洁的地面，而用一部分土摩脸和手。真主不欲使你们烦难，但他欲使你们清洁，并完成他所赐你们的恩典，以便你们感谢。",
+        "你们当铭记真主所赐你们的恩典，和他与你们所缔的盟约；当时，你们曾说：「我们听从了。」你们当敬畏真主。真主确是全知心事的。",
+        "信道的人们啊！你们当尽忠报主，当秉公作証，你们绝不要因为怨恨一伙人而不公道，你们当公道，公道是最近于敬畏的。你们当敬畏真主。真主确是彻知你们的行为的。",
+        "信道而且行善的人，真主应许他们得享赦宥和重大的报酬。",
+        "不信道而且否认我的蹟象的人，是火狱的居民。"
+      ],
+      "chapterListEnglish": [
+        "O you who believe! Fulfill the promises. It is permissible for you to eat all kinds of livestock, except those that will be announced to you. But do not hunt animals during the days of ihram or in the sacred areas. Allah will judge what He wills.",
+        "O you who believe! Do not desecrate the signs of Allah and the sacred months. Do not harm animals used for sacrifice or their collars, and do not harm those who make the pilgrimage to the Sacred Mosque to seek His mercy and favor. When you are free from ihram, you may hunt. Do not be angry with those who prevent you from entering the Sacred Mosque. Help one another in justice and piety, and do not help one another in sin and violence. Fear Allah, for His punishment is severe.",
+        "It is forbidden to eat dead animals, blood, swine's flesh, animals killed in the name of anyone other than Allah, strangled, bludgeoned to death, fallen, or killed by wild beasts, but it is permissible to eat animals that have died after being slaughtered. It is forbidden to eat animals that have been slaughtered on sacred stones. It is forbidden to tell lots, for that is a sin. Today, the unbelievers have despaired of your religion being destroyed, so do not fear them, but fear Me. Today, I have perfected your religion for you, I have completed My grace for you, and I have chosen Islam for you. Whoever is forced by famine and does not intend to sin, (even if he eats the forbidden things, he does not sin), for Allah is Forgiving, Merciful.‘ ’They ask you what is permissible for them to eat. Say, 'Permissible for you are all good things, and what is caught for you by your falcons and dogs, which you have trained according to God's commandments. When you set them free, recite the name of God and fear God. God is swift in reckoning.",
+        "Today, all good things are permissible for you. The food of those who were given the Scripture is lawful for you, and your food is lawful for them. Free women who believe and free women who were given the Scripture are lawful for you, if you give them their dowry, but be chaste and not promiscuous or have lovers. Whoever denies faith, his good deeds are nullified, and he will be among the losers in the Hereafter.",
+        "O you who believe! When you rise up to pray, wash your faces and hands up to the elbows, rub your heads, and wash your feet up to the ankles. If you are impure, purify yourselves. If you are sick, traveling, coming from a toilet, or having intercourse with a woman and there is no water available, then go to clean ground and rub your face and hands with some of the earth. Allah does not wish to make it hard for you, but He wishes to purify you and complete His blessings upon you, so that you may be thankful.",
+        "Remember Allah's blessings upon you and His covenant with you when you said, 'We obey.' And fear Allah. Allah is Knower of the hearts.",
+        "O you who believe! Be faithful to Allah and bear witness with justice. Do not be unjust because of hatred towards one group; be just, for justice is nearer to piety. Fear Allah. Allah is Knower of what you do.",
+        "Those who believe and do good, Allah has promised forgiveness and a great reward.",
+        "Those who disbelieve and deny Our signs are the dwellers of Hell."
+      ],
+      "chapterListArabic": [
+        "يَا أَيُّهَا الَّذِينَ آمَنُوا أَوْفُوا بِالْعُقُودِ ۚ أُحِلَّتْ لَكُم بَهِيمَةُ الْأَنْعَامِ إِلَّا مَا يُتْلَىٰ عَلَيْكُمْ غَيْرَ مُحِلِّي الصَّيْدِ وَأَنتُمْ حُرُمٌ ۗ إِنَّ اللَّهَ يَحْكُمُ مَا يُرِيدُ",
+        "يَا أَيُّهَا الَّذِينَ آمَنُوا لَا تُحِلُّوا شَعَائِرَ اللَّهِ وَلَا الشَّهْرَ الْحَرَامَ وَلَا الْهَدْيَ وَلَا الْقَلَائِدَ وَلَا آمِّينَ الْبَيْتَ الْحَرَامَ يَبْتَغُونَ فَضْلًا مِّن رَّبِّهِمْ وَرِضْوَانًا ۚ وَإِذَا حَلَلْتُمْ فَاصْطَادُوا ۚ وَلَا يَجْرِمَنَّكُمْ شَنَآنُ قَوْمٍ أَن صَدُّوكُمْ عَنِ الْمَسْجِدِ الْحَرَامِ أَن تَعْتَدُوا ۘ وَتَعَاوَنُوا عَلَى الْبِرِّ وَالتَّقْوَىٰ ۖ وَلَا تَعَاوَنُوا عَلَى الْإِثْمِ وَالْعُدْوَانِ ۚ وَاتَّقُوا اللَّهَ ۖ إِنَّ اللَّهَ شَدِيدُ الْعِقَابِ",
+        "حُرِّمَتْ عَلَيْكُمُ الْمَيْتَةُ وَالدَّمُ وَلَحْمُ الْخِنزِيرِ وَمَا أُهِلَّ لِغَيْرِ اللَّهِ بِهِ وَالْمُنْخَنِقَةُ وَالْمَوْقُوذَةُ وَالْمُتَرَدِّيَةُ وَالنَّطِيحَةُ وَمَا أَكَلَ السَّبُعُ إِلَّا مَا ذَكَّيْتُمْ وَمَا ذُبِحَ عَلَى النُّصُبِ وَأَن تَسْتَقْسِمُوا بِالْأَزْلَامِ ۚ ذَٰلِكُمْ فِسْقٌ ۗ الْيَوْمَ يَئِسَ الَّذِينَ كَفَرُوا مِن دِينِكُمْ فَلَا تَخْشَوْهُمْ وَاخْشَوْنِ ۚ الْيَوْمَ أَكْمَلْتُ لَكُمْ دِينَكُمْ وَأَتْمَمْتُ عَلَيْكُمْ نِعْمَتِي وَرَضِيتُ لَكُمُ الْإِسْلَامَ دِينًا ۚ فَمَنِ اضْطُرَّ فِي مَخْمَصَةٍ غَيْرَ مُتَجَانِفٍ لِّإِثْمٍ ۙ فَإِنَّ اللَّهَ غَفُورٌ رَّحِيمٌ",
+        "يَسْأَلُونَكَ مَاذَا أُحِلَّ لَهُمْ ۖ قُلْ أُحِلَّ لَكُمُ الطَّيِّبَاتُ ۙ وَمَا عَلَّمْتُم مِّنَ الْجَوَارِحِ مُكَلِّبِينَ تُعَلِّمُونَهُنَّ مِمَّا عَلَّمَكُمُ اللَّهُ ۖ فَكُلُوا مِمَّا أَمْسَكْنَ عَلَيْكُمْ وَاذْكُرُوا اسْمَ اللَّهِ عَلَيْهِ ۖ وَاتَّقُوا اللَّهَ ۚ إِنَّ اللَّهَ سَرِيعُ الْحِسَابِ",
+        "الْيَوْمَ أُحِلَّ لَكُمُ الطَّيِّبَاتُ ۖ وَطَعَامُ الَّذِينَ أُوتُوا الْكِتَابَ حِلٌّ لَّكُمْ وَطَعَامُكُمْ حِلٌّ لَّهُمْ ۖ وَالْمُحْصَنَاتُ مِنَ الْمُؤْمِنَاتِ وَالْمُحْصَنَاتُ مِنَ الَّذِينَ أُوتُوا الْكِتَابَ مِن قَبْلِكُمْ إِذَا آتَيْتُمُوهُنَّ أُجُورَهُنَّ مُحْصِنِينَ غَيْرَ مُسَافِحِينَ وَلَا مُتَّخِذِي أَخْدَانٍ ۗ وَمَن يَكْفُرْ بِالْإِيمَانِ فَقَدْ حَبِطَ عَمَلُهُ وَهُوَ فِي الْآخِرَةِ مِنَ الْخَاسِرِينَ",
+        "يَا أَيُّهَا الَّذِينَ آمَنُوا إِذَا قُمْتُمْ إِلَى الصَّلَاةِ فَاغْسِلُوا وُجُوهَكُمْ وَأَيْدِيَكُمْ إِلَى الْمَرَافِقِ وَامْسَحُوا بِرُءُوسِكُمْ وَأَرْجُلَكُمْ إِلَى الْكَعْبَيْنِ ۚ وَإِن كُنتُمْ جُنُبًا فَاطَّهَّرُوا ۚ وَإِن كُنتُم مَّرْضَىٰ أَوْ عَلَىٰ سَفَرٍ أَوْ جَاءَ أَحَدٌ مِّنكُم مِّنَ الْغَائِطِ أَوْ لَامَسْتُمُ النِّسَاءَ فَلَمْ تَجِدُوا مَاءً فَتَيَمَّمُوا صَعِيدًا طَيِّبًا فَامْسَحُوا بِوُجُوهِكُمْ وَأَيْدِيكُم مِّنْهُ ۚ مَا يُرِيدُ اللَّهُ لِيَجْعَلَ عَلَيْكُم مِّنْ حَرَجٍ وَلَٰكِن يُرِيدُ لِيُطَهِّرَكُمْ وَلِيُتِمَّ نِعْمَتَهُ عَلَيْكُمْ لَعَلَّكُمْ تَشْكُرُونَ",
+        "وَاذْكُرُوا نِعْمَةَ اللَّهِ عَلَيْكُمْ وَمِيثَاقَهُ الَّذِي وَاثَقَكُم بِهِ إِذْ قُلْتُمْ سَمِعْنَا وَأَطَعْنَا ۖ وَاتَّقُوا اللَّهَ ۚ إِنَّ اللَّهَ عَلِيمٌ بِذَاتِ الصُّدُورِ",
+        "يَا أَيُّهَا الَّذِينَ آمَنُوا كُونُوا قَوَّامِينَ لِلَّهِ شُهَدَاءَ بِالْقِسْطِ ۖ وَلَا يَجْرِمَنَّكُمْ شَنَآنُ قَوْمٍ عَلَىٰ أَلَّا تَعْدِلُوا ۚ اعْدِلُوا هُوَ أَقْرَبُ لِلتَّقْوَىٰ ۖ وَاتَّقُوا اللَّهَ ۚ إِنَّ اللَّهَ خَبِيرٌ بِمَا تَعْمَلُونَ",
+        "وَعَدَ اللَّهُ الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ ۙ لَهُم مَّغْفِرَةٌ وَأَجْرٌ عَظِيمٌ",
+        "وَالَّذِينَ كَفَرُوا وَكَذَّبُوا بِآيَاتِنَا أُولَٰئِكَ أَصْحَابُ الْجَحِيمِ"
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "الأنعام",
+        "chinese": "第6章 牲畜章",
+        "english": "Chapter 6: Livestock"
+      },
+      "chapterListChinese": [
+        "一切讚颂，全归真主！他创造天和地，造化重重黑暗和光明；不信道的人，却以物配主。",
+        "他用泥创造你们，然后判定一个期限，还有一个预定的期限；你们对于这点却是怀疑的。",
+        "在天上地下，唯有真主应受崇拜，他知道你们所隐讳的，和你们所表白的，也知道你们所做的善恶。",
+        "他们的主的蹟象不降临他们则已；每次降临总是遭到他们的拒绝。",
+        "当真理已降临他们的时候，他们则加以否认。他们嘲笑的事物的消息，将降临他们。",
+        "难道他们不知道吗？在他们之前，我曾毁灭了许多世代，并且把没有赏赐你们的地位赏赐了他们，给他们以充足的雨水，使诸河流行在他们的下面。嗣后，我因他们的罪过而毁灭他们。在他们（灭亡）之后，我创造了别的世代。",
+        "假若我把一部写在纸上的经典降示你，而他们用手抚摩它，那末，不信道的人必定说：「这只是明显的魔术。」",
+        "他们说：「为甚麽没有一个天神降临他呢？」假若我降下一个天神，那末，他们的毁灭，必成定案，而他们不蒙宽待了。",
+        "假若我降下一个天神，我必使他变成一个人样，我必使他们陷于自己所作的蒙蔽之中。",
+        "在你之前，有许多使者，确已被人嘲笑，但嘲笑者所嘲笑的（刑罚），已降临他们了。"
+      ],
+      "chapterListEnglish": [
+        "All praise is due to Allah! He created the heavens and the earth, and created darkness and light; but those who disbelieve associate others with Him.",
+        "He created you from clay, then set a time limit, and a predetermined period; yet you doubt about this.",
+        "Allah alone is worthy of worship in the heavens and on the earth. He knows what you conceal and what you reveal, and what you do, good and evil.",
+        "The signs of their Lord did not come to them; whenever they did, they rejected them.",
+        "When the truth came to them, they denied it. News of what they mocked will come to them.",
+        "Do they not know that We destroyed generations before them and gave them status that we did not give you, and provided them with abundant rain and caused rivers to flow beneath them. Then We destroyed them for their transgressions and created others after them.",
+        "If I had revealed to you a Scripture written on paper, and they had touched it with their hands, those who disbelieve would have said, 'This is only obvious magic.'",
+        "They say, 'Why has no angel been sent down to him?' If I had sent down an angel, their destruction would have been certain, and they would not have been spared.",
+        "If I had sent down an angel, I would have made him like a man, and I would have led them into the deception of their own making.",
+        "There were messengers before you who were mocked, and the punishment for what the mockers mocked was already upon them."
+      ],
+      "chapterListArabic": [
+        "الْحَمْدُ لِلَّهِ الَّذِي خَلَقَ السَّمَاوَاتِ وَالْأَرْضَ وَجَعَلَ الظُّلُمَاتِ وَالنُّورَ ۖ ثُمَّ الَّذِينَ كَفَرُوا بِرَبِّهِمْ يَعْدِلُونَ",
+        "هُوَ الَّذِي خَلَقَكُم مِّن طِينٍ ثُمَّ قَضَىٰ أَجَلًا ۖ وَأَجَلٌ مُّسَمًّى عِندَهُ ۖ ثُمَّ أَنتُمْ تَمْتَرُونَ",
+        "وَهُوَ اللَّهُ فِي السَّمَاوَاتِ وَفِي الْأَرْضِ ۖ يَعْلَمُ سِرَّكُمْ وَجَهْرَكُمْ وَيَعْلَمُ مَا تَكْسِبُونَ",
+        "وَمَا تَأْتِيهِم مِّنْ آيَةٍ مِّنْ آيَاتِ رَبِّهِمْ إِلَّا كَانُوا عَنْهَا مُعْرِضِينَ",
+        "فَقَدْ كَذَّبُوا بِالْحَقِّ لَمَّا جَاءَهُمْ ۖ فَسَوْفَ يَأْتِيهِمْ أَنبَاءُ مَا كَانُوا بِهِ يَسْتَهْزِئُونَ",
+        "أَلَمْ يَرَوْا كَمْ أَهْلَكْنَا مِن قَبْلِهِم مِّن قَرْنٍ مَّكَّنَّاهُمْ فِي الْأَرْضِ مَا لَمْ نُمَكِّن لَّكُمْ وَأَرْسَلْنَا السَّمَاءَ عَلَيْهِم مِّدْرَارًا وَجَعَلْنَا الْأَنْهَارَ تَجْرِي مِن تَحْتِهِمْ فَأَهْلَكْنَاهُم بِذُنُوبِهِمْ وَأَنشَأْنَا مِن بَعْدِهِمْ قَرْنًا آخَرِينَ",
+        "وَلَوْ نَزَّلْنَا عَلَيْكَ كِتَابًا فِي قِرْطَاسٍ فَلَمَسُوهُ بِأَيْدِيهِمْ لَقَالَ الَّذِينَ كَفَرُوا إِنْ هَٰذَا إِلَّا سِحْرٌ مُّبِينٌ",
+        "وَقَالُوا لَوْلَا أُنزِلَ عَلَيْهِ مَلَكٌ ۖ وَلَوْ أَنزَلْنَا مَلَكًا لَّقُضِيَ الْأَمْرُ ثُمَّ لَا يُنظَرُونَ",
+        "وَلَوْ جَعَلْنَاهُ مَلَكًا لَّجَعَلْنَاهُ رَجُلًا وَلَلَبَسْنَا عَلَيْهِم مَّا يَلْبِسُونَ",
+        "وَلَقَدِ اسْتُهْزِئَ بِرُسُلٍ مِّن قَبْلِكَ فَحَاقَ بِالَّذِينَ سَخِرُوا مِنْهُم مَّا كَانُوا بِهِ يَسْتَهْزِئُونَ"
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "الأعراف",
+        "chinese": "第7章 高处章",
+        "english": "Chapter 7: High Places"
+      },
+      "chapterListArabic": [
+        "المص",
+        "كِتَابٌ أُنزِلَ إِلَيْكَ فَلَا يَكُن فِي صَدْرِكَ حَرَجٌ مِّنْهُ لِتُنذِرَ بِهِ وَذِكْرَىٰ لِلْمُؤْمِنِينَ",
+        "اتَّبِعُوا مَا أُنزِلَ إِلَيْكُم مِّن رَّبِّكُمْ وَلَا تَتَّبِعُوا مِن دُونِهِ أَوْلِيَاءَ ۗ قَلِيلًا مَّا تَذَكَّرُونَ",
+        "وَكَم مِّن قَرْيَةٍ أَهْلَكْنَاهَا فَجَاءَهَا بَأْسُنَا بَيَاتًا أَوْ هُمْ قَائِلُونَ",
+        "فَمَا كَانَ دَعْوَاهُمْ إِذْ جَاءَهُم بَأْسُنَا إِلَّا أَن قَالُوا إِنَّا كُنَّا ظَالِمِينَ",
+        "فَلَنَسْأَلَنَّ الَّذِينَ أُرْسِلَ إِلَيْهِمْ وَلَنَسْأَلَنَّ الْمُرْسَلِينَ",
+        "فَلَنَقُصَّنَّ عَلَيْهِم بِعِلْمٍ ۖ وَمَا كُنَّا غَائِبِينَ",
+        "وَالْوَزْنُ يَوْمَئِذٍ الْحَقُّ ۚ فَمَن ثَقُلَتْ مَوَازِينُهُ فَأُولَٰئِكَ هُمُ الْمُفْلِحُونَ",
+        "وَمَنْ خَفَّتْ مَوَازِينُهُ فَأُولَٰئِكَ الَّذِينَ خَسِرُوا أَنفُسَهُم بِمَا كَانُوا بِآيَاتِنَا يَظْلِمُونَ",
+        "وَلَقَدْ مَكَّنَّاكُمْ فِي الْأَرْضِ وَجَعَلْنَا لَكُمْ فِيهَا مَعَايِشَ ۗ قَلِيلًا مَّا تَشْكُرُونَ"
+      ],
+      "chapterListChinese": [
+        "艾列弗，俩目，米目，萨德。",
+        "这是降示你的经典——你的胸中切不可因此而有一点烦闷——以便你借此而警告，并以此做信士们的教训。",
+        "你们当遵循从你们的主降示的经典，你们不要捨真主而顺从许多保右者。你们很少觉悟。",
+        "有许多城市曾被我毁灭了；我的刑罚，在他们过夜的时候，或在他们午睡的时候，降临他们。",
+        "当我的刑罚降临他们的时候，他们唯一的辩诉是说：「我们原来确是不义的。」",
+        "我必审问曾派使者去教化过的民众，我必审问曾被派去的使者。",
+        "我必据真知而告诉他们，我没有离开过他们。",
+        "在那日，称（功过薄）是真实的。善功的分量较重者才是成功的。",
+        "善功的分量较轻的人，将因生前不信我的蹟象而亏折自身。",
+        "我确已使你们在大地上安居，并为你们在大地上设生活所需。你们很少感谢。"
+      ],
+      "chapterListEnglish": [
+        "Aleph, Lam, Mim, Saad.",
+        "This is the Scripture that has been revealed to you—do not let it trouble your heart—that you may use it as a warning and as a lesson for the believers.",
+        "Follow what has been revealed from your Lord, and do not follow many right-minded people besides Allah. You are seldom aware.",
+        "We destroyed many cities; My punishment came upon them while they were spending the night or taking a nap.",
+        "When My punishment came upon them, their only defense was, ‘We were indeed wrong.",
+        "I will judge the people to whom I sent my messengers, and I will judge the messengers I sent.",
+        "I will tell them from the truth that I have not left them.",
+        "On that Day, it will be true to say (that) the weight of merits and demerits is small. The one who has done a greater amount of good deeds will be successful. ",
+        "Those whose good deeds are less in weight will suffer loss because they disbelieved in My signs during their lifetime. ",
+        "I have given you a dwelling on earth and provided you with the necessities of life therein. You are little thankful."
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "الأنفال",
+        "chinese": "第8章 战利品章",
+        "english": "Chapter 8: The Trophy"
+      },
+      "chapterListArabic": [
+        "يَسْأَلُونَكَ عَنِ الْأَنفَالِ ۖ قُلِ الْأَنفَالُ لِلَّهِ وَالرَّسُولِ ۖ فَاتَّقُوا اللَّهَ وَأَصْلِحُوا ذَاتَ بَيْنِكُمْ ۖ وَأَطِيعُوا اللَّهَ وَرَسُولَهُ إِن كُنتُم مُّؤْمِنِينَ",
+        "إِنَّمَا الْمُؤْمِنُونَ الَّذِينَ إِذَا ذُكِرَ اللَّهُ وَجِلَتْ قُلُوبُهُمْ وَإِذَا تُلِيَتْ عَلَيْهِمْ آيَاتُهُ زَادَتْهُمْ إِيمَانًا وَعَلَىٰ رَبِّهِمْ يَتَوَكَّلُونَ",
+        "الَّذِينَ يُقِيمُونَ الصَّلَاةَ وَمِمَّا رَزَقْنَاهُمْ يُنفِقُونَ",
+        "أُولَٰئِكَ هُمُ الْمُؤْمِنُونَ حَقًّا ۚ لَّهُمْ دَرَجَاتٌ عِندَ رَبِّهِمْ وَمَغْفِرَةٌ وَرِزْقٌ كَرِيمٌ",
+        "كَمَا أَخْرَجَكَ رَبُّكَ مِن بَيْتِكَ بِالْحَقِّ وَإِنَّ فَرِيقًا مِّنَ الْمُؤْمِنِينَ لَكَارِهُونَ",
+        "يُجَادِلُونَكَ فِي الْحَقِّ بَعْدَمَا تَبَيَّنَ كَأَنَّمَا يُسَاقُونَ إِلَى الْمَوْتِ وَهُمْ يَنظُرُونَ",
+        "وَإِذْ يَعِدُكُمُ اللَّهُ إِحْدَى الطَّائِفَتَيْنِ أَنَّهَا لَكُمْ وَتَوَدُّونَ أَنَّ غَيْرَ ذَاتِ الشَّوْكَةِ تَكُونُ لَكُمْ وَيُرِيدُ اللَّهُ أَن يُحِقَّ الْحَقَّ بِكَلِمَاتِهِ وَيَقْطَعَ دَابِرَ الْكَافِرِينَ",
+        "لِيُحِقَّ الْحَقَّ وَيُبْطِلَ الْبَاطِلَ وَلَوْ كَرِهَ الْمُجْرِمُونَ",
+        "إِذْ تَسْتَغِيثُونَ رَبَّكُمْ فَاسْتَجَابَ لَكُمْ أَنِّي مُمِدُّكُم بِأَلْفٍ مِّنَ الْمَلَائِكَةِ مُرْدِفِينَ",
+        "وَمَا جَعَلَهُ اللَّهُ إِلَّا بُشْرَىٰ وَلِتَطْمَئِنَّ بِهِ قُلُوبُكُمْ ۚ وَمَا النَّصْرُ إِلَّا مِنْ عِندِ اللَّهِ ۚ إِنَّ اللَّهَ عَزِيزٌ حَكِيمٌ"
+      ],
+      "chapterListChinese": [
+        "他们问你战利品（应该归谁），你说：「战利品应该归真主和使者，你们应该敬畏真主，应该调停你们的纷争，应当服从真主及其使者，如果你们是信士。」",
+        "只有这等人是信士：当记念真主的时候，他们内心感觉恐惧；当宣读真主的蹟象的时候，那些蹟象增加了他们信仰，他们只信任他们的主；",
+        "他们谨守拜功，并分捨我所赐予他们的财物。",
+        "这等人确是信士，他们将来在主那裡得享受许多品级、饶恕和优厚的给养。",
+        "这正如你的主本真理而使你从你家中出去，而一部分信士对此确是憎恶的。",
+        "真理昭著之后，他们为真理与你争论，好像他们是被押去受死刑，而他们亲眼看见（刑具）似的。",
+        "当时，真主应许你们两伙人中的一伙，你们要的是没有武装的那一伙，而真主欲以他的言辞証实真理，并根绝不信道的人，",
+        "以便他証实真理而破除虚妄，即使罪人们不愿意。",
+        "当时，你们求援于你们的主，他就答应了你们：「我要陆续降下一千天神去援助你们。」",
+        "真主只以这个答覆向你们报喜，以便你们的心境因此而安定。援助只是从真主那裡发出的。真主确是万能的，确是至睿的。"
+      ],
+      "chapterListEnglish": [
+        "They ask you about the spoils. Say, 'The spoils belong to Allah and His Messenger. Fear Allah, settle disputes between you, and obey Allah and His Messenger if you are believers.'",
+        "Only these are believers: those whose hearts tremble when Allah is remembered, and whose faith is increased when His signs are recited, and who trust in their Lord alone;",
+        "Those who observe the prayer and divide what We have provided for them. ",
+        "These are believers; with their Lord they will enjoy many degrees, forgiveness, and generous provisions. ",
+        "Just as your Lord sent you away from your home because of the truth, and a part of the believers were disgusted by it. ",
+        "After the truth was made known to them, they disputed with you about the truth, as if they were being led to death and had seen the instruments of torture. ",
+        "When Allah promised you one of two groups, and you chose the unarmed group, and Allah desired to confirm the truth with His Word and to root out the disbelievers,",
+        "so that He might confirm the truth and dispel falsehood, even though the sinners were unwilling.",
+        "When you sought help from your Lord, He answered you: 'I will send down to you a thousand angels one after another.",
+        "Allah has given you only this answer to comfort your hearts. Help comes only from Allah. Allah is indeed the Almighty, the Wise."
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "التوبة",
+        "chinese": "第9章 忏悔章",
+        "english": "Chapter 9: Confession"
+      },
+      "chapterListArabic": [
+        "بَرَاءَةٌ مِّنَ اللَّهِ وَرَسُولِهِ إِلَى الَّذِينَ عَاهَدتُّم مِّنَ الْمُشْرِكِينَ",
+        "فَسِيحُوا فِي الْأَرْضِ أَرْبَعَةَ أَشْهُرٍ وَاعْلَمُوا أَنَّكُمْ غَيْرُ مُعْجِزِي اللَّهِ ۙ وَأَنَّ اللَّهَ مُخْزِي الْكَافِرِينَ",
+        "وَأَذَانٌ مِّنَ اللَّهِ وَرَسُولِهِ إِلَى النَّاسِ يَوْمَ الْحَجِّ الْأَكْبَرِ أَنَّ اللَّهَ بَرِيءٌ مِّنَ الْمُشْرِكِينَ ۙ وَرَسُولُهُ ۚ فَإِن تُبْتُمْ فَهُوَ خَيْرٌ لَّكُمْ ۖ وَإِن تَوَلَّيْتُمْ فَاعْلَمُوا أَنَّكُمْ غَيْرُ مُعْجِزِي اللَّهِ ۗ وَبَشِّرِ الَّذِينَ كَفَرُوا بِعَذَابٍ أَلِيمٍ",
+        "إِلَّا الَّذِينَ عَاهَدتُّم مِّنَ الْمُشْرِكِينَ ثُمَّ لَمْ يَنقُصُوكُمْ شَيْئًا وَلَمْ يُظَاهِرُوا عَلَيْكُمْ أَحَدًا فَأَتِمُّوا إِلَيْهِمْ عَهْدَهُمْ إِلَىٰ مُدَّتِهِمْ ۚ إِنَّ اللَّهَ يُحِبُّ الْمُتَّقِينَ",
+        "فَإِذَا انسَلَخَ الْأَشْهُرُ الْحُرُمُ فَاقْتُلُوا الْمُشْرِكِينَ حَيْثُ وَجَدتُّمُوهُمْ وَخُذُوهُمْ وَاحْصُرُوهُمْ وَاقْعُدُوا لَهُمْ كُلَّ مَرْصَدٍ ۚ فَإِن تَابُوا وَأَقَامُوا الصَّلَاةَ وَآتَوُا الزَّكَاةَ فَخَلُّوا سَبِيلَهُمْ ۚ إِنَّ اللَّهَ غَفُورٌ رَّحِيمٌ",
+        "وَإِنْ أَحَدٌ مِّنَ الْمُشْرِكِينَ اسْتَجَارَكَ فَأَجِرْهُ حَتَّىٰ يَسْمَعَ كَلَامَ اللَّهِ ثُمَّ أَبْلِغْهُ مَأْمَنَهُ ۚ ذَٰلِكَ بِأَنَّهُمْ قَوْمٌ لَّا يَعْلَمُونَ",
+        "كَيْفَ يَكُونُ لِلْمُشْرِكِينَ عَهْدٌ عِندَ اللَّهِ وَعِندَ رَسُولِهِ إِلَّا الَّذِينَ عَاهَدتُّمْ عِندَ الْمَسْجِدِ الْحَرَامِ ۖ فَمَا اسْتَقَامُوا لَكُمْ فَاسْتَقِيمُوا لَهُمْ ۚ إِنَّ اللَّهَ يُحِبُّ الْمُتَّقِينَ",
+        "كَيْفَ وَإِن يَظْهَرُوا عَلَيْكُمْ لَا يَرْقُبُوا فِيكُمْ إِلًّا وَلَا ذِمَّةً ۚ يُرْضُونَكُم بِأَفْوَاهِهِمْ وَتَأْبَىٰ قُلُوبُهُمْ وَأَكْثَرُهُمْ فَاسِقُونَ",
+        "اشْتَرَوْا بِآيَاتِ اللَّهِ ثَمَنًا قَلِيلًا فَصَدُّوا عَن سَبِيلِهِ ۚ إِنَّهُمْ سَاءَ مَا كَانُوا يَعْمَلُونَ",
+        "لَا يَرْقُبُونَ فِي مُؤْمِنٍ إِلًّا وَلَا ذِمَّةً ۚ وَأُولَٰئِكَ هُمُ الْمُعْتَدُونَ"
+      ],
+      "chapterListChinese": [
+        "（这是）一篇解除盟约的宣言，从真主及其使者传示那些曾与你们缔约的以物配主者。",
+        "（以物配主者啊！）你们可以在地面上漫游四个月，你们须知自己不能逃避真主的谴责，（须知）真主是要凌辱不信道者的。",
+        "（这是）从真主及其使者在大朝之日传示众人的通告：真主及其使者对于以物配主者是无干的。如果你们悔过，那对于你们是更好的，如果你们背离，那末，须知你们不能逃避真主的谴责。你以痛苦的刑罚向不信道者报喜吧。",
+        "但以物配主的人们中曾与你们缔结盟约，而没有任何违背，也没有资助任何敌人者，你们应当遵守与他们缔结的盟约，直至满期。真主确是喜爱敬畏者的。",
+        "当禁月逝去的时候，你们在哪裡发现以物配主者，就在那裡杀戮他们，俘虏他们，围攻他们，在各个要隘侦候他们。如果他们悔过自新，谨守拜功，完纳天课，你们就放走他们。真主确是至赦的，确是至慈的。",
+        "以物配主者当中如果有人求你保护，你应当保护他，直到他听到真主的言语，然后把他送到安全的地方。这是因为他们是无知的民众。",
+        "在真主及其使者看来，以物配主者怎麽会有盟约呢？但在禁寺附近与你们缔结盟约的人，在他们为你们遵守盟约的期间，你们当为他们遵守盟约。真主确是喜爱敬畏者的。",
+        "他们怎麽会有盟约呢？如果他们战胜你们，他们对你们就不顾戚谊，不重盟约。他们用甜言蜜语使你们喜欢，他们的内心却不肯实践诺言，他们大半是违约的。",
+        "他们以真主的蹟象换取轻微的代价，因而背离真主的大道。他们的行为确是恶劣的。",
+        "他们对信士不顾戚谊，不重盟约。这等人确是过份的。"
+      ],
+      "chapterListEnglish": [
+        "(This is) a declaration of the dissolution of the covenant, which was revealed from Allah and His Messenger to those who associate with Allah with whom you made a covenant.",
+        "(O you who associate with Allah!) You may wander on the earth for four months, but know that you will not escape Allah's judgment, and that Allah is humiliating to the disbelievers.",
+        "(This is) a notice from Allah and His Messenger on the Day of Hajj: Allah and His Messenger have nothing to do with those who associate with Allah. If you repent, it will be better for you, but if you turn away, know that you will not escape Allah's judgment. Give good news to the disbelievers of a painful punishment.",
+        "But those among the people who associate with Allah who made a covenant with you and did not break it or support anyone against you, then you shall keep your covenant with them until its completion. Verily, Allah loves the righteous.",
+        " 'When the sacred months are over, wherever you find those who associate with God, kill them there, take them captive, besiege them, and wait for them at the crossroads. If they repent and perform the prayers and pay the alms, then let them go. Verily, God is oft-forgiving, most merciful.",
+        "If anyone among those who associate with God asks for your protection, you should protect him until he hears the words of God, and then take him to a safe place. This is because they are ignorant people.",
+        "How can those who associate with God have a covenant in the sight of God and His Messenger? But those who made a covenant with you near the Sacred Mosque, keep it for them while they keep it for you. Verily, God loves the pious.",
+        "How can they have a covenant? If they defeat you, they will disregard their kinship with you and disregard their covenant. They will please you with sweet words, but their hearts are not in fulfilment of their promises, and most of them are transgressors.",
+        " ‘They exchanged the signs of Allah for a small price, and thus strayed from the path of Allah. Their deeds were indeed evil.",
+        "They disregarded kinship and the covenant with the believers. These are indeed transgressors."
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "يونس",
+        "chinese": "第10章 尤努斯章",
+        "english": "Chapter 10 Yunus"
+      },
+      "chapterListArabic": [
+        "الر ۚ تِلْكَ آيَاتُ الْكِتَابِ الْحَكِيمِ",
+        "أَكَانَ لِلنَّاسِ عَجَبًا أَنْ أَوْحَيْنَا إِلَىٰ رَجُلٍ مِّنْهُمْ أَنْ أَنذِرِ النَّاسَ وَبَشِّرِ الَّذِينَ آمَنُوا أَنَّ لَهُمْ قَدَمَ صِدْقٍ عِندَ رَبِّهِمْ ۗ قَالَ الْكَافِرُونَ إِنَّ هَٰذَا لَسَاحِرٌ مُّبِينٌ",
+        "إِنَّ رَبَّكُمُ اللَّهُ الَّذِي خَلَقَ السَّمَاوَاتِ وَالْأَرْضَ فِي سِتَّةِ أَيَّامٍ ثُمَّ اسْتَوَىٰ عَلَى الْعَرْشِ ۖ يُدَبِّرُ الْأَمْرَ ۖ مَا مِن شَفِيعٍ إِلَّا مِن بَعْدِ إِذْنِهِ ۚ ذَٰلِكُمُ اللَّهُ رَبُّكُمْ فَاعْبُدُوهُ ۚ أَفَلَا تَذَكَّرُونَ",
+        "إِلَيْهِ مَرْجِعُكُمْ جَمِيعًا ۖ وَعْدَ اللَّهِ حَقًّا ۚ إِنَّهُ يَبْدَأُ الْخَلْقَ ثُمَّ يُعِيدُهُ لِيَجْزِيَ الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ بِالْقِسْطِ ۚ وَالَّذِينَ كَفَرُوا لَهُمْ شَرَابٌ مِّنْ حَمِيمٍ وَعَذَابٌ أَلِيمٍ بِمَا كَانُوا يَكْفُرُونَ",
+        "هُوَ الَّذِي جَعَلَ الشَّمْسَ ضِيَاءً وَالْقَمَرَ نُورًا وَقَدَّرَهُ مَنَازِلَ لِتَعْلَمُوا عَدَدَ السِّنِينَ وَالْحِسَابَ ۚ مَا خَلَقَ اللَّهُ ذَٰلِكَ إِلَّا بِالْحَقِّ ۚ يُفَصِّلُ الْآيَاتِ لِقَوْمٍ يَعْلَمُونَ",
+        "نَّ فِي اخْتِلَافِ اللَّيْلِ وَالنَّهَارِ وَمَا خَلَقَ اللَّهُ فِي السَّمَاوَاتِ وَالْأَرْضِ لَآيَاتٍ لِّقَوْمٍ يَتَّقُونَ",
+        "إِنَّ الَّذِينَ لَا يَرْجُونَ لِقَاءَنَا وَرَضُوا بِالْحَيَاةِ الدُّنْيَا وَاطْمَأَنُّوا بِهَا وَالَّذِينَ هُمْ عَنْ آيَاتِنَا غَافِلُونَ",
+        "أُولَٰئِكَ مَأْوَاهُمُ النَّارُ بِمَا كَانُوا يَكْسِبُونَ",
+        "إِنَّ الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ يَهْدِيهِمْ رَبُّهُم بِإِيمَانِهِمْ ۖ تَجْرِي مِن تَحْتِهِمُ الْأَنْهَارُ فِي جَنَّاتِ النَّعِيمِ",
+        "دَعْوَاهُمْ فِيهَا سُبْحَانَكَ اللَّهُمَّ وَتَحِيَّتُهُمْ فِيهَا سَلَامٌ ۚ وَآخِرُ دَعْوَاهُمْ أَنِ الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ"
+      ],
+      "chapterListChinese": [
+        "艾列弗，俩目，拉仪。这些是包含智慧的经典的节文。",
+        "难道人们认为这是怪事吗？我曾启示他们中的一个男子：你要警告众人，你要向信士们报喜，告诉他们在他们的主那裡，他们有崇高的品位。不信道者曾说：「这确是明显的术士。」",
+        "你们的主确是真主，他曾在六日内创造了天地，然后升上宝座，处理万事。没有一个说情者，不是先得到他的允许的。那是真主，你们的主，你们应当崇拜他。你们怎麽还不觉悟呢？",
+        "你们都只归于他，真主的诺言是真实的。他确已创造了万物，而且必加以再造，以便他秉公地报酬信道而且行善者。不信道者，将因自己的不信道而饮沸水，并受痛苦的刑罚。",
+        "他曾以太阳为发光的、以月亮为光明的，并为月亮而定列宿，以便你们知道历算。真主只依真理而创造之。他为能了解的民众而解释一切蹟象。",
+        "昼夜的轮流，以及真主在天地间所造的森罗万象，在克己的民众看来，此中确有许多蹟象。",
+        "不希望与我相会，只愿永享今世生活，而且安然享受的人，以及忽视我的种种蹟象的人，",
+        "他们将因自己的营谋而以火狱为归宿。",
+        "信道而且行善的人，他们的主将因他们的信仰而引导他们；他们将安居于下临诸河的幸福园中。",
+        "他们在乐园中的祈祷是：「我们的主啊！我们讚美你。」他们在乐园中祝辞是：「平安。」他们最后的祈祷是：「一切讚颂，全归真主——全世界的主。」"
+      ],
+      "chapterListEnglish": [
+        "Aleph, Lammu, and Ray. These are verses of the Book of Wisdom.",
+        "Do people think this is strange? We revealed to one of them: Warn the people and give good news to the believers, telling them that they have a high place with their Lord. Those who disbelieved said, ’This is indeed a clear sorcerer.",
+        "Your Lord is Allah, Who created the heavens and the earth in six days, then ascended to the Throne and dealt with everything. No one intercedes without His permission. That is Allah, your Lord, and you should worship Him. Why do you not realize?",
+        "To Him alone belong all of you; Allah's promise is true. He has created everything and will create it again, that He may reward those who believe and do good deeds justly. Those who disbelieve will drink boiling water and have a painful punishment for their disbelief.",
+        "He made the sun for light and the moon for illumination, and He established the constellations for it, that you may know the calendar. Allah created only with truth. He explains the signs for those who understand.",
+        "The alternation of day and night, and all that Allah has created between the heavens and the earth—indeed, there are signs for those who restrain themselves.",
+        "Those who do not desire to meet me, but only to enjoy the life of this world forever and to be content with it, and those who ignore My signs—'they will end up in Hell for their own actions.",
+        "Those who believe and do good deeds, their Lord will guide them by their faith; they will dwell in the Garden of Bliss, beneath which rivers flow.",
+        "Their prayer in Paradise will be: 'Our Lord! We praise You.' Their prayer in Paradise will be: 'Peace.' Their final prayer will be: 'All praise is due to Allah, the Lord of the Worlds.'"
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "هود",
+        "chinese": "第11章 呼德章",
+        "english": "Chapter 11: Hude Chapter"
+      },
+      "chapterListArabic": [
+        "الر ۚ كِتَابٌ أُحْكِمَتْ آيَاتُهُ ثُمَّ فُصِّلَتْ مِن لَّدُنْ حَكِيمٍ خَبِيرٍ",
+        "أَلَّا تَعْبُدُوا إِلَّا اللَّهَ ۚ إِنَّنِي لَكُم مِّنْهُ نَذِيرٌ وَبَشِيرٌ",
+        "وَأَنِ اسْتَغْفِرُوا رَبَّكُمْ ثُمَّ تُوبُوا إِلَيْهِ يُمَتِّعْكُم مَّتَاعًا حَسَنًا إِلَىٰ أَجَلٍ مُّسَمًّى وَيُؤْتِ كُلَّ ذِي فَضْلٍ فَضْلَهُ ۖ وَإِن تَوَلَّوْا فَإِنِّي أَخَافُ عَلَيْكُمْ عَذَابَ يَوْمٍ كَبِيرٍ",
+        "إِلَى اللَّهِ مَرْجِعُكُمْ ۖ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ",
+        "أَلَا إِنَّهُمْ يَثْنُونَ صُدُورَهُمْ لِيَسْتَخْفُوا مِنْهُ ۚ أَلَا حِينَ يَسْتَغْشُونَ ثِيَابَهُمْ يَعْلَمُ مَا يُسِرُّونَ وَمَا يُعْلِنُونَ ۚ إِنَّهُ عَلِيمٌ بِذَاتِ الصُّدُورِ",
+        "وَمَا مِن دَابَّةٍ فِي الْأَرْضِ إِلَّا عَلَى اللَّهِ رِزْقُهَا وَيَعْلَمُ مُسْتَقَرَّهَا وَمُسْتَوْدَعَهَا ۚ كُلٌّ فِي كِتَابٍ مُّبِينٍ",
+        "وَهُوَ الَّذِي خَلَقَ السَّمَاوَاتِ وَالْأَرْضَ فِي سِتَّةِ أَيَّامٍ وَكَانَ عَرْشُهُ عَلَى الْمَاءِ لِيَبْلُوَكُمْ أَيُّكُمْ أَحْسَنُ عَمَلًا ۗ وَلَئِن قُلْتَ إِنَّكُم مَّبْعُوثُونَ مِن بَعْدِ الْمَوْتِ لَيَقُولَنَّ الَّذِينَ كَفَرُوا إِنْ هَٰذَا إِلَّا سِحْرٌ مُّبِينٌ",
+        "وَلَئِنْ أَخَّرْنَا عَنْهُمُ الْعَذَابَ إِلَىٰ أُمَّةٍ مَّعْدُودَةٍ لَّيَقُولُنَّ مَا يَحْبِسُهُ ۗ أَلَا يَوْمَ يَأْتِيهِمْ لَيْسَ مَصْرُوفًا عَنْهُمْ وَحَاقَ بِهِم مَّا كَانُوا بِهِ يَسْتَهْزِئُونَ",
+        "وَلَئِنْ أَذَقْنَا الْإِنسَانَ مِنَّا رَحْمَةً ثُمَّ نَزَعْنَاهَا مِنْهُ إِنَّهُ لَيَئُوسٌ كَفُورٌ",
+        "وَلَئِنْ أَذَقْنَاهُ نَعْمَاءَ بَعْدَ ضَرَّاءَ مَسَّتْهُ لَيَقُولَنَّ ذَهَبَ السَّيِّئَاتُ عَنِّي ۚ إِنَّهُ لَفَرِحٌ فَخُورٌ"
+      ],
+      "chapterListChinese": [
+        "艾列弗，俩目，拉仪。这是一部节义精确而且详明的经典。是从至睿的、彻知的主降示的。",
+        "（你说）：「你们只应当崇拜真主，我确是奉他的命来警告你们，并向你们报喜的。",
+        "你们应当向你们的主求饶，然后，向他悔过，他就使你们获得优美的享受，到一个限期，并赏赐有美德者以大量的恩惠。如果你们违背正道，那末，我的确担心你们遭受重大日的惩罚。",
+        "你们只归于真主，他对万事确是全能的。」",
+        "真的，他们的确胸怀怨恨，以便隐瞒真主。真的，当他们用衣服遮盖胸部的时候，真主知道他们所隐讳的和他们所表白的，他确是全知心事的。",
+        "大地上的动物，没有一个不是由真主担负其给养的，没有一个不是真主知道其住所和贮藏处的。一切事物都记载在一本明确的天经中。",
+        "他在六日之中创造了天地万物——他的宝座原是在水上的——以便他考验你们，看你们中谁的工作是最优的。如果你说：「你们死后，是要复活的。」不信道的人们必定说：「这个只是明显的魔术。」",
+        "如果我把他们应受的惩罚展缓一个可数的日期，他们必定说：「惩罚怎麽不降临呢？」真的，在惩罚降临他们的日子，他们将无处逃避，他们所嘲笑的惩罚将要降临他们。",
+        "如果我使人尝试从我发出的慈恩，然后我把那慈恩夺取了，他必定失望而且孤恩。",
+        "在遭遇艰难之后，如果我使他尝试幸福，他必定说：「灾害已脱离我了。」他必定欣喜而且自夸。"
+      ],
+      "chapterListEnglish": [
+        "Aleph, Lammu, Ray. This is a Book of precise and detailed meanings. It has been revealed from the All-Wise, All-Knowing Lord.",
+        "(Say): 'Worship none but Allah. I have come to you with warnings and good news from His command.'",
+        "Seek forgiveness from your Lord, and then repent to Him. He will grant you pleasant enjoyments for a time and bestow bounties upon the virtuous. But if you turn away from the right path, I fear a great Day of punishment for you.",
+        "Your return is to Allah, He is the Almighty over all things.",
+        "Verily, they harbor hatred in their hearts to conceal Allah. Verily, when they cover their breasts with garments, Allah knows what they conceal and what they reveal. He is the All-Knower of the heart. ",
+        "There is not a creature on earth whose sustenance is not provided by Allah, and there is not a creature whose dwelling and storage is not known to Allah. Everything is written in a clear Book.",
+        "He created the heavens and the earth and everything in them in six days—his throne is on the water—so that He may test you to see which of you is the best in his work. If you say, ‘After you die, you will be resurrected,’ the disbelievers will say, ‘This is but obvious magic.",
+        "If I postpone their punishment for a certain number of days, they will say, 'Why is it not coming?' Indeed, on the day when punishment comes upon them, they will have no escape; the punishment they mocked will come upon them.",
+        "If I allow a person to taste My mercy and then take it away, he will be disappointed and destitute of it.",
+        "If I allow him to taste happiness after suffering hardship, he will say, \"Evil has escaped from Me.\" He will rejoice and boast."
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "يوسف",
+        "chinese": "第12章 优素福章",
+        "english": "Chapter 12 Yusuf"
+      },
+      "chapterListArabic": [
+        "الر ۚ تِلْكَ آيَاتُ الْكِتَابِ الْمُبِينِ",
+        "إِنَّا أَنزَلْنَاهُ قُرْآنًا عَرَبِيًّا لَّعَلَّكُمْ تَعْقِلُونَ",
+        "نَحْنُ نَقُصُّ عَلَيْكَ أَحْسَنَ الْقَصَصِ بِمَا أَوْحَيْنَا إِلَيْكَ هَٰذَا الْقُرْآنَ وَإِن كُنتَ مِن قَبْلِهِ لَمِنَ الْغَافِلِينَ",
+        "إِذْ قَالَ يُوسُفُ لِأَبِيهِ يَا أَبَتِ إِنِّي رَأَيْتُ أَحَدَ عَشَرَ كَوْكَبًا وَالشَّمْسَ وَالْقَمَرَ رَأَيْتُهُمْ لِي سَاجِدِينَ",
+        "قَالَ يَا بُنَيَّ لَا تَقْصُصْ رُؤْيَاكَ عَلَىٰ إِخْوَتِكَ فَيَكِيدُوا لَكَ كَيْدًا ۖ إِنَّ الشَّيْطَانَ لِلْإِنسَانِ عَدُوٌّ مُّبِينٌ",
+        "وَكَذَٰلِكَ يَجْتَبِيكَ رَبُّكَ وَيُعَلِّمُكَ مِن تَأْوِيلِ الْأَحَادِيثِ وَيُتِمُّ نِعْمَتَهُ عَلَيْكَ وَعَلَىٰ آلِ يَعْقُوبَ كَمَا أَتَمَّهَا عَلَىٰ أَبَوَيْكَ مِن قَبْلُ إِبْرَاهِيمَ وَإِسْحَاقَ ۚ إِنَّ رَبَّكَ عَلِيمٌ حَكِيمٌ",
+        "لَّقَدْ كَانَ فِي يُوسُفَ وَإِخْوَتِهِ آيَاتٌ لِّلسَّائِلِينَ",
+        "إِذْ قَالُوا لَيُوسُفُ وَأَخُوهُ أَحَبُّ إِلَىٰ أَبِينَا مِنَّا وَنَحْنُ عُصْبَةٌ إِنَّ أَبَانَا لَفِي ضَلَالٍ مُّبِينٍ",
+        "اقْتُلُوا يُوسُفَ أَوِ اطْرَحُوهُ أَرْضًا يَخْلُ لَكُمْ وَجْهُ أَبِيكُمْ وَتَكُونُوا مِن بَعْدِهِ قَوْمًا صَالِحِينَ",
+        "قَالَ قَائِلٌ مِّنْهُمْ لَا تَقْتُلُوا يُوسُفَ وَأَلْقُوهُ فِي غَيَابَتِ الْجُبِّ يَلْتَقِطْهُ بَعْضُ السَّيَّارَةِ إِن كُنتُمْ فَاعِلِينَ"
+      ],
+      "chapterListChinese": [
+        "艾列弗，俩目，拉仪。这些是明确的天经的节文。",
+        "我确已把它降示成阿拉伯文的《古兰经》，以便你们了解。",
+        "我借著启示你这部《古兰经》而告诉你最美的故事，在这以前，你确是疏忽的。",
+        "当时优素福对他父亲说：「我的父亲啊！我确已梦见十一颗星和太阳、月亮，我梦见他们向我鞠躬。」",
+        "他说：「我的孩子啊！你不要把你的梦告诉你的哥哥们，以免他们谋害你；恶魔确是人类公开的仇敌。」",
+        "你的主这样拣选你，他教你圆梦，他要完成对你和对叶尔孤白的后裔的恩典，犹如他以前曾完成对你的祖先易卜拉欣和易司哈格的恩典一样，你的主确是全知的，确是至睿的。",
+        "在优素福和他哥哥们（的故事）裡，对于询问者确有许多蹟象。",
+        "当时，他们说：「优素福和他弟弟，在我们的父亲看来，是比我们还可爱的，而我们是一个（强壮的）团体，我们的父亲确是在明显的迷误之中。」",
+        "（他们说：）「你们把优素福杀掉，或把他抛弃在荒远的地方，你们父亲的慈爱，就会专归于你们了，而你们以后还可以成为正直的人。」",
+        "他们当中有一个发言人曾说：「你们不要杀死优素福，你们可以把他投入井裡。要是你们那样做了，一些过路的旅客会把他拾去的。」"
+      ],
+      "chapterListEnglish": [
+        "Aleph, Lam, Ray. These are the clear verses of the Book.",
+        "We have revealed it in the Arabic language of the Qur'an so that you may understand it.",
+        "I have revealed to you the most beautiful story by revealing this Qur'an to you, but before this, you were negligent.",
+        "When Yusuf said to his father: \"My father! I have indeed seen eleven stars and the sun and the moon, and I dreamed that they bowed down to me.",
+        "He said: \"My son! Do not tell your dream to your brothers, lest they plot against you; the devil is an open enemy to mankind.",
+        "Thus your Lord has chosen you and taught you the interpretation of dreams, and He will grant you and the descendants of Jacob as He granted your ancestors Abraham and Isaac. Your Lord is indeed All-Knowing, All-Wise.",
+        "In the story of Yusuf and his brothers, there are signs for those who inquire. ",
+        "At that time they said: \"Yusuf and his brother were dearer to our father than we, and we are a (strong) group, and our father was clearly in error.",
+        "(They said:) \"Kill Yusuf or abandon him to a remote place, and your father's love will return to you, and you will be righteous later.",
+        "One of their speakers said: \"Do not kill Yusuf, but throw him into the well. If you do so, some passerby will pick him up.\""
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "الرعد",
+        "chinese": "第13章 雷霆章",
+        "english": "Chapter 13: Thunder Chapter"
+      },
+      "chapterListArabic": [
+        "المر ۚ تِلْكَ آيَاتُ الْكِتَابِ ۗ وَالَّذِي أُنزِلَ إِلَيْكَ مِن رَّبِّكَ الْحَقُّ وَلَٰكِنَّ أَكْثَرَ النَّاسِ لَا يُؤْمِنُونَ",
+        "اللَّهُ الَّذِي رَفَعَ السَّمَاوَاتِ بِغَيْرِ عَمَدٍ تَرَوْنَهَا ۖ ثُمَّ اسْتَوَىٰ عَلَى الْعَرْشِ ۖ وَسَخَّرَ الشَّمْسَ وَالْقَمَرَ ۖ كُلٌّ يَجْرِي لِأَجَلٍ مُّسَمًّى ۚ يُدَبِّرُ الْأَمْرَ يُفَصِّلُ الْآيَاتِ لَعَلَّكُم بِلِقَاءِ رَبِّكُمْ تُوقِنُونَ",
+        "وَهُوَ الَّذِي مَدَّ الْأَرْضَ وَجَعَلَ فِيهَا رَوَاسِيَ وَأَنْهَارًا ۖ وَمِن كُلِّ الثَّمَرَاتِ جَعَلَ فِيهَا زَوْجَيْنِ اثْنَيْنِ ۖ يُغْشِي اللَّيْلَ النَّهَارَ ۚ إِنَّ فِي ذَٰلِكَ لَآيَاتٍ لِّقَوْمٍ يَتَفَكَّرُونَ",
+        "وَفِي الْأَرْضِ قِطَعٌ مُّتَجَاوِرَاتٌ وَجَنَّاتٌ مِّنْ أَعْنَابٍ وَزَرْعٌ وَنَخِيلٌ صِنْوَانٌ وَغَيْرُ صِنْوَانٍ يُسْقَىٰ بِمَاءٍ وَاحِدٍ وَنُفَضِّلُ بَعْضَهَا عَلَىٰ بَعْضٍ فِي الْأُكُلِ ۚ إِنَّ فِي ذَٰلِكَ لَآيَاتٍ لِّقَوْمٍ يَعْقِلُونَ",
+        "وَإِن تَعْجَبْ فَعَجَبٌ قَوْلُهُمْ أَإِذَا كُنَّا تُرَابًا أَإِنَّا لَفِي خَلْقٍ جَدِيدٍ ۗ أُولَٰئِكَ الَّذِينَ كَفَرُوا بِرَبِّهِمْ ۖ وَأُولَٰئِكَ الْأَغْلَالُ فِي أَعْنَاقِهِمْ ۖ وَأُولَٰئِكَ أَصْحَابُ النَّارِ ۖ هُمْ فِيهَا خَالِدُونَ",
+        "وَيَسْتَعْجِلُونَكَ بِالسَّيِّئَةِ قَبْلَ الْحَسَنَةِ وَقَدْ خَلَتْ مِن قَبْلِهِمُ الْمَثُلَاتُ ۗ وَإِنَّ رَبَّكَ لَذُو مَغْفِرَةٍ لِّلنَّاسِ عَلَىٰ ظُلْمِهِمْ ۖ وَإِنَّ رَبَّكَ لَشَدِيدُ الْعِقَابِ",
+        "وَيَقُولُ الَّذِينَ كَفَرُوا لَوْلَا أُنزِلَ عَلَيْهِ آيَةٌ مِّن رَّبِّهِ ۗ إِنَّمَا أَنتَ مُنذِرٌ ۖ وَلِكُلِّ قَوْمٍ هَادٍ",
+        "اللَّهُ يَعْلَمُ مَا تَحْمِلُ كُلُّ أُنثَىٰ وَمَا تَغِيضُ الْأَرْحَامُ وَمَا تَزْدَادُ ۖ وَكُلُّ شَيْءٍ عِندَهُ بِمِقْدَارٍ",
+        "عَالِمُ الْغَيْبِ وَالشَّهَادَةِ الْكَبِيرُ الْمُتَعَالِ",
+        "سَوَاءٌ مِّنكُم مَّنْ أَسَرَّ الْقَوْلَ وَمَن جَهَرَ بِهِ وَمَنْ هُوَ مُسْتَخْفٍ بِاللَّيْلِ وَسَارِبٌ بِالنَّهَارِ"
+      ],
+      "chapterListChinese": [
+        "艾列弗，俩目，米目，拉仪。这些是天经的节文。从你的主降示于你的经典，确是真实的，但众人大半不信。",
+        "真主建立诸天，而不用你们所能看见的支柱。随后他端坐在宝座上，制服日月，使其各自运行到一个定期。他处理万事，解释蹟象，以便你们确信将与你们的主相会。",
+        "他展开大地，并在大地上安置许多山岳和河流，他把每种果实造成两性的，他以黑夜覆盖白昼。对于能思维的民众，此中确有许多蹟象。",
+        "大地上有许多邻近的区域，有葡萄园，有庄稼，有椰枣树，其中有二株同根生的，二株异根生的，（这些都是）用同样的水灌溉的，我却使这一部分果实比那一部分佳美。对于能理解的民众，此中确有许多蹟象。",
+        "如果你感到惊讶，那末，他们的这句话才是奇怪的：「当我们变成为尘土的时候，我们必定要重新受造吗？」这等人是不信他们的主的，这等人是要带枷锁的；这等人是居住火狱的，他们将永居其中。",
+        "在恩惠降临之前，他们要求你早日昭示惩罚。许多惩戒处罚在他们之前确已逝去了。众人虽然不义，但你的主对于他们确是饶恕的。你的主的惩罚确是严厉的。",
+        "不信道者说：「为甚麽没有一种蹟象，从他的主降临他呢？」你只是一个警告者，每个民族都有一个引导者。",
+        "真主知道每个女性的怀孕，和子宫的收缩和膨胀。在主那裡，万物是各有定量的。",
+        "他是全知幽明的，是伟大的，是崇高的。",
+        "你们中窃窃私语的，高谈阔论的，隐藏在黑夜的，出现在白昼的，（在他）看来都是一样的。"
+      ],
+      "chapterListEnglish": [
+        "Aleph, Lam, Mim, Ray. These are the verses of the Book. What has been revealed to you from your Lord is indeed true, but most of the people do not believe.",
+        "Allah established the heavens without pillars that you can see. Then He sat on His throne and set the sun and the moon in their proper course. He governs everything and explains the signs, so that you may be sure of meeting your Lord.",
+        "He spread out the earth and placed therein mountains and rivers. He made every kind of fruit two-sexed and covered the day with night. Indeed, there are signs in this for those who understand.",
+        "There are neighboring regions on earth with vineyards, crops, and date palms. Two of them grow from the same root, and two grow from different roots. They are irrigated with the same water, but We made the fruit of one part better than that of the other. Indeed, there are signs in this for those who understand.",
+        "If you are surprised, then it is their saying, \"When we are reduced to dust, will we be created again?\" These are those who disbelieve in their Lord, and these are the ones who will be in chains; these are the ones who dwell in Hell, where they will abide forever.",
+        "Before the grace descends, they ask you to reveal the punishment quickly. Many punishments have already passed before them. Although people are unjust, your Lord is forgiving to them. The punishment from your Lord is severe.",
+        "The disbeliever says, \"Why is there no sign from his Lord?\" You are only a warner, and every nation has a guide.",
+        "Allah knows the pregnancy of every woman, the contractions and swellings of the womb. With Him, everything has its measure.",
+        "He is All-Knowing of the Unknown and the Visible, the Great, the Exalted.",
+        "Who among you whispers and who talks, who conceals himself in the night and who appears in the day—they are all alike (to Him)."
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "ابراهيم",
+        "chinese": "第14章 易卜拉欣章",
+        "english": "Chapter 14: Ibrahim"
+      },
+      "chapterListArabic": [
+        "الر ۚ كِتَابٌ أَنزَلْنَاهُ إِلَيْكَ لِتُخْرِجَ النَّاسَ مِنَ الظُّلُمَاتِ إِلَى النُّورِ بِإِذْنِ رَبِّهِمْ إِلَىٰ صِرَاطِ الْعَزِيزِ الْحَمِيدِ",
+        "اللَّهِ الَّذِي لَهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ ۗ وَوَيْلٌ لِّلْكَافِرِينَ مِنْ عَذَابٍ شَدِيدٍ",
+        "الَّذِينَ يَسْتَحِبُّونَ الْحَيَاةَ الدُّنْيَا عَلَى الْآخِرَةِ وَيَصُدُّونَ عَن سَبِيلِ اللَّهِ وَيَبْغُونَهَا عِوَجًا ۚ أُولَٰئِكَ فِي ضَلَالٍ بَعِيدٍ",
+        "وَمَا أَرْسَلْنَا مِن رَّسُولٍ إِلَّا بِلِسَانِ قَوْمِهِ لِيُبَيِّنَ لَهُمْ ۖ فَيُضِلُّ اللَّهُ مَن يَشَاءُ وَيَهْدِي مَن يَشَاءُ ۚ وَهُوَ الْعَزِيزُ الْحَكِيمُ",
+        "وَلَقَدْ أَرْسَلْنَا مُوسَىٰ بِآيَاتِنَا أَنْ أَخْرِجْ قَوْمَكَ مِنَ الظُّلُمَاتِ إِلَى النُّورِ وَذَكِّرْهُم بِأَيَّامِ اللَّهِ ۚ إِنَّ فِي ذَٰلِكَ لَآيَاتٍ لِّكُلِّ صَبَّارٍ شَكُورٍ",
+        "وَإِذْ قَالَ مُوسَىٰ لِقَوْمِهِ اذْكُرُوا نِعْمَةَ اللَّهِ عَلَيْكُمْ إِذْ أَنجَاكُم مِّنْ آلِ فِرْعَوْنَ يَسُومُونَكُمْ سُوءَ الْعَذَابِ وَيُذَبِّحُونَ أَبْنَاءَكُمْ وَيَسْتَحْيُونَ نِسَاءَكُمْ ۚ وَفِي ذَٰلِكُم بَلَاءٌ مِّن رَّبِّكُمْ عَظِيمٌ",
+        "وَإِذْ تَأَذَّنَ رَبُّكُمْ لَئِن شَكَرْتُمْ لَأَزِيدَنَّكُمْ ۖ وَلَئِن كَفَرْتُمْ إِنَّ عَذَابِي لَشَدِيدٌ",
+        "وَقَالَ مُوسَىٰ إِن تَكْفُرُوا أَنتُمْ وَمَن فِي الْأَرْضِ جَمِيعًا فَإِنَّ اللَّهَ لَغَنِيٌّ حَمِيدٌ",
+        "أَلَمْ يَأْتِكُمْ نَبَأُ الَّذِينَ مِن قَبْلِكُمْ قَوْمِ نُوحٍ وَعَادٍ وَثَمُودَ ۛ وَالَّذِينَ مِن بَعْدِهِمْ ۛ لَا يَعْلَمُهُمْ إِلَّا اللَّهُ ۚ جَاءَتْهُمْ رُسُلُهُم بِالْبَيِّنَاتِ فَرَدُّوا أَيْدِيَهُمْ فِي أَفْوَاهِهِمْ وَقَالُوا إِنَّا كَفَرْنَا بِمَا أُرْسِلْتُم بِهِ وَإِنَّا لَفِي شَكٍّ مِّمَّا تَدْعُونَنَا إِلَيْهِ مُرِيبٍ",
+        "قَالَتْ رُسُلُهُمْ أَفِي اللَّهِ شَكٌّ فَاطِرِ السَّمَاوَاتِ وَالْأَرْضِ ۖ يَدْعُوكُمْ لِيَغْفِرَ لَكُم مِّن ذُنُوبِكُمْ وَيُؤَخِّرَكُمْ إِلَىٰ أَجَلٍ مُّسَمًّى ۚ قَالُوا إِنْ أَنتُمْ إِلَّا بَشَرٌ مِّثْلُنَا تُرِيدُونَ أَن تَصُدُّونَا عَمَّا كَانَ يَعْبُدُ آبَاؤُنَا فَأْتُونَا بِسُلْطَانٍ مُّبِينٍ"
+      ],
+      "chapterListChinese": [
+        "艾列弗，俩目，拉仪。（这是）一章经，我把它降示你，以便你奉主的命令而把众人从重重黑暗中引入光明，引入强大的、可颂的主的大道。",
+        "真主是有天地万物的。哀哉不信道者！他们将受严厉的刑罚。",
+        "他们宁要今世，而不要后世，并阻碍真主的大道，而且想在其中寻求偏邪道，这等人是在深深的迷误之中的。",
+        "我不派遣一个使者则已，但派遣的时候，总是以他的宗族的语言（降示经典），以便他为他们阐明正道。而真主使他所意欲者误入迷途，使他所意欲者遵循正路。他确是强大的，确是至睿的。",
+        "我确已派遣穆萨带著我的许多蹟象去，（我说）：「你把你的宗族从重重黑暗中引入光明吧。你应当以真主的一些纪念日提醒他们。」对于每个坚忍者和感恩者，此中确有许多蹟象。",
+        "当时，穆萨曾对他的宗族说：「你们应当铭记真主赐给你们的恩典，他曾使你们脱离法老的臣民。他们使你们遭受酷刑，屠杀你们的男子，留下你们的女子，此中有从你们的主降下的大难。」",
+        "当时，你们的主曾宣布说：「如果你们感谢，我誓必对你们恩上加恩；如果你们忘恩负义，那末，我的刑罚确是严厉的。」",
+        "穆萨说：「如果你们和大地上的人统统都忘恩负义，（也无损于真主），因为真主确是无求的，确是可颂的。」",
+        "你们以前的民族——努哈的宗族、阿德人、赛莫德人和他们以后的人，只有真主能知道他们——难道这等人的消息没有来临你们吗？他们族中的使者昭示他们许多明証，但他们把自己的手指插入口内，说：「我们必定不信你们所奉的使命，我们对于你们所宣传的事情，确是在使人不安的疑惑之中。」",
+        "他们族中的使者说：「难道对于真主——天地的创造者——还有怀疑吗？他号召你们行善，以便他饶恕你们的罪过，并对你们缓刑到一个定期。」他们说：「你们只是像我们一样的凡人，你们欲阻止我们崇拜我们的祖先所崇拜的（偶像），你们昭示我们一个明証吧！」"
+      ],
+      "chapterListEnglish": [
+        "Aleph, Lammu, Ray. (This is) a Chapter that We have revealed to you, that you may lead the people out of darkness, by the command of your Lord, to light, to the path of the Mighty, the Praised Lord.",
+        "To Allah belongs the heavens and the earth and everything in them. Woe to those who disbelieve! A severe punishment awaits them.",
+        "They prefer this world to the Hereafter and obstruct the path of Allah, seeking therein to stray. These are those who are deeply misguided.",
+        "If I do not send a Messenger, then I send him in the language of his people, that he may clarify the way for them. And Allah leads astray whom He wills, and guides whom He wills. He is indeed Mighty, All-Wise.",
+        "We sent Moses with Our signs, saying: 'Bring your people out of darkness to light, and remind them of the days of Allah.' In that are signs for everyone who is patient and thankful. ",
+        "When Moses said to his people, \"Remember the favor that Allah bestowed upon you, and how He delivered you from the subjects of Pharaoh. They subjected you to torture, slaughtering your males and leaving your females alone. In this was a great tribulation from your Lord.",
+        "When your Lord declared, \"If you are thankful, I will surely increase your favor; but if you are ungrateful, then My punishment is severe.",
+        "Moses said, \"If you and all the people of the earth are ungrateful, it will not be a loss to Allah, for Allah is the Demanderless, the Praiseworthy.",
+        "Has not news come to you of the people who came before you—the people of Noah, Ad, Thamud, and those after them, whom Allah alone knows? Their messengers brought them clear signs, but they thrust their fingers into their mouths, saying, \"We certainly do not believe in what you have been told, and we are in a state of disquiet about what you are proclaiming.",
+        "The messengers from their people said, \"Do you doubt about Allah, the Creator of the heavens and the earth? He calls you to good deeds so that He may forgive your sins and grant you a reprieve until a fixed time.\" They said, \"You are only men like us, and you wish to prevent us from worshipping what our ancestors worshipped. Show us a clear sign!"
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "الحجر",
+        "chinese": "第15章 石谷章",
+        "english": "Chapter 15 Shigu Chapter"
+      },
+      "chapterListArabic": [
+        "الر ۚ تِلْكَ آيَاتُ الْكِتَابِ وَقُرْآنٍ مُّبِينٍ",
+        "رُّبَمَا يَوَدُّ الَّذِينَ كَفَرُوا لَوْ كَانُوا مُسْلِمِينَ",
+        "ذَرْهُمْ يَأْكُلُوا وَيَتَمَتَّعُوا وَيُلْهِهِمُ الْأَمَلُ ۖ فَسَوْفَ يَعْلَمُونَ",
+        "وَمَا أَهْلَكْنَا مِن قَرْيَةٍ إِلَّا وَلَهَا كِتَابٌ مَّعْلُومٌ",
+        "مَّا تَسْبِقُ مِنْ أُمَّةٍ أَجَلَهَا وَمَا يَسْتَأْخِرُونَ",
+        "وَقَالُوا يَا أَيُّهَا الَّذِي نُزِّلَ عَلَيْهِ الذِّكْرُ إِنَّكَ لَمَجْنُونٌ",
+        "لَّوْ مَا تَأْتِينَا بِالْمَلَائِكَةِ إِن كُنتَ مِنَ الصَّادِقِينَ",
+        "مَا نُنَزِّلُ الْمَلَائِكَةَ إِلَّا بِالْحَقِّ وَمَا كَانُوا إِذًا مُّنظَرِينَ",
+        "إِنَّا نَحْنُ نَزَّلْنَا الذِّكْرَ وَإِنَّا لَهُ لَحَافِظُونَ",
+        "وَلَقَدْ أَرْسَلْنَا مِن قَبْلِكَ فِي شِيَعِ الْأَوَّلِينَ"
+      ],
+      "chapterListChinese": [
+        "艾列弗，俩目，拉仪。这些是天经——明白的《古兰经》的节文。",
+        "不信道者或许要希望他们原是归顺的。",
+        "你听任他们吃喝玩乐吧！你听任他们受希望的诱惑吧！因为他们不久就会知道的。",
+        "我不毁灭一个城市则已，但毁灭它，就有一个可知的定期。",
+        "任何民族都不能先其定期而灭亡，也不能后其定期而沦丧。",
+        "他们说：「受降示教诲的人啊！你确是一个疯子。",
+        "你怎不昭示我们一些天神呢？如果你是说实话的。」",
+        "我只凭真理而降天神，到那时，他们是不蒙缓刑的。",
+        "我确已降示教诲，我确是教诲的保护者。",
+        "在你之前，我确已派遣了许多使者，去教化古代的各宗派。"
+      ],
+      "chapterListEnglish": [
+        "Aleph, Lammu, and Rayyim. These are the verses of the Book—the plain Qur'an.",
+        "Those who disbelieve may wish that they were truly believers.",
+        "Let them eat, drink, and be merry! Let them be seduced by hope, for they will soon know.",
+        "I do not destroy a city, but I destroy it at a known time.",
+        "No nation can be destroyed before its appointed time, nor can it be lost after its appointed time.",
+        "They say, 'O you to whom the teachings were sent! You are indeed a madman.",
+        "Why did you not reveal some angels to us, if you were telling the truth?",
+        "I have sent down the angels only with the truth, and there will be no reprieve for them then.",
+        "I have indeed sent down the teachings, and I am the protector of the teachings.",
+        "I have sent messengers before you to the ancient sects."
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "النحل",
+        "chinese": "第16章 蜜蜂章",
+        "english": "Chapter 16: Bees"
+      },
+      "chapterListArabic": [
+        "أَتَىٰ أَمْرُ اللَّهِ فَلَا تَسْتَعْجِلُوهُ ۚ سُبْحَانَهُ وَتَعَالَىٰ عَمَّا يُشْرِكُونَ",
+        "يُنَزِّلُ الْمَلَائِكَةَ بِالرُّوحِ مِنْ أَمْرِهِ عَلَىٰ مَن يَشَاءُ مِنْ عِبَادِهِ أَنْ أَنذِرُوا أَنَّهُ لَا إِلَٰهَ إِلَّا أَنَا فَاتَّقُونِ",
+        "خَلَقَ السَّمَاوَاتِ وَالْأَرْضَ بِالْحَقِّ ۚ تَعَالَىٰ عَمَّا يُشْرِكُونَ",
+        "خَلَقَ الْإِنسَانَ مِن نُّطْفَةٍ فَإِذَا هُوَ خَصِيمٌ مُّبِينٌ",
+        "وَالْأَنْعَامَ خَلَقَهَا ۗ لَكُمْ فِيهَا دِفْءٌ وَمَنَافِعُ وَمِنْهَا تَأْكُلُونَ",
+        "وَلَكُمْ فِيهَا جَمَالٌ حِينَ تُرِيحُونَ وَحِينَ تَسْرَحُونَ",
+        "وَتَحْمِلُ أَثْقَالَكُمْ إِلَىٰ بَلَدٍ لَّمْ تَكُونُوا بَالِغِيهِ إِلَّا بِشِقِّ الْأَنفُسِ ۚ إِنَّ رَبَّكُمْ لَرَءُوفٌ رَّحِيمٌ",
+        "وَالْخَيْلَ وَالْبِغَالَ وَالْحَمِيرَ لِتَرْكَبُوهَا وَزِينَةً ۚ وَيَخْلُقُ مَا لَا تَعْلَمُونَ",
+        "وَعَلَى اللَّهِ قَصْدُ السَّبِيلِ وَمِنْهَا جَائِرٌ ۚ وَلَوْ شَاءَ لَهَدَاكُمْ أَجْمَعِينَ",
+        "هُوَ الَّذِي أَنزَلَ مِنَ السَّمَاءِ مَاءً ۖ لَّكُم مِّنْهُ شَرَابٌ وَمِنْهُ شَجَرٌ فِيهِ تُسِيمُونَ"
+      ],
+      "chapterListChinese": [
+        "真主的命令必定来临，所以你们不必要求其早日实现，讚颂真主超绝万物，他超乎他们所用以配他的。",
+        "他使天神们奉他的命令，偕同精神，降临他所意欲的僕人，说：「你们应当警告世人说：除我之外，绝无应受崇拜的，所以你们应当敬畏我。」",
+        "他凭真理创造了天地，他超乎他们所用以配他的。",
+        "他用精液创造了人，而人却突然变成了（他的）明显的对手。",
+        "他创造了牲畜，你们可以其毛和皮御寒，可以其乳和肉充饥，还有许多益处。",
+        "你们把牲畜赶回家或放出去吃草的时候，牲畜对于你们都有光彩。",
+        "牲畜把你们的货物驮运到你们须经困难才能到达的地方去。你们的主确是至仁的，确是至慈的。",
+        "他创造马、骡、驴，以供你们骑乘，以作你们的装饰。他还创造你们所不知道的东西。",
+        "真主负责指示正道的责任。有些道路是偏邪的，假若他意欲，他必将你们全体引入正道。",
+        "他从云中降下雨水，你们可以用做饮料，你们赖以放牧的树木因之而生长。"
+      ],
+      "chapterListEnglish": [
+        "Allah's command will surely come, so you do not need to ask for it to come soon. Praise Allah, He is above all things, He is above all their associates with Him.",
+        "He caused the angels to descend with spirits by His command to whomever He wills, saying: 'Warn the world that there is no god but Me, so fear Me.'",
+        "He created the heavens and the earth with truth, He is above all their associates with Him.",
+        "He created man from semen, but man suddenly became (His) obvious rival.",
+        "He created cattle, whose fur and skin you can use to keep you warm, whose milk and flesh you can use to satisfy your hunger, and who also have many benefits.",
+        "When you drive them home or let them out to graze, they are a glory to you.",
+        "Cattle carry your goods to places that you would otherwise have difficulty reaching. Your Lord is indeed the Most Gracious, the Most Merciful. ",
+        "He created the horse, the mule, and the donkey for you to ride on and for your adornment. He also created things you do not know. ",
+        "Allah is responsible for guiding you to the right path. Some ways are deviant, but had He willed, He would have guided you all to the right path. ",
+        "He sends down water from the clouds for you to drink, and the trees you feed on grow from it. "
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "الإسراء",
+        "chinese": "第17章 夜行章",
+        "english": "Chapter 17 Night Journey"
+      },
+      "chapterListArabic": [
+        "سُبْحَانَ الَّذِي أَسْرَىٰ بِعَبْدِهِ لَيْلًا مِّنَ الْمَسْجِدِ الْحَرَامِ إِلَى الْمَسْجِدِ الْأَقْصَى الَّذِي بَارَكْنَا حَوْلَهُ لِنُرِيَهُ مِنْ آيَاتِنَا ۚ إِنَّهُ هُوَ السَّمِيعُ الْبَصِيرُ",
+        "وَآتَيْنَا مُوسَى الْكِتَابَ وَجَعَلْنَاهُ هُدًى لِّبَنِي إِسْرَائِيلَ أَلَّا تَتَّخِذُوا مِن دُونِي وَكِيلًا",
+        "ذُرِّيَّةَ مَنْ حَمَلْنَا مَعَ نُوحٍ ۚ إِنَّهُ كَانَ عَبْدًا شَكُورًا",
+        "وَقَضَيْنَا إِلَىٰ بَنِي إِسْرَائِيلَ فِي الْكِتَابِ لَتُفْسِدُنَّ فِي الْأَرْضِ مَرَّتَيْنِ وَلَتَعْلُنَّ عُلُوًّا كَبِيرًا",
+        "فَإِذَا جَاءَ وَعْدُ أُولَاهُمَا بَعَثْنَا عَلَيْكُمْ عِبَادًا لَّنَا أُولِي بَأْسٍ شَدِيدٍ فَجَاسُوا خِلَالَ الدِّيَارِ ۚ وَكَانَ وَعْدًا مَّفْعُولًا",
+        "ثُمَّ رَدَدْنَا لَكُمُ الْكَرَّةَ عَلَيْهِمْ وَأَمْدَدْنَاكُم بِأَمْوَالٍ وَبَنِينَ وَجَعَلْنَاكُمْ أَكْثَرَ نَفِيرًا",
+        "إِنْ أَحْسَنتُمْ أَحْسَنتُمْ لِأَنفُسِكُمْ ۖ وَإِنْ أَسَأْتُمْ فَلَهَا ۚ فَإِذَا جَاءَ وَعْدُ الْآخِرَةِ لِيَسُوءُوا وُجُوهَكُمْ وَلِيَدْخُلُوا الْمَسْجِدَ كَمَا دَخَلُوهُ أَوَّلَ مَرَّةٍ وَلِيُتَبِّرُوا مَا عَلَوْا تَتْبِيرًا",
+        "عَسَىٰ رَبُّكُمْ أَن يَرْحَمَكُمْ ۚ وَإِنْ عُدتُّمْ عُدْنَا ۘ وَجَعَلْنَا جَهَنَّمَ لِلْكَافِرِينَ حَصِيرًا",
+        "إِنَّ هَٰذَا الْقُرْآنَ يَهْدِي لِلَّتِي هِيَ أَقْوَمُ وَيُبَشِّرُ الْمُؤْمِنِينَ الَّذِينَ يَعْمَلُونَ الصَّالِحَاتِ أَنَّ لَهُمْ أَجْرًا كَبِيرًا",
+        "وَأَنَّ الَّذِينَ لَا يُؤْمِنُونَ بِالْآخِرَةِ أَعْتَدْنَا لَهُمْ عَذَابًا أَلِيمًا"
+      ],
+      "chapterListChinese": [
+        "讚美真主，超绝万物，他在一夜之间，使他的僕人，从禁寺行到远寺。我在远寺的四周降福，以便我昭示他我的一部分蹟象。真主确是全聪的，确是全明的。",
+        "我把经典赏赐穆萨，并用作以色列的子孙的向导。我说：「你们不要捨我而採取任何监护者！」",
+        "我曾使其与努哈同舟共济者的子孙啊！他原是一个感恩的僕人。",
+        "我曾在经典裡启示对以色列的后裔判决说：「你们必定要在大地上两次作乱，你们必定很傲慢。」",
+        "当第一次作乱的约期来临的时候，我派遣我的许多强大的僕人去惩治你们，他们就搜索了住宅，那是要履行的诺言。",
+        "然后，我为你们恢复了对他们的优势，我以财富和子孙资助你们，我使你们更加富庶。",
+        "我说：「如果你们行善，那末，你们是为自己而行善，如果你们作恶，那末，你们是为自己而作恶。」当第二次作乱的约期来临的时候，（我又派遣他们），以便他们使你们变成为愁眉苦脸的，以便他们像头一次那样再入禁寺，以便他们把自己所佔领的地方加以摧毁。",
+        "（如果你们悔改），你们的主或许会怜悯你们。如果你们重新违抗我，我将重新惩治你们。我以火狱为不信道者的监狱。",
+        "这部《古兰经》必引导人于至正之道，并预告行善的信士，他们将要享受最大的报酬。",
+        "（还预告）不信后世者，我已为他们预备了痛苦的刑罚。"
+      ],
+      "chapterListEnglish": [
+        "Praise be to Allah, the Exalted One! He made His servant journey from the Sacred Mosque to the Farthest Mosque in one night. We blessed it around the Farthest Mosque, so that We might show him some of Our signs. Verily, Allah is All-Hearing, All-Seeing.",
+        "We gave the Scripture to Moses as a guide for the Children of Israel. We said, \"Do not take a guardian besides Me!",
+        "O children of those whom We placed in the company of Noah! He was a grateful servant.",
+        "We revealed in the Scripture a judgment on the Children of Israel: \"You will surely cause two rebellions on earth, and you will be arrogant.",
+        "When the time for the first rebellion came, We sent against you many of Our servants, who searched the houses, fulfilling a promise.",
+        "Then We restored your dominance over them, providing you with wealth and children, and We enriched you. ",
+        "We say, 'If you do good, you do good for yourselves; and if you do evil, you do evil for yourselves.' When the time for the second rebellion comes, (We send them again) to make you look miserable, so that they may return to the Sacred Mosque as they did the first time, and so that they may destroy the places they have occupied. ",
+        "(If you repent), perhaps your Lord will have mercy on you. If you disobey Me again, I will punish you again. I have made Hell a prison for the disbelievers. ",
+        "This Quran will surely guide people to the right path and foretell to the believers who do good that they will have a great reward. ",
+        "(It also foretells) that for those who disbelieve in the Hereafter, I have prepared a painful punishment. "
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "الكهف",
+        "chinese": "第18章 山洞章",
+        "english": "Chapter 18: The Cave Chapter"
+      },
+      "chapterListArabic": [
+        "الْحَمْدُ لِلَّهِ الَّذِي أَنزَلَ عَلَىٰ عَبْدِهِ الْكِتَابَ وَلَمْ يَجْعَل لَّهُ عِوَجًا ۜ",
+        "قَيِّمًا لِّيُنذِرَ بَأْسًا شَدِيدًا مِّن لَّدُنْهُ وَيُبَشِّرَ الْمُؤْمِنِينَ الَّذِينَ يَعْمَلُونَ الصَّالِحَاتِ أَنَّ لَهُمْ أَجْرًا حَسَنًا",
+        "مَّاكِثِينَ فِيهِ أَبَدًا",
+        "وَيُنذِرَ الَّذِينَ قَالُوا اتَّخَذَ اللَّهُ وَلَدًا",
+        "مَّا لَهُم بِهِ مِنْ عِلْمٍ وَلَا لِآبَائِهِمْ ۚ كَبُرَتْ كَلِمَةً تَخْرُجُ مِنْ أَفْوَاهِهِمْ ۚ إِن يَقُولُونَ إِلَّا كَذِبًا",
+        "فَلَعَلَّكَ بَاخِعٌ نَّفْسَكَ عَلَىٰ آثَارِهِمْ إِن لَّمْ يُؤْمِنُوا بِهَٰذَا الْحَدِيثِ أَسَفًا",
+        "إِنَّا جَعَلْنَا مَا عَلَى الْأَرْضِ زِينَةً لَّهَا لِنَبْلُوَهُمْ أَيُّهُمْ أَحْسَنُ عَمَلًا",
+        "وَإِنَّا لَجَاعِلُونَ مَا عَلَيْهَا صَعِيدًا جُرُزًا",
+        "أَمْ حَسِبْتَ أَنَّ أَصْحَابَ الْكَهْفِ وَالرَّقِيمِ كَانُوا مِنْ آيَاتِنَا عَجَبًا",
+        "إِذْ أَوَى الْفِتْيَةُ إِلَى الْكَهْفِ فَقَالُوا رَبَّنَا آتِنَا مِن لَّدُنكَ رَحْمَةً وَهَيِّئْ لَنَا مِنْ أَمْرِنَا رَشَدًا"
+      ],
+      "chapterListChinese": [
+        "一切讚颂，全归真主！他以端正的经典降示他的僕人，而未在其中製造任何偏邪，",
+        "以便他警告世人，真主要降下严厉的惩罚；并预告行善的信士们，他们得受优美的报酬，",
+        "而永居其中；",
+        "且警告妄言「真主收养儿女」的人。",
+        "他们和他们的祖先，对于这句话都毫无知识，他们信口开河地说这句荒谬绝伦的话。",
+        "如果他们不信这训辞，在他们背离之后，你或许为悲伤而自杀。",
+        "我确已使大地上的一切事物成为大地的装饰品，以便我考验世人，看谁的工作是最优美的。",
+        "我必毁灭大地上的一切事物，而使大地变为荒凉的。",
+        "难道你以为岩洞和碑文的主人是我的蹟象中的一件奇事吗？",
+        "当时，有几个青年避居山洞中，他们说：「我们的主啊！求你把你那裡的恩惠赏赐我们，求你使我们的事业完全端正。」"
+      ],
+      "chapterListEnglish": [
+        "All praise is due to Allah! He has revealed the Book to His servants in a sound way, and has not created any error therein.",
+        "That He may warn mankind of a severe punishment from Allah, and warn the believers who do good that they will have a good reward,",
+        "and abide therein forever.",
+        "And warn those who say, 'Allah takes children.'",
+        "They and their ancestors had no knowledge of this, and they uttered this absurdity without thinking.",
+        "If they had not believed in it, you would have committed suicide out of sorrow after they turned away.",
+        "Indeed, I have made everything on earth an ornament for it, that I may test mankind to see whose work is the most excellent.",
+        "I will surely destroy everything on earth and make it desolate.",
+        "Do you think that the owner of the cave and the inscription is a wonder among My signs? ",
+        "At that time, there were some young men who had taken refuge in a cave. They said, 'Our Lord! Please grant us Your grace and make our deeds perfect.'"
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "مريم",
+        "chinese": "第19章 麦尔彦章",
+        "english": "Chapter 19: Maryam"
+      },
+      "chapterListArabic": [
+        "كهيعص",
+        "ذِكْرُ رَحْمَتِ رَبِّكَ عَبْدَهُ زَكَرِيَّا",
+        "إِذْ نَادَىٰ رَبَّهُ نِدَاءً خَفِيًّا",
+        "قَالَ رَبِّ إِنِّي وَهَنَ الْعَظْمُ مِنِّي وَاشْتَعَلَ الرَّأْسُ شَيْبًا وَلَمْ أَكُن بِدُعَائِكَ رَبِّ شَقِيًّا",
+        "وَإِنِّي خِفْتُ الْمَوَالِيَ مِن وَرَائِي وَكَانَتِ امْرَأَتِي عَاقِرًا فَهَبْ لِي مِن لَّدُنكَ وَلِيًّا",
+        "يَرِثُنِي وَيَرِثُ مِنْ آلِ يَعْقُوبَ ۖ وَاجْعَلْهُ رَبِّ رَضِيًّا",
+        "يَا زَكَرِيَّا إِنَّا نُبَشِّرُكَ بِغُلَامٍ اسْمُهُ يَحْيَىٰ لَمْ نَجْعَل لَّهُ مِن قَبْلُ سَمِيًّا",
+        "قَالَ رَبِّ أَنَّىٰ يَكُونُ لِي غُلَامٌ وَكَانَتِ امْرَأَتِي عَاقِرًا وَقَدْ بَلَغْتُ مِنَ الْكِبَرِ عِتِيًّا",
+        "قَالَ كَذَٰلِكَ قَالَ رَبُّكَ هُوَ عَلَيَّ هَيِّنٌ وَقَدْ خَلَقْتُكَ مِن قَبْلُ وَلَمْ تَكُ شَيْئًا",
+        "قَالَ رَبِّ اجْعَل لِّي آيَةً ۚ قَالَ آيَتُكَ أَلَّا تُكَلِّمَ النَّاسَ ثَلَاثَ لَيَالٍ سَوِيًّا"
+      ],
+      "chapterListChinese": [
+        "卡弗，哈，雅，阿因，撒德。",
+        "这是叙述你的主对于他的僕人宰凯里雅的恩惠。",
+        "当时，他低声地呼吁他的主说：",
+        "「我的主啊！我的骨骼已软弱了，我已白髮苍苍了，我的主啊！我没有为祈祷你而失望。",
+        "我的确担心我死后堂兄弟们不能继承我的职位，我的妻子又是不会生育的，求你赏赐我一个儿子，",
+        "来继承我，并继承叶尔孤白的部分后裔。我的主啊！求你使他成为可喜的。」",
+        "「宰凯里雅啊！我必定以一个儿子向你报喜，他的名字是叶哈雅，我以前没有使任何人与他同名。」",
+        "他说：「我的主啊！我的妻子是不会生育的，我也老态龙钟了，我怎麽会有儿子呢？」",
+        "主说：「事情就是这样。」你的主说：「这对于我是容易的。以前你不存在，而我创造了你。」",
+        "他说：「我的主啊！求你为我预定一种蹟象。」他说：「你的蹟象是你无疾无病，但三日三夜你不能和人说话。」"
+      ],
+      "chapterListEnglish": [
+        "Kafr, Ha, Ya, Ain, Saad.",
+        "This is a narration of the favor of your Lord upon his servant Zakaria.",
+        "When he whispered to his Lord, saying:",
+        "My Lord! My bones are weak and my hair is gray. My Lord! I have not failed in my prayer to you.",
+        "I am indeed afraid that my cousins will not succeed me after my death, and my wife is barren. Please give me a son.",
+        "To succeed me and to inherit some of the descendants of Jacob. My Lord! Please make him pleasing.",
+        "Zakaria! I will surely give you the good news of a son. His name will be John, and I have not named anyone after him before.",
+        "He said: \"My Lord! My wife is barren and I am old and feeble. How can I have a son?",
+        " \"Allah said, 'It is so.' Your Lord said, 'This is easy for Me. You did not exist before, and I created you.'",
+        "He said, 'My Lord! Determine for me a sign.' He said, 'Your sign will be that you will be free from disease and illness, but you will not be able to speak to anyone for three days and three nights.'"
+      ]
+    },
+    {
+      "chapterTitle": {
+        "arabic": "طه",
+        "chinese": "第20章 塔哈章",
+        "english": "Chapter 20 Taha Chapter"
+      },
+      "chapterListArabic": [
+        "طه",
+        "مَا أَنزَلْنَا عَلَيْكَ الْقُرْآنَ لِتَشْقَىٰ",
+        "إِلَّا تَذْكِرَةً لِّمَن يَخْشَىٰ",
+        "تَنزِيلًا مِّمَّنْ خَلَقَ الْأَرْضَ وَالسَّمَاوَاتِ الْعُلَى",
+        "الرَّحْمَٰنُ عَلَى الْعَرْشِ اسْتَوَىٰ",
+        "لَهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ وَمَا بَيْنَهُمَا وَمَا تَحْتَ الثَّرَىٰ",
+        "وَإِن تَجْهَرْ بِالْقَوْلِ فَإِنَّهُ يَعْلَمُ السِّرَّ وَأَخْفَى",
+        "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ ۖ لَهُ الْأَسْمَاءُ الْحُسْنَىٰ",
+        "وَهَلْ أَتَاكَ حَدِيثُ مُوسَىٰ",
+        "إِذْ رَأَىٰ نَارًا فَقَالَ لِأَهْلِهِ امْكُثُوا إِنِّي آنَسْتُ نَارًا لَّعَلِّي آتِيكُم مِّنْهَا بِقَبَسٍ أَوْ أَجِدُ عَلَى النَّارِ هُدًى"
+      ],
+      "chapterListChinese": [
+        "塔哈。",
+        "我降《古兰经》给你，不为使你辛苦，",
+        "却为教诲敬畏者，",
+        "是降自创造大地和穹苍者的。",
+        "至仁主已升上宝座了。",
+        "凡在天上地下的，在天地之间的，在地底下的，都是他的。",
+        "如果你高声说话，那末真主的确知道秘密的和更隐微的事情。",
+        "除真主外，绝无应受崇拜者，他有许多最美的名号。",
+        "你已听到穆萨的故事了吗？",
+        "当时，他看见一处火光，就对他的家属说：「你们稍留一下，我确已看见一处火了，也许我拿一个火把来给你们，或许我在有火的那裡发现向导。」"
+      ],
+      "chapterListEnglish": [
+        "Taha.",
+        "I did not send down the Qur'an to you to burden you,",
+        "But to teach the pious,",
+        "It is from Him who created the earth and the sky.",
+        "The Most Merciful is ascended to the throne.",
+        "Whatever is in the heavens and on the earth, and what is between them and what is under the earth, belongs to Him.",
+        "If you speak aloud, then Allah knows the secrets and the more obscure things.",
+        "There is no god but Allah, and He has the most beautiful names.",
+        "Have you heard the story of Moses?",
+        "When he saw a fire, he said to his family, 'Stay a while, for I have seen a fire. Perhaps I will bring you a torch, or perhaps I will find a guide where there is fire.'"
+      ]
+    }
+  ]
+}

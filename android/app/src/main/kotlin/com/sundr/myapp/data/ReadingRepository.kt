@@ -64,6 +64,25 @@ class ReadingRepository private constructor(context: Context) {
             id
         }
 
+    // Manual / interval-sync path with explicit timestamp (QRing-style app_heart).
+    // Used by BlePlugin.insertHeartRate and syncIntervalHeartRateDetail so a fresh
+    // tap or a backfilled interval slot gets a correct measuredAt instead of now()
+    // stuck in the wrong hourly bucket.
+    suspend fun insertHeartRateAt(bpm: Int, measuredAt: Long, cycleId: Long, source: String, deviceAddress: String? = null): Long =
+        withContext(Dispatchers.IO) {
+            if (!VitalRanges.isValidBpm(bpm)) {
+                Log.w(TAG, "Rejected implausible heart rate reading: $bpm bpm (source=$source)")
+                return@withContext -1L
+            }
+            val id = db.heartRateDao().insert(
+                HeartRateReadingEntity(
+                    valueBpm = bpm, measuredAt = measuredAt, cycleId = cycleId, source = source, deviceAddress = deviceAddress
+                )
+            )
+            safeRefreshDailySummary("heart_rate", measuredAt)
+            id
+        }
+
     suspend fun insertSpo2(pct: Int, cycleId: Long, source: String, deviceAddress: String? = null): Long =
         withContext(Dispatchers.IO) {
             val at = System.currentTimeMillis()
@@ -73,6 +92,18 @@ class ReadingRepository private constructor(context: Context) {
                 )
             )
             safeRefreshDailySummary("spo2", at)
+            id
+        }
+
+    suspend fun insertSpo2At(pct: Int, measuredAt: Long, cycleId: Long, source: String, deviceAddress: String? = null): Long =
+        withContext(Dispatchers.IO) {
+            if (pct <= 0) return@withContext -1L
+            val id = db.spo2Dao().insert(
+                Spo2ReadingEntity(
+                    valuePct = pct, measuredAt = measuredAt, cycleId = cycleId, source = source, deviceAddress = deviceAddress
+                )
+            )
+            safeRefreshDailySummary("spo2", measuredAt)
             id
         }
 
@@ -112,6 +143,18 @@ class ReadingRepository private constructor(context: Context) {
             id
         }
 
+    suspend fun insertHrvAt(valueMs: Int, measuredAt: Long, cycleId: Long, source: String, deviceAddress: String? = null): Long =
+        withContext(Dispatchers.IO) {
+            if (valueMs <= 0) return@withContext -1L
+            val id = db.hrvDao().insert(
+                HrvReadingEntity(
+                    valueMs = valueMs, measuredAt = measuredAt, cycleId = cycleId, source = source, deviceAddress = deviceAddress
+                )
+            )
+            safeRefreshDailySummary("hrv", measuredAt)
+            id
+        }
+
     suspend fun insertTemperature(valueC: Double, cycleId: Long, source: String, deviceAddress: String? = null): Long =
         withContext(Dispatchers.IO) {
             val at = System.currentTimeMillis()
@@ -121,6 +164,18 @@ class ReadingRepository private constructor(context: Context) {
                 )
             )
             safeRefreshDailySummary("temperature", at)
+            id
+        }
+
+    suspend fun insertTemperatureAt(valueC: Double, measuredAt: Long, cycleId: Long, source: String, deviceAddress: String? = null): Long =
+        withContext(Dispatchers.IO) {
+            if (valueC <= 0) return@withContext -1L
+            val id = db.temperatureDao().insert(
+                TemperatureReadingEntity(
+                    valueC = valueC, measuredAt = measuredAt, cycleId = cycleId, source = source, deviceAddress = deviceAddress
+                )
+            )
+            safeRefreshDailySummary("temperature", measuredAt)
             id
         }
 

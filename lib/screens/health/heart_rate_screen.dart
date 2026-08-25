@@ -65,6 +65,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   // Today's ring data
   List<int> _chartValues = [];
   int _avgHr = 0, _minHr = 0, _maxHr = 0;
+  int _latestHr = 0;
+  // ignore: unused_field
+  int _latestHrAt = 0;
 
   // Past-day Supabase data
   int _dayAvg = 0, _dayMin = 0, _dayMax = 0;
@@ -85,19 +88,26 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   int get _displayAvg {
     if (!_isToday) return _dayAvg;
     if (_avgHr > 0) return _avgHr;
-    try { return context.read<BleProvider>().todayAvgHr; } catch(_) { return 0; }
+    try { return context.watch<BleProvider>().todayAvgHr; } catch(_) { return 0; }
   }
 
   int get _displayMin {
     if (!_isToday) return _dayMin;
     if (_minHr > 0) return _minHr;
-    try { return context.read<BleProvider>().todayMinHr; } catch(_) { return 0; }
+    try { return context.watch<BleProvider>().todayMinHr; } catch(_) { return 0; }
   }
 
   int get _displayMax {
     if (!_isToday) return _dayMax;
     if (_maxHr > 0) return _maxHr;
-    try { return context.read<BleProvider>().todayMaxHr; } catch(_) { return 0; }
+    try { return context.watch<BleProvider>().todayMaxHr; } catch(_) { return 0; }
+  }
+
+  int get _displayLatestLocal {
+    if (!_isToday) return 0;
+    if (_manualHr > 0) return _manualHr;
+    if (_latestHr > 0) return _latestHr;
+    return 0;
   }
 
   String _fmt(DateTime d) =>
@@ -110,11 +120,12 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-
       _fetchTodayFromLocalDb();
       _load7DayTrend();
     });
   }
+
+
 
 
 
@@ -201,21 +212,25 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       final avg = (summary['avg'] as num?)?.round() ?? 0;
       final minVal = (summary['min'] as num?)?.toInt() ?? 0;
       final maxVal = (summary['max'] as num?)?.toInt() ?? 0;
-      if (!hourly.any((v) => v > 0) && mounted) {
-        final liveVal = context.read<BleProvider>().todayAvgHr;
-        if (liveVal > 0) {
-          hourly[now.hour] = liveVal;
-        }
-      }
+      final latest = (summary['lastValue'] as num?)?.toInt() ?? 0;
+      final latestAt = (summary['lastMeasuredAt'] as num?)?.toInt() ?? 0;
+      // Don't fabricate an hourly bucket from AVG — leave empty to surface sparsity (QRing style).
       setState(() {
         _chartValues = hourly;
         _avgHr = avg;
         _minHr = minVal;
         _maxHr = maxVal;
+        if (latest > 0) {
+          _latestHr = latest;
+          _latestHrAt = latestAt;
+        }
         _selectedDate = DateTime.now();
       });
       if (avg > 0 && mounted) {
         context.read<BleProvider>().updateHrData(avg, minVal, maxVal);
+      }
+      if (latest > 0 && mounted) {
+        context.read<BleProvider>().updateHrLatest(latest, latestAt);
       }
     } catch (e, st) {
       IncidentService.reportUnhandled(
@@ -277,6 +292,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       }
 
       // 2) Optional cloud enrich + cache for next offline open.
+      // QRing-style: local Room is authoritative for past days if present; cloud
+      // is fallback for days never measured on this device. Never overwrite a
+      // non-empty local display with cloud stale 87.
       final user = SupabaseService.currentUser;
       if (user == null) return;
       try {
@@ -286,12 +304,14 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         final minV = (row['min_hr'] as num? ?? 0).toInt();
         final maxV = (row['max_hr'] as num? ?? 0).toInt();
         final count = (row['sample_count'] as num? ?? 1).toInt();
-        if (!_local.hasData(local) || avg > 0) {
-          setState(() {
-            if (avg > 0) _dayAvg = avg;
-            if (minV > 0) _dayMin = minV;
-            if (maxV > 0) _dayMax = maxV;
-          });
+        if (!_local.hasData(local)) {
+          if (avg > 0 || minV > 0 || maxV > 0) {
+            setState(() {
+              if (avg > 0) _dayAvg = avg;
+              if (minV > 0) _dayMin = minV;
+              if (maxV > 0) _dayMax = maxV;
+            });
+          }
         }
         await _local.cacheSimpleDay(
           vital: 'heart_rate',
@@ -364,6 +384,8 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       }
 
       // 2) Cloud refresh + write-through cache when online.
+      // Only replace local trend when local is empty — preserves QRing-style
+      // per-day interval fidelity and avoids stale cloud 87 overwriting fresh local.
       final user = SupabaseService.currentUser;
       if (user == null) return;
       try {
@@ -383,7 +405,8 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         });
         final valid = rows.where((r) => r['min_hr'] != null).toList();
         if (!mounted) return;
-        if (vals.any((v) => v > 0)) {
+        final hasLocalTrend = localVals.any((v) => v > 0);
+        if (!hasLocalTrend && vals.any((v) => v > 0)) {
           setState(() {
             _trendValues = vals;
             _trendMin = valid.isEmpty
@@ -443,22 +466,46 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     try {
       final hr = await _ble.readHeartRate();
       if (!mounted) return;
-      // Physiologically plausible gate (mirrors native VitalRanges.isValidBpm): a
-      // junk/sentinel value must never be blended into today's avg/min/max.
       const hrMin = 30, hrMax = 220;
       if (hr != null && hr >= hrMin && hr <= hrMax) {
-        final newMin = (_minHr > 0 && _minHr < hr) ? _minHr : hr;
-        final newMax = (_maxHr > hr) ? _maxHr : hr;
-        final newAvg = _avgHr > 0 ? ((_avgHr + hr) ~/ 2) : hr;
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
+        // Show live value immediately (QRing-style: last > avg).
         setState(() {
           _manualHr = hr;
+          _latestHr = hr;
+          _latestHrAt = nowMs;
           _measuring = false;
-          _avgHr = newAvg;
-          _minHr = newMin;
-          _maxHr = newMax;
         });
-        context.read<BleProvider>().updateHrData(newAvg, newMin, newMax);
-        await _saveHrToSupabase(newAvg, newMin, newMax, 1);
+        try { context.read<BleProvider>().updateHrLatest(hr, nowMs); } catch (_) {}
+        // Persist to local Room so hourly chart + daily aggregate include it.
+        try {
+          await _ble.insertHeartRate(valueBpm: hr, measuredAtMs: nowMs, source: 'manual');
+        } catch (_) {}
+        // Recompute true daily aggregate from Room (not ~/2 blend).
+        try {
+          final summaryJson = await _ble.getTodaySummary('heart_rate');
+          final summary = jsonDecode(summaryJson) as Map<String, dynamic>;
+          final count = (summary['count'] as num?)?.toInt() ?? 0;
+          final avg = (summary['avg'] as num?)?.round() ?? hr;
+          final minVal = (summary['min'] as num?)?.toInt() ?? hr;
+          final maxVal = (summary['max'] as num?)?.toInt() ?? hr;
+          if (mounted) {
+            setState(() {
+              _avgHr = avg;
+              _minHr = minVal;
+              _maxHr = maxVal;
+            });
+            try { context.read<BleProvider>().updateHrData(avg, minVal, maxVal); } catch (_) {}
+          }
+          await _saveHrToSupabase(avg, minVal, maxVal, count > 0 ? count : 1);
+          // Refresh hourly chart to include the new point.
+          await _fetchTodayFromLocalDb();
+        } catch (_) {
+          // Fallback: at least update Supabase with single point.
+          final fallbackMin = (_minHr > 0 && _minHr < hr) ? _minHr : hr;
+          final fallbackMax = (_maxHr > hr) ? _maxHr : hr;
+          await _saveHrToSupabase(hr, fallbackMin, fallbackMax, 1);
+        }
       } else {
         setState(() => _measuring = false);
       }
@@ -552,15 +599,21 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final connected = context.watch<BleProvider>().isConnected;
+    final ble = context.watch<BleProvider>();
+    final connected = ble.isConnected;
 
+    // QRing-style hero: manual > latest (live) > avg fallback. Shows 65 even when avg is frozen 87.
+    final localLatest = _displayLatestLocal;
+    final providerLatest = ble.latestHr;
+    final displayLatest = localLatest > 0 ? localLatest : providerLatest;
     final hrValue = _measuring
         ? '···'
-        : _manualHr > 0
-        ? '$_manualHr'
+        : displayLatest > 0
+        ? '$displayLatest'
         : _displayAvg > 0
         ? '$_displayAvg'
         : '--';
+    final isStale = !_measuring && displayLatest == 0 && _displayAvg > 0;
 
     final hasData = _chartValues.any((v) => v > 0);
 
@@ -624,11 +677,27 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
                 style: _inter(
                   52,
                   weight: FontWeight.w300,
-                  color: Colors.white,
+                  color: isStale ? Colors.white.withValues(alpha: 0.6) : Colors.white,
                   height: 1.1,
                 ),
               ),
-              Text('bpm', style: _inter(13, color: AppTheme.textTertiary)),
+              Row(
+                children: [
+                  Text('bpm', style: _inter(13, color: AppTheme.textTertiary)),
+                  if (isStale && _displayAvg > 0) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      ),
+                      child: Text('avg · no fresh reading', style: _inter(10, color: AppTheme.textTertiary)),
+                    ),
+                  ],
+                ],
+              ),
               const SizedBox(height: 16),
 
               // ── 4. Daily chart ─────────────────────────────────────────────
