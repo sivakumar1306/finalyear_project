@@ -700,6 +700,17 @@ class SupabaseService {
     }, onConflict: 'user_id,period_start');
   }
 
+  static Future<void> deleteCycle({
+    required String userId,
+    required DateTime periodStart,
+  }) async {
+    await client
+        .from('user_cycles')
+        .delete()
+        .eq('user_id', userId)
+        .eq('period_start', _dateStr(periodStart));
+  }
+
   // ── Women's Health — Symptoms ──────────────────────────────────────────────
 
   static Future<Map<String, dynamic>?> getSymptomsForDate(

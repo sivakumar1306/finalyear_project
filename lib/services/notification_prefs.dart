@@ -18,6 +18,9 @@ class NotificationPrefs {
     'Step count achieved': false,
     'High temperature notification': false,
     'Low Battery': true,
+    'Next Period Reminder': true,
+    'Fertility Window': true,
+    'Ovulation Reminder': true,
   };
 
   static Future<Map<String, bool>> load() async {

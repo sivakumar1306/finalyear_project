@@ -16,7 +16,7 @@ extension MenstrualPhaseExt on MenstrualPhase {
       case MenstrualPhase.ovulation:
         return 'Ovulation Phase';
       case MenstrualPhase.lateLuteal:
-        return 'Late Luteal Phase';
+        return 'Approaching Your Period';
     }
   }
 
@@ -29,7 +29,7 @@ extension MenstrualPhaseExt on MenstrualPhase {
       case MenstrualPhase.ovulation:
         return 'Slight rise in skin temperature; resting heart rate begins increasing';
       case MenstrualPhase.lateLuteal:
-        return 'Higher skin temperature, lower HRV, higher resting heart rate, increased stress sensitivity';
+        return 'You might notice increased stress sensitivity as your body prepares for your next cycle.';
     }
   }
 }

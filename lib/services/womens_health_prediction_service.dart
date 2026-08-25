@@ -23,19 +23,34 @@ class WomenHealthPredictionService {
     MenstrualPhase estimatedPhase;
     final List<String> reasons = [];
 
+    final bool hasVitals = metrics.heartRate > 0 || metrics.hrv > 0 || metrics.activityLevel > 0;
+
     final bool isTempElevated = metrics.temperature > tempElevatedThreshold;
     final bool isTempRising =
         metrics.temperature >= tempRisingLow && metrics.temperature <= tempRisingHigh;
-    final bool isHrvLow = metrics.hrv < hrvLowThreshold;
+    final bool isHrvLow = metrics.hrv > 0 && metrics.hrv < hrvLowThreshold;
     final bool isHrvHigh = metrics.hrv >= hrvHighThreshold;
     final bool isRhrElevated = metrics.heartRate > rhrElevatedThreshold;
-    final bool isRhrLow = metrics.heartRate <= rhrLowThreshold;
-    final bool isActivityLow = metrics.activityLevel < activityLowThreshold;
+    final bool isRhrLow = metrics.heartRate > 0 && metrics.heartRate <= rhrLowThreshold;
+    final bool isActivityLow = metrics.activityLevel > 0 && metrics.activityLevel < activityLowThreshold;
 
-    if (isTempElevated && isHrvLow && isRhrElevated) {
+    if (!hasVitals && hasHistory && lastMenstrualPeriod != null) {
+      final int daysSincePeriod = clock.difference(lastMenstrualPeriod).inDays + 1;
+      if (daysSincePeriod <= 5) {
+        estimatedPhase = MenstrualPhase.menstrual;
+      } else if (daysSincePeriod < averageCycleLength - 14 - 5) {
+        estimatedPhase = MenstrualPhase.follicular;
+      } else if (daysSincePeriod <= averageCycleLength - 14 + 1) {
+        estimatedPhase = MenstrualPhase.ovulation;
+      } else {
+        estimatedPhase = MenstrualPhase.lateLuteal;
+      }
+      reasons.add('Calendar-based prediction');
+      reasons.add('No recent vitals available');
+    } else if (isTempElevated && isHrvLow && isRhrElevated) {
       estimatedPhase = MenstrualPhase.lateLuteal;
-      reasons.add('Elevated skin temperature');
-      reasons.add('Lower HRV');
+      reasons.add('Higher skin temp');
+      reasons.add('Lower recovery (HRV)');
       reasons.add('Higher resting heart rate');
     } else if (isHrvHigh && isRhrLow) {
       estimatedPhase = MenstrualPhase.follicular;
@@ -51,10 +66,23 @@ class WomenHealthPredictionService {
       reasons.add('Lower activity level');
       reasons.add('Physiological recovery onset');
     } else {
-      estimatedPhase = MenstrualPhase.lateLuteal;
-      reasons.add('Elevated skin temperature');
-      reasons.add('Lower HRV');
-      reasons.add('Higher resting heart rate');
+      // Fallback if vitals are present but don't match extreme patterns
+      if (hasHistory && lastMenstrualPeriod != null) {
+        final int daysSincePeriod = clock.difference(lastMenstrualPeriod).inDays + 1;
+        if (daysSincePeriod <= 5) {
+          estimatedPhase = MenstrualPhase.menstrual;
+        } else if (daysSincePeriod < averageCycleLength - 14 - 5) {
+          estimatedPhase = MenstrualPhase.follicular;
+        } else if (daysSincePeriod <= averageCycleLength - 14 + 1) {
+          estimatedPhase = MenstrualPhase.ovulation;
+        } else {
+          estimatedPhase = MenstrualPhase.lateLuteal;
+        }
+      } else {
+        estimatedPhase = MenstrualPhase.lateLuteal;
+      }
+      reasons.add('Vitals stable (baseline)');
+      reasons.add('Using calendar estimation');
     }
 
     // ── STEP 2: Menstrual Prediction Engine (Dual Path) ──────────────────────
