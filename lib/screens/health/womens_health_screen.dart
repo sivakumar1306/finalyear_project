@@ -16,6 +16,7 @@ import '../../widgets/app_typography.dart';
 import '../../widgets/legend_dot.dart';
 import 'womens_health_widgets.dart';
 import '../../services/notification_prefs.dart';
+import '../../widgets/glass_menu.dart';
 
 // ── Design tokens (glass card system per DESIGN.md) ────────────────────────
 
@@ -102,6 +103,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   DateTime _calendarMonth = DateTime.now();
 
   final _screenshotKey = GlobalKey();
+  final _moreButtonKey = GlobalKey();
 
   static const _phaseColors = {
     'Menstrual': AppTheme.danger,
@@ -352,6 +354,80 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
     );
   }
 
+  void _openMenu() {
+    showGlassMenu(
+      context: context,
+      anchorKey: _moreButtonKey,
+      items: [
+        GlassMenuItem(
+          label: 'History',
+          onTap: _showHistorySheet,
+        ),
+        GlassMenuItem(
+          label: 'Settings',
+          onTap: _showSettingsSheet,
+        ),
+        GlassMenuItem(
+          label: 'Info',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => VitalNoteScreen(
+                title: 'Women\'s Health',
+                heading: 'About Your Cycle',
+                intro:
+                    'Your menstrual cycle moves through four phases — each with '
+                    'its own hormonal rhythm that can shift your temperature, '
+                    'sleep, and stress levels.',
+                ranges: [
+                  VitalRange(
+                    label: 'Menstrual',
+                    range: 'Days 1–5',
+                    color: _phaseColors['Menstrual']!,
+                  ),
+                  VitalRange(
+                    label: 'Follicular',
+                    range: 'Days 6–13',
+                    color: _phaseColors['Follicular']!,
+                  ),
+                  VitalRange(
+                    label: 'Ovulation',
+                    range: 'Days 14–15',
+                    color: _phaseColors['Ovulation']!,
+                  ),
+                  VitalRange(
+                    label: 'Luteal',
+                    range: 'Days 16–28',
+                    color: _phaseColors['Luteal']!,
+                  ),
+                ],
+                tips: const [
+                  VitalTip(
+                    icon: Icons.thermostat_rounded,
+                    color: AppTheme.tempColor,
+                    title: 'Temperature rises after ovulation',
+                    tip: 'A small, sustained rise in basal temperature is a common sign that ovulation has occurred.',
+                  ),
+                  VitalTip(
+                    icon: Icons.bedtime_rounded,
+                    color: AppTheme.sleepColor,
+                    title: 'Sleep can get lighter pre-period',
+                    tip: 'Rising progesterone in the late luteal phase can make sleep feel lighter or more restless.',
+                  ),
+                ],
+                didYouKnow: 'Cycle length naturally varies month to month — anywhere from 21 to 35 days is considered typical.',
+              ),
+            ),
+          ),
+        ),
+        GlassMenuItem(
+          label: 'Share',
+          onTap: () => shareScreenshot(_screenshotKey, text: 'My Cycle — SUNDR'),
+        ),
+      ],
+    );
+  }
+
   AppBar _appBar() => AppBar(
         backgroundColor: AppTheme.bg,
         foregroundColor: Colors.white,
@@ -364,72 +440,9 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
         actions: [
           if (_cycles.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.history_rounded, color: Colors.white),
-              onPressed: _showHistorySheet,
-            ),
-          if (_cycles.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.settings_rounded, color: Colors.white),
-              onPressed: _showSettingsSheet,
-            ),
-          if (_cycles.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.info_outline_rounded, color: Colors.white),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => VitalNoteScreen(
-                    title: 'Women\'s Health',
-                    heading: 'About Your Cycle',
-                    intro:
-                        'Your menstrual cycle moves through four phases — each with '
-                        'its own hormonal rhythm that can shift your temperature, '
-                        'sleep, and stress levels.',
-                    ranges: [
-                      VitalRange(
-                        label: 'Menstrual',
-                        range: 'Days 1–5',
-                        color: _phaseColors['Menstrual']!,
-                      ),
-                      VitalRange(
-                        label: 'Follicular',
-                        range: 'Days 6–13',
-                        color: _phaseColors['Follicular']!,
-                      ),
-                      VitalRange(
-                        label: 'Ovulation',
-                        range: 'Days 14–15',
-                        color: _phaseColors['Ovulation']!,
-                      ),
-                      VitalRange(
-                        label: 'Luteal',
-                        range: 'Days 16–28',
-                        color: _phaseColors['Luteal']!,
-                      ),
-                    ],
-                    tips: const [
-                      VitalTip(
-                        icon: Icons.thermostat_rounded,
-                        color: AppTheme.tempColor,
-                        title: 'Temperature rises after ovulation',
-                        tip: 'A small, sustained rise in basal temperature is a common sign that ovulation has occurred.',
-                      ),
-                      VitalTip(
-                        icon: Icons.bedtime_rounded,
-                        color: AppTheme.sleepColor,
-                        title: 'Sleep can get lighter pre-period',
-                        tip: 'Rising progesterone in the late luteal phase can make sleep feel lighter or more restless.',
-                      ),
-                    ],
-                    didYouKnow: 'Cycle length naturally varies month to month — anywhere from 21 to 35 days is considered typical.',
-                  ),
-                ),
-              ),
-            ),
-          if (_cycles.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.share_rounded, color: Colors.white),
-              onPressed: () => shareScreenshot(_screenshotKey, text: 'My Cycle — SUNDR'),
+              key: _moreButtonKey,
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onPressed: _openMenu,
             ),
         ],
       );
