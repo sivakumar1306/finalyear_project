@@ -49,6 +49,7 @@ flutter:
     - sleep_stages_chart.webp
     - ring_wearing_direction.webp
     - sundr_welcome.webp
+    - assets/quran/quran.json
   # Typography uses the platform system font (no bundled fonts).
 
 flutter_launcher_icons:

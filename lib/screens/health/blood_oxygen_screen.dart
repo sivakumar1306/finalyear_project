@@ -65,6 +65,9 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
   // Today's ring data
   List<int> _chartValues = [];
   int _avgSpo2 = 0, _minSpo2 = 0, _maxSpo2 = 0;
+  int _latestSpo2 = 0;
+  // ignore: unused_field
+  int _latestSpo2At = 0;
 
   // Past-day Supabase data
   int _dayAvg = 0, _dayMin = 0, _dayMax = 0;
@@ -85,19 +88,26 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
   int get _displayAvg {
     if (!_isToday) return _dayAvg;
     if (_avgSpo2 > 0) return _avgSpo2;
-    try { return context.read<BleProvider>().todayAvgSpo2; } catch(_) { return 0; }
+    try { return context.watch<BleProvider>().todayAvgSpo2; } catch(_) { return 0; }
   }
 
   int get _displayMin {
     if (!_isToday) return _dayMin;
     if (_minSpo2 > 0) return _minSpo2;
-    try { return context.read<BleProvider>().todayMinSpo2; } catch(_) { return 0; }
+    try { return context.watch<BleProvider>().todayMinSpo2; } catch(_) { return 0; }
   }
 
   int get _displayMax {
     if (!_isToday) return _dayMax;
     if (_maxSpo2 > 0) return _maxSpo2;
-    try { return context.read<BleProvider>().todayMaxSpo2; } catch(_) { return 0; }
+    try { return context.watch<BleProvider>().todayMaxSpo2; } catch(_) { return 0; }
+  }
+
+  int get _displayLatestLocal {
+    if (!_isToday) return 0;
+    if (_manualSpo2 > 0) return _manualSpo2;
+    if (_latestSpo2 > 0) return _latestSpo2;
+    return 0;
   }
 
   String _fmt(DateTime d) =>
@@ -207,21 +217,24 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
       final avg = (summary['avg'] as num?)?.round() ?? 0;
       final minVal = (summary['min'] as num? ?? 0).toInt();
       final maxVal = (summary['max'] as num? ?? 0).toInt();
-      if (!slots.any((v) => v > 0) && mounted) {
-        final liveVal = context.read<BleProvider>().todayAvgSpo2;
-        if (liveVal > 0) {
-          slots[now.hour] = liveVal;
-        }
-      }
+      final latest = (summary['lastValue'] as num?)?.toInt() ?? 0;
+      final latestAt = (summary['lastMeasuredAt'] as num?)?.toInt() ?? 0;
       setState(() {
         _chartValues = slots;
         _avgSpo2 = avg;
         _minSpo2 = minVal;
         _maxSpo2 = maxVal;
+        if (latest > 0) {
+          _latestSpo2 = latest;
+          _latestSpo2At = latestAt;
+        }
         _selectedDate = now;
       });
-      if (avg > 0) {
+      if (avg > 0 && mounted) {
         context.read<BleProvider>().updateSpo2Data(avg, minVal, maxVal);
+      }
+      if (latest > 0 && mounted) {
+        context.read<BleProvider>().updateSpo2Latest(latest, latestAt);
       }
     } catch (_) {
       // Local DB read failing isn't worth surfacing loudly — chart just stays blank.
@@ -276,12 +289,14 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         final avg = (row['avg_spo2'] as num? ?? 0).toInt();
         final minV = (row['min_spo2'] as num? ?? 0).toInt();
         final maxV = (row['max_spo2'] as num? ?? 0).toInt();
-        if (!_local.hasData(local) || avg > 0) {
-          setState(() {
-            if (avg > 0) _dayAvg = avg;
-            if (minV > 0) _dayMin = minV;
-            if (maxV > 0) _dayMax = maxV;
-          });
+        if (!_local.hasData(local)) {
+          if (avg > 0 || minV > 0 || maxV > 0) {
+            setState(() {
+              if (avg > 0) _dayAvg = avg;
+              if (minV > 0) _dayMin = minV;
+              if (maxV > 0) _dayMax = maxV;
+            });
+          }
         }
         await _local.cacheSimpleDay(
           vital: 'spo2',
@@ -353,7 +368,8 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         });
         final valid = rows.where((r) => r['min_spo2'] != null).toList();
         if (!mounted) return;
-        if (vals.any((v) => v > 0)) {
+        final hasLocalTrend = localVals.any((v) => v > 0);
+        if (!hasLocalTrend && vals.any((v) => v > 0)) {
           setState(() {
             _trendValues = vals;
             _trendMin = valid.isEmpty
@@ -416,6 +432,8 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
       try {
         final m = jsonDecode(result) as Map<String, dynamic>;
         liveVal = (m['spo2'] as num?)?.toInt() ?? 0;
+        if (liveVal <= 0) liveVal = (m['value'] as num?)?.toInt() ?? 0;
+        if (liveVal <= 0) liveVal = (m['bloodOxygen'] as num?)?.toInt() ?? 0;
       } catch (e, st) {
         IncidentService.reportUnhandled(
           source: 'blood_oxygen_screen',
@@ -425,11 +443,39 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         );
       }
       if (!mounted) return;
-      setState(() {
-        _measuring = false;
-        if (liveVal > 0) _manualSpo2 = liveVal;
-      });
-      if (liveVal > 0) await _saveSingleMeasurement(liveVal);
+      if (liveVal > 0) {
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
+        setState(() {
+          _measuring = false;
+          _manualSpo2 = liveVal;
+          _latestSpo2 = liveVal;
+          _latestSpo2At = nowMs;
+        });
+        try { context.read<BleProvider>().updateSpo2Latest(liveVal, nowMs); } catch (_) {}
+        try { await _ble.insertSpo2(valuePct: liveVal, measuredAtMs: nowMs, source: 'manual'); } catch (_) {}
+        // Refresh true aggregates from Room (not Supabase weighted estimate).
+        try {
+          final summaryJson = await _ble.getTodaySummary('spo2');
+          final summary = jsonDecode(summaryJson) as Map<String, dynamic>;
+          final count = (summary['count'] as num?)?.toInt() ?? 1;
+          final avg = (summary['avg'] as num?)?.round() ?? liveVal;
+          final minVal = (summary['min'] as num?)?.toInt() ?? liveVal;
+          final maxVal = (summary['max'] as num?)?.toInt() ?? liveVal;
+          if (mounted) {
+            setState(() { _avgSpo2 = avg; _minSpo2 = minVal; _maxSpo2 = maxVal; });
+            try { context.read<BleProvider>().updateSpo2Data(avg, minVal, maxVal); } catch (_) {}
+          }
+          final user = SupabaseService.currentUser;
+          if (user != null) {
+            await SupabaseService.upsertSpo2(userId: user.id, date: DateTime.now(), avgSpo2: avg, minSpo2: minVal, maxSpo2: maxVal, sampleCount: count);
+          }
+          await _fetchToday();
+        } catch (_) {
+          await _saveSingleMeasurement(liveVal);
+        }
+      } else {
+        setState(() => _measuring = false);
+      }
     } catch (_) {
       if (mounted) setState(() => _measuring = false);
     }
@@ -568,15 +614,20 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final connected = context.watch<BleProvider>().isConnected;
+    final ble = context.watch<BleProvider>();
+    final connected = ble.isConnected;
 
+    final localLatest = _displayLatestLocal;
+    final providerLatest = ble.latestSpo2;
+    final displayLatest = localLatest > 0 ? localLatest : providerLatest;
     final spo2Value = _measuring
         ? '···'
-        : _manualSpo2 > 0
-        ? '$_manualSpo2'
+        : displayLatest > 0
+        ? '$displayLatest'
         : _displayAvg > 0
         ? '$_displayAvg'
         : '--';
+    final isStale = !_measuring && displayLatest == 0 && _displayAvg > 0;
 
     final hasData = _chartValues.any((v) => v > 0);
 
@@ -643,11 +694,27 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
                 style: _inter(
                   52,
                   weight: FontWeight.w300,
-                  color: Colors.white,
+                  color: isStale ? Colors.white.withValues(alpha: 0.6) : Colors.white,
                   height: 1.1,
                 ),
               ),
-              Text('%', style: _inter(13, color: AppTheme.textTertiary)),
+              Row(
+                children: [
+                  Text('%', style: _inter(13, color: AppTheme.textTertiary)),
+                  if (isStale && _displayAvg > 0) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      ),
+                      child: Text('avg · no fresh reading', style: _inter(10, color: AppTheme.textTertiary)),
+                    ),
+                  ],
+                ],
+              ),
               const SizedBox(height: 16),
 
               // ── 4. Daily chart ─────────────────────────────────────────────

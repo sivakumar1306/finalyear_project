@@ -446,6 +446,15 @@ class BlePlugin(private val context: Context) {
             "getAutoCallOnFallEnabled"   -> getAutoCallOnFallEnabled(result)
             "setAutoCallOnFallEnabled"   -> setAutoCallOnFallEnabled(call, result)
             "placeEmergencyCall"         -> placeEmergencyCall(call, result)
+            "insertHeartRate"            -> insertHeartRate(call, result)
+            "insertSpo2"                 -> insertSpo2(call, result)
+            "insertHrv"                  -> insertHrv(call, result)
+            "insertTemperature"          -> insertTemperature(call, result)
+            "getContinuousSugar"         -> result.success("[]")
+            "startEcgMeasure"            -> result.success("{}")
+            "syncIntervalHeartRateDetail" -> syncIntervalHeartRateDetail(result)
+            "syncIntervalSpo2Detail"      -> syncIntervalSpo2Detail(result)
+            "syncIntervalTemperatureDetail" -> syncIntervalTemperatureDetail(result)
             else                         -> result.notImplemented()
         }
     }
@@ -997,6 +1006,166 @@ class BlePlugin(private val context: Context) {
                 }
             }
         )
+    }
+
+    // QRing-style interval blob backfill: ring logs interval HR even when phone
+    // disconnected; this pulls it and inflates each slot into a reading_heart_rate
+    // row with source=interval_sync so charts/history show the missing points.
+    private fun syncIntervalHeartRateDetail(result: MethodChannel.Result) {
+        val done = AtomicBoolean(false)
+        try {
+            LargeDataHandler.getInstance().syncIntervalHeartRateWithCallback(
+                0,
+                object : IIntervalHeartRateCallback {
+                    override fun readIntervalHeartRate(data: IntervalHeartRateEntity?) {
+                        if (done.getAndSet(true)) return
+                        if (data == null) {
+                            mainHandler.post { result.success(gson.toJson(mapOf("inserted" to 0))) }
+                            return
+                        }
+                        val intervalMin = try { data.interval } catch (_: Exception) { 10 }
+                        val dayIdx = try { data.dayIndex } catch (_: Exception) { 0 }
+                        val rawArray: List<Int> = try {
+                            @Suppress("UNCHECKED_CAST")
+                            (data.array as? List<Int>) ?: emptyList()
+                        } catch (_: Exception) { emptyList() }
+                        if (rawArray.isEmpty()) {
+                            mainHandler.post { result.success(gson.toJson(data)) }
+                            return
+                        }
+                        repo().ioScope.launch {
+                            var inserted = 0
+                            try {
+                                val zone = java.time.ZoneId.systemDefault()
+                                val day = java.time.LocalDate.now(zone).minusDays(dayIdx.toLong())
+                                val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
+                                val cycleId = try { repo().startCycle() } catch (_: Exception) { 0L }
+                                for ((idx, v) in rawArray.withIndex()) {
+                                    if (v <= 0) continue
+                                    if (!com.sundr.myapp.data.VitalRanges.isValidBpm(v)) continue
+                                    val at = dayStart + idx * intervalMin * 60_000L + 30_000L
+                                    // avoid duplicates: if a row already at that minute, skip
+                                    val existing = try { repo().heartRateBetween(at - 30_000L, at + 30_000L, 1) } catch (_: Exception) { emptyList() }
+                                    if (existing.isNotEmpty()) continue
+                                    repo().insertHeartRateAt(v, at, cycleId, "interval_sync")
+                                    inserted++
+                                }
+                                try { repo().completeCycle(cycleId, "COMPLETED", null) } catch (_: Exception) {}
+                                // notify UI that fresh points arrived
+                                for (i in 0 until inserted) {
+                                    EventBus.getDefault().post(
+                                        com.sundr.myapp.events.NewReadingEvent(
+                                            com.sundr.myapp.data.Vital.HEART_RATE, 0L, cycleId, System.currentTimeMillis(), rawArray.firstOrNull { it > 0 }?.toDouble()
+                                        )
+                                    )
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "syncIntervalHeartRateDetail inflate failed", e)
+                            }
+                            mainHandler.post { result.success(gson.toJson(mapOf("inserted" to inserted, "interval" to intervalMin, "dayIndex" to dayIdx, "raw" to data))) }
+                        }
+                    }
+                }
+            )
+            mainHandler.postDelayed({
+                if (done.compareAndSet(false, true)) {
+                    result.error("TIMEOUT", "Interval HR sync timed out", null)
+                }
+            }, 20_000L)
+        } catch (e: Exception) {
+            result.error("SDK_EXCEPTION", e.message, null)
+        }
+    }
+
+    private fun syncIntervalSpo2Detail(result: MethodChannel.Result) {
+        val done = AtomicBoolean(false)
+        try {
+            LargeDataHandler.getInstance().syncIntervalBloodOxygenWithCallback(0, object : com.oudmon.ble.base.communication.IIntervalBloodOxygenCallback {
+                override fun readIntervalBloodOxygen(data: IntervalBloodOxygenEntity?) {
+                    if (done.getAndSet(true)) return
+                    if (data == null) { mainHandler.post { result.success(gson.toJson(mapOf("inserted" to 0))) }; return }
+                    val intervalMin = try { data.interval } catch (_: Exception) { 10 }
+                    val dayIdx = try { data.dayIndex } catch (_: Exception) { 0 }
+                    val rawArray: List<Int> = try { (data.array as? List<Int>) ?: emptyList() } catch (_: Exception) { emptyList() }
+                    if (rawArray.isEmpty()) { mainHandler.post { result.success(gson.toJson(data)) }; return }
+                    repo().ioScope.launch {
+                        var inserted = 0
+                        try {
+                            val zone = java.time.ZoneId.systemDefault()
+                            val day = java.time.LocalDate.now(zone).minusDays(dayIdx.toLong())
+                            val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
+                            val cycleId = try { repo().startCycle() } catch (_: Exception) { 0L }
+                            for ((idx, v) in rawArray.withIndex()) {
+                                if (v <= 0) continue
+                                val at = dayStart + idx * intervalMin * 60_000L + 30_000L
+                                val existing = try { repo().spo2Between(at - 30_000L, at + 30_000L, 1) } catch (_: Exception) { emptyList() }
+                                if (existing.isNotEmpty()) continue
+                                repo().insertSpo2At(v, at, cycleId, "interval_sync")
+                                inserted++
+                            }
+                            try { repo().completeCycle(cycleId, "COMPLETED", null) } catch (_: Exception) {}
+                            if (inserted > 0) EventBus.getDefault().post(com.sundr.myapp.events.NewReadingEvent(com.sundr.myapp.data.Vital.SPO2, 0L, cycleId, System.currentTimeMillis(), rawArray.firstOrNull { it > 0 }?.toDouble()))
+                        } catch (e: Exception) { Log.e(TAG, "syncIntervalSpo2Detail failed", e) }
+                        mainHandler.post { result.success(gson.toJson(mapOf("inserted" to inserted, "interval" to intervalMin, "dayIndex" to dayIdx, "raw" to data))) }
+                    }
+                }
+            })
+            mainHandler.postDelayed({ if (done.compareAndSet(false, true)) result.error("TIMEOUT", "Interval SpO2 sync timed out", null) }, 20_000L)
+        } catch (e: Exception) { result.error("SDK_EXCEPTION", e.message, null) }
+    }
+
+    private fun syncIntervalTemperatureDetail(result: MethodChannel.Result) {
+        val done = AtomicBoolean(false)
+        try {
+            LargeDataHandler.getInstance().syncIntervalTemperatureWithCallback(0, object : com.oudmon.ble.base.communication.bigData.IIntervalTemperatureCallback {
+                override fun readIntervalTemperature(data: com.oudmon.ble.base.communication.bigData.bean.IntervalTemperatureEntity?) {
+                    if (done.getAndSet(true)) return
+                    if (data == null) { mainHandler.post { result.success(gson.toJson(mapOf("inserted" to 0))) }; return }
+                    val intervalMin = try { data.interval } catch (_: Exception) { 10 }
+                    val dayIdx = try { data.dayIndex } catch (_: Exception) { 0 }
+                    // IntervalTemperatureEntity has both array (List<Float>) and values (List<IntervalTemperature>)
+                    val rawFloats: List<Float> = try {
+                        @Suppress("UNCHECKED_CAST")
+                        (data.array as? List<Float>) ?: emptyList()
+                    } catch (_: Exception) { emptyList() }
+                    val rawInts: List<Int> = rawFloats.mapNotNull { try { (it * 10).toInt() } catch (_: Exception) { null } }
+                    // Fallback to values list if array empty
+                    val fallbackVals: List<Float> = if (rawFloats.isEmpty()) {
+                        try {
+                            val vs = data.values
+                            if (vs != null) vs.mapNotNull { try { it.value1 } catch (_: Exception) { null } } else emptyList()
+                        } catch (_: Exception) { emptyList() }
+                    } else emptyList()
+                    val effectiveFloats = if (rawFloats.isNotEmpty()) rawFloats else fallbackVals
+                    if (effectiveFloats.isEmpty()) { mainHandler.post { result.success(gson.toJson(data)) }; return }
+                    repo().ioScope.launch {
+                        var inserted = 0
+                        try {
+                            val zone = java.time.ZoneId.systemDefault()
+                            val day = java.time.LocalDate.now(zone).minusDays(dayIdx.toLong())
+                            val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
+                            val cycleId = try { repo().startCycle() } catch (_: Exception) { 0L }
+                            for ((idx, f) in effectiveFloats.withIndex()) {
+                                if (f <= 0) continue
+                                val valueC = f.toDouble()
+                                // normalize: SDK may already be Celsius (e.g., 36.5) not scaled
+                                val normalized = if (valueC > 100) valueC / 10.0 else valueC
+                                if (normalized < 30 || normalized > 45) continue
+                                val at = dayStart + idx * intervalMin * 60_000L + 30_000L
+                                val existing = try { repo().temperatureBetween(at - 30_000L, at + 30_000L, 1) } catch (_: Exception) { emptyList() }
+                                if (existing.isNotEmpty()) continue
+                                repo().insertTemperatureAt(normalized, at, cycleId, "interval_sync")
+                                inserted++
+                            }
+                            try { repo().completeCycle(cycleId, "COMPLETED", null) } catch (_: Exception) {}
+                            if (inserted > 0) EventBus.getDefault().post(com.sundr.myapp.events.NewReadingEvent(com.sundr.myapp.data.Vital.TEMPERATURE, 0L, cycleId, System.currentTimeMillis(), effectiveFloats.firstOrNull { it > 0 }?.toDouble()))
+                        } catch (e: Exception) { Log.e(TAG, "syncIntervalTemperatureDetail failed", e) }
+                        mainHandler.post { result.success(gson.toJson(mapOf("inserted" to inserted, "interval" to intervalMin, "dayIndex" to dayIdx, "raw" to data))) }
+                    }
+                }
+            })
+            mainHandler.postDelayed({ if (done.compareAndSet(false, true)) result.error("TIMEOUT", "Interval Temp sync timed out", null) }, 20_000L)
+        } catch (e: Exception) { result.error("SDK_EXCEPTION", e.message, null) }
     }
 
     private fun syncHistoryHeartRate(result: MethodChannel.Result) {
@@ -2737,6 +2906,81 @@ class BlePlugin(private val context: Context) {
                 return@launch
             }
             mainHandler.post { result.success(json) }
+        }
+    }
+
+    private fun insertHeartRate(call: MethodCall, result: MethodChannel.Result) {
+        val bpm = (call.argument<Number>("valueBpm") ?: 0).toInt()
+        val at = (call.argument<Number>("measuredAt") ?: System.currentTimeMillis()).toLong()
+        val source = call.argument<String>("source") ?: "manual"
+        if (bpm <= 0) {
+            result.error("BAD_ARGS", "valueBpm required", null); return
+        }
+        // reuse MeasurementLoop phantom cycle
+        repo().ioScope.launch {
+            try {
+                val cycleId = try { repo().startCycle() } catch (_: Exception) { 0L }
+                val id = repo().insertHeartRateAt(bpm, at, cycleId, source)
+                try { repo().completeCycle(cycleId, "COMPLETED", null) } catch (_: Exception) {}
+                if (id > 0) {
+                    EventBus.getDefault().post(
+                        com.sundr.myapp.events.NewReadingEvent(
+                            com.sundr.myapp.data.Vital.HEART_RATE, id, cycleId, at, bpm.toDouble()
+                        )
+                    )
+                }
+                mainHandler.post { result.success(id > 0) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("INSERT_FAILED", e.message, null) }
+            }
+        }
+    }
+
+    private fun insertSpo2(call: MethodCall, result: MethodChannel.Result) {
+        val pct = (call.argument<Number>("valuePct") ?: 0).toInt()
+        val at = (call.argument<Number>("measuredAt") ?: System.currentTimeMillis()).toLong()
+        val source = call.argument<String>("source") ?: "manual"
+        if (pct <= 0) { result.error("BAD_ARGS", "valuePct required", null); return }
+        repo().ioScope.launch {
+            try {
+                val cycleId = try { repo().startCycle() } catch (_: Exception) { 0L }
+                val id = repo().insertSpo2At(pct, at, cycleId, source)
+                try { repo().completeCycle(cycleId, "COMPLETED", null) } catch (_: Exception) {}
+                if (id > 0) EventBus.getDefault().post(com.sundr.myapp.events.NewReadingEvent(com.sundr.myapp.data.Vital.SPO2, id, cycleId, at, pct.toDouble()))
+                mainHandler.post { result.success(id > 0) }
+            } catch (e: Exception) { mainHandler.post { result.error("INSERT_FAILED", e.message, null) } }
+        }
+    }
+
+    private fun insertHrv(call: MethodCall, result: MethodChannel.Result) {
+        val ms = (call.argument<Number>("valueMs") ?: 0).toInt()
+        val at = (call.argument<Number>("measuredAt") ?: System.currentTimeMillis()).toLong()
+        val source = call.argument<String>("source") ?: "manual"
+        if (ms <= 0) { result.error("BAD_ARGS", "valueMs required", null); return }
+        repo().ioScope.launch {
+            try {
+                val cycleId = try { repo().startCycle() } catch (_: Exception) { 0L }
+                val id = repo().insertHrvAt(ms, at, cycleId, source)
+                try { repo().completeCycle(cycleId, "COMPLETED", null) } catch (_: Exception) {}
+                if (id > 0) EventBus.getDefault().post(com.sundr.myapp.events.NewReadingEvent(com.sundr.myapp.data.Vital.HRV, id, cycleId, at, ms.toDouble()))
+                mainHandler.post { result.success(id > 0) }
+            } catch (e: Exception) { mainHandler.post { result.error("INSERT_FAILED", e.message, null) } }
+        }
+    }
+
+    private fun insertTemperature(call: MethodCall, result: MethodChannel.Result) {
+        val v = (call.argument<Number>("valueC") ?: 0.0).toDouble()
+        val at = (call.argument<Number>("measuredAt") ?: System.currentTimeMillis()).toLong()
+        val source = call.argument<String>("source") ?: "manual"
+        if (v <= 0) { result.error("BAD_ARGS", "valueC required", null); return }
+        repo().ioScope.launch {
+            try {
+                val cycleId = try { repo().startCycle() } catch (_: Exception) { 0L }
+                val id = repo().insertTemperatureAt(v, at, cycleId, source)
+                try { repo().completeCycle(cycleId, "COMPLETED", null) } catch (_: Exception) {}
+                if (id > 0) EventBus.getDefault().post(com.sundr.myapp.events.NewReadingEvent(com.sundr.myapp.data.Vital.TEMPERATURE, id, cycleId, at, v))
+                mainHandler.post { result.success(id > 0) }
+            } catch (e: Exception) { mainHandler.post { result.error("INSERT_FAILED", e.message, null) } }
         }
     }
 

@@ -320,12 +320,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onTap: () => _navigateTo('/sleep'),
         );
       case HomeCardId.hrv:
+        final latestHrvHome = ble.latestHrv > 0 ? ble.latestHrv : ble.todayAvgHrv;
         return HomeCard(
           label: 'HRV',
-          value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
-          unit: ble.todayAvgHrv > 0 ? 'ms' : '',
-          status: _hrvStatus(ble.todayAvgHrv),
-          statusColor: ble.todayAvgHrv > 0 ? AppTheme.gold : AppTheme.textSec,
+          value: latestHrvHome > 0 ? '$latestHrvHome' : '--',
+          unit: latestHrvHome > 0 ? 'ms' : '',
+          status: _hrvStatus(latestHrvHome),
+          statusColor: latestHrvHome > 0 ? AppTheme.gold : AppTheme.textSec,
           orbColor: AppTheme.gold,
           sparkData: const [
             0.5,
@@ -341,21 +342,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             0.63,
             0.6,
           ],
-          connected: ble.isConnected || ble.todayAvgHrv > 0,
+          connected: ble.isConnected || latestHrvHome > 0,
           expanded: expanded,
           onTap: () => _navigateTo('/hrv'),
         );
       case HomeCardId.bloodOxygen:
+        final latestSpo2Home = ble.latestSpo2 > 0 ? ble.latestSpo2 : ble.todayAvgSpo2;
         return HomeCard(
           label: 'Blood Oxygen',
-          value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
-          unit: ble.todayAvgSpo2 > 0 ? '%' : '',
+          value: latestSpo2Home > 0 ? '$latestSpo2Home' : '--',
+          unit: latestSpo2Home > 0 ? '%' : '',
           status: ble.todayAvgSpo2 > 0
               ? (ble.todayMinSpo2 > 0 && ble.todayMaxSpo2 > 0
                     ? 'Range: ${ble.todayMinSpo2}-${ble.todayMaxSpo2}%'
-                    : _spo2Status(ble.todayAvgSpo2))
+                    : _spo2Status(latestSpo2Home))
               : 'No data',
-          statusColor: ble.todayAvgSpo2 > 0 ? AppTheme.spo2Color : AppTheme.textSec,
+          statusColor: latestSpo2Home > 0 ? AppTheme.spo2Color : AppTheme.textSec,
           orbColor: AppTheme.spo2Color,
           sparkData: const [
             0.96,
@@ -371,13 +373,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             0.97,
             0.99,
           ],
-          connected: ble.isConnected || ble.todayAvgSpo2 > 0,
+          connected: ble.isConnected || latestSpo2Home > 0,
           expanded: expanded,
           onTap: () => _navigateTo('/blood-oxygen'),
         );
       case HomeCardId.heartRate:
         if (expanded) {
-          final hr = ble.todayAvgHr;
+          final latest = ble.latestHr;
+          final avgHr = ble.todayAvgHr;
+          final hr = latest > 0 ? latest : avgHr;
           final hrv = ble.todayAvgHrv;
           return FigmaExpandedCard(
             orbColor: AppTheme.hrColor,
@@ -419,16 +423,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             onTap: () => _navigateTo('/heart-rate'),
           );
         }
+        final latestForHome = ble.latestHr > 0 ? ble.latestHr : ble.todayAvgHr;
         return HomeCard(
           label: 'Heart Rate',
-          value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
-          unit: ble.todayAvgHr > 0 ? 'bpm' : '',
+          value: latestForHome > 0 ? '$latestForHome' : '--',
+          unit: latestForHome > 0 ? 'bpm' : '',
           status: ble.todayAvgHr > 0
               ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
                     ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
-                    : _hrStatus(ble.todayAvgHr))
+                    : _hrStatus(latestForHome > 0 ? latestForHome : ble.todayAvgHr))
               : 'No data',
-          statusColor: ble.todayAvgHr > 0 ? AppTheme.hrColor : AppTheme.textSec,
+          statusColor: latestForHome > 0 ? AppTheme.hrColor : AppTheme.textSec,
           orbColor: AppTheme.hrColor,
           sparkData: const [
             0.45,
@@ -528,30 +533,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onTap: () => _navigateTo('/sleep'),
         );
       case HomeCardId.hrv:
+        final latestHrvMini = ble.latestHrv > 0 ? ble.latestHrv : ble.todayAvgHrv;
         return MiniCard(
           label: 'HRV',
-          value: ble.todayAvgHrv > 0 ? '${ble.todayAvgHrv}' : '--',
-          sub: ble.todayAvgHrv > 0 ? 'ms' : '',
+          value: latestHrvMini > 0 ? '$latestHrvMini' : '--',
+          sub: latestHrvMini > 0 ? 'ms' : '',
           color: AppTheme.gold,
           icon: Icons.favorite_border,
           expanded: expanded,
           onTap: () => _navigateTo('/hrv'),
         );
       case HomeCardId.bloodOxygen:
+        final latestSpo2Mini = ble.latestSpo2 > 0 ? ble.latestSpo2 : ble.todayAvgSpo2;
         return MiniCard(
           label: 'SpO₂',
-          value: ble.todayAvgSpo2 > 0 ? '${ble.todayAvgSpo2}' : '--',
-          sub: ble.todayAvgSpo2 > 0 ? '%' : '',
+          value: latestSpo2Mini > 0 ? '$latestSpo2Mini' : '--',
+          sub: latestSpo2Mini > 0 ? '%' : '',
           color: AppTheme.spo2Color,
           icon: Icons.air,
           expanded: expanded,
           onTap: () => _navigateTo('/blood-oxygen'),
         );
       case HomeCardId.heartRate:
+        final latestMini = ble.latestHr > 0 ? ble.latestHr : ble.todayAvgHr;
         return MiniCard(
           label: 'Heart Rate',
-          value: ble.todayAvgHr > 0 ? '${ble.todayAvgHr}' : '--',
-          sub: ble.todayAvgHr > 0 ? 'bpm' : '',
+          value: latestMini > 0 ? '$latestMini' : '--',
+          sub: latestMini > 0 ? 'bpm' : '',
           color: AppTheme.hrColor,
           icon: Icons.favorite,
           expanded: expanded,
