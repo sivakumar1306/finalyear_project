@@ -118,8 +118,8 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
   final Set<DateTime> _ovulationDays = {};
 
   DateTime _setupPeriodStart = DateTime.now().subtract(const Duration(days: 7));
-  int _setupCycleLen = 28;
-  int _setupPeriodLen = 5;
+  final int _setupCycleLen = 28;
+  final int _setupPeriodLen = 5;
   bool _savingSetup = false;
 
   DateTime _calendarMonth = DateTime.now();
@@ -478,116 +478,6 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
         ),
     ],
   );
-
-  void _showSettingsSheet() {
-    setState(() {
-      _setupPeriodStart = _latest?.periodStart ?? DateTime.now();
-      _setupCycleLen = _latest?.cycleLength ?? 28;
-      _setupPeriodLen = _latest?.periodLength ?? 5;
-    });
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppTheme.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModal) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-            left: 20,
-            right: 20,
-            top: 20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppTheme.div,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Edit Cycle Settings',
-                  style: _inter(18, weight: FontWeight.w700),
-                ),
-                const SizedBox(height: 20),
-                const SizedBox(height: 28),
-                GestureDetector(
-                  onTap: _savingSetup
-                      ? null
-                      : () async {
-                          setModal(() => _savingSetup = true);
-                          try {
-                            final user = SupabaseService.currentUser;
-                            if (user != null && _latest != null) {
-                              await SupabaseService.saveCycle(
-                                userId: user.id,
-                                periodStart: _setupPeriodStart,
-                                cycleLength: _setupCycleLen,
-                                periodLength: _setupPeriodLen,
-                              );
-                              await _load();
-                            }
-                            if (ctx.mounted) Navigator.pop(ctx);
-                          } catch (e) {
-                            if (ctx.mounted) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(
-                                SnackBar(
-                                  content: Text('Error: $e'),
-                                  backgroundColor: AppTheme.danger,
-                                ),
-                              );
-                            }
-                          } finally {
-                            setModal(() => _savingSetup = false);
-                          }
-                        },
-                  child: Container(
-                    width: double.infinity,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppTheme.danger, Color(0xFF991B1B)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Center(
-                      child: _savingSetup
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2.5,
-                              ),
-                            )
-                          : Text(
-                              'Save Changes',
-                              style: _inter(16, weight: FontWeight.w700),
-                            ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   void _showHistorySheet() {
     showModalBottomSheet(
