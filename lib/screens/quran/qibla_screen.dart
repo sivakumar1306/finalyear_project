@@ -19,7 +19,6 @@ class QiblaScreen extends StatefulWidget {
 class _QiblaScreenState extends State<QiblaScreen> {
   final _qibla = QiblaService();
   double? _qiblaBearing;
-  double? _lat, _lng;
   String _locationLabel = 'Locating…';
   double _heading = 0;
   StreamSubscription<double>? _compassSub;
@@ -39,8 +38,6 @@ class _QiblaScreenState extends State<QiblaScreen> {
     if (pos != null) {
       final b = QiblaService.bearing(pos.latitude, pos.longitude);
       setState(() {
-        _lat = pos.latitude;
-        _lng = pos.longitude;
         _qiblaBearing = b;
         _locationLabel = '${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}';
         _loadingLocation = false;
@@ -49,8 +46,6 @@ class _QiblaScreenState extends State<QiblaScreen> {
       final last = await _qibla.getLastKnown();
       if (last != null) {
         setState(() {
-          _lat = last['lat'];
-          _lng = last['lng'];
           _qiblaBearing = last['bearing'];
           _locationLabel = 'Last known · ${last['lat']!.toStringAsFixed(4)}, ${last['lng']!.toStringAsFixed(4)}';
           _loadingLocation = false;

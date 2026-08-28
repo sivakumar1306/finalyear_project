@@ -24,7 +24,7 @@ class EbookScreen extends StatelessWidget {
       body: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: _books.length,
-        separatorBuilder: (_,__)=> const SizedBox(height: 8),
+        separatorBuilder: (_, _)=> const SizedBox(height: 8),
         itemBuilder: (ctx,i){
           final b = _books[i];
           return GlassCard(child: Row(children: [

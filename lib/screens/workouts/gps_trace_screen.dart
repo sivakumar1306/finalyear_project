@@ -52,7 +52,11 @@ class _TracePainter extends CustomPainter {
     final path = Path();
     for (int i = 0; i < points.length; i++) {
       final p = Offset(points[i].dx * size.width, points[i].dy * size.height);
-      if (i == 0) path.moveTo(p.dx, p.dy); else path.lineTo(p.dx, p.dy);
+      if (i == 0) {
+        path.moveTo(p.dx, p.dy);
+      } else {
+        path.lineTo(p.dx, p.dy);
+      }
     }
     canvas.drawPath(path, paint);
     // start/end dots

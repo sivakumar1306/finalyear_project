@@ -49,7 +49,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
               itemBuilder: (ctx,i){
                 final f = _files[i];
                 return GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(child: Container(decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.06), borderRadius: BorderRadius.circular(12)), child: f.path.endsWith('.mp4') ? const Center(child: Icon(Icons.videocam, color: AppTheme.gold, size: 28)) : ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(f, fit: BoxFit.cover, errorBuilder: (_,__,___)=> const Center(child: Icon(Icons.image, color: Colors.white24)))))),
+                  Expanded(child: Container(decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.06), borderRadius: BorderRadius.circular(12)), child: f.path.endsWith('.mp4') ? const Center(child: Icon(Icons.videocam, color: AppTheme.gold, size: 28)) : ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(f, fit: BoxFit.cover, errorBuilder: (_, _, _)=> const Center(child: Icon(Icons.image, color: Colors.white24)))))),
                   const SizedBox(height: 8),
                   Text(f.uri.pathSegments.last, style: _inter(11, color: AppTheme.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
                 ]));
