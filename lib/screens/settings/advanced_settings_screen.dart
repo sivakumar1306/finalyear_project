@@ -26,6 +26,7 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     setState(() => _loading = true);
     try {
       final json = await _ble.getAdvancedSettings();
+      if (!mounted) return;
       setState(() => _settings = jsonDecode(json) ?? {});
     } catch (e) {
       debugPrint('AdvancedSettingsScreen._loadSettings: $e');

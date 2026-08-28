@@ -4,7 +4,7 @@ import '../../models/womens_health_models.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_typography.dart';
 
-const _kToday = AppTheme.softBlue; // blue
+
 
 TextStyle _inter(
   double size, {
@@ -47,53 +47,140 @@ class CalCell {
   });
 }
 
-// ── Cycle ring painter ────────────────────────────────────────────────────────
+// ── Cycle dial painter ────────────────────────────────────────────────────────
 
-class CycleRingPainter extends CustomPainter {
+class CycleDialPainter extends CustomPainter {
   final int currentDay;
   final int cycleLength;
+  final int periodLength;
+  final int fertileStart; // 1-based day
+  final int fertileEnd;   // 1-based day
 
-  const CycleRingPainter({required this.currentDay, required this.cycleLength});
+  // 220° horseshoe arch — endpoints tuck ~20° below horizontal.
+  static const _totalArcDeg = 220.0;
+  static const _totalArcRad = _totalArcDeg * math.pi / 180.0;
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 18;
-    const strokeW = 14.0;
+  const CycleDialPainter({
+    required this.currentDay,
+    required this.cycleLength,
+    required this.periodLength,
+    required this.fertileStart,
+    required this.fertileEnd,
+  });
 
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.06)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeW,
-    );
+  // Center Y at 75% of canvas height so the lower arc tips are visible.
+  Offset _center(Size s) => Offset(s.width / 2, s.height * 0.75);
+  double _radius(Size s) => s.width / 2 - 22;
 
-    final progress = (currentDay / cycleLength).clamp(0.0, 1.0);
-    if (progress <= 0) return;
+  // Arc begins 110° counter-clockwise from the top (12-o'clock = –π/2).
+  double get _arcStart => -math.pi / 2 - _totalArcRad / 2;
 
-    final rect = Rect.fromCircle(center: center, radius: radius);
-    canvas.drawArc(
-      rect,
-      -math.pi / 2,
-      2 * math.pi * progress,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeW
-        ..strokeCap = StrokeCap.round
-        ..shader = const LinearGradient(
-          colors: [AppTheme.womenColor, Color(0xFFA855F7)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ).createShader(rect),
-    );
+  // Map a 0-based day index to its angle on the arc.
+  double _dayAngle(int dayIdx) {
+    final t = dayIdx.clamp(0, cycleLength - 1) / (cycleLength - 1);
+    return _arcStart + t * _totalArcRad;
+  }
+
+  // Check if a day falls inside a coloured segment.
+  bool _inSegment(int day) {
+    if (day >= 0 && day < periodLength) return true;
+    if (day >= fertileStart - 1 && day <= fertileEnd - 1) return true;
+    return false;
   }
 
   @override
-  bool shouldRepaint(CycleRingPainter old) =>
-      old.currentDay != currentDay || old.cycleLength != cycleLength;
+  void paint(Canvas canvas, Size size) {
+    final center = _center(size);
+    final radius = _radius(size);
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    // ── 1. Small dots along the track (skip where segments will draw) ──────
+    final dotPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.22)
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < cycleLength; i++) {
+      if (_inSegment(i)) continue; // segment will cover this position
+      final a = _dayAngle(i);
+      canvas.drawCircle(
+        Offset(center.dx + radius * math.cos(a),
+               center.dy + radius * math.sin(a)),
+        1.8,
+        dotPaint,
+      );
+    }
+
+    // ── 2. Period segment (red) ─────────────────────────────────────────────
+    _drawSegment(canvas, rect, 0, periodLength - 1, AppTheme.danger, 12);
+
+    // ── 3. Fertile segment (teal) ───────────────────────────────────────────
+    _drawSegment(canvas, rect, fertileStart - 1, fertileEnd - 1, AppTheme.hrvColor, 12);
+
+    // ── 4. Blood-drop decoration below the period segment end ───────────────
+    final dropDayIdx = (periodLength - 1).clamp(0, cycleLength - 1);
+    final dropAngle = _dayAngle(dropDayIdx);
+    // Position it just outside the arc, shifted outward from center.
+    final dropDist = radius + 16;
+    final dropCenter = Offset(
+      center.dx + dropDist * math.cos(dropAngle),
+      center.dy + dropDist * math.sin(dropAngle),
+    );
+    _paintBloodDrop(canvas, dropCenter, 4);
+
+    // ── 5. Current-day indicator (clean white dot) ──────────────────────────
+    final dayA = _dayAngle(currentDay - 1);
+    final dayPos = Offset(
+      center.dx + radius * math.cos(dayA),
+      center.dy + radius * math.sin(dayA),
+    );
+    // Soft glow
+    canvas.drawCircle(dayPos, 8,
+        Paint()..color = Colors.white.withValues(alpha: 0.08));
+    // White dot
+    canvas.drawCircle(dayPos, 4.5, Paint()..color = Colors.white);
+  }
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+
+  void _drawSegment(Canvas canvas, Rect rect,
+      int startIdx, int endIdx, Color color, double strokeW) {
+    if (startIdx >= cycleLength || endIdx < 0) return;
+    startIdx = startIdx.clamp(0, cycleLength - 1);
+    endIdx   = endIdx.clamp(0, cycleLength - 1);
+
+    final segStart = _dayAngle(startIdx);
+    final segEnd   = _dayAngle(endIdx);
+
+    canvas.drawArc(
+      rect,
+      segStart,
+      segEnd - segStart,
+      false,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeW
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  void _paintBloodDrop(Canvas canvas, Offset pos, double r) {
+    final path = Path()
+      ..moveTo(pos.dx, pos.dy + r * 1.5)              // tip (pointing down)
+      ..quadraticBezierTo(
+          pos.dx - r, pos.dy, pos.dx, pos.dy - r * 0.8) // left curve up
+      ..quadraticBezierTo(
+          pos.dx + r, pos.dy, pos.dx, pos.dy + r * 1.5); // right curve down
+    canvas.drawPath(path, Paint()..color = AppTheme.danger);
+  }
+
+  @override
+  bool shouldRepaint(CycleDialPainter old) =>
+      old.currentDay != currentDay ||
+      old.cycleLength != cycleLength ||
+      old.periodLength != periodLength ||
+      old.fertileStart != fertileStart ||
+      old.fertileEnd != fertileEnd;
 }
 
 // ── Prediction column ──────────────────────────────────────────────────────────
@@ -157,7 +244,6 @@ class CyclePatternRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final rangeEnd = cycle.periodStart.add(Duration(days: cycle.cycleLength - 1));
     final rangeLabel = '${_fmtMD(cycle.periodStart)} – ${_fmtMD(rangeEnd)}';
-    final markerRatio = ((cycle.cycleLength - 14) / cycle.cycleLength).clamp(0.05, 0.95);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -178,7 +264,7 @@ class CyclePatternRow extends StatelessWidget {
         Expanded(
           child: SizedBox(
             height: 22,
-            child: CyclePatternTrack(markerRatio: markerRatio),
+            child: CyclePatternTrack(cycle: cycle),
           ),
         ),
         const SizedBox(width: 10),
@@ -189,67 +275,92 @@ class CyclePatternRow extends StatelessWidget {
 }
 
 class CyclePatternTrack extends StatelessWidget {
-  final double markerRatio;
-  const CyclePatternTrack({super.key, required this.markerRatio});
+  final CycleData cycle;
+  const CyclePatternTrack({super.key, required this.cycle});
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        const markerSize = 20.0;
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            CustomPaint(
-              size: Size(w, 22),
-              painter: CyclePatternDotsPainter(markerRatio: markerRatio),
-            ),
-            Positioned(
-              left: (markerRatio * w - markerSize / 2).clamp(0.0, w - markerSize),
-              child: Container(
-                width: markerSize,
-                height: markerSize,
-                decoration: const BoxDecoration(
-                  color: _kToday,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.circle, color: Colors.white, size: 8),
-              ),
-            ),
-          ],
-        );
-      },
+    return CustomPaint(
+      size: const Size(double.infinity, 22),
+      painter: CyclePatternDotsPainter(cycle: cycle),
     );
   }
 }
 
 class CyclePatternDotsPainter extends CustomPainter {
-  final double markerRatio;
-  const CyclePatternDotsPainter({required this.markerRatio});
-
-  static const _dotCount = 26;
+  final CycleData cycle;
+  const CyclePatternDotsPainter({required this.cycle});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final gap = size.width / (_dotCount - 1);
-    for (int i = 0; i < _dotCount; i++) {
-      final ratio = i / (_dotCount - 1);
-      if ((ratio - markerRatio).abs() < 0.06) continue;
-      final color = ratio < markerRatio
-          ? AppTheme.hrvColor.withValues(alpha: 0.7)
-          : AppTheme.womenColor.withValues(alpha: 0.45);
-      canvas.drawCircle(
-        Offset(i * gap, size.height / 2),
-        2.2,
-        Paint()..color = color,
-      );
+    final dotCount = cycle.cycleLength;
+    if (dotCount <= 0) return;
+    
+    final slotWidth = size.width / dotCount;
+    
+    final int periodLen = cycle.periodLength;
+    final int ovuDiff = cycle.ovulationDate.difference(cycle.periodStart).inDays + 1;
+    final fertStartDiff = cycle.fertileStart.difference(cycle.periodStart).inDays + 1;
+    final fertEndDiff = cycle.fertileEnd.difference(cycle.periodStart).inDays + 1;
+
+    // Use App Theme Colors
+    final cPeriod = AppTheme.womenColor.withValues(alpha: 0.75); // Pinkish bar
+    final cFollicular = AppTheme.hrvColor.withValues(alpha: 0.8); // Teal
+    final cLuteal = AppTheme.sleepColor.withValues(alpha: 0.7); // Purple
+    final cOvu = AppTheme.spo2Color; // Blue ring
+
+    // Draw Period Capsule
+    if (periodLen > 0) {
+      final periodW = (periodLen * slotWidth) - (slotWidth * 0.3);
+      final rrect = RRect.fromLTRBR(0, size.height / 2 - 4.5, periodW.clamp(0.0, size.width), size.height / 2 + 4.5, const Radius.circular(5));
+      canvas.drawRRect(rrect, Paint()..color = cPeriod);
+    }
+
+    // Draw rest of the days
+    for (int i = 0; i < dotCount; i++) {
+      final day = i + 1;
+      final cx = (i * slotWidth) + (slotWidth / 2);
+      final cy = size.height / 2;
+
+      if (day <= periodLen) {
+        continue; // Handled by the continuous capsule
+      }
+      
+      if (day == ovuDiff) {
+        // Blue ovulation ring overlapping the day dot
+        canvas.drawCircle(
+          Offset(cx, cy),
+          2.5,
+          Paint()..color = cLuteal,
+        );
+        canvas.drawCircle(
+          Offset(cx, cy),
+          6.5,
+          Paint()
+            ..color = cOvu
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.5
+        );
+      } else if (day >= fertStartDiff && day <= fertEndDiff) {
+        // Follicular / Fertile window
+        canvas.drawCircle(
+          Offset(cx, cy),
+          2.5,
+          Paint()..color = cFollicular,
+        );
+      } else {
+        // Luteal
+        canvas.drawCircle(
+          Offset(cx, cy),
+          2.5,
+          Paint()..color = cLuteal,
+        );
+      }
     }
   }
 
   @override
-  bool shouldRepaint(CyclePatternDotsPainter old) =>
-      old.markerRatio != markerRatio;
+  bool shouldRepaint(CyclePatternDotsPainter old) => old.cycle != cycle;
 }
 
 class TempGaugePainter extends CustomPainter {
@@ -423,15 +534,182 @@ class StepperTile extends StatelessWidget {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                  color: AppTheme.womenColor.withValues(alpha: 0.15),
+                  color: AppTheme.danger.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: AppTheme.womenColor.withValues(alpha: 0.3))),
+                      color: AppTheme.danger.withValues(alpha: 0.3))),
               child: Icon(Icons.add_rounded,
-                  color: value < max ? AppTheme.womenColor : AppTheme.textSec,
+                  color: value < max ? AppTheme.danger : AppTheme.textSec,
                   size: 18),
             ),
           ),
         ]),
       );
+}
+
+// ── Linear cycle painter ──────────────────────────────────────────────────────
+
+class LinearCyclePainter extends CustomPainter {
+  final int currentDay;
+  final int cycleLength;
+  final int periodLength;
+  final int fertileStart;
+  final int fertileEnd;
+  final int ovulationDay;
+
+  const LinearCyclePainter({
+    required this.currentDay,
+    required this.cycleLength,
+    required this.periodLength,
+    required this.fertileStart,
+    required this.fertileEnd,
+    required this.ovulationDay,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Top ~60px for tooltip, next 12px for track, 16px for dots below
+    final trackY = 60.0;
+    
+    // Spacing between dots/days
+    final dotCount = cycleLength;
+    final spacing = size.width / (dotCount - 1);
+
+    // Track background
+    final trackRect = RRect.fromLTRBR(
+      0, trackY - 6, size.width, trackY + 6, const Radius.circular(6)
+    );
+    canvas.drawRRect(trackRect, Paint()..color = Colors.white.withValues(alpha: 0.15));
+
+    // Period segment (red)
+    if (periodLength > 0) {
+      final periodW = (periodLength - 1).clamp(0, cycleLength - 1) * spacing;
+      final periodRect = RRect.fromLTRBR(
+        0, trackY - 6, periodW, trackY + 6, const Radius.circular(6)
+      );
+      canvas.drawRRect(periodRect, Paint()..color = AppTheme.danger);
+    }
+
+    // Fertile segment (teal)
+    if (fertileEnd >= fertileStart) {
+      final fertX1 = (fertileStart - 1).clamp(0, cycleLength - 1) * spacing;
+      final fertX2 = (fertileEnd - 1).clamp(0, cycleLength - 1) * spacing;
+      final fertRect = RRect.fromLTRBR(
+        fertX1, trackY - 6, fertX2, trackY + 6, const Radius.circular(6)
+      );
+      canvas.drawRRect(fertRect, Paint()..color = AppTheme.hrvColor);
+      
+      // Ovulation day on track
+      if (ovulationDay >= fertileStart && ovulationDay <= fertileEnd) {
+        final ovuX = (ovulationDay - 1).clamp(0, cycleLength - 1) * spacing;
+        canvas.drawCircle(Offset(ovuX, trackY), 5, Paint()..color = AppTheme.hrvColor);
+        canvas.drawCircle(Offset(ovuX, trackY), 2.5, Paint()..color = Colors.white.withValues(alpha: 0.7));
+      }
+    }
+
+    // Blood drop at end of track
+    final endX = size.width;
+    _paintBloodDrop(canvas, Offset(endX + 6, trackY), 3.5);
+
+    // Current day thumb
+    final currentX = (currentDay - 1).clamp(0, cycleLength - 1) * spacing;
+    canvas.drawCircle(Offset(currentX, trackY), 8, Paint()..color = Colors.white);
+
+    // Tooltip
+    _drawTooltip(canvas, Offset(currentX, trackY - 14));
+
+    // Dots below track
+    final dotY = trackY + 20;
+    for (int i = 0; i < dotCount; i++) {
+      final x = i * spacing;
+      final day = i + 1;
+      
+      if (day <= periodLength) {
+        _paintBloodDrop(canvas, Offset(x, dotY), 2.5);
+      } else if (day == currentDay) {
+        canvas.drawCircle(Offset(x, dotY), 3.5, Paint()..color = Colors.white);
+      } else if (day >= fertileStart && day <= fertileEnd) {
+        canvas.drawCircle(Offset(x, dotY), 3.5, Paint()..color = AppTheme.hrvColor);
+      } else {
+        canvas.drawCircle(Offset(x, dotY), 3.5, Paint()..color = Colors.white.withValues(alpha: 0.22));
+      }
+    }
+  }
+
+  void _paintBloodDrop(Canvas canvas, Offset pos, double r) {
+    final path = Path()
+      ..moveTo(pos.dx, pos.dy - r * 0.8) // Top tip
+      ..quadraticBezierTo(pos.dx + r * 1.2, pos.dy, pos.dx + r, pos.dy + r)
+      ..quadraticBezierTo(pos.dx, pos.dy + r * 2, pos.dx - r, pos.dy + r)
+      ..quadraticBezierTo(pos.dx - r * 1.2, pos.dy, pos.dx, pos.dy - r * 0.8);
+    canvas.drawPath(path, Paint()..color = AppTheme.danger);
+  }
+
+  void _drawTooltip(Canvas canvas, Offset bottomCenter) {
+    final tooltipW = 54.0;
+    final tooltipH = 50.0;
+    final r = 14.0;
+    final arrowH = 8.0;
+    final arrowW = 12.0;
+
+    final rect = Rect.fromLTRB(
+      bottomCenter.dx - tooltipW / 2,
+      bottomCenter.dy - arrowH - tooltipH,
+      bottomCenter.dx + tooltipW / 2,
+      bottomCenter.dy - arrowH
+    );
+
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(rect, Radius.circular(r)))
+      ..moveTo(bottomCenter.dx - arrowW / 2, bottomCenter.dy - arrowH)
+      ..lineTo(bottomCenter.dx, bottomCenter.dy)
+      ..lineTo(bottomCenter.dx + arrowW / 2, bottomCenter.dy - arrowH)
+      ..close();
+
+    canvas.drawPath(
+      path, 
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.05)
+        ..style = PaintingStyle.fill
+    );
+    canvas.drawPath(
+      path, 
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.1)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+    );
+
+    // Text for tooltip
+    final textPainterDay = TextPainter(
+      text: TextSpan(
+        text: 'DAY',
+        style: _inter(10, color: Colors.white.withValues(alpha: 0.5), weight: FontWeight.w600, letterSpacing: 1.5)
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainterDay.layout();
+    
+    final textPainterNum = TextPainter(
+      text: TextSpan(
+        text: '$currentDay',
+        style: _inter(18, color: Colors.white, weight: FontWeight.w600)
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainterNum.layout();
+
+    final contentY = rect.top + (tooltipH - textPainterDay.height - textPainterNum.height - 2) / 2;
+    textPainterDay.paint(canvas, Offset(bottomCenter.dx - textPainterDay.width / 2, contentY));
+    textPainterNum.paint(canvas, Offset(bottomCenter.dx - textPainterNum.width / 2, contentY + textPainterDay.height + 2));
+  }
+
+  @override
+  bool shouldRepaint(LinearCyclePainter old) =>
+      old.currentDay != currentDay ||
+      old.cycleLength != cycleLength ||
+      old.periodLength != periodLength ||
+      old.fertileStart != fertileStart ||
+      old.fertileEnd != fertileEnd ||
+      old.ovulationDay != ovulationDay;
 }

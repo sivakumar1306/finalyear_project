@@ -49,6 +49,7 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
     try {
       final json = await _ble.getTargetAndProfile();
       final m = jsonDecode(json) ?? {};
+      if (!mounted) return;
       setState(() {
         _stepsCtrl.text = _fmt((m['stepTarget'] ?? 8000) as num);
         _caloriesCtrl.text = _fmt((m['calorieTarget'] ?? 500) as num);

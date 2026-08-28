@@ -32,6 +32,7 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
     try {
       final json = await _ble.getDisplaySettings();
       final m = jsonDecode(json) ?? {};
+      if (!mounted) return;
       setState(() {
         _brightness = m['brightness'] ?? 3;
         _clockStyle = m['clockStyle'] ?? 0;

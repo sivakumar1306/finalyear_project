@@ -48,6 +48,7 @@ class _RingReminderScreenState extends State<RingReminderScreen> {
           ? await _ble.getSedentaryReminder()
           : await _ble.getDrinkReminder();
       final m = jsonDecode(json) ?? {};
+      if (!mounted) return;
       setState(() {
         _enabled = m['enable'] ?? false;
         _startTime = m['startTime'] ?? '08:00';

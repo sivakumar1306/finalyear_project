@@ -677,7 +677,7 @@ class SupabaseService {
 
   static Future<List<Map<String, dynamic>>> getCycles(String userId) async {
     final data = await client
-        .from('user_cycles')
+        .from('derived_user_cycles')
         .select()
         .eq('user_id', userId)
         .order('period_start', ascending: false);
@@ -691,24 +691,32 @@ class SupabaseService {
     required int periodLength,
     String? notes,
   }) async {
-    await client.from('user_cycles').upsert({
-      'user_id': userId,
-      'period_start': _dateStr(periodStart),
-      'cycle_length': cycleLength,
-      'period_length': periodLength,
-      if (notes != null && notes.isNotEmpty) 'notes': notes,
-    }, onConflict: 'user_id,period_start');
+    // With derived cycles, we don't save to a cycles table. 
+    // This is called during setup, so we insert a baseline symptom for EACH day of the period 
+    // to correctly trigger the view and establish the initial period length.
+    for (int i = 0; i < periodLength; i++) {
+      await upsertSymptoms(
+        userId: userId,
+        date: periodStart.add(Duration(days: i)),
+        flowIntensity: 'Medium',
+        flowColor: 'Red',
+        notes: i == 0 ? notes : null, // Only attach notes to the first day if any
+      );
+    }
   }
 
   static Future<void> deleteCycle({
     required String userId,
     required DateTime periodStart,
+    required int periodLength,
   }) async {
+    final endDate = periodStart.add(Duration(days: periodLength));
     await client
-        .from('user_cycles')
+        .from('user_symptoms')
         .delete()
         .eq('user_id', userId)
-        .eq('period_start', _dateStr(periodStart));
+        .gte('logged_date', _dateStr(periodStart))
+        .lt('logged_date', _dateStr(endDate));
   }
 
   // ── Women's Health — Symptoms ──────────────────────────────────────────────
@@ -734,6 +742,8 @@ class SupabaseService {
     bool headache = false,
     bool bloating = false,
     String? notes,
+    String? flowIntensity,
+    String? flowColor,
   }) async {
     await client.from('user_symptoms').upsert({
       'user_id': userId,
@@ -744,6 +754,8 @@ class SupabaseService {
       'headache': headache,
       'bloating': bloating,
       'notes': notes,
+      'flow_intensity': flowIntensity,
+      'flow_color': flowColor,
     }, onConflict: 'user_id,logged_date');
   }
 

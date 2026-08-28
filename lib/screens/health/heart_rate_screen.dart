@@ -507,6 +507,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           await _saveHrToSupabase(hr, fallbackMin, fallbackMax, 1);
         }
       } else {
+        if (!mounted) return;
         setState(() => _measuring = false);
       }
     } catch (_) {

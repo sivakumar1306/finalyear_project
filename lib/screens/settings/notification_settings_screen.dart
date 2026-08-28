@@ -27,6 +27,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     setState(() => _loading = true);
     try {
       final json = await _ble.getNotificationSettings();
+      if (!mounted) return;
       setState(() => _settings = jsonDecode(json) ?? {});
     } catch (e, st) {
       IncidentService.reportUnhandled(

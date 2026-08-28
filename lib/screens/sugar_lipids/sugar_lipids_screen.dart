@@ -35,6 +35,7 @@ class _SugarLipidsScreenState extends State<SugarLipidsScreen> {
     try {
       final json = await _ble.getHealthSettings();
       final m = (jsonDecode(json) ?? const {})['sugarLipids'] ?? const {};
+      if (!mounted) return;
       setState(() {
         _settings = Map<String, dynamic>.from(m);
         _loaded = true;

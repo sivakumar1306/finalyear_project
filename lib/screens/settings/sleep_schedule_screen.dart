@@ -65,6 +65,7 @@ class _SleepScheduleScreenState extends State<SleepScheduleScreen> {
 
   void _onClockChanged(TimeOfDay t) {
     // Draft only — persisted when the user taps the check button.
+    if (!mounted) return;
     setState(() => _time = t);
   }
 

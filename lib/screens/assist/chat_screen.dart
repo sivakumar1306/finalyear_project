@@ -97,6 +97,7 @@ class _ChatScreenState extends State<ChatScreen> {
         final msgResult = await ChatApiService.getMessages(conversationId);
         final rawMessages = msgResult['messages'] as List<dynamic>?;
         if (rawMessages != null && rawMessages.isNotEmpty) {
+          if (!mounted) return;
           setState(() {
             _conversationId = conversationId;
             _messages.addAll(
@@ -245,6 +246,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       final result = await ChatApiService.chat(payloadText, _conversationId);
+      if (!mounted) return;
       setState(() {
         _messages.add({
           'role': 'assistant',
@@ -262,6 +264,7 @@ class _ChatScreenState extends State<ChatScreen> {
         await prefs.setString(_conversationPrefsKey(userId), _conversationId!);
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = 'Connection error. Check if backend is running.';
         _isLoading = false;

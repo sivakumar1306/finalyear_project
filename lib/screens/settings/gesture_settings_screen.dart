@@ -143,12 +143,14 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
   }
 
   Future<void> _setWristFlip(bool enable) async {
+    if (!mounted) return;
     setState(() => _wristFlipEnabled = enable);
     await context.read<BleProvider>().setGestureEnabled(enable, isLeft: _isLeftHand);
   }
 
   Future<void> _setHandOrientation(bool isLeft) async {
     final bleProvider = context.read<BleProvider>();
+    if (!mounted) return;
     setState(() => _isLeftHand = isLeft);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('gesture_left_hand', isLeft);
@@ -156,6 +158,7 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
   }
 
   Future<void> _setTouchSensor(bool enable) async {
+    if (!mounted) return;
     setState(() => _touchSensorEnabled = enable);
     await _ble.setTouchControlSetting(enable: enable, strength: 5);
   }

@@ -77,6 +77,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
   }
 
   Future<void> _install() async {
+    if (!mounted) return;
     setState(() => _busy = true);
     await _service.installHealthConnect();
     if (!mounted) return;
@@ -114,6 +115,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
   }
 
   Future<void> _disconnect() async {
+    if (!mounted) return;
     setState(() => _busy = true);
     await _service.revokeAll();
     if (!mounted) return;
