@@ -181,7 +181,7 @@ class CycleData {
   DateTime get nextPeriod => periodStart.add(Duration(days: cycleLength));
 
   factory CycleData.fromMap(Map<String, dynamic> m) => CycleData(
-        id: m['id'] as String,
+        id: m['id'] as String? ?? 'derived_${m['period_start']}',
         periodStart: DateTime.parse(m['period_start'] as String),
         cycleLength: (m['cycle_length'] as num? ?? 28).toInt(),
         periodLength: (m['period_length'] as num? ?? 5).toInt(),

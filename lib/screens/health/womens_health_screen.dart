@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/supabase_service.dart';
 import '../../services/incident_service.dart';
 import '../../theme/app_theme.dart';
@@ -395,7 +396,6 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       anchorKey: _moreButtonKey,
       items: [
         GlassMenuItem(label: 'History', onTap: _showHistorySheet),
-        GlassMenuItem(label: 'Settings', onTap: _showSettingsSheet),
         GlassMenuItem(
           label: 'Info',
           onTap: () => Navigator.push(
@@ -522,28 +522,6 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                   style: _inter(18, weight: FontWeight.w700),
                 ),
                 const SizedBox(height: 20),
-                SetupField(
-                  label: 'TYPICAL CYCLE LENGTH',
-                  child: StepperTile(
-                    value: _setupCycleLen,
-                    unit: 'days',
-                    min: 21,
-                    max: 40,
-                    onChanged: (v) => setModal(() => _setupCycleLen = v),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SetupField(
-                  label: 'TYPICAL PERIOD LENGTH',
-                  child: StepperTile(
-                    value: _setupPeriodLen,
-                    unit: 'days',
-                    min: 2,
-                    max: 10,
-                    onChanged: (v) => setModal(() => _setupPeriodLen = v),
-                  ),
-                ),
-
                 const SizedBox(height: 28),
                 GestureDetector(
                   onTap: _savingSetup
@@ -685,6 +663,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                             SupabaseService.deleteCycle(
                                   userId: user.id,
                                   periodStart: removedCycle.periodStart,
+                                  periodLength: removedCycle.periodLength,
                                 )
                                 .then((_) {
                                   _load();
@@ -838,30 +817,6 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
               ],
             ),
           ),
-        ),
-      ),
-      const SizedBox(height: 12),
-
-      SetupField(
-        label: 'TYPICAL CYCLE LENGTH',
-        child: StepperTile(
-          value: _setupCycleLen,
-          unit: 'days',
-          min: 21,
-          max: 40,
-          onChanged: (v) => setState(() => _setupCycleLen = v),
-        ),
-      ),
-      const SizedBox(height: 12),
-
-      SetupField(
-        label: 'TYPICAL PERIOD LENGTH',
-        child: StepperTile(
-          value: _setupPeriodLen,
-          unit: 'days',
-          min: 2,
-          max: 10,
-          onChanged: (v) => setState(() => _setupPeriodLen = v),
         ),
       ),
       const SizedBox(height: 28),
@@ -1697,11 +1652,17 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
 
   // ── Log Period bottom sheet ────────────────────────────────────────────────
 
-  Future<void> _showLogSheet(DateTime initialDate) async {
-    DateTime selectedDate = initialDate;
-    String flow = 'Medium';
-    String pain = 'Mild';
+  Future<void> _showLogSheet(DateTime dateToLog) async {
+    String flow = 'Light';
+    String color = 'Red';
+    String notes = '';
     bool saving = false;
+    
+    // First-time instruction view state
+    final prefs = await SharedPreferences.getInstance();
+    bool showInstructions = !(prefs.getBool('hasSeenPeriodTutorial') ?? false);
+
+    if (!mounted) return;
 
     await showModalBottomSheet(
       context: context,
@@ -1713,237 +1674,262 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setModal) {
+            
+            // ── Instruction View ──
+            if (showInstructions) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 40, left: 24, right: 24, top: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 48,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Here\'s how it works',
+                          style: _inter(20, weight: FontWeight.w400, color: Colors.white),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: AppTheme.textSec),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Log your period day by day. Tap a date, select your flow, and save.',
+                      style: _inter(14, color: AppTheme.textSec),
+                    ),
+                    const SizedBox(height: 40),
+                    Center(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                        ),
+                        onPressed: () async {
+                          await prefs.setBool('hasSeenPeriodTutorial', true);
+                          setModal(() => showInstructions = false);
+                        },
+                        child: Text('Got it', style: _inter(16, color: AppTheme.gold)),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // ── Main Log View (Daily Entry) ──
             return Padding(
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-                left: 20,
-                right: 20,
-                top: 20,
+                left: 16,
+                right: 16,
+                top: 16,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 48,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    Text(
+                      'Logging for ${_fmtMD(dateToLog)}',
+                      style: _inter(18, weight: FontWeight.w600, color: Colors.white),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Flow Option (Light, Medium, Heavy) - Pill styled
+                    Container(
                       decoration: BoxDecoration(
-                        color: AppTheme.div,
-                        borderRadius: BorderRadius.circular(2),
+                        color: AppTheme.card2,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: ['Light', 'Medium', 'Heavy'].map((f) {
+                          final sel = flow == f;
+                          return Expanded(
+                            child: GestureDetector(
+                              onTap: () => setModal(() => flow = f),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: sel ? AppTheme.gold : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  f,
+                                  style: _inter(
+                                    13,
+                                    color: sel ? Colors.black : Colors.white.withValues(alpha: 0.6),
+                                    weight: sel ? FontWeight.w600 : FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Log Period & Symptoms',
-                    style: _inter(18, weight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Inline Calendar
-                  Theme(
-                    data: ThemeData.dark().copyWith(
-                      colorScheme: const ColorScheme.dark(
-                        primary: AppTheme.danger,
-                        surface: AppTheme.card,
+                    const SizedBox(height: 16),
+                    
+                    // Color Option (Red, Brown) - Pill styled
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        width: 180, // Shorter container for just two
+                        decoration: BoxDecoration(
+                          color: AppTheme.card2,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: ['Red', 'Brown'].map((c) {
+                            final sel = color == c;
+                            return Expanded(
+                              child: GestureDetector(
+                                onTap: () => setModal(() => color = c),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: sel ? AppTheme.gold : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    c,
+                                    style: _inter(
+                                      13,
+                                      color: sel ? Colors.black : Colors.white.withValues(alpha: 0.6),
+                                      weight: sel ? FontWeight.w600 : FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
-                    child: Container(
+                    const SizedBox(height: 24),
+                    
+                    // Notes Input
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       decoration: BoxDecoration(
                         color: AppTheme.card2,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppTheme.div),
                       ),
-                      child: CalendarDatePicker(
-                        initialDate: selectedDate,
-                        firstDate: DateTime.now().subtract(
-                          const Duration(days: 365),
-                        ),
-                        lastDate: DateTime.now(),
-                        onDateChanged: (d) => setModal(() => selectedDate = d),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  Text(
-                    'FLOW',
-                    style: _inter(
-                      12,
-                      weight: FontWeight.w600,
-                      color: AppTheme.textSec,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: ['Light', 'Medium', 'Heavy'].map((f) {
-                      final sel = flow == f;
-                      return Expanded(
-                        child: GestureDetector(
-                          onTap: () => setModal(() => flow = f),
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 8),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: sel
-                                  ? AppTheme.danger.withValues(alpha: 0.2)
-                                  : AppTheme.card2,
-                              border: Border.all(
-                                color: sel ? AppTheme.danger : AppTheme.div,
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              f,
-                              style: _inter(
-                                13,
-                                color: sel ? AppTheme.danger : Colors.white,
-                                weight: sel ? FontWeight.w600 : FontWeight.w400,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              onChanged: (v) => notes = v,
+                              style: _inter(14, color: Colors.white),
+                              decoration: InputDecoration(
+                                hintText: 'Any notes you would like to add, medications you take etc',
+                                hintStyle: _inter(13, color: AppTheme.textSec),
+                                border: InputBorder.none,
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-
-                  Text(
-                    'PAIN',
-                    style: _inter(
-                      12,
-                      weight: FontWeight.w600,
-                      color: AppTheme.textSec,
+                          const Icon(Icons.mic, color: AppTheme.gold, size: 20),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: ['None', 'Mild', 'Severe'].map((p) {
-                      final sel = pain == p;
-                      return Expanded(
-                        child: GestureDetector(
-                          onTap: () => setModal(() => pain = p),
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 8),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: sel
-                                  ? AppTheme.danger.withValues(alpha: 0.2)
-                                  : AppTheme.card2,
-                              border: Border.all(
-                                color: sel ? AppTheme.danger : AppTheme.div,
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              p,
-                              style: _inter(
-                                13,
-                                color: sel ? AppTheme.danger : Colors.white,
-                                weight: sel ? FontWeight.w600 : FontWeight.w400,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-                  GestureDetector(
-                    onTap: saving
-                        ? null
-                        : () async {
-                            setModal(() => saving = true);
-                            try {
-                              final user = SupabaseService.currentUser;
-                              if (user != null) {
-                                // Check if selectedDate falls within an actual logged cycle
-                                bool inActualCycle = false;
-                                for (final c in _cycles) {
-                                  final start = _d(c.periodStart);
-                                  final end = _d(
-                                    c.periodStart.add(
-                                      Duration(days: c.periodLength - 1),
-                                    ),
-                                  );
-                                  final target = _d(selectedDate);
-                                  if (target.compareTo(start) >= 0 &&
-                                      target.compareTo(end) <= 0) {
-                                    inActualCycle = true;
-                                    break;
-                                  }
-                                }
-
-                                if (!inActualCycle) {
-                                  await SupabaseService.saveCycle(
+                    GestureDetector(
+                      onTap: saving
+                          ? null
+                          : () async {
+                              setModal(() => saving = true);
+                              try {
+                                final user = SupabaseService.currentUser;
+                                if (user != null) {
+                                  // We rely on the DB view/edge function to calculate cycles now.
+                                  // Just upsert the symptoms for this single day.
+                                  await SupabaseService.upsertSymptoms(
                                     userId: user.id,
-                                    periodStart: selectedDate,
-                                    cycleLength: _latest?.cycleLength ?? 28,
-                                    periodLength: _latest?.periodLength ?? 5,
+                                    date: dateToLog,
+                                    flowIntensity: flow,
+                                    flowColor: color,
+                                    notes: notes,
                                   );
                                 }
-
-                                await SupabaseService.upsertSymptoms(
-                                  userId: user.id,
-                                  date: selectedDate,
-                                  notes: 'Flow: $flow, Pain: $pain',
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                await _load();
+                              } catch (e, st) {
+                                setModal(() => saving = false);
+                                IncidentService.reportUnhandled(
+                                  source: 'womens_health_screen_save',
+                                  error: e,
+                                  stackTrace: st,
+                                  customMessage: 'Failed to save period log',
                                 );
-                              }
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              await _load();
-                            } catch (e, st) {
-                              setModal(() => saving = false);
-                              IncidentService.reportUnhandled(
-                                source: 'womens_health_screen_save',
-                                error: e,
-                                stackTrace: st,
-                                customMessage: 'Failed to save period log',
-                              );
-                              if (ctx.mounted) {
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Failed to save. Please try again.',
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Failed to save. Please try again.'),
+                                      backgroundColor: AppTheme.danger,
                                     ),
-                                    backgroundColor: AppTheme.danger,
-                                  ),
-                                );
+                                  );
+                                }
                               }
-                            }
-                          },
-                    child: Container(
-                      width: double.infinity,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppTheme.danger, Color(0xFF991B1B)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+                            },
+                      child: Container(
+                        width: double.infinity,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppTheme.danger, Color(0xFF991B1B)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Center(
-                        child: saving
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
+                        child: Center(
+                          child: saving
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(
+                                  'Save',
+                                  style: _inter(15, weight: FontWeight.w700, color: Colors.white),
                                 ),
-                              )
-                            : Text(
-                                'Save Period',
-                                style: _inter(15, weight: FontWeight.w700),
-                              ),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
