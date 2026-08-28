@@ -19,6 +19,7 @@ import 'blood_pressure_chat_card.dart';
 import 'steps_chat_card.dart';
 import 'temperature_chat_card.dart';
 import 'stress_chat_card.dart';
+import 'cycle_chat_card.dart';
 import '../../widgets/app_typography.dart';
 
 // Persist the active conversation id per-user so the thread survives an
@@ -233,17 +234,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     try {
-      // Strip user-supplied "[System Context: ...]" blocks before sending so a
-      // user cannot inject their own instructions that ride alongside the
-      // app-level system context below and override it on the AI backend.
-      final String sanitizedText = text.replaceAll(
-        RegExp(r'\[System Context:.*?\]', caseSensitive: false, dotAll: true),
-        '',
-      ).trim();
-      String payloadText = sanitizedText;
-      if (!InsightsHeaderState.hasData) {
-        payloadText += '\n\n[System Context: The user currently has NO data available (0 days of readings). Do not hallucinate or invent any metrics, scores, or charts. Inform the user they need to wear their ring longer to gather data.]';
-      }
+      final String payloadText = text.trim();
 
       final result = await ChatApiService.chat(payloadText, _conversationId);
       if (!mounted) return;
@@ -532,12 +523,8 @@ class _ChatScreenState extends State<ChatScreen> {
                             final String content = msg['content'] ?? '';
                             final card = msg['card'];
                             
-                            // Guard against hallucinated cards when there's actually no data,
-                            // rather than relying on unreliable string matching of the LLM's text.
-                            final bool hasNoData = !InsightsHeaderState.hasData;
-                            
                             final cardWidget =
-                                (card != null && !hasNoData) ? _buildChatCard(context, card) : null;
+                                card != null ? _buildChatCard(context, card) : null;
                             return Align(
                               alignment: Alignment.centerLeft,
                               child: Column(
@@ -722,6 +709,8 @@ class _ChatScreenState extends State<ChatScreen> {
           data: data,
           onTap: () => Navigator.pushNamed(context, '/pressure'),
         );
+      case 'cycle_trend':
+        return CycleChatCard(data: data);
       default:
         return null;
     }
