@@ -384,6 +384,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
       final readings = _parseTempReadings(data, _selectedDate);
       if (readings.isNotEmpty) {
         final latest = readings.last.valueC;
+        if (!mounted) return;
         setState(() {
           _manualTemp = latest;
           _measuring = false;
@@ -392,6 +393,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         // The native side persisted the reading to Room and fired a
         // newReading event; re-pull so the today chart/avg/min/max reflect it.
         if (_isToday) await _fetchTodayFromLocalDb();
+        if (!mounted) return;
         setState(() => _manualTemp = latest);
       } else {
         setState(() => _measuring = false);

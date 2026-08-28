@@ -83,6 +83,7 @@ class _TouchControlScreenState extends State<TouchControlScreen> {
     try {
       final json = await _ble.getTouchControlSetting();
       final map = jsonDecode(json) as Map<String, dynamic>? ?? {};
+      if (!mounted) return;
       setState(() => _touchEnabled = (map['appType'] as int? ?? 0) != 0);
     } catch (e, st) {
       IncidentService.reportUnhandled(

@@ -31,6 +31,7 @@ class _WomensHealthNotificationsScreenState
 
   Future<void> _loadPrefs() async {
     final prefs = await NotificationPrefs.load();
+    if (!mounted) return;
     setState(() {
       _periodReminders = prefs['Next Period Reminder'] ?? true;
       _fertileReminders = prefs['Fertility Window'] ?? true;

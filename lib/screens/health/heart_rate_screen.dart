@@ -460,6 +460,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         context.read<BleProvider>().updateHrData(newAvg, newMin, newMax);
         await _saveHrToSupabase(newAvg, newMin, newMax, 1);
       } else {
+        if (!mounted) return;
         setState(() => _measuring = false);
       }
     } catch (_) {

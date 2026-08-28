@@ -63,6 +63,7 @@ class _RingCameraScreenState extends State<RingCameraScreen>
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
+        if (!mounted) return;
         setState(() => _error = 'No camera available on this device');
         return;
       }
@@ -80,6 +81,7 @@ class _RingCameraScreenState extends State<RingCameraScreen>
         await controller.dispose();
         return;
       }
+      if (!mounted) return;
       setState(() => _controller = controller);
     } catch (e) {
       setState(() => _error = 'Failed to start camera: $e');

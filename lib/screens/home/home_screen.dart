@@ -109,6 +109,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await Navigator.pushNamed(context, route);
     if (!mounted) return;
     await _loadUserProfile();
+    if (!mounted) return;
     setState(() {});
   }
 
