@@ -19,6 +19,7 @@ import 'blood_pressure_chat_card.dart';
 import 'steps_chat_card.dart';
 import 'temperature_chat_card.dart';
 import 'stress_chat_card.dart';
+import 'cycle_chat_card.dart';
 import '../../widgets/app_typography.dart';
 
 // Persist the active conversation id per-user so the thread survives an
@@ -722,6 +723,8 @@ class _ChatScreenState extends State<ChatScreen> {
           data: data,
           onTap: () => Navigator.pushNamed(context, '/pressure'),
         );
+      case 'cycle_trend':
+        return CycleChatCard(data: data);
       default:
         return null;
     }
