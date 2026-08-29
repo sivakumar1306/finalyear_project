@@ -722,15 +722,16 @@ class SupabaseService {
   // ── Women's Health — Symptoms ──────────────────────────────────────────────
 
   static Future<Map<String, dynamic>?> getSymptomsForDate(
-    String userId,
-    DateTime date,
-  ) async {
-    return client
+      String userId, DateTime date) async {
+    final res = await client
         .from('user_symptoms')
         .select()
         .eq('user_id', userId)
         .eq('logged_date', _dateStr(date))
-        .maybeSingle();
+        .limit(1);
+    
+    if (res.isEmpty) return null;
+    return res.first;
   }
 
   static Future<void> upsertSymptoms({
