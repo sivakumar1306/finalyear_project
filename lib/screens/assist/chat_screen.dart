@@ -390,7 +390,12 @@ class _ChatScreenState extends State<ChatScreen> {
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  InsightsHeader(key: _insightsKey),
+                                  InsightsHeader(
+                                    key: _insightsKey,
+                                    onLoaded: () {
+                                      if (mounted) setState(() {});
+                                    },
+                                  ),
                                   Padding(
                                     padding: const EdgeInsets.only(
                                       top: 18,
@@ -567,7 +572,12 @@ class _ChatScreenState extends State<ChatScreen> {
         controller: _scrollController,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
-          InsightsHeader(key: _insightsKey),
+          InsightsHeader(
+            key: _insightsKey,
+            onLoaded: () {
+              if (mounted) setState(() {});
+            },
+          ),
           Padding(
             padding: const EdgeInsets.only(top: 18, bottom: 14),
             child: Container(
