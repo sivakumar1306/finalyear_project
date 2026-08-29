@@ -5,7 +5,8 @@ import 'key_change_card.dart';
 import '../../widgets/app_typography.dart';
 
 class InsightsHeader extends StatefulWidget {
-  const InsightsHeader({super.key});
+  final VoidCallback? onLoaded;
+  const InsightsHeader({super.key, this.onLoaded});
 
   @override
   State<InsightsHeader> createState() => InsightsHeaderState();
@@ -70,6 +71,9 @@ class InsightsHeaderState extends State<InsightsHeader>
       if ((data['days_used'] as num? ?? 0) > 0) {
         _cache = data;
         _cacheTime = DateTime.now();
+        if (mounted) {
+          widget.onLoaded?.call();
+        }
       }
       return data;
     });
