@@ -755,72 +755,76 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
         SizedBox(
           width: double.infinity,
           height: 240,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              CustomPaint(
-                size: const Size(double.infinity, 240),
-                painter: CycleDialPainter(
-                  currentDay: day,
-                  cycleLength: c.cycleLength,
-                  periodLength: c.periodLength,
-                  fertileStart: fertileStartDay,
-                  fertileEnd: fertileEndDay,
-                  ovulationDay: ovulationDay,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _showLogSheet(DateTime.now()),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CustomPaint(
+                  size: const Size(double.infinity, 240),
+                  painter: CycleDialPainter(
+                    currentDay: day,
+                    cycleLength: c.cycleLength,
+                    periodLength: c.periodLength,
+                    fertileStart: fertileStartDay,
+                    fertileEnd: fertileEndDay,
+                    ovulationDay: ovulationDay,
+                  ),
                 ),
-              ),
-              Positioned(
-                top: 50,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          width: 1,
+                Positioned(
+                  top: 50,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.1),
+                            width: 1,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'DAY',
+                              style: _inter(10, color: Colors.white.withValues(alpha: 0.5), weight: FontWeight.w600, letterSpacing: 1.5),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '$day',
+                              style: _inter(18, color: Colors.white, weight: FontWeight.w600),
+                            ),
+                          ],
                         ),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'DAY',
-                            style: _inter(10, color: Colors.white.withValues(alpha: 0.5), weight: FontWeight.w600, letterSpacing: 1.5),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '$day',
-                            style: _inter(18, color: Colors.white, weight: FontWeight.w600),
-                          ),
-                        ],
+                      const SizedBox(height: 24),
+                      Text(
+                        todayStr,
+                        style: _inter(
+                          12,
+                          color: AppTheme.gold,
+                          weight: FontWeight.w600,
+                          letterSpacing: 1.2,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      todayStr,
-                      style: _inter(
-                        12,
-                        color: AppTheme.gold,
-                        weight: FontWeight.w600,
-                        letterSpacing: 1.2,
+                      const SizedBox(height: 8),
+                      Text(
+                        nextPeriodStr,
+                        textAlign: TextAlign.center,
+                        style: _inter(22, weight: FontWeight.w500, height: 1.3),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      nextPeriodStr,
-                      textAlign: TextAlign.center,
-                      style: _inter(22, weight: FontWeight.w500, height: 1.3),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 12),
