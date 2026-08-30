@@ -55,9 +55,10 @@ class CycleDialPainter extends CustomPainter {
   final int periodLength;
   final int fertileStart; // 1-based day
   final int fertileEnd;   // 1-based day
+  final int ovulationDay; // 1-based day
 
-  // 220° horseshoe arch — endpoints tuck ~20° below horizontal.
-  static const _totalArcDeg = 220.0;
+  // 180° horseshoe arch.
+  static const _totalArcDeg = 180.0;
   static const _totalArcRad = _totalArcDeg * math.pi / 180.0;
 
   const CycleDialPainter({
@@ -66,11 +67,12 @@ class CycleDialPainter extends CustomPainter {
     required this.periodLength,
     required this.fertileStart,
     required this.fertileEnd,
+    required this.ovulationDay,
   });
 
-  // Center Y at 75% of canvas height so the lower arc tips are visible.
-  Offset _center(Size s) => Offset(s.width / 2, s.height * 0.75);
-  double _radius(Size s) => s.width / 2 - 22;
+  // Center Y at 70% of canvas height.
+  Offset _center(Size s) => Offset(s.width / 2, s.height * 0.70);
+  double _radius(Size s) => s.width / 2 - 30; // Increased radius to make it wider
 
   // Arc begins 110° counter-clockwise from the top (12-o'clock = –π/2).
   double get _arcStart => -math.pi / 2 - _totalArcRad / 2;
@@ -81,62 +83,85 @@ class CycleDialPainter extends CustomPainter {
     return _arcStart + t * _totalArcRad;
   }
 
-  // Check if a day falls inside a coloured segment.
-  bool _inSegment(int day) {
-    if (day >= 0 && day < periodLength) return true;
-    if (day >= fertileStart - 1 && day <= fertileEnd - 1) return true;
-    return false;
-  }
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = _center(size);
-    final radius = _radius(size);
-    final rect = Rect.fromCircle(center: center, radius: radius);
+    final baseRadius = _radius(size);
+    final trackWidth = 16.0;
+    
+    // Shift the arc radius outward so the inner edge remains stationary
+    final arcRadius = baseRadius + (trackWidth - 8.0) / 2;
+    final rect = Rect.fromCircle(center: center, radius: arcRadius);
 
-    // ── 1. Small dots along the track (skip where segments will draw) ──────
-    final dotPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.22)
+    // ── 1. Thick dark background track ──────────────────────────────────────
+    canvas.drawArc(
+      rect,
+      _arcStart,
+      _totalArcRad,
+      false,
+      Paint()
+        ..color = const Color(0xFF1C1C1E) // Dark grey
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = trackWidth
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // ── 2. Colored segments ─────────────────────────────────────────────────
+    // Period segment (red)
+    _drawSegment(canvas, rect, 0, periodLength - 1, AppTheme.danger, trackWidth);
+
+    // Fertile segment (teal)
+    final tealColor = const Color(0xFF3B6B80); // Custom teal
+    _drawSegment(canvas, rect, fertileStart - 1, fertileEnd - 1, tealColor, trackWidth);
+
+    // ── 3. Inner dots and icons ─────────────────────────────────────────────
+    final dotRadius = arcRadius - trackWidth / 2 - 12;
+    final greyDotPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.15)
+      ..style = PaintingStyle.fill;
+    final blueDotPaint = Paint()
+      ..color = const Color(0xFF70B8D8)
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < cycleLength; i++) {
-      if (_inSegment(i)) continue; // segment will cover this position
       final a = _dayAngle(i);
-      canvas.drawCircle(
-        Offset(center.dx + radius * math.cos(a),
-               center.dy + radius * math.sin(a)),
-        1.8,
-        dotPaint,
+      final dotCenter = Offset(
+        center.dx + dotRadius * math.cos(a),
+        center.dy + dotRadius * math.sin(a),
       );
+
+      if (i >= 0 && i < periodLength) {
+        // Red droplet for period days
+        _paintBloodDrop(canvas, dotCenter, 2.5);
+      } else if (i >= fertileStart - 1 && i <= fertileEnd - 1) {
+        // Light blue dot for fertile days
+        canvas.drawCircle(dotCenter, 1.5, blueDotPaint);
+      } else {
+        // Standard grey dot
+        canvas.drawCircle(dotCenter, 1.5, greyDotPaint);
+      }
     }
 
-    // ── 2. Period segment (red) ─────────────────────────────────────────────
-    _drawSegment(canvas, rect, 0, periodLength - 1, AppTheme.danger, 12);
-
-    // ── 3. Fertile segment (teal) ───────────────────────────────────────────
-    _drawSegment(canvas, rect, fertileStart - 1, fertileEnd - 1, AppTheme.hrvColor, 12);
-
-    // ── 4. Blood-drop decoration below the period segment end ───────────────
-    final dropDayIdx = (periodLength - 1).clamp(0, cycleLength - 1);
-    final dropAngle = _dayAngle(dropDayIdx);
-    // Position it just outside the arc, shifted outward from center.
-    final dropDist = radius + 16;
-    final dropCenter = Offset(
-      center.dx + dropDist * math.cos(dropAngle),
-      center.dy + dropDist * math.sin(dropAngle),
+    // Circle graphic inside top segment (ovulation day)
+    final ovuAngle = _dayAngle(ovulationDay - 1);
+    final ovuPos = Offset(
+      center.dx + arcRadius * math.cos(ovuAngle),
+      center.dy + arcRadius * math.sin(ovuAngle),
     );
-    _paintBloodDrop(canvas, dropCenter, 4);
+    canvas.drawCircle(ovuPos, 8, Paint()..color = const Color(0xFF70B8D8)); // Light blue
+    canvas.drawCircle(ovuPos, 3, Paint()..color = Colors.white);
 
-    // ── 5. Current-day indicator (clean white dot) ──────────────────────────
+    // ── 4. Current-day indicator (solid white circle) ───────────────────────
     final dayA = _dayAngle(currentDay - 1);
     final dayPos = Offset(
-      center.dx + radius * math.cos(dayA),
-      center.dy + radius * math.sin(dayA),
+      center.dx + arcRadius * math.cos(dayA),
+      center.dy + arcRadius * math.sin(dayA),
     );
     // Soft glow
     canvas.drawCircle(dayPos, 8,
-        Paint()..color = Colors.white.withValues(alpha: 0.08));
-    // White dot
+        Paint()..color = Colors.white.withValues(alpha: 0.15));
+    // Solid white dot
     canvas.drawCircle(dayPos, 4.5, Paint()..color = Colors.white);
   }
 
@@ -166,11 +191,15 @@ class CycleDialPainter extends CustomPainter {
 
   void _paintBloodDrop(Canvas canvas, Offset pos, double r) {
     final path = Path()
-      ..moveTo(pos.dx, pos.dy + r * 1.5)              // tip (pointing down)
+      ..moveTo(pos.dx, pos.dy - r * 1.5)              // tip (pointing up)
       ..quadraticBezierTo(
-          pos.dx - r, pos.dy, pos.dx, pos.dy - r * 0.8) // left curve up
+          pos.dx + r, pos.dy, pos.dx + r, pos.dy + r * 0.5) // right curve
       ..quadraticBezierTo(
-          pos.dx + r, pos.dy, pos.dx, pos.dy + r * 1.5); // right curve down
+          pos.dx + r, pos.dy + r * 1.5, pos.dx, pos.dy + r * 1.5) // bottom right
+      ..quadraticBezierTo(
+          pos.dx - r, pos.dy + r * 1.5, pos.dx - r, pos.dy + r * 0.5) // bottom left
+      ..quadraticBezierTo(
+          pos.dx - r, pos.dy, pos.dx, pos.dy - r * 1.5); // left curve up
     canvas.drawPath(path, Paint()..color = AppTheme.danger);
   }
 
@@ -180,7 +209,8 @@ class CycleDialPainter extends CustomPainter {
       old.cycleLength != cycleLength ||
       old.periodLength != periodLength ||
       old.fertileStart != fertileStart ||
-      old.fertileEnd != fertileEnd;
+      old.fertileEnd != fertileEnd ||
+      old.ovulationDay != ovulationDay;
 }
 
 // ── Prediction column ──────────────────────────────────────────────────────────
