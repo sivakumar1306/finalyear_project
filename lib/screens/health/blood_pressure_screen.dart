@@ -414,9 +414,21 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     });
     try {
       final result = await _ble.manualModeBP(start: true);
-      final m = jsonDecode(result) as Map<String, dynamic>;
-      final sbp = (m['sbp'] as num? ?? 0).toInt();
-      final dbp = (m['dbp'] as num? ?? 0).toInt();
+      int sbp = 0;
+      int dbp = 0;
+      try {
+        final m = jsonDecode(result) as Map<String, dynamic>;
+        sbp = (m['sbp'] as num? ?? 0).toInt();
+        dbp = (m['dbp'] as num? ?? 0).toInt();
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'blood_pressure_screen',
+          error: e,
+          stackTrace: st,
+          customMessage: 'parse manual BP result failed',
+          extraInfo: {'rawResult': result},
+        );
+      }
       if (!mounted) return;
       setState(() => _measuring = false);
       if (sbp > 0 && dbp > 0) {
@@ -425,9 +437,40 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
           _manualDbp = dbp;
         });
         await _saveMeasurement(sbp, dbp);
+      } else {
+        IncidentService.reportUnhandled(
+          source: 'blood_pressure_screen',
+          error: Exception('manual BP returned no valid values'),
+          customMessage: 'manual BP measurement returned 0',
+          extraInfo: {'rawResult': result, 'sbp': sbp, 'dbp': dbp},
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Blood pressure measurement returned no data — keep ring snug and retry. Raw: $result'),
+              backgroundColor: AppTheme.danger,
+            ),
+          );
+        }
       }
-    } catch (_) {
-      if (mounted) setState(() => _measuring = false);
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'blood_pressure_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'manual BP measurement failed',
+      );
+      if (mounted) {
+        setState(() => _measuring = false);
+        final msg = e.toString().contains('BUSY')
+            ? 'Another measurement is in progress — wait and retry.'
+            : e.toString().contains('TIMEOUT')
+                ? 'Blood pressure measurement timed out — keep ring on finger.'
+                : 'Blood pressure measurement failed: $e';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
+        );
+      }
     }
   }
 
@@ -938,6 +981,7 @@ class _RealTimeBPCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: enabled ? onTap : null,
             child: Container(
               width: double.infinity,
@@ -953,7 +997,7 @@ class _RealTimeBPCard extends StatelessWidget {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                          color: enabled ? AppTheme.bpColor : AppTheme.textTertiary,
+                          color: AppTheme.bpColor,
                           strokeWidth: 2,
                         ),
                       )

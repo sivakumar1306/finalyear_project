@@ -72,6 +72,7 @@ class RealTimeCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: enabled ? onTap : null,
             child: Container(
               width: double.infinity,
@@ -87,7 +88,7 @@ class RealTimeCard extends StatelessWidget {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                          color: enabled ? accent : AppTheme.textTertiary,
+                          color: accent,
                           strokeWidth: 2,
                         ),
                       )

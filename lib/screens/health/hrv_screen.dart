@@ -293,6 +293,7 @@ class _HrvScreenState extends State<HrvScreen> {
           error: e,
           stackTrace: st,
           customMessage: 'parse manual hrv result failed',
+          extraInfo: {'rawResult': result},
         );
       }
       if (!mounted) return;
@@ -304,8 +305,28 @@ class _HrvScreenState extends State<HrvScreen> {
           _latestHrv = liveVal;
           _latestHrvAt = nowMs;
         });
-        try { context.read<BleProvider>().updateHrvLatestDetailed(liveVal, nowMs); } catch (_) {}
-        try { await _ble.insertHrv(valueMs: liveVal, measuredAtMs: nowMs, source: 'manual'); } catch (_) {}
+        try {
+          context.read<BleProvider>().updateHrvLatestDetailed(liveVal, nowMs);
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'hrv_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: 'updateHrvLatestDetailed failed',
+            extraInfo: {'liveVal': liveVal},
+          );
+        }
+        try {
+          await _ble.insertHrv(valueMs: liveVal, measuredAtMs: nowMs, source: 'manual');
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'hrv_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: 'insertHrv failed',
+            extraInfo: {'liveVal': liveVal, 'measuredAtMs': nowMs},
+          );
+        }
         try {
           final summaryJson = await _ble.getTodaySummary('hrv');
           final summary = jsonDecode(summaryJson) as Map<String, dynamic>;
@@ -315,27 +336,67 @@ class _HrvScreenState extends State<HrvScreen> {
           final maxVal = (summary['max'] as num?)?.toInt() ?? liveVal;
           if (mounted) {
             setState(() { _avgHrv = avg; _minHrv = minVal; _maxHrv = maxVal; });
-            try { context.read<BleProvider>().updateHrvData(avg, minVal, maxVal, liveVal); } catch (_) {}
+            try {
+              context.read<BleProvider>().updateHrvData(avg, minVal, maxVal, liveVal);
+            } catch (e, st) {
+              IncidentService.reportUnhandled(
+                source: 'hrv_screen',
+                error: e,
+                stackTrace: st,
+                customMessage: 'updateHrvData failed',
+              );
+            }
           }
           final user = SupabaseService.currentUser;
           if (user != null) {
             await SupabaseService.upsertHrv(userId: user.id, date: DateTime.now(), avgHrv: avg, minHrv: minVal, maxHrv: maxVal, sampleCount: count);
           }
           await _fetchTodayFromLocalDb();
-        } catch (_) {
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'hrv_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: 'refresh aggregates failed',
+            extraInfo: {'liveVal': liveVal},
+          );
           await _saveSingleMeasurement(liveVal);
         }
       } else {
-        setState(() => _measuring = false);
+        IncidentService.reportUnhandled(
+          source: 'hrv_screen',
+          error: Exception('manual HRV returned no valid value'),
+          customMessage: 'manual HRV measurement returned 0',
+          extraInfo: {'rawResult': result},
+        );
+        if (mounted) {
+          setState(() => _measuring = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('HRV measurement returned no data — keep ring snug and retry. Raw: $result'),
+              backgroundColor: AppTheme.danger,
+            ),
+          );
+        } else {
+          setState(() => _measuring = false);
+        }
       }
-    } catch (e) {
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'hrv_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'manual HRV measurement failed',
+      );
       if (!mounted) return;
       setState(() => _measuring = false);
+      final msg = e.toString().contains('BUSY')
+          ? 'Another measurement is in progress — wait and retry.'
+          : e.toString().contains('TIMEOUT')
+              ? 'HRV measurement timed out — keep ring on finger (up to 90s).'
+              : 'HRV measurement failed: $e';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('HRV measurement failed: $e'),
-          backgroundColor: AppTheme.danger,
-        ),
+        SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
       );
     }
   }

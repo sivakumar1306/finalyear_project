@@ -389,17 +389,70 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
           _manualTemp = latest;
           _measuring = false;
         });
-        await _saveToSupabase(readings);
+        try {
+          await _saveToSupabase(readings);
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'temperature_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: '_saveToSupabase failed',
+            extraInfo: {'readingsCount': readings.length},
+          );
+        }
         // The native side persisted the reading to Room and fired a
         // newReading event; re-pull so the today chart/avg/min/max reflect it.
-        if (_isToday) await _fetchTodayFromLocalDb();
+        if (_isToday) {
+          try {
+            await _fetchTodayFromLocalDb();
+          } catch (e, st) {
+            IncidentService.reportUnhandled(
+              source: 'temperature_screen',
+              error: e,
+              stackTrace: st,
+              customMessage: '_fetchTodayFromLocalDb after manual temp failed',
+            );
+          }
+        }
         if (!mounted) return;
         setState(() => _manualTemp = latest);
       } else {
-        setState(() => _measuring = false);
+        IncidentService.reportUnhandled(
+          source: 'temperature_screen',
+          error: Exception('manual temperature returned no readings'),
+          customMessage: 'manual temperature measurement returned empty',
+          extraInfo: {'rawData': data},
+        );
+        if (mounted) {
+          setState(() => _measuring = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Temperature measurement returned no data — keep ring snug and retry. Raw: $data'),
+              backgroundColor: AppTheme.danger,
+            ),
+          );
+        } else {
+          setState(() => _measuring = false);
+        }
       }
-    } catch (_) {
-      if (mounted) setState(() => _measuring = false);
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'temperature_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'manual temperature measurement failed',
+      );
+      if (mounted) {
+        setState(() => _measuring = false);
+        final msg = e.toString().contains('BUSY')
+            ? 'Another measurement is in progress — wait and retry.'
+            : e.toString().contains('TIMEOUT')
+                ? 'Temperature measurement timed out — keep ring on finger (up to 60s).'
+                : 'Temperature measurement failed: $e';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
+        );
+      }
     }
   }
 
@@ -876,6 +929,7 @@ class _RealTimeTempCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: enabled ? onTap : null,
             child: Container(
               width: double.infinity,
@@ -891,7 +945,7 @@ class _RealTimeTempCard extends StatelessWidget {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                          color: enabled ? AppTheme.tempColor : AppTheme.textTertiary,
+                          color: AppTheme.tempColor,
                           strokeWidth: 2,
                         ),
                       )

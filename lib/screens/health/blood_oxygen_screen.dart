@@ -440,6 +440,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
           error: e,
           stackTrace: st,
           customMessage: 'parse manual spo2 result failed',
+          extraInfo: {'rawResult': result},
         );
       }
       if (!mounted) return;
@@ -451,8 +452,28 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
           _latestSpo2 = liveVal;
           _latestSpo2At = nowMs;
         });
-        try { context.read<BleProvider>().updateSpo2Latest(liveVal, nowMs); } catch (_) {}
-        try { await _ble.insertSpo2(valuePct: liveVal, measuredAtMs: nowMs, source: 'manual'); } catch (_) {}
+        try {
+          context.read<BleProvider>().updateSpo2Latest(liveVal, nowMs);
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'blood_oxygen_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: 'updateSpo2Latest failed',
+            extraInfo: {'liveVal': liveVal},
+          );
+        }
+        try {
+          await _ble.insertSpo2(valuePct: liveVal, measuredAtMs: nowMs, source: 'manual');
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'blood_oxygen_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: 'insertSpo2 failed',
+            extraInfo: {'liveVal': liveVal, 'measuredAtMs': nowMs},
+          );
+        }
         // Refresh true aggregates from Room (not Supabase weighted estimate).
         try {
           final summaryJson = await _ble.getTodaySummary('spo2');
@@ -463,21 +484,71 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
           final maxVal = (summary['max'] as num?)?.toInt() ?? liveVal;
           if (mounted) {
             setState(() { _avgSpo2 = avg; _minSpo2 = minVal; _maxSpo2 = maxVal; });
-            try { context.read<BleProvider>().updateSpo2Data(avg, minVal, maxVal); } catch (_) {}
+            try {
+              context.read<BleProvider>().updateSpo2Data(avg, minVal, maxVal);
+            } catch (e, st) {
+              IncidentService.reportUnhandled(
+                source: 'blood_oxygen_screen',
+                error: e,
+                stackTrace: st,
+                customMessage: 'updateSpo2Data failed',
+              );
+            }
           }
           final user = SupabaseService.currentUser;
           if (user != null) {
             await SupabaseService.upsertSpo2(userId: user.id, date: DateTime.now(), avgSpo2: avg, minSpo2: minVal, maxSpo2: maxVal, sampleCount: count);
           }
           await _fetchToday();
-        } catch (_) {
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'blood_oxygen_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: 'refresh aggregates from Room failed',
+            extraInfo: {'liveVal': liveVal},
+          );
           await _saveSingleMeasurement(liveVal);
         }
       } else {
-        setState(() => _measuring = false);
+        IncidentService.reportUnhandled(
+          source: 'blood_oxygen_screen',
+          error: Exception('manual SpO2 returned no valid value'),
+          customMessage: 'manual SpO2 measurement returned 0',
+          extraInfo: {'rawResult': result},
+        );
+        if (mounted) {
+          setState(() => _measuring = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('SpO2 measurement returned no data — keep ring snug and retry. Raw: $result'),
+              backgroundColor: AppTheme.danger,
+            ),
+          );
+        } else {
+          setState(() => _measuring = false);
+        }
       }
-    } catch (_) {
-      if (mounted) setState(() => _measuring = false);
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'blood_oxygen_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'manual SpO2 measurement failed',
+      );
+      if (mounted) {
+        setState(() => _measuring = false);
+        final msg = e.toString().contains('BUSY')
+            ? 'Another measurement is in progress — wait and retry.'
+            : e.toString().contains('TIMEOUT')
+                ? 'SpO2 measurement timed out — keep ring on finger and retry.'
+                : 'SpO2 measurement failed: $e';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
+        );
+      } else {
+        if (mounted) setState(() => _measuring = false);
+      }
     }
   }
 

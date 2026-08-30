@@ -346,15 +346,57 @@ class _PressureScreenState extends State<PressureScreen> {
     try {
       final result = await _ble.manualModePressure(start: true);
       if (!mounted) return;
-      final m = jsonDecode(result) as Map<String, dynamic>;
-      final v = (m['value'] as num? ?? 0).toInt();
+      int v = 0;
+      try {
+        final m = jsonDecode(result) as Map<String, dynamic>;
+        v = (m['value'] as num? ?? 0).toInt();
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'pressure_screen',
+          error: e,
+          stackTrace: st,
+          customMessage: 'parse manual pressure result failed',
+          extraInfo: {'rawResult': result},
+        );
+      }
       setState(() => _measuring = false);
       if (v > 0) {
         setState(() => _manualStress = v);
         await _saveMeasurement(v);
+      } else {
+        IncidentService.reportUnhandled(
+          source: 'pressure_screen',
+          error: Exception('manual pressure returned no valid value'),
+          customMessage: 'manual pressure measurement returned 0',
+          extraInfo: {'rawResult': result},
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Stress measurement returned no data — keep ring snug and retry. Raw: $result'),
+              backgroundColor: AppTheme.danger,
+            ),
+          );
+        }
       }
-    } catch (_) {
-      if (mounted) setState(() => _measuring = false);
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'pressure_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'manual pressure measurement failed',
+      );
+      if (mounted) {
+        setState(() => _measuring = false);
+        final msg = e.toString().contains('BUSY')
+            ? 'Another measurement is in progress — wait and retry.'
+            : e.toString().contains('TIMEOUT')
+                ? 'Stress measurement timed out — keep ring on finger.'
+                : 'Stress measurement failed: $e';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
+        );
+      }
     }
   }
 
@@ -731,6 +773,7 @@ class _StressMeasurementCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: enabled ? onTap : null,
             child: Container(
               width: double.infinity,
@@ -746,7 +789,7 @@ class _StressMeasurementCard extends StatelessWidget {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                          color: enabled ? AppTheme.stressColor : _kSec,
+                          color: AppTheme.stressColor,
                           strokeWidth: 2,
                         ),
                       )

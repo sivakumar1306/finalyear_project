@@ -476,11 +476,29 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           _latestHrAt = nowMs;
           _measuring = false;
         });
-        try { context.read<BleProvider>().updateHrLatest(hr, nowMs); } catch (_) {}
+        try {
+          context.read<BleProvider>().updateHrLatest(hr, nowMs);
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'heart_rate_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: 'updateHrLatest failed',
+            extraInfo: {'hr': hr},
+          );
+        }
         // Persist to local Room so hourly chart + daily aggregate include it.
         try {
           await _ble.insertHeartRate(valueBpm: hr, measuredAtMs: nowMs, source: 'manual');
-        } catch (_) {}
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'heart_rate_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: 'insertHeartRate failed',
+            extraInfo: {'hr': hr, 'measuredAtMs': nowMs},
+          );
+        }
         // Recompute true daily aggregate from Room (not ~/2 blend).
         try {
           final summaryJson = await _ble.getTodaySummary('heart_rate');
@@ -495,23 +513,69 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
               _minHr = minVal;
               _maxHr = maxVal;
             });
-            try { context.read<BleProvider>().updateHrData(avg, minVal, maxVal); } catch (_) {}
+            try {
+              context.read<BleProvider>().updateHrData(avg, minVal, maxVal);
+            } catch (e, st) {
+              IncidentService.reportUnhandled(
+                source: 'heart_rate_screen',
+                error: e,
+                stackTrace: st,
+                customMessage: 'updateHrData failed',
+              );
+            }
           }
           await _saveHrToSupabase(avg, minVal, maxVal, count > 0 ? count : 1);
           // Refresh hourly chart to include the new point.
           await _fetchTodayFromLocalDb();
-        } catch (_) {
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'heart_rate_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: 'recompute daily aggregate failed',
+            extraInfo: {'hr': hr},
+          );
           // Fallback: at least update Supabase with single point.
           final fallbackMin = (_minHr > 0 && _minHr < hr) ? _minHr : hr;
           final fallbackMax = (_maxHr > hr) ? _maxHr : hr;
           await _saveHrToSupabase(hr, fallbackMin, fallbackMax, 1);
         }
       } else {
+        IncidentService.reportUnhandled(
+          source: 'heart_rate_screen',
+          error: Exception('readHeartRate returned invalid bpm'),
+          customMessage: 'heart rate measurement returned out-of-range or null',
+          extraInfo: {'hr': hr},
+        );
         if (!mounted) return;
         setState(() => _measuring = false);
+        if (mounted) {
+          final msg = hr == null
+              ? 'Heart rate measurement returned no data — keep ring snug and retry.'
+              : 'Heart rate $hr bpm out of range (30-220)';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
+          );
+        }
       }
-    } catch (_) {
-      if (mounted) setState(() => _measuring = false);
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'heart_rate_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'readHeartRate failed',
+      );
+      if (mounted) {
+        setState(() => _measuring = false);
+        final msg = e.toString().contains('BUSY')
+            ? 'Another measurement is in progress — wait and retry.'
+            : e.toString().contains('TIMEOUT')
+                ? 'Heart rate measurement timed out — keep ring on finger.'
+                : 'Heart rate measurement failed: $e';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
+        );
+      }
     }
   }
 
