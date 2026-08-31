@@ -29,11 +29,12 @@ object SafetyLiveUpdate {
     const val NOTIFICATION_ID = 2010
 
     fun showPrediction(context: Context, countdownSeconds: Int): Boolean {
+        val smsMessage = EmergencySmsSender.getMessageForReason("prediction")
         return show(
             context = context,
             title = "You might fall soon...",
             text = "Fall risk is elevated. SMS will be sent to your emergency contacts in " +
-                "$countdownSeconds seconds unless you cancel.",
+                "$countdownSeconds seconds unless you cancel:\n\n\"$smsMessage\"",
             shortText = "Fall risk",
             okAction = true,
         )
@@ -47,13 +48,14 @@ object SafetyLiveUpdate {
         simulated: Boolean = false,
     ): Boolean {
         val callLine = if (autoCall) " Calling your emergency contact now." else ""
+        val smsMessage = EmergencySmsSender.getMessageForReason("fall")
         return show(
             context = context,
             title = if (simulated) "SIMULATION — possible fall" else "Possible fall detected",
             text = if (simulated) {
-                "Demo only — no SMS or call was triggered."
+                "Demo only — no SMS or call was triggered. SMS would say: \"$smsMessage\""
             } else {
-                "Confidence $confidencePct% — SMS in ${countdownSeconds}s.$callLine"
+                "SMS in ${countdownSeconds}s: \"$smsMessage\" $callLine"
             },
             shortText = if (simulated) "Fall demo" else "Fall detected",
             okAction = true,

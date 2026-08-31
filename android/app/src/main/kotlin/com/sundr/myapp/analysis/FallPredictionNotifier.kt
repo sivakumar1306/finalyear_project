@@ -53,13 +53,11 @@ object FallPredictionNotifier {
         }
 
         val countdown = EmergencySmsSender.COUNTDOWN_SECONDS
+        val smsMessage = EmergencySmsSender.getMessageForReason("prediction")
         val bodyText = if (simulated) {
-            "DEMO ONLY — simulated vitals suggest a fall might be near. " +
-                "No SMS is scheduled and no contact is called for this simulation."
+            "Simulated prediction corroborates high fall risk. This is a demo — no SMS was scheduled.\n\nSMS would say: \"$smsMessage\""
         } else {
-            "We have detected multiple signs that you might fall down in the " +
-                "next 2-3 minutes. SMS will be sent to all emergency contacts in $countdown " +
-                "seconds unless you cancel."
+            "SMS will be sent to all emergency contacts in $countdown seconds unless you cancel:\n\n\"$smsMessage\""
         }
 
         val cancelSmsIntent = PendingIntent.getBroadcast(
