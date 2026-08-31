@@ -61,20 +61,20 @@ object FallAlertNotifier {
             ""
         }
 
+        val smsMessage = EmergencySmsSender.getMessageForReason("fall")
         val body: String
         val bigText: String
         val actionLabel: String
         if (simulated) {
             body = "Demo only — no SMS or call was triggered."
-            bigText = "Simulated fall detection corroborated by $sourceLabel " +
-                "($pct% confidence). This is a demo — no SMS was scheduled and no call " +
-                "was placed."
+            bigText = "Simulated fall detection corroborated by $sourceLabel. This is a demo — no SMS was scheduled and no call " +
+                "was placed.\n\nSMS would say: \"$smsMessage\""
             actionLabel = "Dismiss"
         } else {
-            body = "Confidence $pct% — SMS in ${countdown}s.$callLine Tap I'm okay to cancel SMS."
+            body = "SMS in ${countdown}s: \"$smsMessage\""
             bigText = "A sudden motion consistent with a fall was detected, corroborated by " +
-                "$sourceLabel ($pct% confidence).$callLine SMS will be sent to all " +
-                "emergency contacts in $countdown seconds. If you're okay, tap I'm okay " +
+                "$sourceLabel.$callLine SMS will be sent to all " +
+                "emergency contacts in $countdown seconds:\n\n\"$smsMessage\"\n\nIf you're okay, tap I'm okay " +
                 "to cancel the SMS."
             actionLabel = "I'm okay"
         }
