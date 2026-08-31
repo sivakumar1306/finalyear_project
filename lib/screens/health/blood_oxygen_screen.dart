@@ -15,8 +15,7 @@ import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
-import '../../widgets/metric_bar_painter.dart';
-import '../../widgets/metric_chart_card.dart';
+import '../../widgets/chart_scrubber.dart';
 import '../../widgets/metric_stat_card.dart';
 
 
@@ -422,6 +421,26 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
 
   Future<void> _startMeasurement() async {
     if (_measuring) return;
+    bool isConnected = false;
+    try {
+      isConnected = context.read<BleProvider>().isConnected;
+    } catch (_) {}
+    if (!isConnected) {
+      IncidentService.reportUnhandled(
+        source: 'blood_oxygen_screen',
+        error: Exception('manual SpO2 tapped while disconnected'),
+        customMessage: 'Measurement tapped while ring not connected',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please connect your ring first'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+      return;
+    }
     setState(() {
       _measuring = true;
       _manualSpo2 = 0;
@@ -681,6 +700,13 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     });
   }
 
+  String _hourLabel(int hour) {
+    if (hour == 0) return '12am';
+    if (hour < 12) return '${hour}am';
+    if (hour == 12) return '12pm';
+    return '${hour - 12}pm';
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -789,24 +815,21 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
               const SizedBox(height: 16),
 
               // ── 4. Daily chart ─────────────────────────────────────────────
-              MetricChartCard(
+              ScrubbableChart(
+                values: _chartValues,
+                maxY: 100,
+                baseline: 85,
+                yLines: const [100, 97, 94, 85],
+                barColor: AppTheme.spo2Color.withValues(alpha: 0.88),
+                accent: AppTheme.spo2Color,
                 headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
                 rangeLabel: dailyRangeLabel,
                 yLabels: const ['100', '97', '94', '85'],
-                loadingAccent: AppTheme.spo2Color,
-                barCount: _chartValues.length,
                 xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                barCount: _chartValues.length,
                 loading: _loading || _loadingDay,
-                child: CustomPaint(
-                  painter: MetricBarPainter(
-                    values: _chartValues,
-                    maxY: 100,
-                    baseline: 85,
-                    yLines: const [100, 97, 94, 85],
-                    barColor: AppTheme.spo2Color.withValues(alpha: 0.88),
-                  ),
-                  child: const SizedBox.expand(),
-                ),
+                loadingAccent: AppTheme.spo2Color,
+                valueLabelBuilder: (i, v) => '${_hourLabel(i)} • $v%',
               ),
               if (_dayOffline && !_isToday) ...[
                 const SizedBox(height: 8),
@@ -859,24 +882,20 @@ RealTimeCard(
               const SizedBox(height: 20),
 
               // ── 7. 7-day trend ─────────────────────────────────────────────
-              MetricChartCard(
+              ScrubbableChart(
+                values: _trendValues,
+                maxY: 100,
+                baseline: 85,
+                yLines: const [100, 97, 94, 85],
+                barColor: AppTheme.spo2Color.withValues(alpha: 0.88),
+                accent: AppTheme.spo2Color,
                 headerLabel: 'LAST 7 DAYS TREND',
                 rangeLabel: trendRangeLabel,
                 yLabels: const ['100', '97', '94', '85'],
-                loadingAccent: AppTheme.spo2Color,
-                barCount: _trendValues.length,
                 xLabels: _trendXLabels(),
+                barCount: _trendValues.length,
                 loading: _loadingTrend,
-                child: CustomPaint(
-                  painter: MetricBarPainter(
-                    values: _trendValues,
-                    maxY: 100,
-                    baseline: 85,
-                    yLines: const [100, 97, 94, 85],
-                    barColor: AppTheme.spo2Color.withValues(alpha: 0.88),
-                  ),
-                  child: const SizedBox.expand(),
-                ),
+                loadingAccent: AppTheme.spo2Color,
               ),
               if (_trendOffline) ...[
                 const SizedBox(height: 8),

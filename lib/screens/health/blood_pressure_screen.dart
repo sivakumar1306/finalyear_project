@@ -15,7 +15,7 @@ import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../utils/bp_staging.dart';
 import '../../widgets/legend_dot.dart';
-import '../../widgets/metric_chart_card.dart';
+import '../../widgets/chart_scrubber.dart';
 import '../../widgets/metric_stat_card.dart';
 
 
@@ -407,6 +407,26 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
 
   Future<void> _startMeasurement() async {
     if (_measuring) return;
+    bool isConnected = false;
+    try {
+      isConnected = context.read<BleProvider>().isConnected;
+    } catch (_) {}
+    if (!isConnected) {
+      IncidentService.reportUnhandled(
+        source: 'blood_pressure_screen',
+        error: Exception('manual BP tapped while disconnected'),
+        customMessage: 'Measurement tapped while ring not connected',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please connect your ring first'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+      return;
+    }
     setState(() {
       _measuring = true;
       _manualSbp = 0;
@@ -733,21 +753,16 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               const SizedBox(height: 16),
 
               // ── 4. Daily chart ─────────────────────────────────────────────
-              MetricChartCard(
+              ScrubbableBPChart(
+                sbpValues: _chartSbp,
+                dbpValues: _chartDbp,
                 headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
                 rangeLabel: dailyRangeLabel,
                 yLabels: const ['160', '120', '80', '40'],
-                loadingAccent: AppTheme.bpColor,
-                barCount: _chartSbp.length,
                 xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                barCount: _chartSbp.length,
                 loading: _loading || _loadingDay,
-                child: CustomPaint(
-                  painter: _BPBarPainter(
-                    sbpValues: _chartSbp,
-                    dbpValues: _chartDbp,
-                  ),
-                  child: const SizedBox.expand(),
-                ),
+                loadingAccent: AppTheme.bpColor,
               ),
               if (_dayOffline && !_isToday) ...[
                 const SizedBox(height: 8),
@@ -810,27 +825,22 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               const SizedBox(height: 20),
 
               // ── 7. 7-day trend ─────────────────────────────────────────────
-              MetricChartCard(
+              ScrubbableBPChart(
+                sbpValues: _trendSbp,
+                dbpValues: _trendDbp,
                 headerLabel: 'LAST 7 DAYS TREND',
                 rangeLabel: trendRangeLabel,
                 yLabels: const ['160', '120', '80', '40'],
-                loadingAccent: AppTheme.bpColor,
-                barCount: _trendSbp.length,
                 xLabels: _trendXLabels(),
+                barCount: _trendSbp.length,
                 loading: _loadingTrend,
+                loadingAccent: AppTheme.bpColor,
                 footer: const Row(
                   children: [
                     LegendDot(color: AppTheme.bpColor, label: 'Systolic'),
                     SizedBox(width: 14),
                     LegendDot(color: AppTheme.softViolet, label: 'Diastolic'),
                   ],
-                ),
-                child: CustomPaint(
-                  painter: _BPBarPainter(
-                    sbpValues: _trendSbp,
-                    dbpValues: _trendDbp,
-                  ),
-                  child: const SizedBox.expand(),
                 ),
               ),
               if (_trendOffline) ...[
@@ -850,7 +860,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
 }
 
 // ── BP Bar Painter ─────────────────────────────────────────────────────────────
-
+// ignore: unused_element - kept for reference, superseded by _ScrubbableBPBarPainter in chart_scrubber.dart
 class _BPBarPainter extends CustomPainter {
   final List<int> sbpValues;
   final List<int> dbpValues;
@@ -982,7 +992,7 @@ class _RealTimeBPCard extends StatelessWidget {
           const SizedBox(height: 12),
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: enabled ? onTap : null,
+            onTap: measuring ? null : onTap,
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 14),

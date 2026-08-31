@@ -148,29 +148,151 @@ class _SleepScreenState extends State<SleepScreen> {
   // ── Ring fetch ───────────────────────────────────────────────────────────────
 
   Future<void> _fetchFromRing() async {
+    // Try primary: getTodaySleep (daily summary)
     try {
       final data = await _ble.getTodaySleep();
-      _parseSleepData(data);
-    } catch (_) {
-      await _loadDayFromDb();
+      if (data.isNotEmpty && data != '{}') {
+        final d = jsonDecode(data) as Map<String, dynamic>;
+        final hasOld = (d['totalSleepDuration'] as num? ?? 0).toInt() > 0;
+        final hasNew = d.containsKey('st') && (d['st'] as num? ?? 0).toInt() > 0;
+        if (hasOld || hasNew) {
+          _parseSleepData(data);
+          return;
+        }
+      }
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'sleep_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'getTodaySleep failed, trying syncSleep fallback',
+      );
     }
+    // Fallback 1: large-data sync (handles both SleepDisplay and SleepNewProto)
+    try {
+      final data = await _ble.syncSleep();
+      if (data.isNotEmpty && data != '{}' && data != '[]') {
+        // syncSleep may return either format; try parsing directly
+        // If it's a list wrapper, check first element
+        try {
+          final d = jsonDecode(data);
+          if (d is Map<String, dynamic> && (d.containsKey('totalSleepDuration') || d.containsKey('st'))) {
+            _parseSleepData(data);
+            return;
+          }
+        } catch (_) {}
+        // Some firmware returns empty list for syncSleep when no new data - try getSleep
+      }
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'sleep_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'syncSleep fallback failed',
+      );
+    }
+    // Fallback 2: getSleep for today (dayIndex 0) - explicit per-day fetch
+    try {
+      final data = await _ble.getSleep(0);
+      if (data.isNotEmpty && data != '{}') {
+        _parseSleepData(data);
+        return;
+      }
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'sleep_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: 'getSleep(0) fallback failed',
+      );
+    }
+    await _loadDayFromDb();
   }
 
-  void _parseSleepData(String jsonStr) {
+  void _parseSleepData(String jsonStr, {DateTime? date}) {
     try {
       final d = jsonDecode(jsonStr) as Map<String, dynamic>;
-      final total = (d['totalSleepDuration'] as num? ?? 0).toInt();
-      final deep = (d['deepDuration'] as num? ?? 0).toInt();
-      final light = (d['lightDuration'] as num? ?? 0).toInt();
-      final rem = (d['remDuration'] as num? ?? 0).toInt();
-      final awake = (d['awakeDuration'] as num? ?? 0).toInt();
-      final st = (d['sleepTime'] as num? ?? 0).toInt();
-      final et = (d['wakeTime'] as num? ?? 0).toInt();
+      int total = (d['totalSleepDuration'] as num? ?? 0).toInt();
+      int deep = (d['deepDuration'] as num? ?? 0).toInt();
+      int light = (d['lightDuration'] as num? ?? 0).toInt();
+      int rem = (d['remDuration'] as num? ?? 0).toInt();
+      int awake = (d['awakeDuration'] as num? ?? 0).toInt();
+      int st = (d['sleepTime'] as num? ?? 0).toInt();
+      int et = (d['wakeTime'] as num? ?? 0).toInt();
+      dynamic rawList = d['list'];
+
+      // New proto fallback: st/et + list with d/t (QRing large-data path)
+      // This is what QRing's syncSleep (LargeDataHandler.syncSleepList) returns
+      // when the ring firmware uses SleepNewProtoResp instead of SleepDisplay.
+      if ((total <= 0 || rawList == null) && d.containsKey('st')) {
+        st = (d['st'] as num? ?? st).toInt();
+        et = (d['et'] as num? ?? et).toInt();
+        rawList = d['list'];
+        // Some new-proto payloads nest list inside data/stList, try alternative keys
+        rawList ??= d['data'];
+      }
+      // Also handle case where JSON is directly the new-proto map without wrapper
+      // e.g. from syncSleep's sleepNewProtoToMap: {st,et,list:[{d,t}]}
+      if (total <= 0 && st > 0 && rawList != null) {
+        final segsTmp = _parseSegments(rawList, st, et);
+        if (segsTmp.isNotEmpty) {
+          int calcTotal = 0, calcDeep = 0, calcLight = 0, calcRem = 0, calcAwake = 0;
+          for (final s in segsTmp) {
+            final dur = s['end']! - s['start']!;
+            if (dur <= 0) continue;
+            calcTotal += dur;
+            switch (s['type']) {
+              case _kDeep:
+                calcDeep += dur;
+                break;
+              case _kLight:
+                calcLight += dur;
+                break;
+              case _kRem:
+                calcRem += dur;
+                break;
+              case _kAwake:
+                calcAwake += dur;
+                break;
+            }
+          }
+          if (calcTotal > 0) {
+            if (total <= 0) total = calcTotal;
+            if (deep == 0) deep = calcDeep;
+            if (light == 0) light = calcLight;
+            if (rem == 0) rem = calcRem;
+            if (awake == 0) awake = calcAwake;
+            final score = _calcScore(total, deep, rem, st, et);
+            if (!mounted) return;
+            setState(() {
+              _totalDuration = total;
+              _deepDuration = deep;
+              _lightDuration = light;
+              _remDuration = rem;
+              _awakeDuration = awake;
+              _sleepTime = st;
+              _wakeTime = et;
+              _sleepScore = score;
+              _segments = segsTmp;
+            });
+            _saveToDb(total, deep, light, rem, awake, score, st, et, date: date ?? _selectedDate);
+            return;
+          }
+        }
+      }
+
       if (total <= 0) {
+        // Try Supabase fallback but also report to Supabase for visibility
+        IncidentService.reportUnhandled(
+          source: 'sleep_screen',
+          error: Exception('sleep total <=0'),
+          customMessage: 'getTodaySleep returned empty - falling back to DB',
+          extraInfo: {'raw': jsonStr.substring(0, jsonStr.length.clamp(0, 500))},
+        );
         _loadDayFromDb();
         return;
       }
-      final segs = _parseSegments(d['list']);
+      final segs = _parseSegments(rawList, st, et);
       final score = _calcScore(total, deep, rem, st, et);
       if (!mounted) return;
       setState(() {
@@ -184,23 +306,130 @@ class _SleepScreenState extends State<SleepScreen> {
         _sleepScore = score;
         _segments = segs;
       });
-      _saveToDb(total, deep, light, rem, awake, score, st, et);
-    } catch (_) {
+      _saveToDb(total, deep, light, rem, awake, score, st, et, date: date ?? _selectedDate);
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'sleep_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_parseSleepData failed',
+        extraInfo: {'raw': jsonStr.substring(0, jsonStr.length.clamp(0, 500))},
+      );
       _loadDayFromDb();
     }
   }
 
-  List<Map<String, int>> _parseSegments(dynamic rawList) {
+  List<Map<String, int>> _parseSegments(dynamic rawList, [int st = 0, int et = 0]) {
     if (rawList == null) return [];
     final segs = <Map<String, int>>[];
-    for (final item in rawList as List<dynamic>) {
-      final m = item as Map<String, dynamic>;
-      final s = (m['sleepStart'] as num? ?? 0).toInt();
-      final e = (m['sleepEnd'] as num? ?? 0).toInt();
-      final t = (m['type'] as num? ?? _kLight).toInt();
-      if (s > 0 && e > s) segs.add({'start': s, 'end': e, 'type': t});
+    // Detect new-proto vs old by inspecting first element keys
+    final list = rawList as List<dynamic>;
+    if (list.isEmpty) return [];
+    final first = list.first as Map<String, dynamic>;
+    final isNewProto = first.containsKey('d') || first.containsKey('t');
+    if (isNewProto) {
+      // New proto: each item {d, t} where d is either timestamp or duration
+      // Heuristic: if d > 1000000000 treat as absolute timestamp (sec),
+      // otherwise treat as duration (minutes if <500 else seconds)
+      bool isTimestamp = false;
+      final firstD = (first['d'] as num? ?? 0).toInt();
+      if (firstD > 1000000000) isTimestamp = true;
+      if (isTimestamp) {
+        for (final item in list) {
+          final m = item as Map<String, dynamic>;
+          final s = (m['d'] as num? ?? 0).toInt();
+          final t = (m['t'] as num? ?? _kLight).toInt();
+          // Need end - use next item's d or et
+          // Since we don't have explicit end, infer: segment ends at next start or et
+          // For now treat d as start, next d as end; last segment ends at et
+          // This will be corrected in post-loop
+          if (s > 0) segs.add({'start': s, 'end': s + 1800, 'type': t}); // placeholder 30min
+        }
+        // Reconstruct ends correctly
+        for (int i = 0; i < segs.length; i++) {
+          final start = segs[i]['start']!;
+          int end;
+          if (i + 1 < segs.length) {
+            end = segs[i + 1]['start']!;
+          } else {
+            end = et > start ? et : start + 1800;
+          }
+          if (end > start) {
+            segs[i] = {'start': start, 'end': end, 'type': segs[i]['type']!};
+          }
+        }
+        // If placeholder still, fallback to duration mode
+        if (segs.isEmpty || segs.any((s) => s['end']! - s['start']! > 3600 * 3)) {
+          // Likely mis-parsed, try duration mode instead
+          segs.clear();
+          int cursor = st > 0 ? st : 0;
+          for (final item in list) {
+            final m = item as Map<String, dynamic>;
+            int dVal = (m['d'] as num? ?? 0).toInt();
+            final t = (m['t'] as num? ?? _kLight).toInt();
+            if (dVal <= 0) continue;
+            int durSec;
+            if (dVal < 500) {
+              durSec = dVal * 60; // minutes -> seconds
+            } else if (dVal < 10000) {
+              durSec = dVal; // seconds
+            } else {
+              durSec = dVal; // already seconds
+            }
+            final s = cursor;
+            final e = cursor + durSec;
+            segs.add({'start': s, 'end': e, 'type': t});
+            cursor = e;
+          }
+        }
+      } else {
+        // Duration mode
+        int cursor = st > 0 ? st : 0;
+        // If st is 0, use 0 as base; segments will be relative
+        for (final item in list) {
+          final m = item as Map<String, dynamic>;
+          int dVal = (m['d'] as num? ?? 0).toInt();
+          final t = (m['t'] as num? ?? _kLight).toInt();
+          if (dVal <= 0) continue;
+          int durSec;
+          if (dVal < 500) {
+            durSec = dVal * 60;
+          } else if (dVal < 10000) {
+            durSec = dVal;
+          } else {
+            durSec = dVal;
+          }
+          final s = cursor;
+          final e = cursor + durSec;
+          segs.add({'start': s, 'end': e, 'type': t});
+          cursor = e;
+        }
+        // If st was 0, shift so last segment ends at et if available
+        if (st == 0 && et > 0 && segs.isNotEmpty) {
+          final shift = et - segs.last['end']!;
+          if (shift != 0) {
+            for (int i = 0; i < segs.length; i++) {
+              segs[i] = {
+                'start': segs[i]['start']! + shift,
+                'end': segs[i]['end']! + shift,
+                'type': segs[i]['type']!
+              };
+            }
+          }
+        }
+      }
+      return segs.where((s) => s['end']! > s['start']!).toList();
+    } else {
+      // Old proto: sleepStart/sleepEnd/type
+      for (final item in list) {
+        final m = item as Map<String, dynamic>;
+        final s = (m['sleepStart'] as num? ?? m['start'] as num? ?? 0).toInt();
+        final e = (m['sleepEnd'] as num? ?? m['end'] as num? ?? 0).toInt();
+        final t = (m['type'] as num? ?? m['t'] as num? ?? _kLight).toInt();
+        if (s > 0 && e > s) segs.add({'start': s, 'end': e, 'type': t});
+      }
+      return segs;
     }
-    return segs;
   }
 
   int _calcScore(int total, int deep, int rem, int st, int et) {
@@ -217,6 +446,66 @@ class _SleepScreenState extends State<SleepScreen> {
   // ── DB ───────────────────────────────────────────────────────────────────────
 
   Future<void> _loadDayFromDb() async {
+    // Try ring first for recent dates when connected (mirrors QRing's historical fetch)
+    // QRing stores ~7 days on-device; Supabase is fallback/cache for offline
+    try {
+      bool isConnected = false;
+      try {
+        isConnected = context.read<BleProvider>().isConnected;
+      } catch (_) {}
+      final today = DateTime.now();
+      final selDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+      final todayDay = DateTime(today.year, today.month, today.day);
+      final daysDiff = todayDay.difference(selDay).inDays;
+      if (isConnected && daysDiff >= 0 && daysDiff < 7) {
+        try {
+          final ringData = await _ble.getSleep(daysDiff);
+          if (ringData.isNotEmpty && ringData != '{}' && ringData != '[]') {
+            final d = jsonDecode(ringData) as Map<String, dynamic>;
+            final hasOld = (d['totalSleepDuration'] as num? ?? 0).toInt() > 0;
+            final hasNew = d.containsKey('st') && (d['st'] as num? ?? 0).toInt() > 0;
+            if (hasOld || hasNew) {
+              // Directly parse without recursing to DB on failure
+              // Reuse _parseSleepData but guard against fallback loop by checking
+              // if parse will succeed - we already know has data, so just parse
+              _parseSleepData(ringData, date: _selectedDate);
+              return;
+            }
+          }
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'sleep_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: 'getSleep($daysDiff) fallback failed',
+          );
+        }
+        // Also try getSleepList as broader fallback (QRing sync path)
+        try {
+          final listData = await _ble.getSleepList(daysDiff, 1);
+          if (listData.isNotEmpty && listData != '[]' && listData != '{}') {
+            final decoded = jsonDecode(listData);
+            if (decoded is List && decoded.isNotEmpty) {
+              final first = decoded.first as Map<String, dynamic>;
+              // getSleepList returns DayIndexedData with 'data' field containing sleep JSON
+              final inner = first['data'] as Map<String, dynamic>?;
+              if (inner != null && (inner['totalSleepDuration'] != null || inner['st'] != null)) {
+                _parseSleepData(jsonEncode(inner), date: _selectedDate);
+                return;
+              }
+            }
+          }
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'sleep_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: 'getSleepList fallback failed',
+          );
+        }
+      }
+    } catch (_) {}
+
     final user = SupabaseService.currentUser;
     if (user == null) return;
     setState(() => _dbOffline = false);
@@ -286,6 +575,100 @@ class _SleepScreenState extends State<SleepScreen> {
     if (user == null) return;
     final now = DateTime.now();
     final from = now.subtract(const Duration(days: 6));
+    // Try ring first when connected (mirrors QRing's historical sync)
+    try {
+      bool isConnected = false;
+      try {
+        isConnected = context.read<BleProvider>().isConnected;
+      } catch (_) {}
+      if (isConnected) {
+        try {
+          final ringJson = await _ble.getSleepList(0, 7);
+          if (ringJson.isNotEmpty && ringJson != '[]' && ringJson != '{}') {
+            final decoded = jsonDecode(ringJson);
+            if (decoded is List && decoded.isNotEmpty) {
+              final List<Map<String, dynamic>> ringRows = [];
+              for (final entry in decoded) {
+                final m = entry as Map<String, dynamic>;
+                final dayIdx = (m['dayIndex'] as num? ?? m['day_index'] as num? ?? -1).toInt();
+                final data = m['data'] as Map<String, dynamic>?;
+                if (data == null) continue;
+                // Support both old (totalSleepDuration) and new (st/et + list d/t) formats
+                int total = (data['totalSleepDuration'] as num? ?? 0).toInt();
+                int st = (data['sleepTime'] as num? ?? data['st'] as num? ?? 0).toInt();
+                int et = (data['wakeTime'] as num? ?? data['et'] as num? ?? 0).toInt();
+                if (total <= 0 && st > 0 && data['list'] != null) {
+                  // New proto: compute from segments
+                  final segs = _parseSegments(data['list'], st, et);
+                  int calcTotal = 0;
+                  for (final s in segs) calcTotal += s['end']! - s['start']!;
+                  if (calcTotal > 0) total = calcTotal;
+                }
+                if (total <= 0) continue;
+                final d = now.subtract(Duration(days: dayIdx));
+                final dateStr =
+                    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+                final deep = (data['deepDuration'] as num? ?? 0).toInt();
+                final light = (data['lightDuration'] as num? ?? 0).toInt();
+                final rem = (data['remDuration'] as num? ?? 0).toInt();
+                final score = (total > 0 && deep >= 0 && rem >= 0) ? _calcScore(total, deep, rem, st, et) : 0;
+                ringRows.add({
+                  'date': dateStr,
+                  'total_duration': total,
+                  'deep_duration': deep,
+                  'light_duration': light,
+                  'rem_duration': rem,
+                  'sleep_score': score,
+                });
+                // Cache to Supabase for offline use (best-effort)
+                try {
+                  await SupabaseService.upsertSleep(
+                    userId: user.id,
+                    date: DateTime(d.year, d.month, d.day),
+                    totalDuration: total,
+                    deepDuration: deep,
+                    lightDuration: light,
+                    remDuration: rem,
+                    awakeDuration: (data['awakeDuration'] as num? ?? 0).toInt(),
+                    sleepScore: score,
+                    sleepTime: st,
+                    wakeTime: et,
+                  );
+                } catch (_) {}
+              }
+              if (ringRows.isNotEmpty) {
+                // Merge ring rows with existing Supabase rows, preferring ring for recent days
+                try {
+                  final supaRows = await SupabaseService.getSleepHistory(
+                    userId: user.id,
+                    from: DateTime(from.year, from.month, from.day),
+                    to: DateTime(now.year, now.month, now.day),
+                  );
+                  final byDate = {for (final r in supaRows) r['date'] as String: r};
+                  for (final r in ringRows) byDate[r['date'] as String] = r;
+                  final merged = byDate.values.toList()
+                    ..sort((a, b) => (a['date'] as String).compareTo(b['date'] as String));
+                  if (!mounted) return;
+                  setState(() => _historyRows = merged);
+                  return;
+                } catch (_) {
+                  if (!mounted) return;
+                  setState(() => _historyRows = ringRows);
+                  return;
+                }
+              }
+            }
+          }
+        } catch (e, st) {
+          IncidentService.reportUnhandled(
+            source: 'sleep_screen',
+            error: e,
+            stackTrace: st,
+            customMessage: 'getSleepList history fallback failed',
+          );
+        }
+      }
+    } catch (_) {}
     try {
       final rows = await SupabaseService.getSleepHistory(
         userId: user.id,
@@ -307,14 +690,15 @@ class _SleepScreenState extends State<SleepScreen> {
     int awake,
     int score,
     int st,
-    int et,
-  ) async {
+    int et, {
+    DateTime? date,
+  }) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
     try {
       await SupabaseService.upsertSleep(
         userId: user.id,
-        date: DateTime.now(),
+        date: date ?? DateTime.now(),
         totalDuration: total,
         deepDuration: deep,
         lightDuration: light,

@@ -73,7 +73,7 @@ class RealTimeCard extends StatelessWidget {
           const SizedBox(height: 12),
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: enabled ? onTap : null,
+            onTap: measuring ? null : onTap,
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 14),

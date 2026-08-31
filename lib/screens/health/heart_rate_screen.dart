@@ -15,8 +15,7 @@ import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
-import '../../widgets/metric_bar_painter.dart';
-import '../../widgets/metric_chart_card.dart';
+import '../../widgets/chart_scrubber.dart';
 import '../../widgets/metric_stat_card.dart';
 
 
@@ -459,6 +458,26 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
 
   Future<void> _startMeasurement() async {
     if (_measuring) return;
+    bool isConnected = false;
+    try {
+      isConnected = context.read<BleProvider>().isConnected;
+    } catch (_) {}
+    if (!isConnected) {
+      IncidentService.reportUnhandled(
+        source: 'heart_rate_screen',
+        error: Exception('manual HR tapped while disconnected'),
+        customMessage: 'Measurement tapped while ring not connected',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please connect your ring first'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+      return;
+    }
     setState(() {
       _measuring = true;
       _manualHr = 0;
@@ -660,6 +679,13 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     });
   }
 
+  String _hourLabel(int hour) {
+    if (hour == 0) return '12am';
+    if (hour < 12) return '${hour}am';
+    if (hour == 12) return '12pm';
+    return '${hour - 12}pm';
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────────
 
   @override
@@ -766,23 +792,20 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
               const SizedBox(height: 16),
 
               // ── 4. Daily chart ─────────────────────────────────────────────
-              MetricChartCard(
+              ScrubbableChart(
+                values: _chartValues,
+                maxY: 120,
+                yLines: const [120, 100, 80, 60],
+                barColor: AppTheme.hrColor.withValues(alpha: 0.88),
+                accent: AppTheme.hrColor,
                 headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
                 rangeLabel: dailyRangeLabel,
                 yLabels: const ['120', '100', '80', '60'],
-                loadingAccent: AppTheme.hrColor,
-                barCount: _chartValues.length,
                 xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                barCount: _chartValues.length,
                 loading: _loading || _loadingDay,
-                child: CustomPaint(
-                  painter: MetricBarPainter(
-                    values: _chartValues,
-                    maxY: 120,
-                    yLines: const [120, 100, 80, 60],
-                    barColor: AppTheme.hrColor.withValues(alpha: 0.88),
-                  ),
-                  child: const SizedBox.expand(),
-                ),
+                loadingAccent: AppTheme.hrColor,
+                valueLabelBuilder: (i, v) => '${_hourLabel(i)} • $v bpm',
               ),
               if (_dayOffline && !_isToday) ...[
                 const SizedBox(height: 8),
@@ -835,23 +858,19 @@ RealTimeCard(
               const SizedBox(height: 20),
 
               // ── 7. 7-day trend ─────────────────────────────────────────────
-              MetricChartCard(
+              ScrubbableChart(
+                values: _trendValues,
+                maxY: 120,
+                yLines: const [120, 100, 80, 60],
+                barColor: AppTheme.hrColor.withValues(alpha: 0.88),
+                accent: AppTheme.hrColor,
                 headerLabel: 'LAST 7 DAYS TREND',
                 rangeLabel: trendRangeLabel,
                 yLabels: const ['120', '100', '80', '60'],
-                loadingAccent: AppTheme.hrColor,
-                barCount: _trendValues.length,
                 xLabels: _trendXLabels(),
+                barCount: _trendValues.length,
                 loading: _loadingTrend,
-                child: CustomPaint(
-                  painter: MetricBarPainter(
-                    values: _trendValues,
-                    maxY: 120,
-                    yLines: const [120, 100, 80, 60],
-                    barColor: AppTheme.hrColor.withValues(alpha: 0.88),
-                  ),
-                  child: const SizedBox.expand(),
-                ),
+                loadingAccent: AppTheme.hrColor,
               ),
               if (_trendOffline) ...[
                 const SizedBox(height: 8),

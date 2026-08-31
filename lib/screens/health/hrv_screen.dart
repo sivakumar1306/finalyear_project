@@ -18,8 +18,7 @@ import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/legend_dot.dart';
-import '../../widgets/metric_bar_painter.dart';
-import '../../widgets/metric_chart_card.dart';
+import '../../widgets/chart_scrubber.dart';
 import '../../widgets/metric_stat_card.dart';
 
 
@@ -275,6 +274,26 @@ class _HrvScreenState extends State<HrvScreen> {
 
   Future<void> _startMeasurement() async {
     if (_measuring) return;
+    bool isConnected = false;
+    try {
+      isConnected = context.read<BleProvider>().isConnected;
+    } catch (_) {}
+    if (!isConnected) {
+      IncidentService.reportUnhandled(
+        source: 'hrv_screen',
+        error: Exception('manual HRV tapped while disconnected'),
+        customMessage: 'Measurement tapped while ring not connected',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please connect your ring first'),
+            backgroundColor: AppTheme.danger,
+          ),
+        );
+      }
+      return;
+    }
     setState(() {
       _measuring = true;
       _manualHrv = 0;
@@ -714,6 +733,16 @@ class _HrvScreenState extends State<HrvScreen> {
     });
   }
 
+  String _halfHourLabel(int slot) {
+    final minutes = slot * 30;
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    final h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+    final ampm = h < 12 ? 'am' : 'pm';
+    final mm = m == 0 ? '00' : '30';
+    return '$h12:$mm$ampm';
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -848,25 +877,20 @@ class _HrvScreenState extends State<HrvScreen> {
                 const SizedBox(height: 16),
 
                 // ── 3. Daily chart ─────────────────────────────────────────
-                MetricChartCard(
-                  headerLabel: hasData
-                      ? 'TODAY'
-                      : (_isToday ? 'NO DATA YET' : _dateLabel()),
+                ScrubbableChart(
+                  values: _chartValues,
+                  maxY: 100,
+                  yLines: const [100, 80, 60, 40, 20],
+                  colorFor: (v) => _hrvBarColor(v).withValues(alpha: 0.88),
+                  accent: AppTheme.hrvColor,
+                  headerLabel: hasData ? 'TODAY' : (_isToday ? 'NO DATA YET' : _dateLabel()),
                   rangeLabel: dailyRangeLabel,
                   yLabels: const ['100', '80', '60', '40'],
-                  loadingAccent: AppTheme.hrvColor,
-                  barCount: _chartValues.length,
                   xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                  barCount: _chartValues.length,
                   loading: _loading || _loadingDay,
-                  child: CustomPaint(
-                    painter: MetricBarPainter(
-                      values: _chartValues,
-                      maxY: 100,
-                      yLines: const [100, 80, 60, 40, 20],
-                      colorFor: (v) => _hrvBarColor(v).withValues(alpha: 0.88),
-                    ),
-                    child: const SizedBox.expand(),
-                  ),
+                  loadingAccent: AppTheme.hrvColor,
+                  valueLabelBuilder: (i, v) => '${_halfHourLabel(i)} • $v ms',
                 ),
                 if (_dayOffline && !_isToday) ...[
                   const SizedBox(height: 8),
@@ -919,14 +943,19 @@ class _HrvScreenState extends State<HrvScreen> {
                 const SizedBox(height: 20),
 
                 // ── 5. 7-day trend ─────────────────────────────────────────
-                MetricChartCard(
+                ScrubbableChart(
+                  values: _trendValues,
+                  maxY: 100,
+                  yLines: const [100, 80, 60, 40, 20],
+                  colorFor: (v) => _hrvBarColor(v).withValues(alpha: 0.88),
+                  accent: AppTheme.hrvColor,
                   headerLabel: 'LAST 7 DAYS TREND',
                   rangeLabel: trendRangeLabel,
                   yLabels: const ['100', '80', '60', '40'],
-                  loadingAccent: AppTheme.hrvColor,
-                  barCount: _trendValues.length,
                   xLabels: _trendXLabels(),
+                  barCount: _trendValues.length,
                   loading: _loadingTrend,
+                  loadingAccent: AppTheme.hrvColor,
                   footer: const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
@@ -936,15 +965,6 @@ class _HrvScreenState extends State<HrvScreen> {
                       LegendDot(color: AppTheme.success, label: 'Good'),
                       LegendDot(color: AppTheme.hrvColor, label: 'Excellent'),
                     ],
-                  ),
-                  child: CustomPaint(
-                    painter: MetricBarPainter(
-                      values: _trendValues,
-                      maxY: 100,
-                      yLines: const [100, 80, 60, 40, 20],
-                      colorFor: (v) => _hrvBarColor(v).withValues(alpha: 0.88),
-                    ),
-                    child: const SizedBox.expand(),
                   ),
                 ),
                 if (_trendOffline) ...[
