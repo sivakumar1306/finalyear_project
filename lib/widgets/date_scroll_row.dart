@@ -24,8 +24,29 @@ class _DateScrollRowState extends State<DateScrollRow> {
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
 
+  /// 90-day rolling window ending at today (inclusive) so the row always
+  /// spans month boundaries. If [selected] is older than the window we
+  /// extend the start to include it — guarantees any cached history is
+  /// reachable even after a month change (fixes Sep-1 -> Aug-31 case).
+  static const _windowDays = 90;
+
+  List<DateTime> _datesFor(DateTime selected) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final sel = DateTime(selected.year, selected.month, selected.day);
+    var start = today.subtract(const Duration(days: _windowDays - 1));
+    if (sel.isBefore(start)) start = sel;
+    // If selected is in the future (should not happen) clamp to today.
+    final end = sel.isAfter(today) ? sel : today;
+    final count = end.difference(start).inDays + 1;
+    return List.generate(count, (i) => start.add(Duration(days: i)));
+  }
+
   double _calcInitialOffset(DateTime date) {
-    final index = date.day - 1;
+    final dates = _datesFor(date);
+    final sel = DateTime(date.year, date.month, date.day);
+    final idx = dates.indexWhere((d) => _sameDay(d, sel));
+    final index = idx == -1 ? dates.length - 1 : idx;
     final target = (index * 48.0) - 120.0;
     return target < 0 ? 0.0 : target;
   }
@@ -81,10 +102,7 @@ class _DateScrollRowState extends State<DateScrollRow> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
-    final year = widget.selectedDate.year;
-    final month = widget.selectedDate.month;
-    final daysInMonth = DateTime(year, month + 1, 0).day;
-    final dates = List.generate(daysInMonth, (i) => DateTime(year, month, i + 1));
+    final dates = _datesFor(widget.selectedDate);
 
     return SizedBox(
       height: 58,
