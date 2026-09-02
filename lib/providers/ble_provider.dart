@@ -544,14 +544,14 @@ Future<void> loadGestureSetting() async {
 
     if (enabled && _battery > 0 && _battery <= _kLowBatteryThreshold) {
       _maybeAlert(
-        'Low Battery Prompt',
+        'Low Battery',
         true,
         title: 'Ring Battery Low',
         message: 'Your ring is at $_battery% battery.',
         vital: 'heart_rate',
       );
     } else if (!enabled) {
-      _activeAlerts.remove('Low Battery Prompt');
+      _activeAlerts.remove('Low Battery');
     }
     notifyListeners();
   }
@@ -565,7 +565,7 @@ void _onBatteryPushEvent(Map<String, dynamic> data) {
     notifyListeners();
     if (!charging) {
       _maybeAlert(
-        'Low Battery Prompt',
+        'Low Battery',
         _lowBatteryPromptEnabled && percent <= _kLowBatteryThreshold,
         title: 'Ring Battery Low',
         message: 'Your ring is at $percent% battery.',
@@ -574,7 +574,7 @@ void _onBatteryPushEvent(Map<String, dynamic> data) {
     } else {
       // Charging again — clear the edge so the prompt can fire once more
       // next time the ring drops below the threshold.
-      _activeAlerts.remove('Low Battery Prompt');
+      _activeAlerts.remove('Low Battery');
     }
   }
 
@@ -2162,7 +2162,7 @@ Future<void> syncTodayStepsFromRing() async {
       notifyListeners();
       if (_battery > 0) {
         _maybeAlert(
-          'Low Battery Prompt',
+          'Low Battery',
           _lowBatteryPromptEnabled && _battery <= _kLowBatteryThreshold,
           title: 'Ring Battery Low',
           message: 'Your ring is at $_battery% battery.',
