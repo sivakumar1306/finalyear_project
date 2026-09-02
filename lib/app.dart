@@ -8,7 +8,7 @@ import 'screens/health/blood_oxygen_screen.dart';
 import 'screens/health/steps_screen.dart';
 import 'screens/health/sleep_screen.dart';
 import 'screens/health/hrv_screen.dart';
-import 'screens/health/pressure_screen.dart';
+import 'screens/health/stress_screen.dart';
 import 'screens/health/temperature_screen.dart';
 import 'screens/health/womens_health_screen.dart';
 import 'screens/workouts/workouts_screen.dart';
@@ -74,7 +74,8 @@ class SundrApp extends StatelessWidget {
         '/steps': (_) => const StepsScreen(),
         '/sleep': (_) => const SleepScreen(),
         '/hrv': (_) => const HrvScreen(),
-        '/pressure': (_) => const PressureScreen(),
+        '/pressure': (_) => const StressScreen(),
+        '/stress': (_) => const StressScreen(),
         '/temperature': (_) => const TemperatureScreen(),
         '/workouts': (_) => const WorkoutsScreen(),
         '/device-settings': (_) => const DeviceSettingsScreen(),

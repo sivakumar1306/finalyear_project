@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'app_typography.dart';
 
@@ -125,29 +126,33 @@ class _DateScrollRowState extends State<DateScrollRow> {
               child: InkWell(
                 borderRadius: BorderRadius.circular(999),
                 onTap: isFuture ? null : () => widget.onDateSelected(date),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeOut,
-                  alignment: Alignment.center,
-                  constraints: BoxConstraints(
-                    minWidth: isSelected ? 96 : 44,
-                    minHeight: 40,
-                  ),
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isSelected ? 16 : 12,
-                    vertical: 8,
-                  ),
-                  decoration: isSelected
-                      ? BoxDecoration(
-                          color: const Color(0xFF202020),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: const Color(0xFF363636),
-                            width: 0.5,
-                          ),
-                        )
-                      : null,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      curve: Curves.easeOut,
+                      alignment: Alignment.center,
+                      constraints: BoxConstraints(
+                        minWidth: isSelected ? 96 : 44,
+                        minHeight: 40,
+                      ),
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isSelected ? 16 : 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0x14FFFFFF) // rgba 0.08
+                            : const Color(0x08FFFFFF), // rgba 0.03
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: const Color(0x14FFFFFF), // rgba 0.08
+                          width: 0.5,
+                        ),
+                      ),
                   child: Text(
                     isSelected
                         ? (isToday
@@ -165,6 +170,8 @@ class _DateScrollRowState extends State<DateScrollRow> {
                     ),
                   ),
                 ),
+              ),
+            ),
               ),
             ),
           );

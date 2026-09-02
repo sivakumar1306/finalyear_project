@@ -55,7 +55,7 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
   Future<void> _invite() async {
     final user = SupabaseService.currentUser;
     final code = user?.id.substring(0, 8) ?? 'SUNDR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
-    await Share.share('Join me on SUNDR — invite code $code — https://sundr.app/invite/$code');
+    await SharePlus.instance.share(ShareParams(text: 'Join me on SUNDR — invite code $code — https://sundr.app/invite/$code'));
   }
 
   Future<void> _addFriend() async {

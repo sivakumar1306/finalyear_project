@@ -60,16 +60,18 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
   }
 
   Future<void> _connect() async {
-    if (_enabled.isEmpty) {
-      _showSnack('Select at least one data type to sync.');
-      return;
-    }
+    // Requirement: when Health Connect is enabled, request ALL permissions at once.
+    // Granular on/off happens afterwards via the per-type switches.
     setState(() => _busy = true);
-    final ok = await _service.requestAuthorization(_enabled);
+    final allTypes = HealthSyncType.values.toSet();
+    final ok = await _service.requestAuthorization(allTypes);
     if (!mounted) return;
     setState(() => _busy = false);
     if (ok) {
-      _showSnack('Health Connect connected.');
+      // After bulk grant, enable all types locally — user can then toggle granularly.
+      _enabled = allTypes;
+      await _service.saveEnabledTypes(_enabled);
+      _showSnack('Health Connect connected — all permissions granted.');
       await _refreshGrantedAndToday();
     } else {
       _showSnack('Authorization incomplete — some permissions were not granted.');
@@ -95,16 +97,20 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
     await _service.saveEnabledTypes(_enabled);
 
     if (value && !_granted.contains(type)) {
-      // Invoke Google's native Health Connect permission grant screen for the
-      // newly enabled type (also covers the "Connect" first-run flow).
+      // Granular enable: request just this type. The bulk “all” was already
+      // asked at initial connect, so this only fires for types enabled after
+      // that or if the user revoked in system settings.
       setState(() => _busy = true);
-      final ok = await _service.requestAuthorization(_enabled);
+      final ok = await _service.requestAuthorization({type});
       if (!mounted) return;
       setState(() => _busy = false);
       if (ok) {
         _showSnack('${type.label} permission granted.');
       } else {
         _showSnack('${type.label} permission not granted — nothing will sync.');
+        // Revert the toggle if not granted — keeps UI honest.
+        setState(() => _enabled = {..._enabled}..remove(type));
+        await _service.saveEnabledTypes(_enabled);
       }
       await _refreshGrantedAndToday();
     } else {

@@ -15,6 +15,7 @@ import '../../widgets/screenshot_share.dart';
 import '../settings/goal_setting_screen.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/glass_card.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/legend_dot.dart';
@@ -1061,13 +1062,7 @@ class _SleepScreenState extends State<SleepScreen> {
               const SizedBox(height: 10),
 
               // ── 6. Sleep summary ──────────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.card,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.div),
-                ),
+              GlassCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1201,13 +1196,7 @@ class _StagesBreakdownCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final total = totalDuration > 0 ? totalDuration : 1;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.div),
-      ),
+    return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

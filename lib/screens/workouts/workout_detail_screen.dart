@@ -153,7 +153,7 @@ class WorkoutDetailScreen extends StatelessWidget {
                           '👟 Steps: $steps\n'
                           '📍 Distance: ${(distanceM / 1000).toStringAsFixed(2)} km\n'
                           'Tracked with QRing Vital Monitoring App.';
-                      Share.share(summaryText, subject: '$label Workout');
+                      SharePlus.instance.share(ShareParams(text: summaryText, subject: '$label Workout'));
                     },
                   ),
                 ],

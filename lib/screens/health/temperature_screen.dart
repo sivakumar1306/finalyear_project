@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/incident_service.dart';
+import '../../services/local_vitals_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/unit_prefs.dart';
 import '../../theme/app_theme.dart';
@@ -46,6 +48,7 @@ class TemperatureScreen extends StatefulWidget {
 
 class _TemperatureScreenState extends State<TemperatureScreen> {
   final _ble = BleService();
+  final _local = LocalVitalsService();
   final _moreButtonKey = GlobalKey();
   final _screenshotKey = GlobalKey();
 
@@ -269,25 +272,18 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   // ── Supabase fetches ──────────────────────────────────────────────────────
 
   Future<void> _loadDayFromSupabase(DateTime date) async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
     setState(() {
       _loadingDay = true;
       _dayOffline = false;
     });
     try {
-      final rows = await SupabaseService.getTempReadings(
-        userId: user.id,
-        from: DateTime(date.year, date.month, date.day),
-        to: DateTime(date.year, date.month, date.day, 23, 59, 59),
-      );
-
+      // 1) Local Room — hourly chart + summary, works across month boundaries.
+      final local = await _local.getDaySummary('temperature', date);
       final dayStart = DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
       final dayEnd = DateTime(date.year, date.month, date.day, 23, 59, 59, 999).millisecondsSinceEpoch;
       final readingsJson = await _ble.getReadings('temperature', fromMs: dayStart, toMs: dayEnd, limit: 1000);
       final decoded = jsonDecode(readingsJson);
       final list = decoded is List ? decoded : <dynamic>[];
-      
       final hourly = List<double>.filled(24, 0);
       final sums = List<double>.filled(24, 0);
       final counts = List<int>.filled(24, 0);
@@ -303,68 +299,151 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
       for (int h = 0; h < 24; h++) {
         if (counts[h] > 0) hourly[h] = sums[h] / counts[h];
       }
-
-      final vals = rows
-          .map((r) => (r['value_c'] as num? ?? 0).toDouble())
-          .where((v) => v > 0)
-          .toList();
       if (!mounted) return;
-      setState(() {
-        _dayAvg = vals.isEmpty ? 0 : vals.reduce((a, b) => a + b) / vals.length;
-        _dayMin = vals.isEmpty ? 0 : vals.reduce((a, b) => a < b ? a : b);
-        _dayMax = vals.isEmpty ? 0 : vals.reduce((a, b) => a > b ? a : b);
-        if (_selectedDate == date) _chartValues = hourly;
-      });
-    } catch (e) {
-      if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
+      if (_local.hasData(local)) {
+        setState(() {
+          _dayAvg = (local['avg'] as num?)?.toDouble() ?? 0;
+          _dayMin = (local['min'] as num?)?.toDouble() ?? 0;
+          _dayMax = (local['max'] as num?)?.toDouble() ?? 0;
+          if (_selectedDate.year == date.year && _selectedDate.month == date.month && _selectedDate.day == date.day) {
+            _chartValues = hourly;
+          }
+        });
+      } else if (hourly.any((v) => v > 0) && _selectedDate.year == date.year && _selectedDate.month == date.month && _selectedDate.day == date.day) {
+        setState(() => _chartValues = hourly);
+      } else if (hourly.any((v) => v > 0) && mounted) {
+        // Keep hourly for selected date if no summary.
+        if (_selectedDate.year == date.year && _selectedDate.month == date.month && _selectedDate.day == date.day) {
+          setState(() => _chartValues = hourly);
+        }
+      }
+
+      // 2) Cloud enrich + cache.
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      try {
+        final rows = await SupabaseService.getTempReadings(
+          userId: user.id,
+          from: DateTime(date.year, date.month, date.day),
+          to: DateTime(date.year, date.month, date.day, 23, 59, 59, 999),
+        );
+        final vals = rows.map((r) => (r['value_c'] as num? ?? 0).toDouble()).where((v) => v > 0).toList();
+        if (!mounted) return;
+        double avg = 0, minV = 0, maxV = 0;
+        if (vals.isNotEmpty) {
+          avg = vals.reduce((a, b) => a + b) / vals.length;
+          minV = vals.reduce((a, b) => a < b ? a : b);
+          maxV = vals.reduce((a, b) => a > b ? a : b);
+          if (!_local.hasData(local)) {
+            setState(() {
+              _dayAvg = avg;
+              _dayMin = minV;
+              _dayMax = maxV;
+            });
+          }
+        }
+        if (vals.isNotEmpty) {
+          await _local.cacheSimpleDay(vital: 'temperature', date: date, avg: avg, min: minV, max: maxV, count: vals.length);
+        }
+      } catch (e) {
+        if (mounted && isNetworkError(e) && !_local.hasData(local)) setState(() => _dayOffline = true);
+      }
+    } catch (e, st) {
+      IncidentService.reportUnhandled(source: 'temperature_screen', error: e, stackTrace: st, customMessage: '_loadDayFromSupabase failed');
     } finally {
       if (mounted) setState(() => _loadingDay = false);
     }
   }
 
   Future<void> _load7DayTrend() async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
     setState(() {
       _loadingTrend = true;
       _trendOffline = false;
     });
     try {
-      final now = DateTime.now();
-      final rows = await SupabaseService.getTempReadings(
-        userId: user.id,
-        from: now.subtract(const Duration(days: 6)),
-        to: now,
-      );
-      final sums = <String, double>{};
-      final counts = <String, int>{};
-      for (final r in rows) {
-        final v = (r['value_c'] as num? ?? 0).toDouble();
-        if (v <= 0) continue;
-        final dt = DateTime.parse(r['measured_at'] as String).toLocal();
-        final key = _fmt(dt);
-        sums[key] = (sums[key] ?? 0) + v;
-        counts[key] = (counts[key] ?? 0) + 1;
-      }
-      final vals = List.generate(7, (i) {
-        final key = _fmt(now.subtract(Duration(days: 6 - i)));
-        final c = counts[key];
-        if (c == null || c == 0) return 0.0;
-        return sums[key]! / c;
-      });
-      final nonZero = vals.where((v) => v > 0).toList();
+      // 1) Local first.
+      final localRows = await _local.getHistory('temperature', days: 7);
+      final localValsRaw = await _local.historyAvgSeries('temperature', days: 7);
+      final localVals = localValsRaw.map((v) => v.toDouble()).toList();
+      final localValid = localRows.where((r) => r['min'] != null).toList();
       if (!mounted) return;
-      setState(() {
-        _trendValues = vals;
-        _trendMin = nonZero.isEmpty
-            ? 0
-            : nonZero.reduce((a, b) => a < b ? a : b);
-        _trendMax = nonZero.isEmpty
-            ? 0
-            : nonZero.reduce((a, b) => a > b ? a : b);
-      });
-    } catch (e) {
-      if (mounted && isNetworkError(e)) setState(() => _trendOffline = true);
+      if (localVals.any((v) => v > 0)) {
+        final validVals = localVals.where((v) => v > 0).toList();
+        setState(() {
+          _trendValues = localVals;
+          _trendMin = validVals.isEmpty ? 0 : validVals.reduce((a, b) => a < b ? a : b);
+          _trendMax = validVals.isEmpty ? 0 : validVals.reduce((a, b) => a > b ? a : b);
+        });
+        // Keep valid min/max from rows if more precise.
+        if (localValid.isNotEmpty) {
+          final mins = localValid.map((r) => (r['min'] as num).toDouble()).toList();
+          final maxs = localValid.map((r) => (r['max'] as num).toDouble()).toList();
+          if (mins.isNotEmpty && maxs.isNotEmpty) {
+            setState(() {
+              _trendMin = mins.reduce((a, b) => a < b ? a : b);
+              _trendMax = maxs.reduce((a, b) => a > b ? a : b);
+            });
+          }
+        }
+      }
+
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      try {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final from = today.subtract(const Duration(days: 6));
+        final toEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
+        final rows = await SupabaseService.getTempReadings(userId: user.id, from: from, to: toEnd);
+        final sums = <String, double>{};
+        final counts = <String, int>{};
+        for (final r in rows) {
+          final v = (r['value_c'] as num? ?? 0).toDouble();
+          if (v <= 0) continue;
+          final dt = DateTime.parse(r['measured_at'] as String).toLocal();
+          final key = _fmt(dt);
+          sums[key] = (sums[key] ?? 0) + v;
+          counts[key] = (counts[key] ?? 0) + 1;
+        }
+        final vals = List.generate(7, (i) {
+          final key = _fmt(today.subtract(Duration(days: 6 - i)));
+          final c = counts[key];
+          if (c == null || c == 0) return 0.0;
+          return sums[key]! / c;
+        });
+        final nonZero = vals.where((v) => v > 0).toList();
+        if (!mounted) return;
+        final hasLocalTrend = localVals.any((v) => v > 0);
+        if (!hasLocalTrend && vals.any((v) => v > 0)) {
+          setState(() {
+            _trendValues = vals;
+            _trendMin = nonZero.isEmpty ? 0 : nonZero.reduce((a, b) => a < b ? a : b);
+            _trendMax = nonZero.isEmpty ? 0 : nonZero.reduce((a, b) => a > b ? a : b);
+          });
+        }
+        for (int i = 0; i < 7; i++) {
+          final day = today.subtract(Duration(days: 6 - i));
+          final key = _fmt(day);
+          final c = counts[key];
+          if (c == null || c == 0) continue;
+          final avg = sums[key]! / c;
+          // Derive min/max from rows for that day (approx via avg ± spread if needed, but use avg for cache).
+          final dayVals = rows.where((r) {
+            final dt = DateTime.parse(r['measured_at'] as String).toLocal();
+            return _fmt(dt) == key;
+          }).map((r) => (r['value_c'] as num).toDouble()).where((v) => v > 0).toList();
+          double minV = avg, maxV = avg;
+          if (dayVals.isNotEmpty) {
+            minV = dayVals.reduce((a, b) => a < b ? a : b);
+            maxV = dayVals.reduce((a, b) => a > b ? a : b);
+          }
+          await _local.cacheSimpleDay(vital: 'temperature', date: day, avg: avg, min: minV, max: maxV, count: c);
+        }
+      } catch (e) {
+        if (mounted && isNetworkError(e) && !localVals.any((v) => v > 0)) setState(() => _trendOffline = true);
+      }
+    } catch (e, st) {
+      IncidentService.reportUnhandled(source: 'temperature_screen', error: e, stackTrace: st, customMessage: '_load7DayTrend failed');
     } finally {
       if (mounted) setState(() => _loadingTrend = false);
     }
@@ -910,13 +989,17 @@ class _RealTimeTempCard extends StatelessWidget {
         ? latestTemp.toStringAsFixed(1)
         : '--';
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.div),
-      ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.glassCard,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppTheme.glassBorder, width: 0.5),
+          ),
       child: Column(
         children: [
           Row(
@@ -980,6 +1063,8 @@ class _RealTimeTempCard extends StatelessWidget {
             ),
           ),
         ],
+          ),
+        ),
       ),
     );
   }

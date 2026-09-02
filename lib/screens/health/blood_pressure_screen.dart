@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/incident_service.dart';
+import '../../services/local_vitals_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_menu.dart';
@@ -51,6 +53,7 @@ class BloodPressureScreen extends StatefulWidget {
 
 class _BloodPressureScreenState extends State<BloodPressureScreen> {
   final _ble = BleService();
+  final _local = LocalVitalsService();
   final _moreButtonKey = GlobalKey();
   final _screenshotKey = GlobalKey();
 
@@ -283,35 +286,28 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     }
   }
 
-  // ── Supabase fetches (past days / trend — historical data predates local DB) ─
+  // ── Local-first day / trend (cloud fills gaps + caches for offline) ────────
 
   Future<void> _loadDayFromSupabase(DateTime date) async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
     setState(() {
       _loadingDay = true;
       _dayOffline = false;
     });
     try {
-      final from = DateTime(date.year, date.month, date.day);
-      final to = DateTime(date.year, date.month, date.day, 23, 59, 59);
-      final rows = await SupabaseService.getBpReadings(
-        userId: user.id,
-        from: from,
-        to: to,
-      );
-
+      // 1) Local Room first — works offline and across month boundaries.
+      final local = await _local.getDaySummary('blood_pressure', date);
+      final localReadings = await _local.getReadings('blood_pressure', date);
       final sbpHourly = List<int>.filled(24, 0);
       final dbpHourly = List<int>.filled(24, 0);
       final sbpSums = List<int>.filled(24, 0);
       final dbpSums = List<int>.filled(24, 0);
       final counts = List<int>.filled(24, 0);
-      for (final r in rows) {
-        final dt = DateTime.parse(r['measured_at'] as String).toLocal();
-        final h = dt.hour;
-        final sbp = (r['systolic'] as num? ?? 0).toInt();
-        final dbp = (r['diastolic'] as num? ?? 0).toInt();
-        if (sbp <= 0 || dbp <= 0) continue;
+      for (final m in localReadings) {
+        final sbp = (m['systolic'] as num? ?? m['valueSbp'] as num? ?? 0).toInt();
+        final dbp = (m['diastolic'] as num? ?? m['valueDbp'] as num? ?? 0).toInt();
+        final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
+        if (sbp <= 0 || dbp <= 0 || measuredAt <= 0) continue;
+        final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
         sbpSums[h] += sbp;
         dbpSums[h] += dbp;
         counts[h] += 1;
@@ -322,82 +318,203 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
           dbpHourly[h] = (dbpSums[h] / counts[h]).round();
         }
       }
-
       if (!mounted) return;
-      final sbps = rows
-          .map((r) => (r['systolic'] as num? ?? 0).toInt())
-          .where((v) => v > 0)
-          .toList();
-      final dbps = rows
-          .map((r) => (r['diastolic'] as num? ?? 0).toInt())
-          .where((v) => v > 0)
-          .toList();
-      setState(() {
-        if (sbps.isNotEmpty) {
-          _daySbpAvg = (sbps.reduce((a, b) => a + b) / sbps.length).round();
-          _daySbpMin = sbps.reduce((a, b) => a < b ? a : b);
-          _daySbpMax = sbps.reduce((a, b) => a > b ? a : b);
-        }
-        if (dbps.isNotEmpty) {
-          _dayDbpAvg = (dbps.reduce((a, b) => a + b) / dbps.length).round();
-          _dayDbpMin = dbps.reduce((a, b) => a < b ? a : b);
-          _dayDbpMax = dbps.reduce((a, b) => a > b ? a : b);
-        }
-        if (_selectedDate == date) {
+      // Local summary keys: avg/min/max for SBP, avgSecondary/minSecondary/maxSecondary for DBP
+      // Fallback to legacy keys avgSbp etc if present.
+      final hasLocal = _local.hasData(local);
+      if (hasLocal) {
+        final avgSbp = (local['avg'] as num? ?? local['avgSbp'] as num? ?? 0).toInt();
+        final minSbp = (local['min'] as num? ?? local['minSbp'] as num? ?? 0).toInt();
+        final maxSbp = (local['max'] as num? ?? local['maxSbp'] as num? ?? 0).toInt();
+        final avgDbp = (local['avgSecondary'] as num? ?? local['avgDbp'] as num? ?? 0).toInt();
+        final minDbp = (local['minSecondary'] as num? ?? local['minDbp'] as num? ?? 0).toInt();
+        final maxDbp = (local['maxSecondary'] as num? ?? local['maxDbp'] as num? ?? 0).toInt();
+        setState(() {
+          if (avgSbp > 0) _daySbpAvg = avgSbp;
+          if (minSbp > 0) _daySbpMin = minSbp;
+          if (maxSbp > 0) _daySbpMax = maxSbp;
+          if (avgDbp > 0) _dayDbpAvg = avgDbp;
+          if (minDbp > 0) _dayDbpMin = minDbp;
+          if (maxDbp > 0) _dayDbpMax = maxDbp;
+          if (_selectedDate.year == date.year &&
+              _selectedDate.month == date.month &&
+              _selectedDate.day == date.day) {
+            _chartSbp = sbpHourly;
+            _chartDbp = dbpHourly;
+          }
+        });
+      } else if ((sbpHourly.any((v) => v > 0) || dbpHourly.any((v) => v > 0)) &&
+          _selectedDate.year == date.year &&
+          _selectedDate.month == date.month &&
+          _selectedDate.day == date.day) {
+        setState(() {
           _chartSbp = sbpHourly;
           _chartDbp = dbpHourly;
+        });
+      }
+
+      // 2) Cloud enrich + cache.
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      try {
+        final from = DateTime(date.year, date.month, date.day);
+        final to = DateTime(date.year, date.month, date.day, 23, 59, 59, 999);
+        final rows = await SupabaseService.getBpReadings(
+          userId: user.id,
+          from: from,
+          to: to,
+        );
+        if (!mounted) return;
+        final sbps = rows.map((r) => (r['systolic'] as num? ?? 0).toInt()).where((v) => v > 0).toList();
+        final dbps = rows.map((r) => (r['diastolic'] as num? ?? 0).toInt()).where((v) => v > 0).toList();
+        int avgSbp = 0, minSbp = 0, maxSbp = 0, avgDbp = 0, minDbp = 0, maxDbp = 0;
+        if (sbps.isNotEmpty) {
+          avgSbp = (sbps.reduce((a, b) => a + b) / sbps.length).round();
+          minSbp = sbps.reduce((a, b) => a < b ? a : b);
+          maxSbp = sbps.reduce((a, b) => a > b ? a : b);
         }
-      });
-    } catch (e) {
-      if (mounted && isNetworkError(e)) setState(() => _dayOffline = true);
+        if (dbps.isNotEmpty) {
+          avgDbp = (dbps.reduce((a, b) => a + b) / dbps.length).round();
+          minDbp = dbps.reduce((a, b) => a < b ? a : b);
+          maxDbp = dbps.reduce((a, b) => a > b ? a : b);
+        }
+        if (!hasLocal) {
+          if (avgSbp > 0 || avgDbp > 0) {
+            setState(() {
+              if (avgSbp > 0) _daySbpAvg = avgSbp;
+              if (minSbp > 0) _daySbpMin = minSbp;
+              if (maxSbp > 0) _daySbpMax = maxSbp;
+              if (avgDbp > 0) _dayDbpAvg = avgDbp;
+              if (minDbp > 0) _dayDbpMin = minDbp;
+              if (maxDbp > 0) _dayDbpMax = maxDbp;
+            });
+          }
+        }
+        if (sbps.isNotEmpty || dbps.isNotEmpty) {
+          await _local.cacheBpDay(
+            date: date,
+            avgSbp: avgSbp,
+            minSbp: minSbp,
+            maxSbp: maxSbp,
+            avgDbp: avgDbp,
+            minDbp: minDbp,
+            maxDbp: maxDbp,
+            count: rows.length,
+          );
+        }
+      } catch (e) {
+        if (mounted && isNetworkError(e) && !_local.hasData(local)) {
+          setState(() => _dayOffline = true);
+        }
+      }
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'blood_pressure_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_loadDayFromSupabase failed',
+      );
     } finally {
       if (mounted) setState(() => _loadingDay = false);
     }
   }
 
   Future<void> _load7DayTrend() async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
     setState(() {
       _loadingTrend = true;
       _trendOffline = false;
     });
     try {
-      final now = DateTime.now();
-      final rows = await SupabaseService.getBpReadings(
-        userId: user.id,
-        from: now.subtract(const Duration(days: 6)),
-        to: now,
-      );
-      final byDaySbp = <String, List<int>>{};
-      final byDayDbp = <String, List<int>>{};
-      for (final r in rows) {
-        final dt = DateTime.parse(r['measured_at'] as String).toLocal();
-        final key = _fmt(dt);
-        final sbp = (r['systolic'] as num? ?? 0).toInt();
-        final dbp = (r['diastolic'] as num? ?? 0).toInt();
-        if (sbp > 0) byDaySbp.putIfAbsent(key, () => []).add(sbp);
-        if (dbp > 0) byDayDbp.putIfAbsent(key, () => []).add(dbp);
-      }
-      final sbpVals = List.generate(7, (i) {
-        final day = now.subtract(Duration(days: 6 - i));
-        final vals = byDaySbp[_fmt(day)];
-        if (vals == null || vals.isEmpty) return 0;
-        return (vals.reduce((a, b) => a + b) / vals.length).round();
-      });
-      final dbpVals = List.generate(7, (i) {
-        final day = now.subtract(Duration(days: 6 - i));
-        final vals = byDayDbp[_fmt(day)];
-        if (vals == null || vals.isEmpty) return 0;
-        return (vals.reduce((a, b) => a + b) / vals.length).round();
-      });
+      // 1) Local first.
+      final localSbpVals = await _local.historyAvgSeries('blood_pressure', days: 7, avgKey: 'avg');
+      final localDbpVals = await _local.historyAvgSeries('blood_pressure', days: 7, avgKey: 'avgSecondary');
       if (!mounted) return;
-      setState(() {
-        _trendSbp = sbpVals;
-        _trendDbp = dbpVals;
-      });
-    } catch (e) {
-      if (mounted && isNetworkError(e)) setState(() => _trendOffline = true);
+      final hasLocalSbp = localSbpVals.any((v) => v > 0);
+      final hasLocalDbp = localDbpVals.any((v) => v > 0);
+      if (hasLocalSbp || hasLocalDbp) {
+        setState(() {
+          _trendSbp = localSbpVals;
+          _trendDbp = localDbpVals;
+        });
+      }
+
+      final user = SupabaseService.currentUser;
+      if (user == null) return;
+      try {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final from = today.subtract(const Duration(days: 6));
+        final toEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
+        final rows = await SupabaseService.getBpReadings(
+          userId: user.id,
+          from: from,
+          to: toEnd,
+        );
+        final byDaySbp = <String, List<int>>{};
+        final byDayDbp = <String, List<int>>{};
+        for (final r in rows) {
+          final dt = DateTime.parse(r['measured_at'] as String).toLocal();
+          final key = _fmt(dt);
+          final sbp = (r['systolic'] as num? ?? 0).toInt();
+          final dbp = (r['diastolic'] as num? ?? 0).toInt();
+          if (sbp > 0) byDaySbp.putIfAbsent(key, () => []).add(sbp);
+          if (dbp > 0) byDayDbp.putIfAbsent(key, () => []).add(dbp);
+        }
+        final sbpVals = List.generate(7, (i) {
+          final day = today.subtract(Duration(days: 6 - i));
+          final vals = byDaySbp[_fmt(day)];
+          if (vals == null || vals.isEmpty) return 0;
+          return (vals.reduce((a, b) => a + b) / vals.length).round();
+        });
+        final dbpVals = List.generate(7, (i) {
+          final day = today.subtract(Duration(days: 6 - i));
+          final vals = byDayDbp[_fmt(day)];
+          if (vals == null || vals.isEmpty) return 0;
+          return (vals.reduce((a, b) => a + b) / vals.length).round();
+        });
+        if (!mounted) return;
+        final hasLocalTrend = hasLocalSbp || hasLocalDbp;
+        if (!hasLocalTrend && (sbpVals.any((v) => v > 0) || dbpVals.any((v) => v > 0))) {
+          setState(() {
+            _trendSbp = sbpVals;
+            _trendDbp = dbpVals;
+          });
+        }
+        // Cache each day.
+        for (int i = 0; i < 7; i++) {
+          final day = today.subtract(Duration(days: 6 - i));
+          final sbpDay = byDaySbp[_fmt(day)];
+          final dbpDay = byDayDbp[_fmt(day)];
+          if ((sbpDay == null || sbpDay.isEmpty) && (dbpDay == null || dbpDay.isEmpty)) continue;
+          final avgSbp = sbpDay == null || sbpDay.isEmpty ? 0 : (sbpDay.reduce((a, b) => a + b) / sbpDay.length).round();
+          final minSbp = sbpDay == null || sbpDay.isEmpty ? 0 : sbpDay.reduce((a, b) => a < b ? a : b);
+          final maxSbp = sbpDay == null || sbpDay.isEmpty ? 0 : sbpDay.reduce((a, b) => a > b ? a : b);
+          final avgDbp = dbpDay == null || dbpDay.isEmpty ? 0 : (dbpDay.reduce((a, b) => a + b) / dbpDay.length).round();
+          final minDbp = dbpDay == null || dbpDay.isEmpty ? 0 : dbpDay.reduce((a, b) => a < b ? a : b);
+          final maxDbp = dbpDay == null || dbpDay.isEmpty ? 0 : dbpDay.reduce((a, b) => a > b ? a : b);
+          await _local.cacheBpDay(
+            date: day,
+            avgSbp: avgSbp,
+            minSbp: minSbp,
+            maxSbp: maxSbp,
+            avgDbp: avgDbp,
+            minDbp: minDbp,
+            maxDbp: maxDbp,
+            count: (sbpDay?.length ?? 0) + (dbpDay?.length ?? 0),
+          );
+        }
+      } catch (e) {
+        if (mounted && isNetworkError(e) && !localSbpVals.any((v) => v > 0) && !localDbpVals.any((v) => v > 0)) {
+          setState(() => _trendOffline = true);
+        }
+      }
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'blood_pressure_screen',
+        error: e,
+        stackTrace: st,
+        customMessage: '_load7DayTrend failed',
+      );
     } finally {
       if (mounted) setState(() => _loadingTrend = false);
     }
@@ -953,13 +1070,17 @@ class _RealTimeBPCard extends StatelessWidget {
         ? '$sbp/$dbp'
         : '--';
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.div),
-      ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.glassCard,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppTheme.glassBorder, width: 0.5),
+          ),
       child: Column(
         children: [
           Row(
@@ -1023,6 +1144,8 @@ class _RealTimeBPCard extends StatelessWidget {
             ),
           ),
         ],
+          ),
+        ),
       ),
     );
   }

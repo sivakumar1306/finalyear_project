@@ -37,18 +37,17 @@ class CompactHealthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ImageFiltered blur restored for orb quality. No BackdropFilter — solid
-    // dark scaffold makes backdrop blur nearly free of benefit but costly.
+    // Glass per DESIGN.md: rgba(255,255,255,0.06) bg, 0.09 border, blur 28, radius 20
     return ShrinkButton(
       onTap: onTap,
       child: Container(
         height: expanded ? 240 : 160,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: const Color.fromRGBO(245, 240, 226, 0.06),
+          borderRadius: BorderRadius.circular(20),
+          color: AppTheme.glassCard,
           border: Border.all(
-            color: const Color.fromRGBO(245, 240, 226, 0.09),
+            color: AppTheme.glassBorder,
             width: 0.5,
           ),
         ),
@@ -213,7 +212,7 @@ class CompactWomensHealthCardState extends State<CompactWomensHealthCard> {
     }
     return CompactHealthCard(
       title: 'Women\'s Health',
-      orbColor: const Color.fromRGBO(216, 96, 200, 0.32),
+      orbColor: AppTheme.womenColor.withValues(alpha: 0.45),
       orbOnRight: true,
       expanded: widget.expanded,
       onTap: widget.onTap,
@@ -293,7 +292,7 @@ class CompactBloodPressureCard extends StatelessWidget {
 
     return CompactHealthCard(
       title: 'Blood Pressure',
-      orbColor: const Color.fromRGBO(216, 101, 96, 0.32),
+      orbColor: AppTheme.bpColor.withValues(alpha: 0.45),
       expanded: expanded,
       onTap: onTap,
       child: Column(

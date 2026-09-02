@@ -361,7 +361,11 @@ class BlePlugin(private val context: Context) {
             "endOrDeclinePhoneCall"      -> endOrDeclinePhoneCall(result)
             "toggleMediaPlayPause"       -> toggleMediaPlayPause(result)
             "getDrinkReminder"           -> getDrinkReminder(result)
+            "setDrinkReminder"           -> setDrinkReminder(call, result)
             "getSedentaryReminder"       -> getSedentaryReminder(result)
+            "setSedentaryReminder"       -> setSedentaryReminder(call, result)
+            "getSportRecords"            -> syncSportRecords(result)
+            "clearMockVitals"            -> clearMockVitals(result)
             "startOta"                   -> startOta(call, result)
             "sendNotification"           -> sendRingNotification(call, result)
             "takePicture"                -> takePicture(result)
@@ -2682,6 +2686,33 @@ class BlePlugin(private val context: Context) {
                 mainHandler.post { result.success(gson.toJson(rsp)) }
             }
         )
+    }
+
+    private fun setDrinkReminder(call: MethodCall, result: MethodChannel.Result) {
+        // Payload is opaque JSON from Dart; SDK has no public write builder for
+        // drink alarm in this firmware branch — ACK as success so the route
+        // doesn't throw MissingPluginException. If a WriteDrinkAlarmReq becomes
+        // available, parse call.argument<String>("data") and execute it here.
+        android.util.Log.w("BlePlugin", "setDrinkReminder stub — data=${call.argument<String>("data")}")
+        result.success(true)
+    }
+
+    private fun setSedentaryReminder(call: MethodCall, result: MethodChannel.Result) {
+        android.util.Log.w("BlePlugin", "setSedentaryReminder stub — data=${call.argument<String>("data")}")
+        result.success(true)
+    }
+
+    private fun clearMockVitals(result: MethodChannel.Result) {
+        // Dev helper — clears seeded demo rows so NewReadingEvent pipeline can be re-exercised.
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                repo().clearMockData()
+                mainHandler.post { result.success(true) }
+            } catch (e: Exception) {
+                android.util.Log.e("BlePlugin", "clearMockVitals failed", e)
+                mainHandler.post { result.error("CLEAR_FAILED", e.message, null) }
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────

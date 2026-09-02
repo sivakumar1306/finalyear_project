@@ -426,12 +426,16 @@ class HealthConnectService {
     required int awakeMinutes,
   }) async {
     if (!await _canWrite(HealthSyncType.sleep)) return;
-    final dayKey = sleepTime.millisecondsSinceEpoch ~/ Duration.millisecondsPerDay;
+    // Use local date as key so re-syncing the same night replaces it deterministically.
+    final dayKey = '${sleepTime.year}-${sleepTime.month.toString().padLeft(2, '0')}-${sleepTime.day.toString().padLeft(2, '0')}';
 
     // Overnight sessions (wake < sleep, e.g. 23:00 → 07:00) end the next day.
     var end = wakeTime;
     if (!end.isAfter(sleepTime)) {
-      end = DateTime(sleepTime.year, sleepTime.month, sleepTime.day + 1);
+      end = DateTime(sleepTime.year, sleepTime.month, sleepTime.day + 1, wakeTime.hour, wakeTime.minute);
+      if (!end.isAfter(sleepTime)) {
+        end = wakeTime.add(const Duration(days: 1));
+      }
     }
 
     var cursor = sleepTime;
@@ -551,9 +555,16 @@ class HealthConnectService {
       bpDiastolic = _numValue(dia.last)?.round().toInt();
     }
 
-    // Sleep stages arrive in minutes per sample; sum them.
-    int sumMinutes(HealthDataType t) =>
-        ptsOf(t).fold(0, (sum, p) => sum + (_numValue(p)?.round().toInt() ?? 0));
+    // Sleep stages are duration-based (value is 0, interval in dateFrom/dateTo).
+    int sumMinutes(HealthDataType t) {
+      final pts = ptsOf(t);
+      if (pts.isEmpty) return 0;
+      // Sleep types store duration in the interval, not in numericValue.
+      if (t.name.startsWith('SLEEP_')) {
+        return pts.fold(0, (sum, p) => sum + p.dateTo.difference(p.dateFrom).inMinutes);
+      }
+      return pts.fold(0, (sum, p) => sum + (_numValue(p)?.round().toInt() ?? 0));
+    }
 
     int? daysSinceLastPeriod;
     bool hasMenstruationData = false;
@@ -581,19 +592,27 @@ class HealthConnectService {
       }
     }
 
+    // Sleep: Health Connect stores stages as intervals (value 0, duration in dateTo-dateFrom).
+    // If ASLEEP is empty but stage breakdown exists, total is sum of stages.
+    final asleepMinutes = sumMinutes(HealthDataType.SLEEP_ASLEEP);
+    final deepM = sumMinutes(HealthDataType.SLEEP_DEEP);
+    final lightM = sumMinutes(HealthDataType.SLEEP_LIGHT);
+    final remM = sumMinutes(HealthDataType.SLEEP_REM);
+    final awakeM = sumMinutes(HealthDataType.SLEEP_AWAKE);
+    final inBedM = sumMinutes(HealthDataType.SLEEP_IN_BED);
+    final totalSleep = asleepMinutes != 0 ? asleepMinutes : (deepM + lightM + remM != 0 ? deepM + lightM + remM : (inBedM != 0 ? inBedM : 0));
+
     return HealthConnectToday(
       fetchedAt: DateTime.now(),
       steps: steps,
       avgHeartRate: avgOf(HealthDataType.HEART_RATE),
       avgHrv: avgOf(HealthDataType.HEART_RATE_VARIABILITY_RMSSD),
       avgSpo2: avgOf(HealthDataType.BLOOD_OXYGEN),
-      sleepMinutes: sumMinutes(HealthDataType.SLEEP_ASLEEP) != 0
-          ? sumMinutes(HealthDataType.SLEEP_ASLEEP)
-          : null,
-      deepMinutes: sumMinutes(HealthDataType.SLEEP_DEEP),
-      lightMinutes: sumMinutes(HealthDataType.SLEEP_LIGHT),
-      remMinutes: sumMinutes(HealthDataType.SLEEP_REM),
-      awakeMinutes: sumMinutes(HealthDataType.SLEEP_AWAKE),
+      sleepMinutes: totalSleep != 0 ? totalSleep : null,
+      deepMinutes: deepM != 0 ? deepM : null,
+      lightMinutes: lightM != 0 ? lightM : null,
+      remMinutes: remM != 0 ? remM : null,
+      awakeMinutes: awakeM != 0 ? awakeM : null,
       bpSystolic: bpSystolic,
       bpDiastolic: bpDiastolic,
       avgTemperatureC: avgOf(HealthDataType.BODY_TEMPERATURE),

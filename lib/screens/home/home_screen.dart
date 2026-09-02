@@ -239,7 +239,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           hrv: ble.todayAvgHrv,
           connected: ble.isConnected || ble.latestStressValue > 0,
           expanded: expanded,
-          onTap: () => _navigateTo('/pressure'),
+          onTap: () => _navigateTo('/stress'),
         );
       case HomeCardId.womensHealth:
         return CompactWomensHealthCard(
@@ -326,8 +326,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           value: latestHrvHome > 0 ? '$latestHrvHome' : '--',
           unit: latestHrvHome > 0 ? 'ms' : '',
           status: _hrvStatus(latestHrvHome),
-          statusColor: latestHrvHome > 0 ? AppTheme.gold : AppTheme.textSec,
-          orbColor: AppTheme.gold,
+          statusColor: latestHrvHome > 0 ? AppTheme.hrvColor : AppTheme.textSec,
+          orbColor: AppTheme.hrvColor,
           sparkData: const [
             0.5,
             0.55,
@@ -512,7 +512,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: AppTheme.stressColor,
           icon: Icons.water_drop,
           expanded: expanded,
-          onTap: () => _navigateTo('/pressure'),
+          onTap: () => _navigateTo('/stress'),
         );
       case HomeCardId.womensHealth:
         return WomensHealthMiniCard(
@@ -929,8 +929,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             label: 'Share',
                             onTap: () {
                               Navigator.pop(context);
-                              Share.share(
-                                'Check out SUNDR — the AI health ring app I use to track my sleep, heart rate, and more.',
+                              SharePlus.instance.share(
+                                ShareParams(
+                                  text: 'Check out SUNDR — the AI health ring app I use to track my sleep, heart rate, and more.',
+                                ),
                               );
                             },
                           ),

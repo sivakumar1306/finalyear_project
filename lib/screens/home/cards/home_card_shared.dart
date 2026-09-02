@@ -11,13 +11,13 @@ const kBtnBorder = AppTheme.glassButtonBorder; // rgba(255,255,255,0.08)
 
 // Shared filter instances — recreating ImageFilter every build is pure waste.
 final ImageFilter kOrbBlur = ImageFilter.blur(
-  sigmaX: 40,
-  sigmaY: 40,
+  sigmaX: 70,
+  sigmaY: 70,
   tileMode: TileMode.decal,
 );
 final ImageFilter kCompactOrbBlur = ImageFilter.blur(
-  sigmaX: 35,
-  sigmaY: 35,
+  sigmaX: 60,
+  sigmaY: 60,
   tileMode: TileMode.decal,
 );
 
@@ -38,7 +38,7 @@ class BlurOrb extends StatelessWidget {
     super.key,
     required this.color,
     required this.size,
-    this.alpha = 0.34,
+    this.alpha = 0.45,
     this.compact = false,
   });
 

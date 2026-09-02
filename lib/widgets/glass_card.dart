@@ -1,10 +1,11 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
 // Shared widget tokens — all routable values derive from AppTheme so theme
 // changes propagate everywhere (DESIGN.md single-source tokens).
-const Color kCard = AppTheme.card;
-const Color kBorder = AppTheme.div;
+const Color kCard = AppTheme.glassCard;
+const Color kBorder = AppTheme.glassBorder;
 const Color kSec = AppTheme.textTertiary;
 const Color kSec2 = AppTheme.textSec;
 const Color kGrid = AppTheme.grid;
@@ -25,13 +26,21 @@ class GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: margin,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: kCard,
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(AppTheme.kRadiusCard),
-        border: Border.all(color: kBorder),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+          child: Container(
+            padding: padding,
+            decoration: BoxDecoration(
+              color: kCard,
+              borderRadius: BorderRadius.circular(AppTheme.kRadiusCard),
+              border: Border.all(color: kBorder, width: 0.5),
+            ),
+            child: child,
+          ),
+        ),
       ),
-      child: child,
     );
   }
 }

@@ -21,7 +21,7 @@ Future<void> shareScreenshot(GlobalKey repaintKey, {required String text}) async
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/vital_screenshot.png');
     await file.writeAsBytes(byteData.buffer.asUint8List());
-    await Share.shareXFiles([XFile(file.path)], text: text);
+    await SharePlus.instance.share(ShareParams(files: [XFile(file.path)], text: text));
   } catch (e, st) {
     IncidentService.reportUnhandled(
       source: 'screenshot_share',
