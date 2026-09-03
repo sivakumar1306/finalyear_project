@@ -51,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Auto-SMS countdown may already be running (fall while app was backgrounded).
       ble.refreshEmergencySmsStatus();
       ble.syncTodayStepsFromRing();
+      ble.refreshVitalsFromLocal();
     });
     _loadUserProfile();
   }
@@ -64,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ble.checkPendingFallPrediction();
       ble.refreshEmergencySmsStatus();
       ble.syncTodayStepsFromRing();
+      ble.refreshVitalsFromLocal();
     }
   }
 
@@ -698,6 +700,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       backgroundColor: AppTheme.card,
       onRefresh: () async {
         await ble.checkConnection();
+        await ble.refreshVitalsFromLocal();
+        await ble.syncTodayStepsFromRing();
         await _loadUserProfile();
         await _snippetKey.currentState?.reload(force: true);
       },

@@ -602,7 +602,9 @@ class _SleepScreenState extends State<SleepScreen> {
                   // New proto: compute from segments
                   final segs = _parseSegments(data['list'], st, et);
                   int calcTotal = 0;
-                  for (final s in segs) calcTotal += s['end']! - s['start']!;
+                  for (final s in segs) {
+                    calcTotal += s['end']! - s['start']!;
+                  }
                   if (calcTotal > 0) total = calcTotal;
                 }
                 if (total <= 0) continue;
@@ -646,7 +648,9 @@ class _SleepScreenState extends State<SleepScreen> {
                     to: DateTime(now.year, now.month, now.day),
                   );
                   final byDate = {for (final r in supaRows) r['date'] as String: r};
-                  for (final r in ringRows) byDate[r['date'] as String] = r;
+                  for (final r in ringRows) {
+                    byDate[r['date'] as String] = r;
+                  }
                   final merged = byDate.values.toList()
                     ..sort((a, b) => (a['date'] as String).compareTo(b['date'] as String));
                   if (!mounted) return;
