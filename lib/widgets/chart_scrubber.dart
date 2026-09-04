@@ -217,7 +217,7 @@ class _ScrubbableChartState extends State<ScrubbableChart> {
 
   @override
   Widget build(BuildContext context) {
-    final hasScrubber = widget.showScrubber && !widget.loading && widget.values.length > 1;
+    final hasScrubber = widget.showScrubber && widget.values.length > 1;
     final selectedValue =
         widget.values.isNotEmpty && _selectedIndex < widget.values.length
             ? widget.values[_selectedIndex]
@@ -388,6 +388,7 @@ class _ScrubbableChartState extends State<ScrubbableChart> {
                     itemCount: widget.values.length,
                     selectedIndex: _selectedIndex,
                     accent: widget.accent,
+                    enabled: !widget.loading,
                     onChanged: (idx) {
                       setState(() => _selectedIndex = idx);
                       widget.onScrub?.call(idx);
@@ -648,7 +649,7 @@ class _ScrubbableBPChartState extends State<ScrubbableBPChart> {
 
   @override
   Widget build(BuildContext context) {
-    final hasScrubber = widget.showScrubber && !widget.loading && widget.sbpValues.length > 1;
+    final hasScrubber = widget.showScrubber && widget.sbpValues.length > 1;
     final selSbp = widget.sbpValues.isNotEmpty && _selectedIndex < widget.sbpValues.length
         ? widget.sbpValues[_selectedIndex]
         : 0;
@@ -785,6 +786,7 @@ class _ScrubbableBPChartState extends State<ScrubbableBPChart> {
                     itemCount: widget.sbpValues.length,
                     selectedIndex: _selectedIndex,
                     accent: widget.accent,
+                    enabled: !widget.loading,
                     onChanged: (idx) {
                       setState(() => _selectedIndex = idx);
                       widget.onScrub?.call(idx);
