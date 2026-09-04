@@ -35,19 +35,19 @@ class ChartScrubber extends StatelessWidget {
         const SizedBox(height: 4),
         SliderTheme(
           data: SliderThemeData(
-            trackHeight: 6,
-            activeTrackColor: accent.withValues(alpha: 0.85),
+            trackHeight: 2,
+            activeTrackColor: Colors.transparent,
             inactiveTrackColor: AppTheme.white10,
-            secondaryActiveTrackColor: accent.withValues(alpha: 0.35),
-            thumbColor: accent,
-            overlayColor: accent.withValues(alpha: 0.12),
+            secondaryActiveTrackColor: Colors.transparent,
+            thumbColor: Colors.white,
+            overlayColor: Colors.transparent,
             thumbShape: _BallThumbShape(
               thumbRadius: 10,
               accent: accent,
               enabled: enabled,
             ),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
-            trackShape: const RoundedRectSliderTrackShape(),
+            overlayShape: SliderComponentShape.noOverlay,
+            trackShape: const _NotchedTrackShape(),
             tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 0),
           ),
           child: Slider(
@@ -86,7 +86,7 @@ class _BallThumbShape extends SliderComponentShape {
 
   @override
   Size getPreferredSize(bool isEnabled, bool isDiscrete) =>
-      Size.fromRadius(thumbRadius + 2);
+      Size.fromRadius(thumbRadius);
 
   @override
   void paint(
@@ -104,31 +104,66 @@ class _BallThumbShape extends SliderComponentShape {
     Size? sizeWithOverflow,
   }) {
     final Canvas canvas = context.canvas;
-    final accentColor = enabled ? accent : AppTheme.textTertiary;
-
-    // Soft shadow / glow
-    final shadowPaint = Paint()
-      ..color = accentColor.withValues(alpha: 0.25)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-    canvas.drawCircle(center, thumbRadius + 1, shadowPaint);
-
-    // Outer thin white border for glass lift
-    final borderPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.12)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    // Fill
-    final fillPaint = Paint()..color = accentColor;
+    final fillPaint = Paint()..color = Colors.white;
     canvas.drawCircle(center, thumbRadius, fillPaint);
-    canvas.drawCircle(center, thumbRadius, borderPaint);
+  }
+}
 
-    // Inner highlight (top-left) for 3D ball feel - subtle
-    final highlightPaint = Paint()..color = Colors.white.withValues(alpha: 0.22);
-    canvas.drawCircle(
-      Offset(center.dx - thumbRadius * 0.25, center.dy - thumbRadius * 0.25),
-      thumbRadius * 0.35,
-      highlightPaint,
-    );
+class _NotchedTrackShape extends SliderTrackShape {
+  const _NotchedTrackShape();
+
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final trackHeight = sliderTheme.trackHeight ?? 2.0;
+    final trackLeft = offset.dx;
+    final trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final trackWidth = parentBox.size.width;
+    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
+  }
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required Offset thumbCenter,
+    Offset? secondaryOffset,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+    required TextDirection textDirection,
+  }) {
+    final Canvas canvas = context.canvas;
+    
+    final trackPaint = Paint()
+      ..color = sliderTheme.inactiveTrackColor ?? AppTheme.white10
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = sliderTheme.trackHeight ?? 2.0;
+
+    final notchRadius = 14.0;
+    final path = Path();
+    path.moveTo(offset.dx, thumbCenter.dy);
+    
+    if (thumbCenter.dx - offset.dx > notchRadius) {
+      path.lineTo(thumbCenter.dx - notchRadius, thumbCenter.dy);
+      path.arcToPoint(
+        Offset(thumbCenter.dx + notchRadius, thumbCenter.dy),
+        radius: Radius.circular(notchRadius),
+        clockwise: false,
+      );
+      path.lineTo(offset.dx + parentBox.size.width, thumbCenter.dy);
+    } else {
+      path.lineTo(offset.dx + parentBox.size.width, thumbCenter.dy);
+    }
+    
+    canvas.drawPath(path, trackPaint);
   }
 }
 
@@ -372,30 +407,15 @@ class _ScrubbableChartState extends State<ScrubbableChart> {
           ],
           if (hasScrubber) ...[
             const SizedBox(height: 14),
-            // Glass track container - thick, easy to grab
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppTheme.white04,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.white10, width: 0.5),
-                  ),
-                  child: ChartScrubber(
-                    itemCount: widget.values.length,
-                    selectedIndex: _selectedIndex,
-                    accent: widget.accent,
-                    enabled: !widget.loading,
-                    onChanged: (idx) {
-                      setState(() => _selectedIndex = idx);
-                      widget.onScrub?.call(idx);
-                    },
-                  ),
-                ),
-              ),
+            ChartScrubber(
+              itemCount: widget.values.length,
+              selectedIndex: _selectedIndex,
+              accent: widget.accent,
+              enabled: !widget.loading,
+              onChanged: (idx) {
+                setState(() => _selectedIndex = idx);
+                widget.onScrub?.call(idx);
+              },
             ),
           ],
           if (widget.footer != null) ...[
@@ -771,29 +791,15 @@ class _ScrubbableBPChartState extends State<ScrubbableBPChart> {
           ],
           if (hasScrubber) ...[
             const SizedBox(height: 14),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppTheme.white04,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.white10, width: 0.5),
-                  ),
-                  child: ChartScrubber(
-                    itemCount: widget.sbpValues.length,
-                    selectedIndex: _selectedIndex,
-                    accent: widget.accent,
-                    enabled: !widget.loading,
-                    onChanged: (idx) {
-                      setState(() => _selectedIndex = idx);
-                      widget.onScrub?.call(idx);
-                    },
-                  ),
-                ),
-              ),
+            ChartScrubber(
+              itemCount: widget.sbpValues.length,
+              selectedIndex: _selectedIndex,
+              accent: widget.accent,
+              enabled: !widget.loading,
+              onChanged: (idx) {
+                setState(() => _selectedIndex = idx);
+                widget.onScrub?.call(idx);
+              },
             ),
           ],
           if (widget.footer != null) ...[
