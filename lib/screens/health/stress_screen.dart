@@ -20,6 +20,7 @@ import '../../widgets/date_scroll_row.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/chart_scrubber.dart';
 import '../../widgets/metric_stat_card.dart';
+import '../../widgets/not_enough_data_card.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -687,103 +688,117 @@ class _StressScreenState extends State<StressScreen> {
               const SizedBox(height: 16),
 
               // ── 4. Daily chart ─────────────────────────────────────────────
-              ScrubbableChart(
-                values: _chartValues,
-                maxY: 100,
-                yLines: const [100, 75, 50, 25],
-                colorFor: (v) => _barColor(v).withValues(alpha: 0.88),
-                accent: AppTheme.stressColor,
-                headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
-                rangeLabel: hasData ? '$_displayMin - $_displayMax' : '-- --',
-                yLabels: const ['100', '75', '50', '25'],
-                xLabels: const ['12am', '6am', '12pm', '6pm'],
-                barCount: _chartValues.length,
-                loading: _loading || _loadingDay,
-                loadingAccent: AppTheme.stressColor,
-                valueLabelBuilder: (i, v) => '${_hourLabel(i)} • $v',
-              ),
-              if (_dayOffline && !_isToday) ...[
-                const SizedBox(height: 8),
-                const OfflineNotice(
-                  message: 'Connect to WiFi to load this day\'s stress',
+              if (!hasData && !_loading && !_loadingDay && !_dayOffline) ...[
+                NotEnoughDataCard(
+                  metric: 'stress',
+                  date: _selectedDate,
+                  isConnected: connected,
+                  onMeasure: _startMeasurement,
+                  measureLabel: 'Measure stress',
                 ),
-              ],
-              const SizedBox(height: 10),
-
-              // ── 5. Stats row ───────────────────────────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'AVERAGE',
-                      value: _displayAvg > 0 ? '$_displayAvg' : '--',
-                      unit: _displayAvg > 0 ? '/100' : '--',
-                      caption: _displayAvg > 0 ? _stressLabel(_displayAvg) : '--',
-                      captionColor: _stressLevelColor(_displayAvg),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'MINIMUM',
-                      value: _displayMin > 0 ? '$_displayMin' : '--',
-                      unit: _displayMin > 0 ? '/100' : '--',
-                      caption: _displayMin > 0 ? _stressLabel(_displayMin) : '--',
-                      captionColor: _stressLevelColor(_displayMin),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'MAXIMUM',
-                      value: _displayMax > 0 ? '$_displayMax' : '--',
-                      unit: _displayMax > 0 ? '/100' : '--',
-                      caption: _displayMax > 0 ? _stressLabel(_displayMax) : '--',
-                      captionColor: _stressLevelColor(_displayMax),
-                    ),
+              ] else ...[
+                ScrubbableChart(
+                  values: _chartValues,
+                  maxY: 100,
+                  yLines: const [100, 75, 50, 25],
+                  colorFor: (v) => _barColor(v).withValues(alpha: 0.88),
+                  accent: AppTheme.stressColor,
+                  headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
+                  rangeLabel: hasData ? '$_displayMin - $_displayMax' : '-- --',
+                  yLabels: const ['100', '75', '50', '25'],
+                  xLabels: const ['12am', '6am', '12pm', '6pm'],
+                  barCount: _chartValues.length,
+                  loading: _loading || _loadingDay,
+                  loadingAccent: AppTheme.stressColor,
+                  valueLabelBuilder: (i, v) => '${_hourLabel(i)} • $v',
+                ),
+                if (_dayOffline && !_isToday) ...[
+                  const SizedBox(height: 8),
+                  const OfflineNotice(
+                    message: 'Connect to WiFi to load this day\'s stress',
                   ),
                 ],
-              ),
-              const SizedBox(height: 10),
+                const SizedBox(height: 10),
 
-              // ── 6. Real-time measurement ───────────────────────────────────
-              _StressMeasurementCard(
-                latestStress: _manualStress,
-                measuring: _measuring,
-                enabled: connected && !_measuring,
-                onTap: _startMeasurement,
-              ),
+                // ── 5. Stats row ───────────────────────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'AVERAGE',
+                        value: _displayAvg > 0 ? '$_displayAvg' : '--',
+                        unit: _displayAvg > 0 ? '/100' : '--',
+                        caption: _displayAvg > 0 ? _stressLabel(_displayAvg) : '--',
+                        captionColor: _stressLevelColor(_displayAvg),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'MINIMUM',
+                        value: _displayMin > 0 ? '$_displayMin' : '--',
+                        unit: _displayMin > 0 ? '/100' : '--',
+                        caption: _displayMin > 0 ? _stressLabel(_displayMin) : '--',
+                        captionColor: _stressLevelColor(_displayMin),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'MAXIMUM',
+                        value: _displayMax > 0 ? '$_displayMax' : '--',
+                        unit: _displayMax > 0 ? '/100' : '--',
+                        caption: _displayMax > 0 ? _stressLabel(_displayMax) : '--',
+                        captionColor: _stressLevelColor(_displayMax),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // ── 6. Real-time measurement ───────────────────────────────────
+                _StressMeasurementCard(
+                  latestStress: _manualStress,
+                  measuring: _measuring,
+                  enabled: connected && !_measuring,
+                  onTap: _startMeasurement,
+                ),
+              ],
               const SizedBox(height: 20),
 
               // ── 7. 7-day trend ─────────────────────────────────────────────
-              ScrubbableChart(
-                values: _trendValues,
-                maxY: 100,
-                yLines: const [100, 75, 50, 25],
-                colorFor: (v) => _barColor(v).withValues(alpha: 0.88),
-                accent: AppTheme.stressColor,
-                headerLabel: 'LAST 7 DAYS TREND',
-                rangeLabel: trendRangeLabel,
-                yLabels: const ['100', '75', '50', '25'],
-                xLabels: _trendXLabels(),
-                barCount: _trendValues.length,
-                loading: _loadingTrend,
-                loadingAccent: AppTheme.stressColor,
-                footer: const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    LegendDot(color: AppTheme.success, label: 'Relaxed'),
-                    LegendDot(color: AppTheme.amber, label: 'Normal'),
-                    LegendDot(color: AppTheme.stressColor, label: 'Elevated'),
-                    LegendDot(color: AppTheme.danger, label: 'High'),
-                  ],
+              if (_trendValues.every((v) => v == 0) && !_loadingTrend && !_trendOffline)
+                const NotEnoughTrendDataCard(metric: 'stress')
+              else ...[
+                ScrubbableChart(
+                  values: _trendValues,
+                  maxY: 100,
+                  yLines: const [100, 75, 50, 25],
+                  colorFor: (v) => _barColor(v).withValues(alpha: 0.88),
+                  accent: AppTheme.stressColor,
+                  headerLabel: 'LAST 7 DAYS TREND',
+                  rangeLabel: trendRangeLabel,
+                  yLabels: const ['100', '75', '50', '25'],
+                  xLabels: _trendXLabels(),
+                  barCount: _trendValues.length,
+                  loading: _loadingTrend,
+                  loadingAccent: AppTheme.stressColor,
+                  footer: const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      LegendDot(color: AppTheme.success, label: 'Relaxed'),
+                      LegendDot(color: AppTheme.amber, label: 'Normal'),
+                      LegendDot(color: AppTheme.stressColor, label: 'Elevated'),
+                      LegendDot(color: AppTheme.danger, label: 'High'),
+                    ],
+                  ),
                 ),
-              ),
-              if (_trendOffline) ...[
-                const SizedBox(height: 8),
-                const OfflineNotice(
-                  message: 'Connect to WiFi to load your 7-day trend',
-                ),
+                if (_trendOffline) ...[
+                  const SizedBox(height: 8),
+                  const OfflineNotice(
+                    message: 'Connect to WiFi to load your 7-day trend',
+                  ),
+                ],
               ],
 
               const SizedBox(height: 80),

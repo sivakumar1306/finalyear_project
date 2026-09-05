@@ -14,6 +14,7 @@ import '../../services/health_engine/health_config.dart';
 import '../../services/health_engine/health_engine.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/footer_spacer.dart';
+import '../../widgets/glass_card.dart';
 import '../../widgets/glass_icon_button.dart';
 import '../settings/about_screen.dart';
 import '../settings/fall_detection_screen.dart';
@@ -49,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ble = context.read<BleProvider>();
       ble.checkConnection();
+      ble.refreshVitalsFromLocal();
       // Any pending fall prediction (notification tap OR direct app open after a
       // prediction fired) — native side persists until the user dismisses the banner.
       ble.checkPendingFallPrediction();
@@ -77,6 +79,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ble.checkPendingFallPrediction();
       ble.refreshEmergencySmsStatus();
       ble.syncTodayStepsFromRing();
+      ble.refreshVitalsFromLocal();
       HealthEngine.instance.refreshConfig();
       _loadGoals();
     }
@@ -686,9 +689,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     // What's actually rendered day-to-day — editable cards minus anything
     // the user hid.
-    final visibleCardIds = editableCardIds
+    var visibleCardIds = editableCardIds
         .where((id) => !hiddenCards.contains(id))
         .toList();
+
+    // Auto-unhide Heart Rate if it was hidden but now has data (common feature should not stay hidden)
+    final hasHrData = ble.todayAvgHr > 0 || ble.latestHr > 0;
+    final hrHidden = hiddenCards.contains(HomeCardId.heartRate);
+    if (hrHidden && hasHrData) {
+      visibleCardIds = [...visibleCardIds, HomeCardId.heartRate];
+      // Persist unhide once per frame — don't overwrite other hidden choices.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && hiddenCards.contains(HomeCardId.heartRate)) {
+          context.read<HomeCardProvider>().toggleVisibility(HomeCardId.heartRate);
+        }
+      });
+    }
 
     return RefreshIndicator(
       color: AppTheme.gold,
@@ -842,15 +858,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
 
           // 2. Card rows (paired two-per-row, or full-width when expanded)
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: _buildCardList(
-              ble,
-              visibleCardIds,
-              compact: compactMode,
-              expandedCards: expandedCards,
+          if (visibleCardIds.isEmpty)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverToBoxAdapter(
+                child: GlassCard(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.dashboard_customize_rounded, size: 28, color: AppTheme.textTertiary.withValues(alpha: 0.6)),
+                      const SizedBox(height: 10),
+                      Text('NO CARDS VISIBLE', style: inter(11, weight: FontWeight.w600, color: AppTheme.textTertiary, letterSpacing: 1.2)),
+                      const SizedBox(height: 6),
+                      Text('Tap Edit Cards to show vitals. Heart Rate will reappear automatically when data arrives.',
+                        textAlign: TextAlign.center, style: inter(13, color: AppTheme.textSec, height: 1.4)),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: _buildCardList(
+                ble,
+                visibleCardIds,
+                compact: compactMode,
+                expandedCards: expandedCards,
+              ),
             ),
-          ),
 
           // 3. Edit Cards button & spacing at bottom
           SliverPadding(

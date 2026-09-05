@@ -18,6 +18,7 @@ import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/chart_scrubber.dart';
 import '../../widgets/metric_stat_card.dart';
+import '../../widgets/not_enough_data_card.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -747,92 +748,102 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
               ),
               const SizedBox(height: 16),
 
-              // ── 4. Daily chart ─────────────────────────────────────────────
-              ScrubbableChart(
-                values: _chartValues,
-                maxY: 120,
-                yLines: const [120, 100, 80, 60],
-                barColor: AppTheme.hrColor.withValues(alpha: 0.88),
-                accent: AppTheme.hrColor,
-                headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
-                rangeLabel: dailyRangeLabel,
-                yLabels: const ['120', '100', '80', '60'],
-                xLabels: const ['12am', '6am', '12pm', '6pm', ''],
-                barCount: _chartValues.length,
-                loading: _loading || _loadingDay,
-                loadingAccent: AppTheme.hrColor,
-                valueLabelBuilder: (i, v) => '${_hourLabel(i)} • $v bpm',
-              ),
-              if (_dayOffline && !_isToday) ...[
-                const SizedBox(height: 8),
-                const OfflineNotice(
-                  message: 'Connect to WiFi to load this day\'s heart rate',
+              // ── 4-6. Daily section — collapse to single glass card when empty
+              if (!hasData && !_loading && !_loadingDay && !_dayOffline) ...[
+                NotEnoughDataCard(
+                  metric: 'heart rate',
+                  date: _selectedDate,
+                  isConnected: connected,
+                  onMeasure: _startMeasurement,
+                  measureLabel: 'Measure heart rate',
                 ),
-              ],
-              const SizedBox(height: 10),
-
-              // ── 5. Stats row ───────────────────────────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'AVERAGE',
-                      value: _displayAvg > 0 ? '$_displayAvg' : '--',
-                      unit: _displayAvg > 0 ? 'bpm' : '--',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'MINIMUM',
-                      value: _displayMin > 0 ? '$_displayMin' : '--',
-                      unit: _displayMin > 0 ? 'bpm' : '--',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'MAXIMUM',
-                      value: _displayMax > 0 ? '$_displayMax' : '--',
-                      unit: _displayMax > 0 ? 'bpm' : '--',
-                    ),
+              ] else ...[
+                ScrubbableChart(
+                  values: _chartValues,
+                  maxY: 120,
+                  yLines: const [120, 100, 80, 60],
+                  barColor: AppTheme.hrColor.withValues(alpha: 0.88),
+                  accent: AppTheme.hrColor,
+                  headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
+                  rangeLabel: dailyRangeLabel,
+                  yLabels: const ['120', '100', '80', '60'],
+                  xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                  barCount: _chartValues.length,
+                  loading: _loading || _loadingDay,
+                  loadingAccent: AppTheme.hrColor,
+                  valueLabelBuilder: (i, v) => '${_hourLabel(i)} • $v bpm',
+                ),
+                if (_dayOffline && !_isToday) ...[
+                  const SizedBox(height: 8),
+                  const OfflineNotice(
+                    message: 'Connect to WiFi to load this day\'s heart rate',
                   ),
                 ],
-              ),
-              const SizedBox(height: 10),
-
-              // ── 6. Real-time measurement ───────────────────────────────────
-RealTimeCard(
-                title: 'Real Time Heart Rate',
-                value: _measuring ? '···' : _manualHr > 0 ? '$_manualHr' : '--',
-                unit: 'BPM',
-                accent: AppTheme.hrColor,
-                measuring: _measuring,
-                enabled: connected && !_measuring,
-                onTap: _startMeasurement,
-              ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'AVERAGE',
+                        value: _displayAvg > 0 ? '$_displayAvg' : '--',
+                        unit: _displayAvg > 0 ? 'bpm' : '--',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'MINIMUM',
+                        value: _displayMin > 0 ? '$_displayMin' : '--',
+                        unit: _displayMin > 0 ? 'bpm' : '--',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'MAXIMUM',
+                        value: _displayMax > 0 ? '$_displayMax' : '--',
+                        unit: _displayMax > 0 ? 'bpm' : '--',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                RealTimeCard(
+                  title: 'Real Time Heart Rate',
+                  value: _measuring ? '···' : _manualHr > 0 ? '$_manualHr' : '--',
+                  unit: 'BPM',
+                  accent: AppTheme.hrColor,
+                  measuring: _measuring,
+                  enabled: connected && !_measuring,
+                  onTap: _startMeasurement,
+                ),
+              ],
               const SizedBox(height: 20),
 
-              // ── 7. 7-day trend ─────────────────────────────────────────────
-              ScrubbableChart(
-                values: _trendValues,
-                maxY: 120,
-                yLines: const [120, 100, 80, 60],
-                barColor: AppTheme.hrColor.withValues(alpha: 0.88),
-                accent: AppTheme.hrColor,
-                headerLabel: 'LAST 7 DAYS TREND',
-                rangeLabel: trendRangeLabel,
-                yLabels: const ['120', '100', '80', '60'],
-                xLabels: _trendXLabels(),
-                barCount: _trendValues.length,
-                loading: _loadingTrend,
-                loadingAccent: AppTheme.hrColor,
-              ),
-              if (_trendOffline) ...[
-                const SizedBox(height: 8),
-                const OfflineNotice(
-                  message: 'Connect to WiFi to load your 7-day trend',
+              // ── 7. 7-day trend — also collapse when empty
+              if (_trendValues.every((v) => v == 0) && !_loadingTrend && !_trendOffline)
+                const NotEnoughTrendDataCard(metric: 'heart rate')
+              else ...[
+                ScrubbableChart(
+                  values: _trendValues,
+                  maxY: 120,
+                  yLines: const [120, 100, 80, 60],
+                  barColor: AppTheme.hrColor.withValues(alpha: 0.88),
+                  accent: AppTheme.hrColor,
+                  headerLabel: 'LAST 7 DAYS TREND',
+                  rangeLabel: trendRangeLabel,
+                  yLabels: const ['120', '100', '80', '60'],
+                  xLabels: _trendXLabels(),
+                  barCount: _trendValues.length,
+                  loading: _loadingTrend,
+                  loadingAccent: AppTheme.hrColor,
                 ),
+                if (_trendOffline) ...[
+                  const SizedBox(height: 8),
+                  const OfflineNotice(
+                    message: 'Connect to WiFi to load your 7-day trend',
+                  ),
+                ],
               ],
               const SizedBox(height: 10),
 

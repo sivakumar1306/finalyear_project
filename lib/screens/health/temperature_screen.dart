@@ -21,6 +21,7 @@ import '../../widgets/date_scroll_row.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/chart_scrubber.dart';
 import '../../widgets/metric_stat_card.dart';
+import '../../widgets/not_enough_data_card.dart';
 
 
 // ── Local design tokens — same system as heart_rate_screen.dart / blood_oxygen_screen.dart ──
@@ -778,104 +779,120 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
               const SizedBox(height: 16),
 
               // ── 3. Daily chart ────────────────────────────────────────────
-              ScrubbableChart(
-                values: _chartValues,
-                maxY: 40,
-                baseline: 34,
-                yLines: const [40, 38, 36, 34],
-                colorFor: _tempBarColor,
-                accent: AppTheme.tempColor,
-                headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
-                rangeLabel: dailyRangeLabel,
-                yLabels: const ['40', '38', '36', '34'],
-                xLabels: const ['12am', '6am', '12pm', '6pm', ''],
-                loading: _loading || _loadingDay,
-                loadingAccent: AppTheme.tempColor,
-                valueLabelBuilder: (i, v) => '${_hourLabel(i)} • ${_disp(v.toDouble()).toStringAsFixed(1)}$_unitLabel',
-              ),
-              if (_dayOffline && !_isToday) ...[
-                const SizedBox(height: 8),
-                const OfflineNotice(
-                  message: 'Connect to WiFi to load this day\'s temperature',
+              // ── 3-5. Daily section — collapse to single glass card when empty
+              if (!hasData && !_loading && !_loadingDay && !_dayOffline) ...[
+                NotEnoughDataCard(
+                  metric: 'temperature',
+                  date: _selectedDate,
+                  isConnected: connected,
+                  onMeasure: _startMeasurement,
+                  measureLabel: 'Measure temperature',
                 ),
-              ],
-              const SizedBox(height: 10),
-
-              // ── 4. Stats row ──────────────────────────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'AVERAGE',
-                      value: _displayAvg > 0
-                          ? _disp(_displayAvg).toStringAsFixed(1)
-                          : '--',
-                      unit: _displayAvg > 0 ? _unitLabel : '--',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'MINIMUM',
-                      value: _displayMin > 0
-                          ? _disp(_displayMin).toStringAsFixed(1)
-                          : '--',
-                      unit: _displayMin > 0 ? _unitLabel : '--',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'MAXIMUM',
-                      value: _displayMax > 0
-                          ? _disp(_displayMax).toStringAsFixed(1)
-                          : '--',
-                      unit: _displayMax > 0 ? _unitLabel : '--',
-                    ),
+              ] else ...[
+                ScrubbableChart(
+                  values: _chartValues,
+                  maxY: 40,
+                  baseline: 34,
+                  yLines: const [40, 38, 36, 34],
+                  colorFor: _tempBarColor,
+                  accent: AppTheme.tempColor,
+                  headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
+                  rangeLabel: dailyRangeLabel,
+                  yLabels: const ['40', '38', '36', '34'],
+                  xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                  loading: _loading || _loadingDay,
+                  loadingAccent: AppTheme.tempColor,
+                  valueLabelBuilder: (i, v) => '${_hourLabel(i)} • ${_disp(v.toDouble()).toStringAsFixed(1)}$_unitLabel',
+                ),
+                if (_dayOffline && !_isToday) ...[
+                  const SizedBox(height: 8),
+                  const OfflineNotice(
+                    message: 'Connect to WiFi to load this day\'s temperature',
                   ),
                 ],
-              ),
-              const SizedBox(height: 10),
+                const SizedBox(height: 10),
 
-              // ── 5. Real-time measurement ──────────────────────────────────
-              _RealTimeTempCard(
-                latestTemp: _manualTemp > 0 ? _disp(_manualTemp) : 0,
-                unitLabel: _unitLabel,
-                measuring: _measuring,
-                enabled: connected && !_measuring,
-                onTap: _startMeasurement,
-              ),
+                // ── 4. Stats row ──────────────────────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'AVERAGE',
+                        value: _displayAvg > 0
+                            ? _disp(_displayAvg).toStringAsFixed(1)
+                            : '--',
+                        unit: _displayAvg > 0 ? _unitLabel : '--',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'MINIMUM',
+                        value: _displayMin > 0
+                            ? _disp(_displayMin).toStringAsFixed(1)
+                            : '--',
+                        unit: _displayMin > 0 ? _unitLabel : '--',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'MAXIMUM',
+                        value: _displayMax > 0
+                            ? _disp(_displayMax).toStringAsFixed(1)
+                            : '--',
+                        unit: _displayMax > 0 ? _unitLabel : '--',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // ── 5. Real-time measurement ──────────────────────────────────
+                _RealTimeTempCard(
+                  latestTemp: _manualTemp > 0 ? _disp(_manualTemp) : 0,
+                  unitLabel: _unitLabel,
+                  measuring: _measuring,
+                  enabled: connected && !_measuring,
+                  onTap: _startMeasurement,
+                ),
+              ],
               const SizedBox(height: 20),
 
               // ── 6. 7-day trend ────────────────────────────────────────────
-              ScrubbableChart(
-                values: _trendValues,
-                maxY: 40,
-                baseline: 34,
-                yLines: const [40, 38, 36, 34],
-                colorFor: _tempBarColor,
-                accent: AppTheme.tempColor,
-                headerLabel: 'LAST 7 DAYS TREND',
-                rangeLabel: trendRangeLabel,
-                yLabels: const ['40', '38', '36', '34'],
-                xLabels: _trendXLabels(),
-                loading: _loadingTrend,
-                loadingAccent: AppTheme.tempColor,
-                footer: const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    LegendDot(color: AppTheme.spo2Color, label: 'Low'),
-                    LegendDot(color: AppTheme.success, label: 'Normal'),
-                    LegendDot(color: AppTheme.tempColor, label: 'Elevated'),
-                    LegendDot(color: AppTheme.danger, label: 'Fever'),
-                  ],
+              // ── 6. 7-day trend — also collapse when empty
+              if (_trendValues.every((v) => v == 0) && !_loadingTrend && !_trendOffline)
+                const NotEnoughTrendDataCard(metric: 'temperature')
+              else ...[
+                ScrubbableChart(
+                  values: _trendValues,
+                  maxY: 40,
+                  baseline: 34,
+                  yLines: const [40, 38, 36, 34],
+                  colorFor: _tempBarColor,
+                  accent: AppTheme.tempColor,
+                  headerLabel: 'LAST 7 DAYS TREND',
+                  rangeLabel: trendRangeLabel,
+                  yLabels: const ['40', '38', '36', '34'],
+                  xLabels: _trendXLabels(),
+                  loading: _loadingTrend,
+                  loadingAccent: AppTheme.tempColor,
+                  footer: const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      LegendDot(color: AppTheme.spo2Color, label: 'Low'),
+                      LegendDot(color: AppTheme.success, label: 'Normal'),
+                      LegendDot(color: AppTheme.tempColor, label: 'Elevated'),
+                      LegendDot(color: AppTheme.danger, label: 'Fever'),
+                    ],
+                  ),
                 ),
-              ),
-              if (_trendOffline) ...[
-                const SizedBox(height: 8),
-                const OfflineNotice(
-                  message: 'Connect to WiFi to load your 7-day trend',
-                ),
+                if (_trendOffline) ...[
+                  const SizedBox(height: 8),
+                  const OfflineNotice(
+                    message: 'Connect to WiFi to load your 7-day trend',
+                  ),
+                ],
               ],
 
               const SizedBox(height: 80),

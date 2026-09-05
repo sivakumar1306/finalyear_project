@@ -18,6 +18,7 @@ import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/chart_scrubber.dart';
 import '../../widgets/metric_stat_card.dart';
+import '../../widgets/not_enough_data_card.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -770,94 +771,104 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
               ),
               const SizedBox(height: 16),
 
-              // ── 4. Daily chart ─────────────────────────────────────────────
-              ScrubbableChart(
-                values: _chartValues,
-                maxY: 100,
-                baseline: 85,
-                yLines: const [100, 97, 94, 85],
-                barColor: AppTheme.spo2Color.withValues(alpha: 0.88),
-                accent: AppTheme.spo2Color,
-                headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
-                rangeLabel: dailyRangeLabel,
-                yLabels: const ['100', '97', '94', '85'],
-                xLabels: const ['12am', '6am', '12pm', '6pm', ''],
-                barCount: _chartValues.length,
-                loading: _loading || _loadingDay,
-                loadingAccent: AppTheme.spo2Color,
-                valueLabelBuilder: (i, v) => '${_hourLabel(i)} • $v%',
-              ),
-              if (_dayOffline && !_isToday) ...[
-                const SizedBox(height: 8),
-                const OfflineNotice(
-                  message: 'Connect to WiFi to load this day\'s SpO2',
+              // ── 4-6. Daily section — collapse to single glass card when empty
+              if (!hasData && !_loading && !_loadingDay && !_dayOffline) ...[
+                NotEnoughDataCard(
+                  metric: 'blood oxygen',
+                  date: _selectedDate,
+                  isConnected: connected,
+                  onMeasure: _startMeasurement,
+                  measureLabel: 'Measure SpO₂',
                 ),
-              ],
-              const SizedBox(height: 10),
-
-              // ── 5. Stats row ───────────────────────────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'AVERAGE',
-                      value: _displayAvg > 0 ? '$_displayAvg' : '--',
-                      unit: _displayAvg > 0 ? '%' : '--',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'MINIMUM',
-                      value: _displayMin > 0 ? '$_displayMin' : '--',
-                      unit: _displayMin > 0 ? '%' : '--',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'MAXIMUM',
-                      value: _displayMax > 0 ? '$_displayMax' : '--',
-                      unit: _displayMax > 0 ? '%' : '--',
-                    ),
+              ] else ...[
+                ScrubbableChart(
+                  values: _chartValues,
+                  maxY: 100,
+                  baseline: 85,
+                  yLines: const [100, 97, 94, 85],
+                  barColor: AppTheme.spo2Color.withValues(alpha: 0.88),
+                  accent: AppTheme.spo2Color,
+                  headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
+                  rangeLabel: dailyRangeLabel,
+                  yLabels: const ['100', '97', '94', '85'],
+                  xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                  barCount: _chartValues.length,
+                  loading: _loading || _loadingDay,
+                  loadingAccent: AppTheme.spo2Color,
+                  valueLabelBuilder: (i, v) => '${_hourLabel(i)} • $v%',
+                ),
+                if (_dayOffline && !_isToday) ...[
+                  const SizedBox(height: 8),
+                  const OfflineNotice(
+                    message: 'Connect to WiFi to load this day\'s SpO2',
                   ),
                 ],
-              ),
-              const SizedBox(height: 10),
-
-              // ── 6. Real-time measurement ───────────────────────────────────
-RealTimeCard(
-                title: 'Real Time Blood Oxygen',
-                value: _measuring ? '···' : _manualSpo2 > 0 ? '$_manualSpo2' : '--',
-                unit: '%',
-                accent: AppTheme.spo2Color,
-                measuring: _measuring,
-                enabled: connected && !_measuring,
-                onTap: _startMeasurement,
-              ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'AVERAGE',
+                        value: _displayAvg > 0 ? '$_displayAvg' : '--',
+                        unit: _displayAvg > 0 ? '%' : '--',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'MINIMUM',
+                        value: _displayMin > 0 ? '$_displayMin' : '--',
+                        unit: _displayMin > 0 ? '%' : '--',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'MAXIMUM',
+                        value: _displayMax > 0 ? '$_displayMax' : '--',
+                        unit: _displayMax > 0 ? '%' : '--',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                RealTimeCard(
+                  title: 'Real Time Blood Oxygen',
+                  value: _measuring ? '···' : _manualSpo2 > 0 ? '$_manualSpo2' : '--',
+                  unit: '%',
+                  accent: AppTheme.spo2Color,
+                  measuring: _measuring,
+                  enabled: connected && !_measuring,
+                  onTap: _startMeasurement,
+                ),
+              ],
               const SizedBox(height: 20),
 
-              // ── 7. 7-day trend ─────────────────────────────────────────────
-              ScrubbableChart(
-                values: _trendValues,
-                maxY: 100,
-                baseline: 85,
-                yLines: const [100, 97, 94, 85],
-                barColor: AppTheme.spo2Color.withValues(alpha: 0.88),
-                accent: AppTheme.spo2Color,
-                headerLabel: 'LAST 7 DAYS TREND',
-                rangeLabel: trendRangeLabel,
-                yLabels: const ['100', '97', '94', '85'],
-                xLabels: _trendXLabels(),
-                barCount: _trendValues.length,
-                loading: _loadingTrend,
-                loadingAccent: AppTheme.spo2Color,
-              ),
-              if (_trendOffline) ...[
-                const SizedBox(height: 8),
-                const OfflineNotice(
-                  message: 'Connect to WiFi to load your 7-day trend',
+              // ── 7. 7-day trend — also collapse when empty
+              if (_trendValues.every((v) => v == 0) && !_loadingTrend && !_trendOffline)
+                const NotEnoughTrendDataCard(metric: 'blood oxygen')
+              else ...[
+                ScrubbableChart(
+                  values: _trendValues,
+                  maxY: 100,
+                  baseline: 85,
+                  yLines: const [100, 97, 94, 85],
+                  barColor: AppTheme.spo2Color.withValues(alpha: 0.88),
+                  accent: AppTheme.spo2Color,
+                  headerLabel: 'LAST 7 DAYS TREND',
+                  rangeLabel: trendRangeLabel,
+                  yLabels: const ['100', '97', '94', '85'],
+                  xLabels: _trendXLabels(),
+                  barCount: _trendValues.length,
+                  loading: _loadingTrend,
+                  loadingAccent: AppTheme.spo2Color,
                 ),
+                if (_trendOffline) ...[
+                  const SizedBox(height: 8),
+                  const OfflineNotice(
+                    message: 'Connect to WiFi to load your 7-day trend',
+                  ),
+                ],
               ],
               const SizedBox(height: 80),
             ],

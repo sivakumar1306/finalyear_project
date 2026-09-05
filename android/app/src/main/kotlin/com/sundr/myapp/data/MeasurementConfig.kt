@@ -14,9 +14,9 @@ object MeasurementConfig {
     private const val KEY_CYCLE_COOLDOWN_MS = "cycle_cooldown_ms"
 
     // Default gap between the end of one auto-measurement cycle and the start of the next.
-    // Chosen to reduce continuous PPG sensor duty-cycle (battery/heat) versus the earlier
-    // 60s value, while still giving a reasonable sampling cadence for trend charts.
-    private const val DEFAULT_CYCLE_COOLDOWN_MS = 180_000L // 3 minutes
+    // Product spec: 60s as part of measurement cycle — ensures heart rate (common) populates
+    // quickly without manual tap while preserving battery/heat constraints.
+    private const val DEFAULT_CYCLE_COOLDOWN_MS = 60_000L // 60s (was 180s)
 
     // Sanity bounds so a bad value (e.g. a stray 0 or a typo like "300" meaning ms instead
     // of seconds) can't make the loop spin constantly or effectively stop running.

@@ -8,6 +8,7 @@ import '../../services/supabase_service.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/glass_icon_button.dart';
 import '../../widgets/glass_menu.dart';
+import '../../widgets/not_enough_data_card.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import '../settings/goal_setting_screen.dart';
@@ -695,45 +696,61 @@ class _StepsScreenState extends State<StepsScreen> {
                   ),
                 ),
 
-                // ── Stats row ────────────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: _StatCard(
-                            label: 'Total Steps',
-                            value: _dispSteps > 0 ? '$_dispSteps' : '-- --',
-                            color: AppTheme.softGreen,
+                // ── Daily section — collapse to single card when empty ──────
+                if (_daySteps == 0 && _dayCal == 0 && _dayDistM == 0 && !_dayLoad && !_pastDayOffline)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                    child: NotEnoughDataCard(
+                      metric: 'activity',
+                      date: _selectedDate,
+                      isConnected: (() {
+                        try {
+                          return context.read<BleProvider>().isConnected;
+                        } catch (_) {
+                          return false;
+                        }
+                      })(),
+                    ),
+                  )
+                else ...[
+                  // ── Stats row ────────────────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                    child: IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: _StatCard(
+                              label: 'Total Steps',
+                              value: _dispSteps > 0 ? '$_dispSteps' : '-- --',
+                              color: AppTheme.softGreen,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _StatCard(
-                            label: 'Total Mileage',
-                            value: _dispDistM > 0
-                                ? '${(_dispDistM / 1000).toStringAsFixed(2)} km'
-                                : '-- --',
-                            color: AppTheme.softBlue,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _StatCard(
+                              label: 'Total Mileage',
+                              value: _dispDistM > 0
+                                  ? '${(_dispDistM / 1000).toStringAsFixed(2)} km'
+                                  : '-- --',
+                              color: AppTheme.softBlue,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _StatCard(
-                            label: 'Total Calories',
-                            value: _dispCal > 0 ? '$_dispCal' : '-- --',
-                            color: AppTheme.softOrange,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _StatCard(
+                              label: 'Total Calories',
+                              value: _dispCal > 0 ? '$_dispCal' : '-- --',
+                              color: AppTheme.softOrange,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
 
-                // ── Day charts ───────────────────────────────────────────────
-                ...[
+                  // ── Day charts ───────────────────────────────────────────────
                   _chartPad(
                     _ChartCard(
                       title: 'STEPS',

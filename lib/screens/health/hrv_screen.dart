@@ -22,6 +22,7 @@ import '../../widgets/date_scroll_row.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/chart_scrubber.dart';
 import '../../widgets/metric_stat_card.dart';
+import '../../widgets/not_enough_data_card.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -809,101 +810,115 @@ class _HrvScreenState extends State<HrvScreen> {
                 const SizedBox(height: 16),
 
                 // ── 3. Daily chart ─────────────────────────────────────────
-                ScrubbableChart(
-                  values: _chartValues,
-                  maxY: 100,
-                  yLines: const [100, 80, 60, 40, 20],
-                  colorFor: (v) => _hrvBarColor(v).withValues(alpha: 0.88),
-                  accent: AppTheme.hrvColor,
-                  headerLabel: hasData ? 'TODAY' : (_isToday ? 'NO DATA YET' : _dateLabel()),
-                  rangeLabel: dailyRangeLabel,
-                  yLabels: const ['100', '80', '60', '40'],
-                  xLabels: const ['12am', '6am', '12pm', '6pm', ''],
-                  barCount: _chartValues.length,
-                  loading: _loading || _loadingDay,
-                  loadingAccent: AppTheme.hrvColor,
-                  valueLabelBuilder: (i, v) => '${_halfHourLabel(i)} • $v ms',
-                ),
-                if (_dayOffline && !_isToday) ...[
-                  const SizedBox(height: 8),
-                  const OfflineNotice(
-                    message: 'Connect to WiFi to load this day\'s HRV',
+                if (!hasData && !_loading && !_loadingDay && !_dayOffline) ...[
+                  NotEnoughDataCard(
+                    metric: 'HRV',
+                    date: _selectedDate,
+                    isConnected: connected,
+                    onMeasure: _startMeasurement,
+                    measureLabel: 'Measure HRV',
                   ),
-                ],
-                const SizedBox(height: 10),
-
-                // ── 4. Stats row ───────────────────────────────────────────
-                Row(
-                  children: [
-                    Expanded(
-                      child: MetricStatCard(
-                        label: 'AVERAGE',
-                        value: displayAvg > 0 ? '$displayAvg' : '--',
-                        unit: displayAvg > 0 ? 'ms' : '--',
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: MetricStatCard(
-                        label: 'MINIMUM',
-                        value: displayMin > 0 ? '$displayMin' : '--',
-                        unit: displayMin > 0 ? 'ms' : '--',
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: MetricStatCard(
-                        label: 'MAXIMUM',
-                        value: displayMax > 0 ? '$displayMax' : '--',
-                        unit: displayMax > 0 ? 'ms' : '--',
-                      ),
+                ] else ...[
+                  ScrubbableChart(
+                    values: _chartValues,
+                    maxY: 100,
+                    yLines: const [100, 80, 60, 40, 20],
+                    colorFor: (v) => _hrvBarColor(v).withValues(alpha: 0.88),
+                    accent: AppTheme.hrvColor,
+                    headerLabel: hasData ? 'TODAY' : (_isToday ? 'NO DATA YET' : _dateLabel()),
+                    rangeLabel: dailyRangeLabel,
+                    yLabels: const ['100', '80', '60', '40'],
+                    xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                    barCount: _chartValues.length,
+                    loading: _loading || _loadingDay,
+                    loadingAccent: AppTheme.hrvColor,
+                    valueLabelBuilder: (i, v) => '${_halfHourLabel(i)} • $v ms',
+                  ),
+                  if (_dayOffline && !_isToday) ...[
+                    const SizedBox(height: 8),
+                    const OfflineNotice(
+                      message: 'Connect to WiFi to load this day\'s HRV',
                     ),
                   ],
-                ),
-                const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-                // ── 4b. Real-time measurement ───────────────────────────────
-                RealTimeCard(
-                  title: 'Real Time HRV',
-                  value: _measuring ? '···' : _manualHrv > 0 ? '$_manualHrv' : '--',
-                  unit: 'ms',
-                  accent: AppTheme.hrvColor,
-                  measuring: _measuring,
-                  enabled: connected && !_measuring,
-                  onTap: _startMeasurement,
-                ),
+                  // ── 4. Stats row ───────────────────────────────────────────
+                  Row(
+                    children: [
+                      Expanded(
+                        child: MetricStatCard(
+                          label: 'AVERAGE',
+                          value: displayAvg > 0 ? '$displayAvg' : '--',
+                          unit: displayAvg > 0 ? 'ms' : '--',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: MetricStatCard(
+                          label: 'MINIMUM',
+                          value: displayMin > 0 ? '$displayMin' : '--',
+                          unit: displayMin > 0 ? 'ms' : '--',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: MetricStatCard(
+                          label: 'MAXIMUM',
+                          value: displayMax > 0 ? '$displayMax' : '--',
+                          unit: displayMax > 0 ? 'ms' : '--',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // ── 4b. Real-time measurement ───────────────────────────────
+                  RealTimeCard(
+                    title: 'Real Time HRV',
+                    value: _measuring ? '···' : _manualHrv > 0 ? '$_manualHrv' : '--',
+                    unit: 'ms',
+                    accent: AppTheme.hrvColor,
+                    measuring: _measuring,
+                    enabled: connected && !_measuring,
+                    onTap: _startMeasurement,
+                  ),
+                ],
                 const SizedBox(height: 20),
 
                 // ── 5. 7-day trend ─────────────────────────────────────────
-                ScrubbableChart(
-                  values: _trendValues,
-                  maxY: 100,
-                  yLines: const [100, 80, 60, 40, 20],
-                  colorFor: (v) => _hrvBarColor(v).withValues(alpha: 0.88),
-                  accent: AppTheme.hrvColor,
-                  headerLabel: 'LAST 7 DAYS TREND',
-                  rangeLabel: trendRangeLabel,
-                  yLabels: const ['100', '80', '60', '40'],
-                  xLabels: _trendXLabels(),
-                  barCount: _trendValues.length,
-                  loading: _loadingTrend,
-                  loadingAccent: AppTheme.hrvColor,
-                  footer: const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      LegendDot(color: AppTheme.danger, label: 'Very Low'),
-                      LegendDot(color: AppTheme.stressColor, label: 'Low'),
-                      LegendDot(color: AppTheme.amber, label: 'Moderate'),
-                      LegendDot(color: AppTheme.success, label: 'Good'),
-                      LegendDot(color: AppTheme.hrvColor, label: 'Excellent'),
-                    ],
+                if (_trendValues.every((v) => v == 0) && !_loadingTrend && !_trendOffline)
+                  const NotEnoughTrendDataCard(metric: 'HRV')
+                else ...[
+                  ScrubbableChart(
+                    values: _trendValues,
+                    maxY: 100,
+                    yLines: const [100, 80, 60, 40, 20],
+                    colorFor: (v) => _hrvBarColor(v).withValues(alpha: 0.88),
+                    accent: AppTheme.hrvColor,
+                    headerLabel: 'LAST 7 DAYS TREND',
+                    rangeLabel: trendRangeLabel,
+                    yLabels: const ['100', '80', '60', '40'],
+                    xLabels: _trendXLabels(),
+                    barCount: _trendValues.length,
+                    loading: _loadingTrend,
+                    loadingAccent: AppTheme.hrvColor,
+                    footer: const Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        LegendDot(color: AppTheme.danger, label: 'Very Low'),
+                        LegendDot(color: AppTheme.stressColor, label: 'Low'),
+                        LegendDot(color: AppTheme.amber, label: 'Moderate'),
+                        LegendDot(color: AppTheme.success, label: 'Good'),
+                        LegendDot(color: AppTheme.hrvColor, label: 'Excellent'),
+                      ],
+                    ),
                   ),
-                ),
-                if (_trendOffline) ...[
-                  const SizedBox(height: 8),
-                  const OfflineNotice(
-                    message: 'Connect to WiFi to load your 7-day trend',
-                  ),
+                  if (_trendOffline) ...[
+                    const SizedBox(height: 8),
+                    const OfflineNotice(
+                      message: 'Connect to WiFi to load your 7-day trend',
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 10),
 

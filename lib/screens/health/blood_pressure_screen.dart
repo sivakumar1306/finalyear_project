@@ -20,6 +20,7 @@ import '../../services/health_engine/models.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/chart_scrubber.dart';
 import '../../widgets/metric_stat_card.dart';
+import '../../widgets/not_enough_data_card.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -822,102 +823,112 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               ),
               const SizedBox(height: 16),
 
-              // ── 4. Daily chart ─────────────────────────────────────────────
-              ScrubbableBPChart(
-                sbpValues: _chartSbp,
-                dbpValues: _chartDbp,
-                headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
-                rangeLabel: dailyRangeLabel,
-                yLabels: const ['160', '120', '80', '40'],
-                xLabels: const ['12am', '6am', '12pm', '6pm', ''],
-                barCount: _chartSbp.length,
-                loading: _loading || _loadingDay,
-                loadingAccent: AppTheme.bpColor,
-              ),
-              if (_dayOffline && !_isToday) ...[
-                const SizedBox(height: 8),
-                const OfflineNotice(
-                  message: 'Connect to WiFi to load this day\'s blood pressure',
+              // ── 4-6. Daily section — collapse to single glass card when empty
+              if (!hasData && !_loading && !_loadingDay && !_dayOffline) ...[
+                NotEnoughDataCard(
+                  metric: 'blood pressure',
+                  date: _selectedDate,
+                  isConnected: connected,
+                  onMeasure: _startMeasurement,
+                  measureLabel: 'Measure blood pressure',
                 ),
-              ],
-              const SizedBox(height: 10),
-
-              // ── 5. Stats row ───────────────────────────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'AVERAGE',
-                      value: (_displaySbpAvg > 0 && _displayDbpAvg > 0)
-                          ? '$_displaySbpAvg/$_displayDbpAvg'
-                          : '--',
-                      unit: (_displaySbpAvg > 0 && _displayDbpAvg > 0)
-                          ? 'mmHg'
-                          : '',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'MINIMUM',
-                      value: (_displaySbpMin > 0 && _displayDbpMin > 0)
-                          ? '$_displaySbpMin/$_displayDbpMin'
-                          : '--',
-                      unit: (_displaySbpMin > 0 && _displayDbpMin > 0)
-                          ? 'mmHg'
-                          : '',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'MAXIMUM',
-                      value: (_displaySbpMax > 0 && _displayDbpMax > 0)
-                          ? '$_displaySbpMax/$_displayDbpMax'
-                          : '--',
-                      unit: (_displaySbpMax > 0 && _displayDbpMax > 0)
-                          ? 'mmHg'
-                          : '',
-                    ),
+              ] else ...[
+                ScrubbableBPChart(
+                  sbpValues: _chartSbp,
+                  dbpValues: _chartDbp,
+                  headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
+                  rangeLabel: dailyRangeLabel,
+                  yLabels: const ['160', '120', '80', '40'],
+                  xLabels: const ['12am', '6am', '12pm', '6pm', ''],
+                  barCount: _chartSbp.length,
+                  loading: _loading || _loadingDay,
+                  loadingAccent: AppTheme.bpColor,
+                ),
+                if (_dayOffline && !_isToday) ...[
+                  const SizedBox(height: 8),
+                  const OfflineNotice(
+                    message: 'Connect to WiFi to load this day\'s blood pressure',
                   ),
                 ],
-              ),
-              const SizedBox(height: 10),
-
-              // ── 6. Real-time measurement ───────────────────────────────────
-              _RealTimeBPCard(
-                sbp: _manualSbp,
-                dbp: _manualDbp,
-                measuring: _measuring,
-                enabled: connected && !_measuring,
-                onTap: _startMeasurement,
-              ),
-              const SizedBox(height: 20),
-
-              // ── 7. 7-day trend ─────────────────────────────────────────────
-              ScrubbableBPChart(
-                sbpValues: _trendSbp,
-                dbpValues: _trendDbp,
-                headerLabel: 'LAST 7 DAYS TREND',
-                rangeLabel: trendRangeLabel,
-                yLabels: const ['160', '120', '80', '40'],
-                xLabels: _trendXLabels(),
-                barCount: _trendSbp.length,
-                loading: _loadingTrend,
-                loadingAccent: AppTheme.bpColor,
-                footer: const Row(
+                const SizedBox(height: 10),
+                Row(
                   children: [
-                    LegendDot(color: AppTheme.bpColor, label: 'Systolic'),
-                    SizedBox(width: 14),
-                    LegendDot(color: AppTheme.softViolet, label: 'Diastolic'),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'AVERAGE',
+                        value: (_displaySbpAvg > 0 && _displayDbpAvg > 0)
+                            ? '$_displaySbpAvg/$_displayDbpAvg'
+                            : '--',
+                        unit: (_displaySbpAvg > 0 && _displayDbpAvg > 0)
+                            ? 'mmHg'
+                            : '',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'MINIMUM',
+                        value: (_displaySbpMin > 0 && _displayDbpMin > 0)
+                            ? '$_displaySbpMin/$_displayDbpMin'
+                            : '--',
+                        unit: (_displaySbpMin > 0 && _displayDbpMin > 0)
+                            ? 'mmHg'
+                            : '',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'MAXIMUM',
+                        value: (_displaySbpMax > 0 && _displayDbpMax > 0)
+                            ? '$_displaySbpMax/$_displayDbpMax'
+                            : '--',
+                        unit: (_displaySbpMax > 0 && _displayDbpMax > 0)
+                            ? 'mmHg'
+                            : '',
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              if (_trendOffline) ...[
-                const SizedBox(height: 8),
-                const OfflineNotice(
-                  message: 'Connect to WiFi to load your 7-day trend',
+                const SizedBox(height: 10),
+                _RealTimeBPCard(
+                  sbp: _manualSbp,
+                  dbp: _manualDbp,
+                  measuring: _measuring,
+                  enabled: connected && !_measuring,
+                  onTap: _startMeasurement,
                 ),
+              ],
+              const SizedBox(height: 20),
+
+              // ── 7. 7-day trend — also collapse when empty
+              if ((_trendSbp.every((v) => v == 0) && _trendDbp.every((v) => v == 0)) && !_loadingTrend && !_trendOffline)
+                const NotEnoughTrendDataCard(metric: 'blood pressure')
+              else ...[
+                ScrubbableBPChart(
+                  sbpValues: _trendSbp,
+                  dbpValues: _trendDbp,
+                  headerLabel: 'LAST 7 DAYS TREND',
+                  rangeLabel: trendRangeLabel,
+                  yLabels: const ['160', '120', '80', '40'],
+                  xLabels: _trendXLabels(),
+                  barCount: _trendSbp.length,
+                  loading: _loadingTrend,
+                  loadingAccent: AppTheme.bpColor,
+                  footer: const Row(
+                    children: [
+                      LegendDot(color: AppTheme.bpColor, label: 'Systolic'),
+                      SizedBox(width: 14),
+                      LegendDot(color: AppTheme.softViolet, label: 'Diastolic'),
+                    ],
+                  ),
+                ),
+                if (_trendOffline) ...[
+                  const SizedBox(height: 8),
+                  const OfflineNotice(
+                    message: 'Connect to WiFi to load your 7-day trend',
+                  ),
+                ],
               ],
 
               const SizedBox(height: 80),

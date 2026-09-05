@@ -23,6 +23,7 @@ import '../../widgets/date_scroll_row.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/metric_chart_card.dart';
 import '../../widgets/metric_stat_card.dart';
+import '../../widgets/not_enough_data_card.dart';
 
 
 // Oudmon SDK sleep stage constants: 0=deep, 1=light, 2=awake, 3=REM
@@ -923,188 +924,193 @@ class _SleepScreenState extends State<SleepScreen> {
                 const SizedBox(height: 16),
               ],
 
-              // ── 3. Sleep stages chart ────────────────────────────────────
-              MetricChartCard(
-                headerLabel: hasData ? 'SLEEP STAGES' : 'NO DATA YET',
-                rangeLabel: hasData && _sleepTime > 0
-                    ? '${_timeLabel(_sleepTime)} – ${_timeLabel(_wakeTime)}'
-                    : '-- --',
-                height: 100,
-                child: !hasData
-                    ? Center(
-                        child: Text(
-                          'NO DATA YET',
-                          style: _inter(12, color: AppTheme.textTertiary, letterSpacing: 1.2),
+              // ── 3-7. Daily section — collapse to single glass card when empty
+              if (!hasData && !_loading && !_dbOffline)
+                NotEnoughDataCard(
+                  metric: 'sleep',
+                  date: _selectedDate,
+                  isConnected: context.read<BleProvider>().isConnected,
+                )
+              else ...[
+                // ── 3. Sleep stages chart ────────────────────────────────────
+                MetricChartCard(
+                  headerLabel: hasData ? 'SLEEP STAGES' : 'NO DATA YET',
+                  rangeLabel: hasData && _sleepTime > 0
+                      ? '${_timeLabel(_sleepTime)} – ${_timeLabel(_wakeTime)}'
+                      : '-- --',
+                  height: 100,
+                  child: !hasData
+                      ? Center(
+                          child: Text(
+                            'NO DATA YET',
+                            style: _inter(12, color: AppTheme.textTertiary, letterSpacing: 1.2),
+                          ),
+                        )
+                      : CustomPaint(
+                          painter: _HypnogramPainter(
+                            segments: _segments,
+                            sleepTime: _sleepTime,
+                            wakeTime: _wakeTime,
+                            totalDuration: _totalDuration,
+                            awakeDuration: _awakeDuration,
+                            lightDuration: _lightDuration,
+                            deepDuration: _deepDuration,
+                            remDuration: _remDuration,
+                          ),
+                          child: const SizedBox.expand(),
                         ),
-                      )
-                    : CustomPaint(
-                        painter: _HypnogramPainter(
-                          segments: _segments,
-                          sleepTime: _sleepTime,
-                          wakeTime: _wakeTime,
-                          totalDuration: _totalDuration,
-                          awakeDuration: _awakeDuration,
-                          lightDuration: _lightDuration,
-                          deepDuration: _deepDuration,
-                          remDuration: _remDuration,
-                        ),
-                        child: const SizedBox.expand(),
-                      ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: const [
-                  LegendDot(color: AppTheme.amber, label: 'Awake'),
-                  LegendDot(color: AppTheme.bpColor, label: 'REM'),
-                  LegendDot(color: AppTheme.softBlue, label: 'Light'),
-                  LegendDot(color: _kDeepColor, label: 'Deep'),
-                ],
-              ),
-              const SizedBox(height: 10),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: const [
+                    LegendDot(color: AppTheme.amber, label: 'Awake'),
+                    LegendDot(color: AppTheme.bpColor, label: 'REM'),
+                    LegendDot(color: AppTheme.softBlue, label: 'Light'),
+                    LegendDot(color: _kDeepColor, label: 'Deep'),
+                  ],
+                ),
+                const SizedBox(height: 10),
 
-              // ── 4. Stats row ─────────────────────────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'EFFICIENCY',
-                      value: hasData ? _efficiency() : '--',
-                      unit: '',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'DEEP SLEEP',
-                      value: hasData ? _fmt(_deepDuration) : '--',
-                      unit: '',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'REM SLEEP',
-                      value: hasData ? _fmt(_remDuration) : '--',
-                      unit: '',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              // ── 5. Sleep stages breakdown ────────────────────────────────
-              _StagesBreakdownCard(
-                hasData: hasData,
-                awakeDuration: _awakeDuration,
-                lightDuration: _lightDuration,
-                deepDuration: _deepDuration,
-                remDuration: _remDuration,
-                totalDuration: _totalDuration,
-                fmt: _fmt,
-              ),
-              const SizedBox(height: 10),
-
-              // ── 6. Sleep summary ──────────────────────────────────────────
-              GlassCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                // ── 4. Stats row ─────────────────────────────────────────────
+                Row(
                   children: [
-                    Text(
-                      'SLEEP SUMMARY',
-                      style: _inter(
-                        11,
-                        weight: FontWeight.w600,
-                        color: AppTheme.textTertiary,
-                        letterSpacing: 0.6,
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'EFFICIENCY',
+                        value: hasData ? _efficiency() : '--',
+                        unit: '',
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    _SummaryRow(
-                      label: 'Sleep Duration',
-                      value: hasData ? _fmt(_totalDuration) : '--',
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'DEEP SLEEP',
+                        value: hasData ? _fmt(_deepDuration) : '--',
+                        unit: '',
+                      ),
                     ),
-                    const Divider(color: AppTheme.div, height: 20),
-                    _SummaryRow(
-                      label: 'Sleep Time',
-                      value: hasData && _sleepTime > 0
-                          ? _timeLabel(_sleepTime)
-                          : '--',
-                    ),
-                    const Divider(color: AppTheme.div, height: 20),
-                    _SummaryRow(
-                      label: 'Wake Time',
-                      value: hasData && _wakeTime > 0
-                          ? _timeLabel(_wakeTime)
-                          : '--',
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'REM SLEEP',
+                        value: hasData ? _fmt(_remDuration) : '--',
+                        unit: '',
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 10),
 
-              // ── 7. Vitals during sleep ────────────────────────────────────
-              Text(
-                'VITALS DURING SLEEP',
-                style: _inter(
-                  11,
-                  weight: FontWeight.w600,
-                  color: AppTheme.textTertiary,
-                  letterSpacing: 0.6,
+                // ── 5. Sleep stages breakdown ────────────────────────────────
+                _StagesBreakdownCard(
+                  hasData: hasData,
+                  awakeDuration: _awakeDuration,
+                  lightDuration: _lightDuration,
+                  deepDuration: _deepDuration,
+                  remDuration: _remDuration,
+                  totalDuration: _totalDuration,
+                  fmt: _fmt,
                 ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'AVG HEART RATE',
-                      value: _avgHr > 0 ? '$_avgHr' : '--',
-                      unit: _avgHr > 0 ? 'bpm' : '',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'AVG BLOOD OXYGEN',
-                      value: _avgSpo2 > 0 ? '$_avgSpo2' : '--',
-                      unit: _avgSpo2 > 0 ? '%' : '',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: MetricStatCard(
-                      label: 'AVG HRV',
-                      value: _avgHrv > 0 ? '$_avgHrv' : '--',
-                      unit: _avgHrv > 0 ? 'ms' : '',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 10),
 
-              // ── 8. 7-day trend ─────────────────────────────────────────────
-              MetricChartCard(
-                headerLabel: 'LAST 7 DAYS TREND',
-                rangeLabel: avgDur > 0
-                    ? 'avg ${_fmt(avgDur)}${avgScore > 0 ? " · score $avgScore" : ""}'
-                    : '-- --',
-                height: 128,
-                yLabels: const ['8h', '6h', '4h', '2h'],
-                barCount: trendVals.length,
-                xLabels: _trendDayLabels(),
-                child: trendVals.every((v) => v == 0)
-                    ? Center(
-                        child: Text(
-                          'NO DATA YET',
-                          style: _inter(12, color: AppTheme.textTertiary, letterSpacing: 1.2),
+                // ── 6. Sleep summary ──────────────────────────────────────────
+                GlassCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'SLEEP SUMMARY',
+                        style: _inter(
+                          11,
+                          weight: FontWeight.w600,
+                          color: AppTheme.textTertiary,
+                          letterSpacing: 0.6,
                         ),
-                      )
-                    : CustomPaint(
-                        painter: _SleepBarPainter(values: trendVals),
-                        child: const SizedBox.expand(),
                       ),
-              ),
+                      const SizedBox(height: 12),
+                      _SummaryRow(
+                        label: 'Sleep Duration',
+                        value: hasData ? _fmt(_totalDuration) : '--',
+                      ),
+                      const Divider(color: AppTheme.div, height: 20),
+                      _SummaryRow(
+                        label: 'Sleep Time',
+                        value: hasData && _sleepTime > 0
+                            ? _timeLabel(_sleepTime)
+                            : '--',
+                      ),
+                      const Divider(color: AppTheme.div, height: 20),
+                      _SummaryRow(
+                        label: 'Wake Time',
+                        value: hasData && _wakeTime > 0
+                            ? _timeLabel(_wakeTime)
+                            : '--',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // ── 7. Vitals during sleep ────────────────────────────────────
+                Text(
+                  'VITALS DURING SLEEP',
+                  style: _inter(
+                    11,
+                    weight: FontWeight.w600,
+                    color: AppTheme.textTertiary,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'AVG HEART RATE',
+                        value: _avgHr > 0 ? '$_avgHr' : '--',
+                        unit: _avgHr > 0 ? 'bpm' : '',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'AVG BLOOD OXYGEN',
+                        value: _avgSpo2 > 0 ? '$_avgSpo2' : '--',
+                        unit: _avgSpo2 > 0 ? '%' : '',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: MetricStatCard(
+                        label: 'AVG HRV',
+                        value: _avgHrv > 0 ? '$_avgHrv' : '--',
+                        unit: _avgHrv > 0 ? 'ms' : '',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+              ],
+
+              // ── 8. 7-day trend — collapse when empty
+              if (trendVals.every((v) => v == 0) && !_dbOffline)
+                const NotEnoughTrendDataCard(metric: 'sleep')
+              else
+                MetricChartCard(
+                  headerLabel: 'LAST 7 DAYS TREND',
+                  rangeLabel: avgDur > 0
+                      ? 'avg ${_fmt(avgDur)}${avgScore > 0 ? " · score $avgScore" : ""}'
+                      : '-- --',
+                  height: 128,
+                  yLabels: const ['8h', '6h', '4h', '2h'],
+                  barCount: trendVals.length,
+                  xLabels: _trendDayLabels(),
+                  child: CustomPaint(
+                    painter: _SleepBarPainter(values: trendVals),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
 
               const SizedBox(height: 80),
             ],

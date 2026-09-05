@@ -34,6 +34,7 @@ class BleProvider extends ChangeNotifier {
   Map<String, String> _firmwareVersion = {};
   final List<ScannedDevice> _scannedDevices = [];
   StreamSubscription? _eventSub;
+  StreamSubscription? _authSub;
 
   // Steps state
   int _todaySteps = 0;
@@ -359,6 +360,7 @@ class BleProvider extends ChangeNotifier {
   BleProvider() {
     _loadSavedDevice();
     _listenEvents();
+    _listenAuthRefresh();
     // HR/SpO2/Stress/BP/Steps are now continuously acquired by the native background
     // loop and stored in local Room — read from there first, only falling back to
     // Supabase if local is empty (e.g. very first run before the loop has produced data).
@@ -370,6 +372,24 @@ class BleProvider extends ChangeNotifier {
     _loadTodayTempFromSupabase();
     syncEmergencyContactsFromCloud().then((_) => _syncContactsToCloud());
     loadLowBatteryPromptSetting();
+  }
+
+  void _listenAuthRefresh() {
+    try {
+      _authSub = SupabaseService.client.auth.onAuthStateChange.listen((event) {
+        final user = event.session?.user;
+        if (user != null) {
+          // Auth restored after cold-start race (ctor ran before SplashScreen restored session)
+          // Re-pull vitals now that Supabase fallbacks can actually query.
+          _loadTodayVitalsFromLocal();
+          _loadTodayHrvFromSupabase();
+          _loadTodaySleepFromSupabase();
+          _loadTodayTempFromSupabase();
+        }
+      });
+    } catch (e, st) {
+      _recordError(e, st, '_listenAuthRefresh');
+    }
   }
 
   // ── Event listener ────────────────────────────────────────────────────────
@@ -1264,7 +1284,18 @@ Future<void> _loadTodayVitalsFromLocal() async {
       return false;
     }
     final now = DateTime.now();
-    return dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    final dayStart = DateTime(now.year, now.month, now.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+    // Strict calendar day check via range (handles DST) + 1h tolerance for ring setTime drift
+    // e.g. ring reports 00:02 when actual is 23:58 due to clock skew.
+    if (!dt.isBefore(dayStart) && dt.isBefore(dayEnd)) return true;
+    // Tolerance window: 1h before/after midnight
+    final tolStart = dayStart.subtract(const Duration(hours: 1));
+    final tolEnd = dayEnd.add(const Duration(hours: 1));
+    if (dt.isBefore(tolStart) || !dt.isBefore(tolEnd)) return false;
+    // Only count if hour is near midnight (23 or 0) to avoid pulling whole previous day.
+    if (dt.hour == 23 || dt.hour == 0) return true;
+    return false;
   }
 
   Future<bool> _refreshStressFromLocal() async {
@@ -2278,6 +2309,7 @@ Future<bool> findDevice({bool enable = true}) async {
   @override
   void dispose() {
     _eventSub?.cancel();
+    _authSub?.cancel();
     _stopEmergencySmsPoll();
     _cameraShutterController.close();
     super.dispose();
