@@ -12,6 +12,8 @@ import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
+import '../../services/health_engine/health_engine.dart';
+import '../../services/health_engine/models.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
@@ -40,30 +42,23 @@ TextStyle _inter(
   height: height,
 );
 
-// ── Stress label / color helpers ──────────────────────────────────────────────
+// ── Stress label / color helpers — delegated to HealthEngine ──────────────
 
 String _stressLabel(int v) {
-  if (v <= 0) return '';
-  if (v < 40) return 'Relaxed';
-  if (v < 60) return 'Normal';
-  if (v < 80) return 'Elevated';
-  return 'High';
+  final l = HealthEngine.instance.assessStress(v).label;
+  // engine returns '--' for unknown, keep previous '' for hero empty state
+  if (l == '--') return '';
+  return l;
 }
 
 Color _stressLevelColor(int v) {
-  if (v <= 0) return _kSec2;
-  if (v < 40) return AppTheme.success;
-  if (v < 60) return const Color(0xFFFBBF24);
-  if (v < 80) return AppTheme.stressColor;
-  return AppTheme.danger;
+  final a = HealthEngine.instance.assessStress(v);
+  // preserve previous _kSec2 for empty so hero spacing unchanged
+  if (a.severity == HealthSeverity.unknown) return _kSec2;
+  return a.color;
 }
 
-Color _barColor(num v) {
-  if (v < 40) return AppTheme.success;
-  if (v < 60) return const Color(0xFFFBBF24);
-  if (v < 80) return AppTheme.stressColor;
-  return AppTheme.danger;
-}
+Color _barColor(num v) => HealthEngine.instance.stressBarColor(v);
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -576,57 +571,7 @@ class _StressScreenState extends State<StressScreen> {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => const VitalNoteScreen(
-                title: 'Stress',
-                heading: 'About Stress',
-                intro:
-                    'Your ring estimates stress from heart-rate variability — '
-                    'how activated your nervous system is right now, not just '
-                    'how you feel.',
-                ranges: [
-                  VitalRange(
-                    label: 'Relaxed',
-                    range: '0–39',
-                    color: AppTheme.success,
-                  ),
-                  VitalRange(
-                    label: 'Normal',
-                    range: '40–59',
-                    color: Color(0xFFFBBF24),
-                  ),
-                  VitalRange(
-                    label: 'Elevated',
-                    range: '60–79',
-                    color: AppTheme.stressColor,
-                  ),
-                  VitalRange(
-                    label: 'High',
-                    range: '80–100',
-                    color: AppTheme.danger,
-                  ),
-                ],
-                tips: [
-                  VitalTip(
-                    icon: Icons.self_improvement_rounded,
-                    color: AppTheme.success,
-                    title: 'Lower it fast',
-                    tip:
-                        'A 2-minute slow-breathing break (4s in, 6s out) can '
-                        'visibly bring down an elevated reading.',
-                  ),
-                  VitalTip(
-                    icon: Icons.bedtime_rounded,
-                    color: AppTheme.sleepColor,
-                    title: 'Sleep debt shows up here',
-                    tip:
-                        'A poor night\'s sleep often reads as elevated '
-                        'stress the next day, even on a calm one.',
-                  ),
-                ],
-                didYouKnow:
-                    'A brief spike during focused work isn\'t a problem — '
-                    'it\'s staying elevated for hours that matters.',
-              ),
+              builder: (_) => VitalNoteScreen.fromMetric(HealthMetric.stress),
             ),
           ),
         ),

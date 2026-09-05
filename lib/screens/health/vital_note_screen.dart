@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../services/health_engine/health_engine.dart';
+import '../../services/health_engine/models.dart';
 
 // ── Design tokens (mirrors the other health detail screens) ───────────────
 
@@ -46,6 +48,11 @@ class VitalTip {
 /// a glance, and a couple of crisp tips. Opened from a health detail
 /// screen's "..." menu. Mirrors activity_description_screen.dart's layout
 /// so every vital's Note screen feels like one system.
+///
+/// All human copy now comes from [HealthEngine] via [VitalNoteData] so
+/// thresholds and advice stay in one dict (`HealthConfig`). Legacy
+/// `const VitalNoteScreen(...)` constructors still work but new call sites
+/// should use [VitalNoteScreen.fromMetric] or [fromData].
 class VitalNoteScreen extends StatelessWidget {
   final String title;
   final String heading;
@@ -63,6 +70,26 @@ class VitalNoteScreen extends StatelessWidget {
     required this.tips,
     this.didYouKnow,
   });
+
+  /// Build from engine data — maps `colorKey/icon` strings to real `Color`/`IconData`.
+  factory VitalNoteScreen.fromData(VitalNoteData data) {
+    final he = HealthEngine.instance;
+    return VitalNoteScreen(
+      title: data.title,
+      heading: data.heading,
+      intro: data.intro,
+      ranges: data.ranges
+          .map((r) => VitalRange(label: r.label, range: r.range, color: he.colorForKey(r.colorKey)))
+          .toList(),
+      tips: data.tips
+          .map((t) => VitalTip(icon: he.iconForKey(t.icon), color: he.colorForKey(t.colorKey), title: t.title, tip: t.tip))
+          .toList(),
+      didYouKnow: data.didYouKnow,
+    );
+  }
+
+  factory VitalNoteScreen.fromMetric(HealthMetric metric) =>
+      VitalNoteScreen.fromData(HealthEngine.instance.noteFor(metric));
 
   @override
   Widget build(BuildContext context) {

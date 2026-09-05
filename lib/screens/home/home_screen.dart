@@ -9,6 +9,9 @@ import '../settings/fall_detection_widgets.dart';
 import '../../providers/home_card_provider.dart';
 import '../../providers/fall_prediction/fall_prediction_provider.dart';
 import '../../services/supabase_service.dart';
+import '../../services/goal_prefs.dart';
+import '../../services/health_engine/health_config.dart';
+import '../../services/health_engine/health_engine.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/footer_spacer.dart';
 import '../../widgets/glass_icon_button.dart';
@@ -38,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       GlobalKey<HomeAiInsightSnippetState>();
   String _firstName = '';
   String _gender = '';
+  GoalTargets? _goals;
   @override
   void initState() {
     super.initState();
@@ -51,9 +55,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Auto-SMS countdown may already be running (fall while app was backgrounded).
       ble.refreshEmergencySmsStatus();
       ble.syncTodayStepsFromRing();
-      ble.refreshVitalsFromLocal();
+      // Refresh remote HealthEngine thresholds/literature + reload goal-aware activity denoms.
+      HealthEngine.instance.refreshConfig();
+      _loadGoals();
     });
     _loadUserProfile();
+    _loadGoals();
+  }
+
+  Future<void> _loadGoals() async {
+    final g = await GoalPrefs.load();
+    if (mounted) setState(() => _goals = g);
   }
 
   @override
@@ -65,7 +77,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ble.checkPendingFallPrediction();
       ble.refreshEmergencySmsStatus();
       ble.syncTodayStepsFromRing();
-      ble.refreshVitalsFromLocal();
+      HealthEngine.instance.refreshConfig();
+      _loadGoals();
     }
   }
 
@@ -111,6 +124,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await Navigator.pushNamed(context, route);
     if (!mounted) return;
     await _loadUserProfile();
+    await _loadGoals();
     if (!mounted) return;
     setState(() {});
   }
@@ -120,6 +134,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context,
       MaterialPageRoute(builder: (_) => const CardSettingsScreen()),
     );
+    if (mounted) _loadGoals();
   }
 
   String get _greeting {
@@ -150,36 +165,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return '${d[now.weekday - 1]} · ${now.day.toString().padLeft(2, '0')} ${m[now.month - 1]}';
   }
 
-  static String _spo2Status(int v) {
-    if (v <= 0) return 'No data';
-    if (v >= 95) return 'Normal';
-    if (v >= 90) return 'Borderline';
-    return 'Low';
-  }
+  // ── Delegates to HealthEngine single source of truth ────────────
+  // Keep static wrappers so existing tests/callers compile, but all logic lives in engine.
 
-  static String _hrStatus(int v) {
-    if (v <= 0) return 'No data';
-    if (v < 60) return 'Below normal';
-    if (v < 100) return 'Normal';
-    return 'Above normal';
-  }
+  static String _spo2Status(int v) => HealthEngine.instance.assessSpo2(v).label;
+  static String _hrStatus(int v) => HealthEngine.instance.assessHeartRate(v).label;
+  static String _hrvStatus(int v) => HealthEngine.instance.assessHrv(v).label;
 
-  static String _hrvStatus(int v) {
-    if (v <= 0) return 'No data';
-    if (v < 20) return 'Very Low';
-    if (v < 40) return 'Low';
-    if (v < 60) return 'Moderate';
-    if (v < 80) return 'Good';
-    return 'Excellent';
-  }
-
-  // Same formula as steps_screen.dart's _activityScore — kept in sync so the
-  // home dashboard and the Steps detail screen always show the same number.
-  static int _computeActivityScore(int steps, double distanceM, int calories) {
-    final s = (steps / 8000 * 60).clamp(0.0, 60.0);
-    final c = (calories / 250 * 25).clamp(0.0, 25.0);
-    final d = (distanceM / 5000 * 15).clamp(0.0, 15.0);
-    return (s + c + d).round().clamp(0, 100);
+  // Goal-aware: was hardcoded 8000/250/5000 — now uses GoalPrefs via engine.
+  int _computeActivityScore(int steps, double distanceM, int calories) {
+    if (_goals != null) {
+      return HealthEngine.instance.calcActivityScoreWithGoals(
+        steps: steps, distanceM: distanceM, calories: calories, goals: _goals!);
+    }
+    // Fallback sync path when goals not yet loaded — use config denoms.
+    final fallback = GoalTargets(
+      steps: HealthConfig.intThreshold('activity', 'stepsDenom', 10000),
+      calories: HealthConfig.intThreshold('activity', 'caloriesDenom', 1000),
+      distanceKm: HealthConfig.doubleThreshold('activity', 'distanceDenomM', 5000) / 1000.0,
+      sleepStartMin: GoalPrefs.defaultSleepStartMin,
+      sleepEndMin: GoalPrefs.defaultSleepEndMin,
+    );
+    return HealthEngine.instance.calcActivityScoreWithGoals(
+        steps: steps, distanceM: distanceM, calories: calories, goals: fallback);
   }
 
   static String _sleepDurationLabel(int seconds) {
@@ -191,21 +199,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return '${m}m';
   }
 
-  static String _sleepStatus(int score) {
-    if (score <= 0) return 'No data';
-    if (score >= 80) return 'Excellent';
-    if (score >= 60) return 'Good';
-    if (score >= 40) return 'Fair';
-    return 'Poor';
-  }
-
-  static Color _sleepStatusColor(int score) {
-    if (score <= 0) return AppTheme.textSec;
-    if (score >= 80) return AppTheme.success;
-    if (score >= 60) return AppTheme.sleepColor;
-    if (score >= 40) return AppTheme.amber;
-    return AppTheme.danger;
-  }
+  static String _sleepStatus(int score) => HealthEngine.instance.assessSleep(score).label;
+  static Color _sleepStatusColor(int score) => HealthEngine.instance.assessSleep(score).color;
 
   /// Renders a single metric card.  [expanded] spans the full grid width at
   /// 1.5× the standard card height.

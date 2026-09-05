@@ -1,5 +1,6 @@
 import 'dart:ui' show ImageFilter, TileMode;
 import 'package:flutter/material.dart';
+import '../../../services/health_engine/health_engine.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/app_typography.dart';
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -64,39 +65,23 @@ class BlurOrb extends StatelessWidget {
 
 // DESIGN.md per-metric orb colors (soft, desaturated)
 
-// ── Status helpers ────────────────────────────────────────────────────────────
+// ── Status helpers — delegated to HealthEngine single source ─────────────
 
 String stressStatus(int v) {
-  if (v <= 0) return 'No data';
-  if (v < 40) return 'Relaxed';
-  if (v < 60) return 'Normal';
-  if (v < 80) return 'Elevated';
-  return 'High';
+  final a = HealthEngine.instance.assessStress(v);
+  if (a.label == '--') return 'No data';
+  return a.label;
 }
 
-Color stressColor(int v) {
-  if (v <= 0) return AppTheme.textSec;
-  if (v < 40) return AppTheme.success;
-  if (v < 60) return AppTheme.amber;
-  if (v < 80) return AppTheme.stressColor;
-  return AppTheme.danger;
-}
+Color stressColor(int v) => HealthEngine.instance.assessStress(v).color;
 
 String tempStatus(double v) {
-  if (v <= 0) return 'No data';
-  if (v < 36.0) return 'Low';
-  if (v <= 37.2) return 'Normal';
-  if (v <= 38.0) return 'Elevated';
-  return 'Fever';
+  final a = HealthEngine.instance.assessTemperature(v);
+  if (a.label == '--') return 'No data';
+  return a.label;
 }
 
-String activityScoreLabel(int score) {
-  if (score == 0) return 'Lack of exercise';
-  if (score < 25) return 'Sedentary';
-  if (score < 50) return 'Lightly active';
-  if (score < 75) return 'Moderately active';
-  return 'Highly active';
-}
+String activityScoreLabel(int score) => HealthEngine.instance.activityLabel(score);
 
 TextStyle inter(
   double size, {

@@ -13,6 +13,7 @@ import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../services/health_engine/models.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/chart_scrubber.dart';
@@ -615,52 +616,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => const VitalNoteScreen(
-                title: 'Heart Rate',
-                heading: 'About Heart Rate',
-                intro:
-                    'Beats per minute, measured continuously by the ring\'s '
-                    'optical sensor. Resting heart rate is one of the '
-                    'clearest day-to-day fitness signals you have.',
-                ranges: [
-                  VitalRange(
-                    label: 'Below normal',
-                    range: '< 60 bpm',
-                    color: AppTheme.hrvColor,
-                  ),
-                  VitalRange(
-                    label: 'Normal',
-                    range: '60–99 bpm',
-                    color: AppTheme.success,
-                  ),
-                  VitalRange(
-                    label: 'Above normal',
-                    range: '100+ bpm',
-                    color: AppTheme.danger,
-                  ),
-                ],
-                tips: [
-                  VitalTip(
-                    icon: Icons.trending_down_rounded,
-                    color: AppTheme.hrvColor,
-                    title: 'Lower can be fine',
-                    tip:
-                        'A resting rate under 60 bpm is often a sign of '
-                        'good cardiovascular fitness, not a problem.',
-                  ),
-                  VitalTip(
-                    icon: Icons.show_chart_rounded,
-                    color: AppTheme.hrColor,
-                    title: 'Watch the trend',
-                    tip:
-                        'A resting rate that\'s creeping up week over week '
-                        'is more meaningful than any single reading.',
-                  ),
-                ],
-                didYouKnow:
-                    'Caffeine, dehydration, and poor sleep can all push '
-                    'your resting heart rate up temporarily.',
-              ),
+              builder: (_) => VitalNoteScreen.fromMetric(HealthMetric.heartRate),
             ),
           ),
         ),

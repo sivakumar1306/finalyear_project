@@ -17,6 +17,7 @@ import 'services/supabase_service.dart';
 import 'services/incident_service.dart';
 import 'services/ble_service.dart';
 import 'services/push_notification_service.dart';
+import 'services/health_engine/health_engine.dart';
 import 'config.dart';
 import 'app.dart';
 import 'theme/app_theme.dart';
@@ -161,6 +162,7 @@ void main() async {
 
       try {
         await Future.wait([SupabaseService.initialize(), _syncLoggedInFlag()]);
+        await HealthEngine.instance.init();
         await _configureNativeSync();
         // FCM companion alerts (Part 3) — dormant until Firebase constants are
         // configured in AppConfig; never blocks startup.

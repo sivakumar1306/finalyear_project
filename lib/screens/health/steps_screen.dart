@@ -12,6 +12,8 @@ import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import '../settings/goal_setting_screen.dart';
 import 'activity_description_screen.dart';
+import '../../services/goal_prefs.dart';
+import '../../services/health_engine/health_engine.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../theme/app_theme.dart';
@@ -147,6 +149,8 @@ class _StepsScreenState extends State<StepsScreen> {
   }
 
   Future<void> _init() async {
+    await _ensureGoals();
+    if (!mounted) return;
     final ble = context.read<BleProvider>();
     final curSteps = ble.todaySteps;
     final curCal = ble.todayCalories;
@@ -545,26 +549,27 @@ class _StepsScreenState extends State<StepsScreen> {
   Future<void> _shareScreenshot() =>
       shareScreenshot(_screenshotKey, text: 'My Activity — SUNDR');
 
-  // ── Activity score ────────────────────────────────────────────────────────
+  // ── Activity score — goal-aware via HealthEngine ─────────────────────
+  // Keeps a cached GoalTargets to stay sync in build; refresh on pull-to-refresh & resume.
+  GoalTargets? _goals;
+  Future<void> _ensureGoals() async {
+    _goals ??= await GoalPrefs.load();
+  }
 
   int get _activityScore {
-    final avgSteps = _dispSteps.toDouble();
-    final avgCal = _dispCal.toDouble();
-    final avgDistM = _dispDistM;
-    final s = (avgSteps / 8000 * 60).clamp(0.0, 60.0);
-    final c = (avgCal / 250 * 25).clamp(0.0, 25.0);
-    final d = (avgDistM / 5000 * 15).clamp(0.0, 15.0);
-    return (s + c + d).round().clamp(0, 100);
+    final goals = _goals ??
+        const GoalTargets(steps: 10000, calories: 1000, distanceKm: 5.0, sleepStartMin: 1260, sleepEndMin: 300);
+    // If still default placeholder and last remote config has different fallback, merge:
+    // _goals will be overwritten after first _ensureGoals completes, build will repaint.
+    return HealthEngine.instance.calcActivityScoreWithGoals(
+      steps: _dispSteps,
+      calories: _dispCal,
+      distanceM: _dispDistM,
+      goals: goals,
+    );
   }
 
-  String get _scoreLabel {
-    final s = _activityScore;
-    if (s == 0) return 'Lack of exercise';
-    if (s < 25) return 'Sedentary';
-    if (s < 50) return 'Lightly active';
-    if (s < 75) return 'Moderately active';
-    return 'Highly active';
-  }
+  String get _scoreLabel => HealthEngine.instance.activityLabel(_activityScore);
 
   // ── Build ─────────────────────────────────────────────────────────────────
 

@@ -13,6 +13,8 @@ import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
+import '../../services/health_engine/health_engine.dart';
+import '../../services/health_engine/models.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
@@ -117,21 +119,8 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   String _fmt(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  static String _tempLabel(double v) {
-    if (v <= 0) return '--';
-    if (v < 36.0) return 'Low';
-    if (v <= 37.2) return 'Normal';
-    if (v <= 38.0) return 'Elevated';
-    return 'Fever';
-  }
-
-  static Color _tempStatusColor(double v) {
-    if (v <= 0) return AppTheme.textSec;
-    if (v < 36.0) return AppTheme.spo2Color;
-    if (v <= 37.2) return AppTheme.success;
-    if (v <= 38.0) return AppTheme.tempColor;
-    return AppTheme.danger;
-  }
+  static String _tempLabel(double v) => HealthEngine.instance.assessTemperature(v).label;
+  static Color _tempStatusColor(double v) => HealthEngine.instance.assessTemperature(v).color;
 
   // Display-only conversion — every stored/aggregated value above stays in
   // Celsius (the ring's native unit and the DB's canonical column); only the
@@ -653,59 +642,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => const VitalNoteScreen(
-                title: 'Temperature',
-                heading: 'About Temperature',
-                intro:
-                    'Skin temperature measured by the ring — most useful as '
-                    'a deviation from your own baseline, not as an absolute '
-                    'clinical reading.',
-                ranges: [
-                  VitalRange(
-                    label: 'Low',
-                    range: '< 36.0°C',
-                    color: AppTheme.spo2Color,
-                  ),
-                  VitalRange(
-                    label: 'Normal',
-                    range: '36.0–37.2°C',
-                    color: AppTheme.success,
-                  ),
-                  VitalRange(
-                    label: 'Elevated',
-                    range: '37.2–38.0°C',
-                    color: AppTheme.tempColor,
-                  ),
-                  VitalRange(
-                    label: 'Fever',
-                    range: '> 38.0°C',
-                    color: AppTheme.danger,
-                  ),
-                ],
-                tips: [
-                  VitalTip(
-                    icon: Icons.show_chart_rounded,
-                    color: AppTheme.tempColor,
-                    title: 'Track your baseline',
-                    tip:
-                        'Skin temperature varies person to person — a rise '
-                        'of 0.5°C+ from your usual baseline matters more '
-                        'than the absolute number.',
-                  ),
-                  VitalTip(
-                    icon: Icons.schedule_rounded,
-                    color: AppTheme.hrvColor,
-                    title: 'It has a daily rhythm',
-                    tip:
-                        'Temperature naturally dips overnight and rises '
-                        'through the day — that\'s expected, not a fever.',
-                  ),
-                ],
-                didYouKnow:
-                    'Skin temperature runs cooler than core body '
-                    'temperature — don\'t compare it directly to an oral '
-                    'thermometer reading.',
-              ),
+              builder: (_) => VitalNoteScreen.fromMetric(HealthMetric.temperature),
             ),
           ),
         ),
@@ -957,12 +894,7 @@ class _TempReading {
   final double valueC;
   const _TempReading({required this.time, required this.valueC});
 }
-Color _tempBarColor(num v) {
-  if (v < 36.0) return AppTheme.spo2Color;
-  if (v <= 37.2) return AppTheme.success;
-  if (v <= 38.0) return AppTheme.tempColor;
-  return AppTheme.danger;
-}
+Color _tempBarColor(num v) => HealthEngine.instance.tempBarColor(v);
 
 // ── Real-time measurement card ────────────────────────────────────────────────
 

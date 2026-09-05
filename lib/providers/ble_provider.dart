@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ble_service.dart';
 import '../services/goal_prefs.dart';
 import '../services/health_connect_service.dart';
+import '../services/health_engine/health_engine.dart';
 import '../services/incident_service.dart';
 import '../services/notification_prefs.dart';
 import '../services/supabase_service.dart';
@@ -1740,15 +1741,7 @@ void _parseAndSaveHrv(String jsonStr) {
       final st = (d['sleepTime'] as num? ?? 0).toInt();
       final et = (d['wakeTime'] as num? ?? 0).toInt();
       if (total <= 0) return;
-      final window = (st > 0 && et > 0) ? (et - st) : total;
-      final efficiency = window > 0
-          ? (total / window * 100).clamp(0.0, 100.0)
-          : 0.0;
-      final deepPct = total > 0 ? (deep / total * 100).clamp(0.0, 40.0) : 0.0;
-      final remPct = total > 0 ? (rem / total * 100).clamp(0.0, 30.0) : 0.0;
-      final score = (efficiency * 0.4 + deepPct * 1.0 + remPct * 0.5)
-          .round()
-          .clamp(0, 100);
+      final score = HealthEngine.instance.calcSleepScore(total: total, deep: deep, rem: rem, st: st, et: et);
       _todaySleepDuration = total;
       _todaySleepScore = score;
       _todaySleepDeepSecs = deep;

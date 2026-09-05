@@ -14,6 +14,8 @@ import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
+import '../../services/health_engine/health_engine.dart';
+import '../../services/health_engine/models.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
@@ -116,23 +118,8 @@ class _HrvScreenState extends State<HrvScreen> {
   String _fmt(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  static String _hrvLabel(int v) {
-    if (v <= 0) return '--';
-    if (v < 20) return 'Very Low';
-    if (v < 40) return 'Low';
-    if (v < 60) return 'Moderate';
-    if (v < 80) return 'Good';
-    return 'Excellent';
-  }
-
-  static Color _hrvColor(int v) {
-    if (v <= 0) return AppTheme.textSec;
-    if (v < 20) return AppTheme.danger;
-    if (v < 40) return AppTheme.stressColor;
-    if (v < 60) return AppTheme.amber;
-    if (v < 80) return AppTheme.success;
-    return AppTheme.hrvColor;
-  }
+  static String _hrvLabel(int v) => HealthEngine.instance.assessHrv(v).label;
+  static Color _hrvColor(int v) => HealthEngine.instance.assessHrv(v).color;
 
   static String _fmtTime(DateTime dt) {
     final h = dt.hour;
@@ -659,62 +646,7 @@ class _HrvScreenState extends State<HrvScreen> {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => const VitalNoteScreen(
-                title: 'HRV',
-                heading: 'About HRV',
-                intro:
-                    'Heart rate variability — the tiny variation in time '
-                    'between heartbeats. Higher generally means your body '
-                    'is more recovered and ready to handle stress.',
-                ranges: [
-                  VitalRange(
-                    label: 'Very Low',
-                    range: '0–19',
-                    color: AppTheme.danger,
-                  ),
-                  VitalRange(
-                    label: 'Low',
-                    range: '20–39',
-                    color: AppTheme.stressColor,
-                  ),
-                  VitalRange(
-                    label: 'Moderate',
-                    range: '40–59',
-                    color: AppTheme.amber,
-                  ),
-                  VitalRange(
-                    label: 'Good',
-                    range: '60–79',
-                    color: AppTheme.success,
-                  ),
-                  VitalRange(
-                    label: 'Excellent',
-                    range: '80+',
-                    color: AppTheme.hrvColor,
-                  ),
-                ],
-                tips: [
-                  VitalTip(
-                    icon: Icons.fitness_center_rounded,
-                    color: AppTheme.hrvColor,
-                    title: 'It\'s personal',
-                    tip:
-                        'HRV varies a lot person to person — track your '
-                        'own trend over weeks rather than comparing to others.',
-                  ),
-                  VitalTip(
-                    icon: Icons.local_bar_rounded,
-                    color: AppTheme.stressColor,
-                    title: 'Alcohol drops it fast',
-                    tip:
-                        'Alcohol, illness, and poor sleep are the most '
-                        'common causes of a sudden overnight dip.',
-                  ),
-                ],
-                didYouKnow:
-                    'A rising HRV trend over time is one of the best signs '
-                    'that training or lifestyle changes are working.',
-              ),
+              builder: (_) => VitalNoteScreen.fromMetric(HealthMetric.hrv),
             ),
           ),
         ),
@@ -1111,12 +1043,5 @@ class _HrvScreenState extends State<HrvScreen> {
 }
 
 
-// ── HRV bar color ─────────────────────────────────────────────────────────────
-
-Color _hrvBarColor(num v) {
-  if (v < 20) return AppTheme.danger;
-  if (v < 40) return AppTheme.stressColor;
-  if (v < 60) return AppTheme.amber;
-  if (v < 80) return AppTheme.success;
-  return AppTheme.hrvColor;
-}
+// ── HRV bar color — delegated to engine ─────────────────────────────────────
+Color _hrvBarColor(num v) => HealthEngine.instance.hrvBarColor(v);

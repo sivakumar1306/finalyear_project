@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../services/goal_prefs.dart';
+import '../../services/health_engine/health_engine.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
@@ -21,12 +23,25 @@ BoxDecoration _glass({double r = 20}) => BoxDecoration(
 
 /// Read-only reference screen explaining what the Activity screen's numbers
 /// mean and what ranges are considered healthy — opened from the Activity
-/// screen's "..." menu.
-class ActivityDescriptionScreen extends StatelessWidget {
+/// screen's "..." menu. Now goal-aware: blends against user's GoalPrefs via HealthEngine.
+class ActivityDescriptionScreen extends StatefulWidget {
   const ActivityDescriptionScreen({super.key});
+  @override
+  State<ActivityDescriptionScreen> createState() => _ActivityDescriptionScreenState();
+}
+
+class _ActivityDescriptionScreenState extends State<ActivityDescriptionScreen> {
+  GoalTargets? _goals;
+  @override
+  void initState() {
+    super.initState();
+    GoalPrefs.load().then((g) { if (mounted) setState(() => _goals = g); });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final goals = _goals ?? const GoalTargets(steps: 10000, calories: 1000, distanceKm: 5.0, sleepStartMin: 1260, sleepEndMin: 300);
+    final intro = HealthEngine.instance.activityDescription(goals);
     return Scaffold(
       backgroundColor: AppTheme.bg,
       appBar: AppBar(
@@ -54,9 +69,7 @@ class ActivityDescriptionScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'A single 0–100 number for how much you moved today. '
-                    'It blends steps (up to 60 pts at 8,000), active calories '
-                    '(up to 25 pts at 250 kcal), and distance (up to 15 pts at 5 km).',
+                    intro,
                     style: _t(
                       13,
                       c: Colors.white.withValues(alpha: 0.6),

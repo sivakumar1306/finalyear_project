@@ -15,7 +15,8 @@ import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
-import '../../utils/bp_staging.dart';
+import '../../services/health_engine/health_engine.dart';
+import '../../services/health_engine/models.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/chart_scrubber.dart';
 import '../../widgets/metric_stat_card.dart';
@@ -38,10 +39,13 @@ TextStyle _inter(
   height: height,
 );
 
-String _bpStatus(int sbp, int dbp) => bpStatusLabel(sbp, dbp);
+String _bpStatus(int sbp, int dbp) {
+  final a = HealthEngine.instance.assessBloodPressure(sbp, dbp);
+  if (a.severity == HealthSeverity.unknown) return '';
+  return a.label;
+}
 
-Color _bpStatusColor(int sbp, int dbp) =>
-    bpStatusColor(sbp, dbp, noDataColor: AppTheme.textSec);
+Color _bpStatusColor(int sbp, int dbp) => HealthEngine.instance.assessBloodPressure(sbp, dbp).color;
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -651,58 +655,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => const VitalNoteScreen(
-                title: 'Blood Pressure',
-                heading: 'About Blood Pressure',
-                intro:
-                    'Systolic (top) over diastolic (bottom) — the pressure '
-                    'in your arteries as your heart beats and rests. '
-                    'Cuffless ring readings are an estimate, best read as a '
-                    'trend rather than a single exact number.',
-                ranges: [
-                  VitalRange(
-                    label: 'Normal',
-                    range: '<120/80',
-                    color: AppTheme.success,
-                  ),
-                  VitalRange(
-                    label: 'Elevated',
-                    range: '120–129/<80',
-                    color: AppTheme.amber,
-                  ),
-                  VitalRange(
-                    label: 'Stage 1',
-                    range: '130–139/80–89',
-                    color: AppTheme.stressColor,
-                  ),
-                  VitalRange(
-                    label: 'Stage 2',
-                    range: '140+/90+',
-                    color: AppTheme.danger,
-                  ),
-                ],
-                tips: [
-                  VitalTip(
-                    icon: Icons.self_improvement_rounded,
-                    color: AppTheme.success,
-                    title: 'Sodium adds up fast',
-                    tip:
-                        'Cutting back on salty, processed food is one of '
-                        'the quickest ways to bring elevated readings down.',
-                  ),
-                  VitalTip(
-                    icon: Icons.schedule_rounded,
-                    color: AppTheme.bpColor,
-                    title: 'Measure the same way',
-                    tip:
-                        'Readings taken while resting, seated, and at the '
-                        'same time of day are the most comparable over time.',
-                  ),
-                ],
-                didYouKnow:
-                    'Blood pressure naturally dips at night and rises in '
-                    'the morning — a single high reading isn\'t cause for alarm.',
-              ),
+              builder: (_) => VitalNoteScreen.fromMetric(HealthMetric.bloodPressure),
             ),
           ),
         ),

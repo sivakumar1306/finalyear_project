@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 import '../../../providers/ble_provider.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/unit_prefs.dart';
+import '../../../services/health_engine/health_engine.dart';
 import '../../../theme/app_theme.dart';
-import '../../../utils/bp_staging.dart';
 import '../../../widgets/app_typography.dart';
 import 'home_card_shared.dart';
 import 'home_insight_cards.dart';
@@ -251,10 +251,14 @@ class CompactBloodPressureCard extends StatelessWidget {
   const CompactBloodPressureCard({
     super.key,this.onTap, this.expanded = false});
 
-  String _bpCompactStatus(int sbp, int dbp) => bpCompactStatusLabel(sbp, dbp);
+  String _bpCompactStatus(int sbp, int dbp) {
+    final a = HealthEngine.instance.assessBloodPressure(sbp, dbp);
+    if (a.label == 'No data') return 'No data';
+    return a.label;
+  }
 
   Color _bpCompactStatusColor(int sbp, int dbp) =>
-      bpStatusColor(sbp, dbp, noDataColor: AppTheme.textSec);
+      HealthEngine.instance.assessBloodPressure(sbp, dbp).color;
 
   @override
   Widget build(BuildContext context) {

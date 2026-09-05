@@ -1,5 +1,6 @@
 import 'incident_service.dart';
 import '../services/supabase_service.dart';
+import 'health_engine/health_engine.dart';
 
 /// One segment of the AI-assist headline. [highlight] renders in gold.
 class HeadlineSpan {
@@ -323,9 +324,14 @@ class _BpTrend {
   });
 
   _BpStatus get status {
-    if (recentAvgSystolic >= 130) return _BpStatus.high;
+    // Delegate to HealthEngine so headline "high/low" matches BP card staging.
+    final a = HealthEngine.instance.assessBloodPressure(recentAvgSystolic, 80);
+    // HealthEngine labels: Normal/Elevated/Stage1/Stage2 — map to high/low/normal for headline.
+    if (a.label == 'Normal' || a.label == 'No data') return _BpStatus.normal;
+    // For Elev/Stage we need to know high vs low. Use systolic cut: >= configured elevated.
+    // Elevated/Stage1/2 are all "high" for headline; true low (<90) maps separately.
     if (recentAvgSystolic > 0 && recentAvgSystolic < 90) return _BpStatus.low;
-    return _BpStatus.normal;
+    return _BpStatus.high;
   }
 
   String get deltaLabel =>

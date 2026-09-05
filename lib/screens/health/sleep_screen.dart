@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/health_connect_service.dart';
+import '../../services/health_engine/health_engine.dart';
+import '../../services/health_engine/models.dart';
 import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
@@ -433,16 +435,8 @@ class _SleepScreenState extends State<SleepScreen> {
     }
   }
 
-  int _calcScore(int total, int deep, int rem, int st, int et) {
-    final window = (st > 0 && et > 0) ? (et - st) : total;
-    final efficiency = window > 0 ? (total / window * 100).clamp(0, 100) : 0;
-    final deepPct = total > 0 ? (deep / total * 100).clamp(0, 40) : 0;
-    final remPct = total > 0 ? (rem / total * 100).clamp(0, 30) : 0;
-    return (efficiency * 0.4 + deepPct * 1.0 + remPct * 0.5).round().clamp(
-      0,
-      100,
-    );
-  }
+  int _calcScore(int total, int deep, int rem, int st, int et) =>
+      HealthEngine.instance.calcSleepScore(total: total, deep: deep, rem: rem, st: st, et: et);
 
   // ── DB ───────────────────────────────────────────────────────────────────────
 
@@ -766,13 +760,9 @@ class _SleepScreenState extends State<SleepScreen> {
     return '${(_totalDuration / window * 100).round()}%';
   }
 
-  String _quality() {
-    if (_sleepScore >= 85) return 'Excellent';
-    if (_sleepScore >= 70) return 'Good';
-    if (_sleepScore >= 55) return 'Fair';
-    if (_sleepScore > 0) return 'Poor';
-    return '--';
-  }
+  String _quality() => HealthEngine.instance.assessSleep(_sleepScore).label == 'No data'
+      ? '--'
+      : HealthEngine.instance.assessSleep(_sleepScore).label;
 
   int _avgHistoryScore() {
     final vals = _historyRows
@@ -843,57 +833,7 @@ class _SleepScreenState extends State<SleepScreen> {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => const VitalNoteScreen(
-                title: 'Sleep',
-                heading: 'About Sleep',
-                intro:
-                    'Your ring tracks time asleep and cycles through light, '
-                    'deep, and REM stages — the sleep score blends duration '
-                    'and how unbroken that time was.',
-                ranges: [
-                  VitalRange(
-                    label: 'Poor',
-                    range: '0–39',
-                    color: AppTheme.danger,
-                  ),
-                  VitalRange(
-                    label: 'Fair',
-                    range: '40–59',
-                    color: AppTheme.amber,
-                  ),
-                  VitalRange(
-                    label: 'Good',
-                    range: '60–79',
-                    color: AppTheme.sleepColor,
-                  ),
-                  VitalRange(
-                    label: 'Excellent',
-                    range: '80–100',
-                    color: AppTheme.success,
-                  ),
-                ],
-                tips: [
-                  VitalTip(
-                    icon: Icons.bedtime_rounded,
-                    color: AppTheme.sleepColor,
-                    title: 'Aim for 7–9 hours',
-                    tip:
-                        'Most adults need 7–9 hours a night — consistently '
-                        'under 6 shows up as a lower score even with deep sleep.',
-                  ),
-                  VitalTip(
-                    icon: Icons.schedule_rounded,
-                    color: AppTheme.gold,
-                    title: 'Consistency matters',
-                    tip:
-                        'Going to bed and waking at the same time daily '
-                        'improves quality more than chasing extra hours.',
-                  ),
-                ],
-                didYouKnow:
-                    'Deep sleep handles physical recovery, REM handles '
-                    'memory and mood — you need a healthy mix of both.',
-              ),
+              builder: (_) => VitalNoteScreen.fromMetric(HealthMetric.sleep),
             ),
           ),
         ),

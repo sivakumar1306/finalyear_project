@@ -12,6 +12,7 @@ import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
+import '../../services/health_engine/models.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
@@ -636,52 +637,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => const VitalNoteScreen(
-                title: 'Blood Oxygen',
-                heading: 'About Blood Oxygen (SpO₂)',
-                intro:
-                    'The percentage of oxygen your red blood cells are '
-                    'carrying, measured optically by the ring. Healthy '
-                    'adults typically sit at 95% or above.',
-                ranges: [
-                  VitalRange(
-                    label: 'Normal',
-                    range: '95–100%',
-                    color: AppTheme.success,
-                  ),
-                  VitalRange(
-                    label: 'Borderline',
-                    range: '90–94%',
-                    color: AppTheme.amber,
-                  ),
-                  VitalRange(
-                    label: 'Low',
-                    range: '< 90%',
-                    color: AppTheme.danger,
-                  ),
-                ],
-                tips: [
-                  VitalTip(
-                    icon: Icons.nightlight_round,
-                    color: AppTheme.spo2Color,
-                    title: 'Dips can happen in sleep',
-                    tip:
-                        'Brief overnight dips are common. Frequent or deep '
-                        'drops are worth mentioning to a doctor.',
-                  ),
-                  VitalTip(
-                    icon: Icons.terrain_rounded,
-                    color: AppTheme.hrvColor,
-                    title: 'Altitude affects it too',
-                    tip:
-                        'Readings naturally run a little lower at high '
-                        'altitude — that\'s expected, not a fault reading.',
-                  ),
-                ],
-                didYouKnow:
-                    'Cold fingers, ring fit, and movement can all cause a '
-                    'temporarily low or noisy reading — retry after settling.',
-              ),
+              builder: (_) => VitalNoteScreen.fromMetric(HealthMetric.spo2),
             ),
           ),
         ),
