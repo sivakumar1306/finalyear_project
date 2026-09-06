@@ -310,6 +310,13 @@ object MeasurementLoopManager {
             BleOperateManager.getInstance().manualModeHeart(
                 ICommandResponse<StartHeartRateRsp> { rsp ->
                     if (done.get()) return@ICommandResponse
+                    // Ring-reported errors (not worn, weak signal) must not count as
+                    // candidates — skip immediately instead of waiting for timeout.
+                    val frameErr = try { rsp.getErrCode() } catch (_: Exception) { 0 }
+                    if (frameErr != 0) {
+                        Log.w(TAG, "measureHeartRate: ring errCode=$frameErr, skipping frame")
+                        return@ICommandResponse
+                    }
                     // Don't bail out on rsp.status != RESULT_OK here — a manual heart rate
                     // measurement sends several intermediate callbacks while still measuring,
                     // and not all of them report RESULT_OK. Just wait for a genuine value;

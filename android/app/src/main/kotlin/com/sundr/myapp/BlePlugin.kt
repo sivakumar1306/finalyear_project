@@ -27,7 +27,9 @@ import com.oudmon.ble.base.communication.bigData.BloodOxygenEntity
 import com.oudmon.ble.base.communication.bigData.IntervalBloodOxygenEntity
 import com.oudmon.ble.base.communication.bigData.bean.IntervalHeartRateEntity
 import com.oudmon.ble.base.communication.bigData.bean.IntervalTemperatureEntity
+import com.oudmon.ble.base.communication.bigData.bean.ManualHeartRate
 import com.oudmon.ble.base.communication.bigData.resp.IIntervalHeartRateCallback
+import com.oudmon.ble.base.communication.bigData.resp.ILargeDataManualHeartRateResponse
 import com.oudmon.ble.base.communication.dfu_temperature.TemperatureEntity
 import com.oudmon.ble.base.communication.dfu_temperature.TemperatureOnceEntity
 import com.oudmon.ble.base.communication.entity.BlePressure
@@ -436,6 +438,7 @@ class BlePlugin(private val context: Context) {
             "getMeasurementAttempts"     -> getMeasurementAttempts(call, result)
             "getFailedMeasurementAttempts" -> getFailedMeasurementAttempts(call, result)
             "getMeasurementAttemptsForCycle" -> getMeasurementAttemptsForCycle(call, result)
+            "syncManualHeartRate"        -> syncManualHeartRate(result)
             "setVitalEnabled"            -> setVitalEnabled(call, result)
             "getVitalEnabled"            -> getVitalEnabled(call, result)
             "setMasterLoopEnabled"       -> {
@@ -995,6 +998,17 @@ class BlePlugin(private val context: Context) {
                     ICommandResponse<StartHeartRateRsp> { rsp ->
                         if (done.get()) return@ICommandResponse
 
+                        // Fail fast on ring-reported errors (not worn, low signal, etc.)
+                        // instead of hanging until the 60s TIMEOUT. Matches QRing
+                        // behavior which surfaces errCode immediately.
+                        val errCode = try { rsp.getErrCode() } catch (_: Exception) { 0 }
+                        if (errCode != 0 && done.compareAndSet(false, true)) {
+                            timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+                            try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
+                            MeasurementCoordinator.release(owner)
+                            mainHandler.post { result.error("HR_ERR_$errCode", "Ring reported heart-rate error $errCode — keep ring snug and retry", null) }
+                            return@ICommandResponse
+                        }
                         if (rsp.status == BaseRspCmd.RESULT_OK) {
                             // Only trust HR-carrying frames. Per SDK StartHeartRateRsp.acceptData,
                             // type 13 sets heartRate; type 12 (vital frame) carries HR in value.
@@ -3475,6 +3489,30 @@ class BlePlugin(private val context: Context) {
                 return@launch
             }
             mainHandler.post { result.success(json) }
+        }
+    }
+
+    // QRing parity: fetch the ring-recorded manual heart-rate list (large-data).
+    // Used as fallback when live manualModeHeart streaming yields nothing.
+    private fun syncManualHeartRate(result: MethodChannel.Result) {
+        try {
+            LargeDataHandler.getInstance().syncManualHeartRateList(
+                object : ILargeDataManualHeartRateResponse {
+                    override fun manualHeart(list: List<ManualHeartRate>?) {
+                        val mapped = (list ?: emptyList()).map { entry ->
+                            mapOf(
+                                "index" to entry.index,
+                                "data" to (entry.data ?: emptyList()).map { d ->
+                                    mapOf("m" to d.m, "v" to d.v)
+                                }
+                            )
+                        }
+                        mainHandler.post { result.success(gson.toJson(mapped)) }
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
         }
     }
 

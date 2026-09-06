@@ -432,21 +432,58 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       _measuring = true;
       _manualHr = 0;
     });
+    int? hr;
+    String? streamError;
     try {
-      final hr = await _ble.readHeartRate();
+      hr = await _ble.readHeartRate();
+    } catch (e) {
+      streamError = e.toString();
+    }
+    // QRing parity fallback: live streaming can yield nothing on loose fit
+    // while the ring still recorded a manual entry — pull the manual list.
+    if ((hr == null || hr <= 0) && mounted) {
+      try {
+        hr = await _tryManualListFallback();
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'heart_rate_screen',
+          error: e,
+          stackTrace: st,
+          customMessage: 'syncManualHeartRate fallback failed',
+        );
+      }
+    }
+    if (streamError != null && (hr == null || hr <= 0)) {
+      // Streaming hard-failed and fallback found nothing — surface mapped error.
+      if (!mounted) return;
+      setState(() => _measuring = false);
+      IncidentService.reportUnhandled(
+        source: 'heart_rate_screen',
+        error: Exception(streamError),
+        customMessage: 'readHeartRate failed',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_measureErrorMessage(streamError)), backgroundColor: AppTheme.danger),
+        );
+      }
+      return;
+    }
+    try {
       if (!mounted) return;
       const hrMin = 30, hrMax = 220;
       if (hr != null && hr >= hrMin && hr <= hrMax) {
+        final bpm = hr;
         final nowMs = DateTime.now().millisecondsSinceEpoch;
         // Show live value immediately (QRing-style: last > avg).
         setState(() {
-          _manualHr = hr;
-          _latestHr = hr;
+          _manualHr = bpm;
+          _latestHr = bpm;
           _latestHrAt = nowMs;
           _measuring = false;
         });
         try {
-          context.read<BleProvider>().updateHrLatest(hr, nowMs);
+          context.read<BleProvider>().updateHrLatest(bpm, nowMs);
         } catch (e, st) {
           IncidentService.reportUnhandled(
             source: 'heart_rate_screen',
@@ -458,14 +495,14 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         }
         // Persist to local Room so hourly chart + daily aggregate include it.
         try {
-          await _ble.insertHeartRate(valueBpm: hr, measuredAtMs: nowMs, source: 'manual');
+          await _ble.insertHeartRate(valueBpm: bpm, measuredAtMs: nowMs, source: 'manual');
         } catch (e, st) {
           IncidentService.reportUnhandled(
             source: 'heart_rate_screen',
             error: e,
             stackTrace: st,
             customMessage: 'insertHeartRate failed',
-            extraInfo: {'hr': hr, 'measuredAtMs': nowMs},
+            extraInfo: {'hr': bpm, 'measuredAtMs': nowMs},
           );
         }
         // Recompute true daily aggregate from Room (not ~/2 blend).
@@ -473,9 +510,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           final summaryJson = await _ble.getTodaySummary('heart_rate');
           final summary = jsonDecode(summaryJson) as Map<String, dynamic>;
           final count = (summary['count'] as num?)?.toInt() ?? 0;
-          final avg = (summary['avg'] as num?)?.round() ?? hr;
-          final minVal = (summary['min'] as num?)?.toInt() ?? hr;
-          final maxVal = (summary['max'] as num?)?.toInt() ?? hr;
+          final avg = (summary['avg'] as num?)?.round() ?? bpm;
+          final minVal = (summary['min'] as num?)?.toInt() ?? bpm;
+          final maxVal = (summary['max'] as num?)?.toInt() ?? bpm;
           if (mounted) {
             setState(() {
               _avgHr = avg;
@@ -502,12 +539,12 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
             error: e,
             stackTrace: st,
             customMessage: 'recompute daily aggregate failed',
-            extraInfo: {'hr': hr},
+            extraInfo: {'hr': bpm},
           );
           // Fallback: at least update Supabase with single point.
-          final fallbackMin = (_minHr > 0 && _minHr < hr) ? _minHr : hr;
-          final fallbackMax = (_maxHr > hr) ? _maxHr : hr;
-          await _saveHrToSupabase(hr, fallbackMin, fallbackMax, 1);
+          final fallbackMin = (_minHr > 0 && _minHr < bpm) ? _minHr : bpm;
+          final fallbackMax = (_maxHr > bpm) ? _maxHr : bpm;
+          await _saveHrToSupabase(bpm, fallbackMin, fallbackMax, 1);
         }
       } else {
         IncidentService.reportUnhandled(
@@ -536,16 +573,51 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       );
       if (mounted) {
         setState(() => _measuring = false);
-        final msg = e.toString().contains('BUSY')
-            ? 'Another measurement is in progress — wait and retry.'
-            : e.toString().contains('TIMEOUT')
-                ? 'Heart rate measurement timed out — keep ring on finger.'
-                : 'Heart rate measurement failed: $e';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
+          SnackBar(content: Text(_measureErrorMessage(e.toString())), backgroundColor: AppTheme.danger),
         );
       }
     }
+  }
+
+  String _measureErrorMessage(String raw) {
+    if (raw.contains('BUSY')) {
+      return 'Another measurement is in progress — wait and retry.';
+    }
+    if (raw.contains('TIMEOUT')) {
+      return 'Heart rate measurement timed out — keep ring snug on your finger and retry.';
+    }
+    if (raw.contains('NOT_CONNECTED')) {
+      return 'Ring not connected — reconnect and retry.';
+    }
+    if (raw.contains('SDK_GUARD_OPEN')) {
+      return 'Sensor busy — wait a few seconds and retry.';
+    }
+    if (raw.contains('HR_ERR_')) {
+      return 'Ring could not read heart rate — keep ring snug, stay still and retry.';
+    }
+    return 'Heart rate measurement failed: $raw';
+  }
+
+  /// Latest value from the ring-recorded manual HR list (large-data).
+  /// Returns null when the list is empty/unparseable.
+  Future<int?> _tryManualListFallback() async {
+    final raw = await _ble.syncManualHeartRate();
+    if (raw.isEmpty || raw == '[]' || raw == '{}') return null;
+    final decoded = jsonDecode(raw);
+    final entries = decoded is List ? decoded : <dynamic>[];
+    int? best;
+    for (final e in entries) {
+      if (e is! Map) continue;
+      final data = (e as Map)['data'];
+      if (data is! List) continue;
+      for (final d in data) {
+        if (d is! Map) continue;
+        final v = ((d as Map)['v'] as num?)?.toInt() ?? 0;
+        if (v >= 30 && v <= 220) best = v;
+      }
+    }
+    return best;
   }
 
   // ── Three-dot menu ────────────────────────────────────────────────────────

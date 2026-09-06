@@ -169,6 +169,12 @@ class BleService {
   Future<int?> readHeartRate() async =>
       _methodChannel.invokeMethod<int>('readHeartRate');
 
+  /// Ring-recorded manual heart-rate list (large-data, QRing parity).
+  /// Fallback when live streaming yields nothing — returns raw JSON list
+  /// of {index, data:[{m,v}]} entries.
+  Future<String> syncManualHeartRate() async =>
+      await _methodChannel.invokeMethod<String>('syncManualHeartRate') ?? '[]';
+
   Future<String> syncIntervalHeartRate() async =>
       await _methodChannel.invokeMethod<String>('syncIntervalHeartRate') ??
       '[]';
