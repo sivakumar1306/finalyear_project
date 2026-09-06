@@ -127,11 +127,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void _maybeSendInitialPrompt() {
     final prompt = widget.initialPrompt?.trim();
     if (prompt == null || prompt.isEmpty || _sentInitialPrompt) return;
-    if (_messages.isNotEmpty) {
-      _controller.text = prompt;
-      setState(() => _hasText = true);
-      return;
-    }
+    
     _sentInitialPrompt = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _sendMessage(prompt);

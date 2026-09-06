@@ -98,7 +98,8 @@ class HomeAiInsightSnippetState extends State<HomeAiInsightSnippet> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: ShrinkButton(
         onTap: () {
-          Navigator.of(context).push(buildAiAssistRoute());
+          final prompt = 'Can you give me more details about this summary: "$headline"?';
+          Navigator.of(context).push(buildAiAssistRoute(initialPrompt: prompt));
         },
         child: ClipRRect(
           borderRadius: BorderRadius.circular(18),
