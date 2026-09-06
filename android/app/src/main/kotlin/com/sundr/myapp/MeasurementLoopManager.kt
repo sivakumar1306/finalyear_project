@@ -312,7 +312,7 @@ object MeasurementLoopManager {
                     if (done.get()) return@ICommandResponse
                     // Ring-reported errors (not worn, weak signal) must not count as
                     // candidates — skip immediately instead of waiting for timeout.
-                    val frameErr = try { rsp.getErrCode() } catch (_: Exception) { 0 }
+                    val frameErr: Int = try { rsp.getErrCode().toInt() } catch (_: Exception) { 0 }
                     if (frameErr != 0) {
                         Log.w(TAG, "measureHeartRate: ring errCode=$frameErr, skipping frame")
                         return@ICommandResponse

@@ -599,13 +599,16 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     return 'Heart rate measurement failed: $raw';
   }
 
-  /// Latest value from the ring-recorded manual HR list (large-data).
-  /// Returns null when the list is empty/unparseable.
+  /// Latest value from the ring-recorded manual HR entry.
+  /// Returns null when empty/unparseable. Handles both the single-object
+  /// shape {index,data:[{m,v}]} and the list shape [{index,data:[...]}].
   Future<int?> _tryManualListFallback() async {
     final raw = await _ble.syncManualHeartRate();
     if (raw.isEmpty || raw == '[]' || raw == '{}') return null;
     final decoded = jsonDecode(raw);
-    final entries = decoded is List ? decoded : <dynamic>[];
+    final entries = decoded is List
+        ? decoded
+        : (decoded is Map ? [decoded] : <dynamic>[]);
     int? best;
     for (final e in entries) {
       if (e is! Map) continue;

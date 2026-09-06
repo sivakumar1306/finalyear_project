@@ -29,7 +29,6 @@ import com.oudmon.ble.base.communication.bigData.bean.IntervalHeartRateEntity
 import com.oudmon.ble.base.communication.bigData.bean.IntervalTemperatureEntity
 import com.oudmon.ble.base.communication.bigData.bean.ManualHeartRate
 import com.oudmon.ble.base.communication.bigData.resp.IIntervalHeartRateCallback
-import com.oudmon.ble.base.communication.bigData.resp.ILargeDataManualHeartRateResponse
 import com.oudmon.ble.base.communication.dfu_temperature.TemperatureEntity
 import com.oudmon.ble.base.communication.dfu_temperature.TemperatureOnceEntity
 import com.oudmon.ble.base.communication.entity.BlePressure
@@ -1001,7 +1000,7 @@ class BlePlugin(private val context: Context) {
                         // Fail fast on ring-reported errors (not worn, low signal, etc.)
                         // instead of hanging until the 60s TIMEOUT. Matches QRing
                         // behavior which surfaces errCode immediately.
-                        val errCode = try { rsp.getErrCode() } catch (_: Exception) { 0 }
+                        val errCode: Int = try { rsp.getErrCode().toInt() } catch (_: Exception) { 0 }
                         if (errCode != 0 && done.compareAndSet(false, true)) {
                             timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
                             try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
@@ -3492,28 +3491,33 @@ class BlePlugin(private val context: Context) {
         }
     }
 
-    // QRing parity: fetch the ring-recorded manual heart-rate list (large-data).
+    // QRing parity: fetch the ring-recorded manual heart-rate entry.
     // Used as fallback when live manualModeHeart streaming yields nothing.
     private fun syncManualHeartRate(result: MethodChannel.Result) {
+        val done = java.util.concurrent.atomic.AtomicBoolean(false)
         try {
-            LargeDataHandler.getInstance().syncManualHeartRateList(
-                object : ILargeDataManualHeartRateResponse {
-                    override fun manualHeart(list: List<ManualHeartRate>?) {
-                        val mapped = (list ?: emptyList()).map { entry ->
-                            mapOf(
-                                "index" to entry.index,
-                                "data" to (entry.data ?: emptyList()).map { d ->
-                                    mapOf("m" to d.m, "v" to d.v)
-                                }
-                            )
-                        }
-                        mainHandler.post { result.success(gson.toJson(mapped)) }
+            BleOperateManager.getInstance().getTodayManualHeartRate(
+                object : BleOperateManager.HealthDataCallback<ManualHeartRate> {
+                    override fun onSuccess(data: ManualHeartRate?) {
+                        if (done.compareAndSet(false, true))
+                            mainHandler.post { result.success(if (data != null) gson.toJson(data) else "{}") }
+                    }
+                    override fun onError(code: Int, message: String?) {
+                        if (done.compareAndSet(false, true))
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
                     }
                 }
             )
         } catch (e: Exception) {
-            mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+            if (done.compareAndSet(false, true)) {
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                return
+            }
         }
+        mainHandler.postDelayed({
+            if (done.compareAndSet(false, true))
+                result.error("TIMEOUT", "Manual heart-rate fetch timed out", null)
+        }, 20_000L)
     }
 
     private fun setVitalEnabled(call: MethodCall, result: MethodChannel.Result) {
