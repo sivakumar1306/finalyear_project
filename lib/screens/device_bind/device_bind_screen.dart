@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
+import '../../theme/app_theme.dart';
 
 class DeviceBindScreen extends StatefulWidget {
   const DeviceBindScreen({super.key});
@@ -71,13 +72,13 @@ class _DeviceBindScreenState extends State<DeviceBindScreen> {
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Connected to ${device.name}'),
-        backgroundColor: Colors.green,
+        backgroundColor: AppTheme.success,
       ));
       Navigator.pop(context);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Connection failed. Make sure ring is nearby and awake.'),
-        backgroundColor: Colors.red,
+        backgroundColor: AppTheme.danger,
       ));
     }
   }
