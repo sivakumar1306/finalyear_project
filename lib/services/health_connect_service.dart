@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:health_connector/health_connector.dart';
 import 'package:permission_handler/permission_handler.dart' as perm_handler;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -187,7 +186,7 @@ class HealthConnectService {
         await setConnected(true);
         await refreshWriteGrants(types);
       } else {
-        final anyGranted = (results as List).any((r) => (r as dynamic).status == PermissionStatus.granted);
+        final anyGranted = results.any((r) => (r as dynamic).status == PermissionStatus.granted);
         if (anyGranted) {
           await setConnected(true);
           await refreshWriteGrants(types);
@@ -342,8 +341,11 @@ class HealthConnectService {
         final req = HealthDataType.steps.aggregateSum(startTime: start, endTime: now);
         final result = await connector.aggregate(req);
         final v = (result as dynamic).value;
-        if (v is Number) steps = v.value.toInt();
-        else if (v is num) steps = v.toInt();
+        if (v is Number) {
+          steps = v.value.toInt();
+        } else if (v is num) {
+          steps = v.toInt();
+        }
       } catch (e, st) {
         IncidentService.reportUnhandled(source: 'health_connect_service', error: e, stackTrace: st, customMessage: 'aggregate steps failed');
       }

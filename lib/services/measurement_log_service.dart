@@ -35,8 +35,8 @@ class MeasurementLogService {
     final attemptsJson = failedOnly
         ? await _ble.getFailedMeasurementAttempts(fromMs: fromMs, toMs: toMs)
         : await _ble.getMeasurementAttempts(fromMs: fromMs, toMs: toMs);
-    final cycles = (jsonDecode(cyclesJson) as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e as Map)).toList();
-    final attempts = (jsonDecode(attemptsJson) as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final cycles = (jsonDecode(cyclesJson) as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    final attempts = (jsonDecode(attemptsJson) as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
     final byCycle = <int, List<Map<String, dynamic>>>{};
     for (final a in attempts) {
       final cid = (a['cycleId'] as num?)?.toInt() ?? 0;

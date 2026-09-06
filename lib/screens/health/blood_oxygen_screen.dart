@@ -23,7 +23,6 @@ import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
 import '../../utils/hourly_aggregator.dart';
 import '../../utils/trend_math.dart';
-import '../../utils/scrub_helper.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -291,14 +290,13 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     try {
       final localRows = await _local.getHistory('spo2', days: 7);
       final localVals = await _local.historyAvgSeries('spo2', days: 7);
-      final localValid = localRows.where((r) => r['min'] != null).toList();
       if (!mounted) return;
       if (localVals.any((v) => v > 0)) {
-        final _mm = TrendMath.minMax(localRows, 'min', 'max');
+        final mm = TrendMath.minMax(localRows, 'min', 'max');
         setState(() {
           _trendValues = localVals;
-          _trendMin = _mm.min;
-          _trendMax = _mm.max;
+          _trendMin = mm.min;
+          _trendMax = mm.max;
         });
       }
 
@@ -319,15 +317,14 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
           );
           return (row['avg_spo2'] as num? ?? 0).toInt();
         });
-        final valid = rows.where((r) => r['min_spo2'] != null).toList();
         if (!mounted) return;
         final hasLocalTrend = localVals.any((v) => v > 0);
         if (!hasLocalTrend && vals.any((v) => v > 0)) {
-          final _mm2 = TrendMath.minMax(rows, 'min_spo2', 'max_spo2');
+          final mm2 = TrendMath.minMax(rows, 'min_spo2', 'max_spo2');
           setState(() {
             _trendValues = vals;
-            _trendMin = _mm2.min;
-            _trendMax = _mm2.max;
+            _trendMin = mm2.min;
+            _trendMax = mm2.max;
           });
         }
         for (final r in rows) {

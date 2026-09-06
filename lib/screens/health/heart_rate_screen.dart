@@ -23,7 +23,6 @@ import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
 import '../../utils/hourly_aggregator.dart';
 import '../../utils/trend_math.dart';
-import '../../utils/scrub_helper.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -328,14 +327,13 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       // 1) Local rollups first.
       final localRows = await _local.getHistory('heart_rate', days: 7);
       final localVals = await _local.historyAvgSeries('heart_rate', days: 7);
-      final localValid = localRows.where((r) => r['min'] != null).toList();
       if (!mounted) return;
       if (localVals.any((v) => v > 0)) {
-        final _mm = TrendMath.minMax(localRows, 'min', 'max');
+        final mm = TrendMath.minMax(localRows, 'min', 'max');
         setState(() {
           _trendValues = localVals;
-          _trendMin = _mm.min;
-          _trendMax = _mm.max;
+          _trendMin = mm.min;
+          _trendMax = mm.max;
         });
       }
 
@@ -359,15 +357,14 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           );
           return (row['avg_hr'] as num? ?? 0).toInt();
         });
-        final valid = rows.where((r) => r['min_hr'] != null).toList();
         if (!mounted) return;
         final hasLocalTrend = localVals.any((v) => v > 0);
         if (!hasLocalTrend && vals.any((v) => v > 0)) {
-          final _mm2 = TrendMath.minMax(rows, 'min_hr', 'max_hr');
+          final mm2 = TrendMath.minMax(rows, 'min_hr', 'max_hr');
           setState(() {
             _trendValues = vals;
-            _trendMin = _mm2.min;
-            _trendMax = _mm2.max;
+            _trendMin = mm2.min;
+            _trendMax = mm2.max;
           });
         }
         for (final r in rows) {
@@ -612,11 +609,11 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     int? best;
     for (final e in entries) {
       if (e is! Map) continue;
-      final data = (e as Map)['data'];
+      final data = e['data'];
       if (data is! List) continue;
       for (final d in data) {
         if (d is! Map) continue;
-        final v = ((d as Map)['v'] as num?)?.toInt() ?? 0;
+        final v = (d['v'] as num?)?.toInt() ?? 0;
         if (v >= 30 && v <= 220) best = v;
       }
     }
