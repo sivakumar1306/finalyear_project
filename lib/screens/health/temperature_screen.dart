@@ -26,6 +26,7 @@ import '../../utils/formatters.dart';
 import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
 import '../../utils/hourly_aggregator.dart';
+import '../../utils/trend_math.dart';
 
 
 // ── Local design tokens — same system as heart_rate_screen.dart / blood_oxygen_screen.dart ──
@@ -758,9 +759,8 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
               ],
               const SizedBox(height: 20),
 
-              // ── 6. 7-day trend ────────────────────────────────────────────
-              // ── 6. 7-day trend — also collapse when empty
-              if (_trendValues.every((v) => v == 0) && !_loadingTrend && !_trendOffline)
+              // ── 6. 7-day trend — also collapse when empty (2+ days)
+              if (!TrendMath.hasEnoughTrendData(_trendValues) && !_loadingTrend && !_trendOffline)
                 const NotEnoughTrendDataCard(metric: 'temperature')
               else ...[
                 ScrubbableChart(

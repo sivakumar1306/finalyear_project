@@ -23,6 +23,7 @@ import '../../utils/date_keys.dart';
 import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
 import '../../utils/hourly_aggregator.dart';
+import '../../utils/trend_math.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -834,8 +835,8 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               ],
               const SizedBox(height: 20),
 
-              // ── 7. 7-day trend — also collapse when empty
-              if ((_trendSbp.every((v) => v == 0) && _trendDbp.every((v) => v == 0)) && !_loadingTrend && !_trendOffline)
+              // ── 7. 7-day trend — also collapse when empty (2+ paired days)
+              if (!TrendMath.hasEnoughBpTrendData(_trendSbp, _trendDbp) && !_loadingTrend && !_trendOffline)
                 const NotEnoughTrendDataCard(metric: 'blood pressure')
               else ...[
                 ScrubbableBPChart(

@@ -83,7 +83,7 @@ class NotEnoughTrendDataCard extends StatelessWidget {
           Text('NOT ENOUGH TREND DATA',
             style: AppTypography.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textTertiary, letterSpacing: 1.2)),
           const SizedBox(height: 6),
-          Text('No $metric trend yet — 4+ days of data are needed. Keep wearing your ring.',
+          Text('No $metric trend yet — 2+ days of data are needed. Keep wearing your ring.',
             textAlign: TextAlign.center, style: AppTypography.inter(fontSize: 13, color: AppTheme.textSec, height: 1.4)),
         ],
       ),

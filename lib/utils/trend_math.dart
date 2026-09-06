@@ -44,4 +44,20 @@ abstract class TrendMath {
     }
     return bars;
   }
+
+  /// Minimum non-zero days required before a 7-day trend chart is shown.
+  /// Gates all `NotEnoughTrendDataCard` checks (2+ days per user decision).
+  static const kMinTrendDays = 2;
+
+  static bool hasEnoughTrendData(List<num> values, {int minDays = kMinTrendDays}) =>
+      values.where((v) => v > 0).length >= minDays;
+
+  static bool hasEnoughBpTrendData(List<int> sbp, List<int> dbp, {int minDays = kMinTrendDays}) {
+    final n = sbp.length < dbp.length ? sbp.length : dbp.length;
+    int count = 0;
+    for (int i = 0; i < n; i++) {
+      if (sbp[i] > 0 && dbp[i] > 0) count++;
+    }
+    return count >= minDays;
+  }
 }

@@ -807,8 +807,8 @@ class _HrvScreenState extends State<HrvScreen> {
                 ],
                 const SizedBox(height: 20),
 
-                // ── 5. 7-day trend ─────────────────────────────────────────
-                if (_trendValues.every((v) => v == 0) && !_loadingTrend && !_trendOffline)
+                // ── 5. 7-day trend ───────────────────────────────────────── (2+ days)
+                if (!TrendMath.hasEnoughTrendData(_trendValues) && !_loadingTrend && !_trendOffline)
                   const NotEnoughTrendDataCard(metric: 'HRV')
                 else ...[
                   ScrubbableChart(

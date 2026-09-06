@@ -756,8 +756,8 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
               ],
               const SizedBox(height: 20),
 
-              // ── 7. 7-day trend — also collapse when empty
-              if (_trendValues.every((v) => v == 0) && !_loadingTrend && !_trendOffline)
+              // ── 7. 7-day trend — also collapse when empty (2+ days required)
+              if (!TrendMath.hasEnoughTrendData(_trendValues) && !_loadingTrend && !_trendOffline)
                 const NotEnoughTrendDataCard(metric: 'heart rate')
               else ...[
                 ScrubbableChart(

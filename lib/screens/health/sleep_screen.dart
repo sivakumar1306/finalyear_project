@@ -862,11 +862,12 @@ class _SleepScreenState extends State<SleepScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
               ],
 
-              // ── 8. 7-day trend — collapse when empty
-              if (trendVals.every((v) => v == 0) && !_dbOffline)
+              const SizedBox(height: 20),
+
+              // ── 8. 7-day trend — collapse when empty (2+ days required)
+              if (!TrendMath.hasEnoughTrendData(trendVals) && !_dbOffline)
                 const NotEnoughTrendDataCard(metric: 'sleep')
               else
                 MetricChartCard(
