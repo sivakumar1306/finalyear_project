@@ -30,6 +30,27 @@ interface MeasurementCycleDao {
 }
 
 @Dao
+interface MeasurementAttemptDao {
+    @Insert
+    suspend fun insert(entity: MeasurementAttemptEntity): Long
+
+    @Query("UPDATE measurement_attempt SET endedAt = :endedAt, status = :status, error = :error, valueJson = :valueJson WHERE id = :id")
+    suspend fun finish(id: Long, endedAt: Long, status: String, error: String?, valueJson: String?)
+
+    @Query("SELECT * FROM measurement_attempt WHERE startedAt BETWEEN :fromMs AND :toMs ORDER BY startedAt DESC LIMIT :limit")
+    suspend fun attemptsBetween(fromMs: Long, toMs: Long, limit: Int): List<MeasurementAttemptEntity>
+
+    @Query("SELECT * FROM measurement_attempt WHERE cycleId = :cycleId ORDER BY startedAt ASC")
+    suspend fun attemptsForCycle(cycleId: Long): List<MeasurementAttemptEntity>
+
+    @Query("SELECT * FROM measurement_attempt WHERE status != 'success' AND startedAt BETWEEN :fromMs AND :toMs ORDER BY startedAt DESC LIMIT :limit")
+    suspend fun failedBetween(fromMs: Long, toMs: Long, limit: Int): List<MeasurementAttemptEntity>
+
+    @Query("DELETE FROM measurement_attempt WHERE startedAt < :cutoffMs")
+    suspend fun purgeOlderThan(cutoffMs: Long): Int
+}
+
+@Dao
 interface HeartRateReadingDao {
     @Insert
     suspend fun insert(entity: HeartRateReadingEntity): Long

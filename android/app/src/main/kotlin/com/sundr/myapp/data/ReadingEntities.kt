@@ -23,6 +23,25 @@ data class MeasurementCycleEntity(
     @SerializedName("abortedAtVital") val abortedAtVital: String? = null
 )
 
+// Unified per-attempt audit for Measurement Log screen (Settings → Measurement Log).
+// Local-only, not cloud-synced. One row per vital attempt, grouped by cycleId.
+// status: success|failed|timeout|yielded|rejected|aborted_disconnect|skipped_workout|sdk_guard_open|skipped_disabled|RUNNING
+@Entity(
+    tableName = "measurement_attempt",
+    indices = [Index("cycleId"), Index("vital"), Index("status"), Index("startedAt"), Index("source")]
+)
+data class MeasurementAttemptEntity(
+    @PrimaryKey(autoGenerate = true) @SerializedName("id") val id: Long = 0,
+    @SerializedName("vital") val vital: String,
+    @SerializedName("source") val source: String,
+    @SerializedName("cycleId") val cycleId: Long,
+    @SerializedName("startedAt") val startedAt: Long,
+    @SerializedName("endedAt") val endedAt: Long? = null,
+    @SerializedName("status") val status: String,
+    @SerializedName("error") val error: String? = null,
+    @SerializedName("valueJson") val valueJson: String? = null
+)
+
 // source: "auto_cycle" | "manual" | "workout" | "demo_seed" | "cloud_cache"
 // deviceAddress / extraJson enrich offline detail without requiring cloud.
 @Entity(tableName = "reading_heart_rate", indices = [Index("measuredAt"), Index("syncedAt")])

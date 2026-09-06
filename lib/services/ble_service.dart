@@ -763,6 +763,34 @@ class BleService {
       }) ??
       '[]';
 
+  Future<String> getMeasurementAttempts({int? fromMs, int? toMs, int limit = 1000}) async =>
+      await _methodChannel.invokeMethod<String>('getMeasurementAttempts', {
+        'fromMs': fromMs ?? 0,
+        'toMs': toMs ?? DateTime.now().millisecondsSinceEpoch,
+        'limit': limit,
+      }) ??
+      '[]';
+
+  Future<String> getFailedMeasurementAttempts({int? fromMs, int? toMs, int limit = 1000}) async =>
+      await _methodChannel.invokeMethod<String>('getFailedMeasurementAttempts', {
+        'fromMs': fromMs ?? 0,
+        'toMs': toMs ?? DateTime.now().millisecondsSinceEpoch,
+        'limit': limit,
+      }) ??
+      '[]';
+
+  Future<String> getMeasurementAttemptsForCycle(int cycleId) async =>
+      await _methodChannel.invokeMethod<String>('getMeasurementAttemptsForCycle', {
+        'cycleId': cycleId,
+      }) ??
+      '[]';
+
+  Future<bool> isIgnoringBatteryOptimizations() async =>
+      await _methodChannel.invokeMethod<bool>('isIgnoringBatteryOptimizations') ?? true;
+
+  Future<bool> requestIgnoreBatteryOptimizations() async =>
+      await _methodChannel.invokeMethod<bool>('requestIgnoreBatteryOptimizations') ?? false;
+
   /// Phase 1 fall-risk read surface — silent-logging only, no live alerts yet.
   /// See FallRiskAnalyzer.kt for scoring logic.
   Future<String> getFallRiskScore() async =>

@@ -626,6 +626,7 @@ class _StressScreenState extends State<StressScreen> {
                   metric: 'stress',
                   date: _selectedDate,
                   isConnected: connected,
+                  measuring: _measuring,
                   onMeasure: _startMeasurement,
                   measureLabel: 'Measure stress',
                 ),

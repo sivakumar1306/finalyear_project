@@ -10,6 +10,7 @@ class NotEnoughDataCard extends StatelessWidget {
   final String metric;
   final DateTime? date;
   final bool isConnected;
+  final bool measuring;
   final VoidCallback? onMeasure;
   final String? measureLabel;
 
@@ -18,6 +19,7 @@ class NotEnoughDataCard extends StatelessWidget {
     required this.metric,
     this.date,
     this.isConnected = false,
+    this.measuring = false,
     this.onMeasure,
     this.measureLabel,
   });
@@ -48,7 +50,7 @@ class NotEnoughDataCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: isConnected ? onMeasure : null,
+                onPressed: (isConnected && !measuring) ? onMeasure : null,
                 style: OutlinedButton.styleFrom(
                   backgroundColor: Colors.white.withValues(alpha: 0.03),
                   side: BorderSide(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
@@ -56,8 +58,14 @@ class NotEnoughDataCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   foregroundColor: AppTheme.gold,
                 ),
-                child: Text(measureLabel ?? 'Measure now',
-                  style: AppTypography.inter(fontSize: 13, fontWeight: FontWeight.w600, color: isConnected ? AppTheme.gold : AppTheme.textTertiary)),
+                child: measuring
+                    ? const SizedBox(width: 20, height: 20,
+                        child: CircularProgressIndicator(color: AppTheme.gold, strokeWidth: 2))
+                    : Text(measureLabel ?? 'Measure now',
+                        style: AppTypography.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isConnected ? AppTheme.gold : AppTheme.textTertiary)),
               ),
             ),
           ],

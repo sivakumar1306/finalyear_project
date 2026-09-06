@@ -44,6 +44,28 @@ class ReadingRepository private constructor(context: Context) {
         db.measurementCycleDao().cyclesBetween(fromMs, toMs)
     }
 
+    // ── Measurement attempts (per-vital audit for Measurement Log) ─
+    suspend fun startAttempt(vital: String, source: String, cycleId: Long): Long = withContext(Dispatchers.IO) {
+        db.measurementAttemptDao().insert(
+            MeasurementAttemptEntity(vital = vital, source = source, cycleId = cycleId, startedAt = System.currentTimeMillis(), status = "RUNNING"))
+    }
+
+    suspend fun finishAttempt(id: Long, status: String, error: String? = null, valueJson: String? = null) = withContext(Dispatchers.IO) {
+        db.measurementAttemptDao().finish(id, System.currentTimeMillis(), status, error, valueJson)
+    }
+
+    suspend fun attemptsBetween(fromMs: Long, toMs: Long, limit: Int = 1000) = withContext(Dispatchers.IO) {
+        db.measurementAttemptDao().attemptsBetween(fromMs, toMs, limit)
+    }
+
+    suspend fun attemptsForCycle(cycleId: Long) = withContext(Dispatchers.IO) {
+        db.measurementAttemptDao().attemptsForCycle(cycleId)
+    }
+
+    suspend fun failedBetween(fromMs: Long, toMs: Long, limit: Int = 1000) = withContext(Dispatchers.IO) {
+        db.measurementAttemptDao().failedBetween(fromMs, toMs, limit)
+    }
+
     // ── Inserts (auto-refresh daily rollups so history works offline) ─
 
     suspend fun insertHeartRate(bpm: Int, cycleId: Long, source: String, deviceAddress: String? = null): Long =

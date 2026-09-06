@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../providers/ble_provider.dart';
+import '../../services/ble_service.dart';
 import '../settings/fall_detection_widgets.dart';
 import '../../providers/home_card_provider.dart';
 import '../../providers/fall_prediction/fall_prediction_provider.dart';
@@ -44,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _firstName = '';
   String _gender = '';
   GoalTargets? _goals;
+  bool _showBatteryCard = false;
   @override
   void initState() {
     super.initState();
@@ -61,6 +64,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Refresh remote HealthEngine thresholds/literature + reload goal-aware activity denoms.
       HealthEngine.instance.refreshConfig();
       _loadGoals();
+      _checkBatteryOpt();
     });
     _loadUserProfile();
     _loadGoals();
@@ -69,6 +73,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _loadGoals() async {
     final g = await GoalPrefs.load();
     if (mounted) setState(() => _goals = g);
+  }
+
+  Future<void> _checkBatteryOpt() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final snoozedUntil = prefs.getInt('battery_prompt_dismissed_until') ?? 0;
+      if (DateTime.now().millisecondsSinceEpoch < snoozedUntil) return;
+      final ignoring = await BleService().isIgnoringBatteryOptimizations();
+      if (mounted && !ignoring && SupabaseService.currentUser != null) {
+        setState(() => _showBatteryCard = true);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _dismissBatteryCard() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('battery_prompt_dismissed_until',
+        DateTime.now().add(const Duration(days: 7)).millisecondsSinceEpoch);
+    if (mounted) setState(() => _showBatteryCard = false);
   }
 
   @override
@@ -811,6 +834,79 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         }
                       },
                     ),
+                  const SizedBox(height: 12),
+                ],
+                if (_showBatteryCard) ...[
+                  GlassCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.03),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+                              ),
+                              child: const Icon(Icons.battery_alert_rounded,
+                                  color: AppTheme.tempColor, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Background tracking may be restricted',
+                                      style: inter(14, weight: FontWeight.w600)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                      'Your phone is optimizing battery. Allow SUNDR to run uninterrupted for continuous ring sync.',
+                                      style: inter(12, color: AppTheme.textSec, height: 1.4)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  try {
+                                    await BleService().requestIgnoreBatteryOptimizations();
+                                  } catch (_) {}
+                                  await _dismissBatteryCard();
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor: Colors.white.withValues(alpha: 0.03),
+                                  side: BorderSide(
+                                      color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(999)),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  foregroundColor: AppTheme.gold,
+                                ),
+                                child: Text('Allow',
+                                    style: inter(13,
+                                        weight: FontWeight.w600, color: AppTheme.gold)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton(
+                              onPressed: _dismissBatteryCard,
+                              child: Text('Not now',
+                                  style: inter(13, color: Colors.white54)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 12),
                 ],
               ]),

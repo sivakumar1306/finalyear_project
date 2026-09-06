@@ -138,7 +138,7 @@ class BlePlugin(private val context: Context) {
         private const val INIT_RETRY_TIMEOUT_MS = 4_000L
         private const val INIT_MAX_ATTEMPTS = 3
         private const val MANUAL_ACQUIRE_POLL_MS = 300L
-        private const val MANUAL_ACQUIRE_TIMEOUT_MS = 4_000L
+        private const val MANUAL_ACQUIRE_TIMEOUT_MS = 8_000L
         // How often to re-send ACTION_KEEP_SCREEN_ON while the ring camera UI is active —
         // per the SDK docs, the ring's screen would otherwise dim/sleep on its own.
         private const val CAMERA_KEEP_ALIVE_MS = 2_000L
@@ -373,9 +373,34 @@ class BlePlugin(private val context: Context) {
             "factoryReset"               -> factoryReset(result)
             "shutDownRing"               -> shutDownRing(result)
             "startForegroundService"     -> {
-                com.sundr.myapp.sdk.BleSdkLifecycle.ensureInitialized(context.applicationContext)
-                BleConnectionService.start(context)
-                result.success(true)
+                try {
+                    com.sundr.myapp.sdk.BleSdkLifecycle.ensureInitialized(context.applicationContext)
+                    BleConnectionService.start(context)
+                    result.success(true)
+                } catch (e: Exception) {
+                    if (e is android.app.ForegroundServiceStartNotAllowedException) {
+                        android.util.Log.w("BlePlugin", "FGS denied, fallback to WorkManager interval", e)
+                        result.error("FGS_START_NOT_ALLOWED", e.message, null)
+                    } else {
+                        result.error("FGS_SECURITY", e.message, null)
+                    }
+                }
+            }
+            "isIgnoringBatteryOptimizations" -> {
+                val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+                result.success(pm.isIgnoringBatteryOptimizations(context.packageName))
+            }
+            "requestIgnoreBatteryOptimizations" -> {
+                try {
+                    val intent = android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = android.net.Uri.parse("package:${context.packageName}")
+                    }
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.error("BATTERY_OPT_FAILED", e.message, null)
+                }
             }
             "getLastNativeCrash"         -> {
                 result.success(com.sundr.myapp.sdk.CrashStore.peek())
@@ -408,6 +433,9 @@ class BlePlugin(private val context: Context) {
             "saveStepsSnapshot"          -> saveStepsSnapshot(call, result)
             "getSyncStatus"              -> getSyncStatus(result)
             "getMeasurementCycleHistory" -> getMeasurementCycleHistory(call, result)
+            "getMeasurementAttempts"     -> getMeasurementAttempts(call, result)
+            "getFailedMeasurementAttempts" -> getFailedMeasurementAttempts(call, result)
+            "getMeasurementAttemptsForCycle" -> getMeasurementAttemptsForCycle(call, result)
             "setVitalEnabled"            -> setVitalEnabled(call, result)
             "getVitalEnabled"            -> getVitalEnabled(call, result)
             "setMasterLoopEnabled"       -> {
@@ -949,9 +977,18 @@ class BlePlugin(private val context: Context) {
     }
 
     private fun readHeartRate(result: MethodChannel.Result) {
+        if (com.sundr.myapp.sdk.SdkGuard.isOpen()) {
+            result.error("SDK_GUARD_OPEN", "Sensor busy, try again shortly", null)
+            return
+        }
+        if (!com.sundr.myapp.sdk.BleSdkLifecycle.isConnected()) {
+            result.error("NOT_CONNECTED", "Ring not connected", null)
+            return
+        }
         val owner = "manual"
         acquireManualSlot(owner, result) {
             val done = AtomicBoolean(false)
+            var timeoutRunnable: Runnable? = null
 
             try {
                 BleOperateManager.getInstance().manualModeHeart(
@@ -969,12 +1006,14 @@ class BlePlugin(private val context: Context) {
                                 else -> 0
                             }
                             if (com.sundr.myapp.data.VitalRanges.isValidBpm(value) && done.compareAndSet(false, true)) {
+                                timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
                                 try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
                                 MeasurementCoordinator.release(owner)
                                 mainHandler.post { result.success(value) }
                             }
                         } else {
                             if (done.compareAndSet(false, true)) {
+                                timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
                                 try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
                                 MeasurementCoordinator.release(owner)
                                 mainHandler.post { result.success(null) }
@@ -991,13 +1030,14 @@ class BlePlugin(private val context: Context) {
                 return@acquireManualSlot
             }
 
-            mainHandler.postDelayed({
+            timeoutRunnable = Runnable {
                 if (done.compareAndSet(false, true)) {
                     try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
                     MeasurementCoordinator.release(owner)
                     result.error("TIMEOUT", "Heart rate measurement timed out", null)
                 }
-            }, 60_000L)
+            }
+            mainHandler.postDelayed(timeoutRunnable!!, 60_000L)
         }
     }
 
@@ -3387,6 +3427,49 @@ class BlePlugin(private val context: Context) {
         repo().ioScope.launch {
             val json = try {
                 gson.toJson(repo().cyclesBetween(fromMs, toMs))
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(json) }
+        }
+    }
+
+    private fun getMeasurementAttempts(call: MethodCall, result: MethodChannel.Result) {
+        val fromMs = (call.argument<Number>("fromMs") ?: 0L).toLong()
+        val toMs = (call.argument<Number>("toMs") ?: System.currentTimeMillis()).toLong()
+        val limit = (call.argument<Number>("limit") ?: 1000).toInt()
+        repo().ioScope.launch {
+            val json = try {
+                gson.toJson(repo().attemptsBetween(fromMs, toMs, limit))
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(json) }
+        }
+    }
+
+    private fun getFailedMeasurementAttempts(call: MethodCall, result: MethodChannel.Result) {
+        val fromMs = (call.argument<Number>("fromMs") ?: 0L).toLong()
+        val toMs = (call.argument<Number>("toMs") ?: System.currentTimeMillis()).toLong()
+        val limit = (call.argument<Number>("limit") ?: 1000).toInt()
+        repo().ioScope.launch {
+            val json = try {
+                gson.toJson(repo().failedBetween(fromMs, toMs, limit))
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+                return@launch
+            }
+            mainHandler.post { result.success(json) }
+        }
+    }
+
+    private fun getMeasurementAttemptsForCycle(call: MethodCall, result: MethodChannel.Result) {
+        val cycleId = (call.argument<Number>("cycleId") ?: 0L).toLong()
+        repo().ioScope.launch {
+            val json = try {
+                gson.toJson(repo().attemptsForCycle(cycleId))
             } catch (e: Exception) {
                 mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
                 return@launch

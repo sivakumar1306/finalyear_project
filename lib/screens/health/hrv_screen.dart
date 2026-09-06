@@ -737,6 +737,7 @@ class _HrvScreenState extends State<HrvScreen> {
                     metric: 'HRV',
                     date: _selectedDate,
                     isConnected: connected,
+                    measuring: _measuring,
                     onMeasure: _startMeasurement,
                     measureLabel: 'Measure HRV',
                   ),

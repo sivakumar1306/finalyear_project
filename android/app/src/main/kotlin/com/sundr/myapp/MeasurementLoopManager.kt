@@ -149,10 +149,12 @@ object MeasurementLoopManager {
         val connected = com.sundr.myapp.sdk.BleSdkLifecycle.isConnected()
         if (!connected) {
             // Deliberately restart at HEART_RATE on the next cycle rather than resuming here.
+            logAttempt(sequence[index].name, "auto_cycle", cycleId, "aborted_disconnect", "ring disconnected before vital")
             finishCycle(cycleId, "ABORTED_DISCONNECT", sequence[index].name)
             return
         }
         if (MeasurementCoordinator.isWorkoutActive) {
+            logAttempt(sequence[index].name, "auto_cycle", cycleId, "skipped_workout", "workout active")
             finishCycle(cycleId, "SKIPPED_WORKOUT", sequence[index].name)
             return
         }
@@ -161,15 +163,49 @@ object MeasurementLoopManager {
             // We deliberately don't try to resume mid-sequence; the next cycle starts fresh
             // from the top (same as the disconnect-abort path above).
             Log.d(TAG, "walkSequence: yielding to manual before ${sequence[index].name}")
+            logAttempt(sequence[index].name, "auto_cycle", cycleId, "yielded", "manualRequestPending")
             finishCycle(cycleId, "YIELDED_TO_MANUAL", sequence[index].name)
             return
         }
         val vital = sequence[index]
         if (!MeasurementConfig.isEnabled(vital)) {
+            logAttempt(vital.name, "auto_cycle", cycleId, "skipped_disabled", "vital disabled in config")
             walkSequence(cycleId, index + 1)
             return
         }
-        measure(vital, cycleId) { walkSequence(cycleId, index + 1) }
+        val attemptIdHolder = longArrayOf(-1L)
+        repository.ioScope.launch {
+            try {
+                attemptIdHolder[0] = repository.startAttempt(vital.name, "auto_cycle", cycleId)
+            } catch (_: Exception) {}
+        }
+        measure(vital, cycleId) {
+            if (attemptIdHolder[0] > 0) {
+                repository.ioScope.launch {
+                    try {
+                        // Success is inferred when a reading was persisted for this cycle;
+                        // timeout/rejected branches inside measure* log their own finish.
+                        // If still RUNNING here, mark success (per-vital methods override on failure).
+                        val existing = repository.attemptsForCycle(cycleId).find { it.vital == vital.name && it.status == "RUNNING" }
+                        if (existing != null) {
+                            repository.finishAttempt(existing.id, "success", null, null)
+                        } else {
+                            repository.finishAttempt(attemptIdHolder[0], "success", null, null)
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+            walkSequence(cycleId, index + 1)
+        }
+    }
+
+    private fun logAttempt(vital: String, source: String, cycleId: Long, status: String, error: String?) {
+        repository.ioScope.launch {
+            try {
+                val id = repository.startAttempt(vital, source, cycleId)
+                repository.finishAttempt(id, status, error, null)
+            } catch (_: Exception) {}
+        }
     }
 
     private fun finishCycle(cycleId: Long, status: String, abortedAtVital: String?) {

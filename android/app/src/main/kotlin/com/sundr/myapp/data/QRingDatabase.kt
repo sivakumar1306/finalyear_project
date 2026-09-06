@@ -8,6 +8,7 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [
         MeasurementCycleEntity::class,
+        MeasurementAttemptEntity::class,
         HeartRateReadingEntity::class,
         Spo2ReadingEntity::class,
         StressReadingEntity::class,
@@ -21,12 +22,13 @@ import androidx.room.RoomDatabase
         PhoneModeSessionEntity::class,
         DailyVitalSummaryEntity::class
     ],
-    // v7: daily_vital_summary offline rollups + richer reading metadata fields
-    version = 7,
+    // v8: measurement_attempt per-vital audit for Measurement Log screen
+    version = 8,
     exportSchema = false
 )
 abstract class QRingDatabase : RoomDatabase() {
     abstract fun measurementCycleDao(): MeasurementCycleDao
+    abstract fun measurementAttemptDao(): MeasurementAttemptDao
     abstract fun heartRateDao(): HeartRateReadingDao
     abstract fun spo2Dao(): Spo2ReadingDao
     abstract fun stressDao(): StressReadingDao

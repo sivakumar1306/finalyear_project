@@ -690,6 +690,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
                   metric: 'heart rate',
                   date: _selectedDate,
                   isConnected: connected,
+                  measuring: _measuring,
                   onMeasure: _startMeasurement,
                   measureLabel: 'Measure heart rate',
                 ),

@@ -710,6 +710,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
                   metric: 'blood oxygen',
                   date: _selectedDate,
                   isConnected: connected,
+                  measuring: _measuring,
                   onMeasure: _startMeasurement,
                   measureLabel: 'Measure SpO₂',
                 ),

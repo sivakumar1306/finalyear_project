@@ -763,6 +763,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
                   metric: 'blood pressure',
                   date: _selectedDate,
                   isConnected: connected,
+                  measuring: _measuring,
                   onMeasure: _startMeasurement,
                   measureLabel: 'Measure blood pressure',
                 ),

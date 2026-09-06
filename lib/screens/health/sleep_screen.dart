@@ -333,11 +333,13 @@ class _SleepScreenState extends State<SleepScreen> {
 
     final user = SupabaseService.currentUser;
     if (user == null) return;
+    if (!mounted) return;
     setState(() => _dbOffline = false);
     try {
       final row = await SupabaseService.getSleepForDate(user.id, _selectedDate);
       if (!mounted) return;
       if (row == null) {
+        if (!mounted) return;
         setState(() {
           _totalDuration = 0;
           _deepDuration = 0;
@@ -351,6 +353,7 @@ class _SleepScreenState extends State<SleepScreen> {
         });
         return;
       }
+      if (!mounted) return;
       setState(() {
         _totalDuration = (row['total_duration'] as num? ?? 0).toInt();
         _deepDuration = (row['deep_duration'] as num? ?? 0).toInt();

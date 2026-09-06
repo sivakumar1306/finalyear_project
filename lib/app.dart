@@ -44,6 +44,7 @@ import 'screens/settings/profile_edit_screen.dart';
 import 'screens/settings/faq_screen.dart';
 import 'screens/prayer/prayer_session_screen.dart';
 import 'screens/companion/companion_alert_screen.dart';
+import 'screens/settings/measurement_log_screen.dart';
 import 'theme/app_theme.dart';
 import 'theme/app_scroll_behavior.dart';
 
@@ -114,6 +115,7 @@ class SundrApp extends StatelessWidget {
         '/faq': (_) => const FaqScreen(),
         '/prayer-session': (_) => const PrayerSessionScreen(),
         '/companion-alert': (_) => const CompanionAlertScreen(),
+        '/measurement-log': (_) => const MeasurementLogScreen(),
       },
     );
   }

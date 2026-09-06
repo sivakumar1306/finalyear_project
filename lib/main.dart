@@ -43,18 +43,32 @@ Future<void> _reportLastNativeCrash() async {
 }
 
 Future<void> _requestPermissionsAndStartService() async {
+  // POST_NOTIFICATIONS separately so denial can prompt settings (foreground service needs it on API 33+).
+  try {
+    final notif = await Permission.notification.status;
+    if (notif.isDenied || notif.isLimited) {
+      final res = await Permission.notification.request();
+      if (res.isPermanentlyDenied) {
+        debugPrint('_requestPermissions: notification permanently denied — Home will show battery/background prompt');
+      }
+    }
+  } catch (e) {
+    debugPrint('_requestPermissions notification check: $e');
+  }
   await [
     Permission.bluetooth,
     Permission.bluetoothScan,
     Permission.bluetoothConnect,
     Permission.bluetoothAdvertise,
     Permission.locationWhenInUse,
-    Permission.notification,
     Permission.sms,
     Permission.phone,
   ].request();
   try {
     await _bleChannel.invokeMethod('startForegroundService');
+  } on PlatformException catch (e) {
+    // Android 12+ background-start restriction → non-foreground fallback (15m WorkManager interval).
+    debugPrint('_requestPermissionsAndStartService FGS fallback: ${e.code} ${e.message}');
   } catch (e) {
     debugPrint('_requestPermissionsAndStartService: $e');
   }
