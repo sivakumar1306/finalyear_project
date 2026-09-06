@@ -610,25 +610,31 @@ void _onBatteryPushEvent(Map<String, dynamic> data) {
   void _onNewReadingEvent(Map<String, dynamic> data) {
     switch (data['vital'] as String?) {
       case 'HEART_RATE':
+      case 'heart_rate':
         _refreshHrFromLocal();
         unawaited(_pushToHealthConnect('heart_rate'));
         break;
       case 'SPO2':
+      case 'spo2':
         _refreshSpo2FromLocal();
         unawaited(_pushToHealthConnect('spo2'));
         break;
       case 'STRESS':
+      case 'stress':
         _refreshStressFromLocal();
         break;
       case 'BLOOD_PRESSURE':
+      case 'blood_pressure':
         _refreshBpFromLocal();
         unawaited(_pushToHealthConnect('blood_pressure'));
         break;
       case 'STEPS':
+      case 'steps':
         _refreshStepsFromLocal();
         unawaited(_pushToHealthConnect('steps'));
         break;
       case 'TEMPERATURE':
+      case 'temperature':
         _refreshTempFromLocal();
         unawaited(_pushToHealthConnect('temperature'));
         break;
@@ -1207,6 +1213,19 @@ Future<void> _loadTodayVitalsFromLocal() async {
           vital: 'heart_rate',
         );
       }
+      if (_todayAvgHr > 0) {
+        final user = SupabaseService.currentUser;
+        if (user != null) {
+          SupabaseService.upsertHr(
+            userId: user.id,
+            date: DateTime.now(),
+            avgHr: _todayAvgHr,
+            minHr: _todayMinHr,
+            maxHr: _todayMaxHr,
+            sampleCount: (m['count'] as num? ?? 1).toInt(),
+          ).catchError((_) {});
+        }
+      }
       return true;
     } catch (_) {
       return false;
@@ -1270,6 +1289,19 @@ Future<void> _loadTodayVitalsFromLocal() async {
           message: 'Your SpO2 just read $last%.',
           vital: 'spo2',
         );
+      }
+      if (_todayAvgSpo2 > 0) {
+        final user = SupabaseService.currentUser;
+        if (user != null) {
+          SupabaseService.upsertSpo2(
+            userId: user.id,
+            date: DateTime.now(),
+            avgSpo2: _todayAvgSpo2,
+            minSpo2: _todayMinSpo2,
+            maxSpo2: _todayMaxSpo2,
+            sampleCount: (m['count'] as num? ?? 1).toInt(),
+          ).catchError((_) {});
+        }
       }
       return true;
     } catch (_) {
