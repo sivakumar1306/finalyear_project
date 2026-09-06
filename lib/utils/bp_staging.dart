@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/health_engine/health_engine.dart';
 import '../theme/app_theme.dart';
 
 /// AHA/ACC adult BP stage labels from systolic/diastolic mmHg.
@@ -38,11 +39,14 @@ extension BpStageLabel on BpStage {
 }
 
 BpStage classifyBp(int sbp, int dbp) {
-  if (sbp <= 0 || dbp <= 0) return BpStage.noData;
-  if (sbp < 120 && dbp < 80) return BpStage.normal;
-  if (sbp < 130 && dbp < 80) return BpStage.elevated;
-  if (sbp < 140 && dbp < 90) return BpStage.stage1;
-  return BpStage.stage2;
+  final a = HealthEngine.instance.assessBloodPressure(sbp, dbp);
+  return switch (a.label) {
+    'Normal' => BpStage.normal,
+    'Elevated' => BpStage.elevated,
+    'Stage 1' => BpStage.stage1,
+    'Stage 2' => BpStage.stage2,
+    _ => BpStage.noData,
+  };
 }
 
 String bpStatusLabel(int sbp, int dbp) => classifyBp(sbp, dbp).label;
@@ -51,16 +55,7 @@ String bpCompactStatusLabel(int sbp, int dbp) =>
     classifyBp(sbp, dbp).compactLabel;
 
 Color bpStatusColor(int sbp, int dbp, {Color noDataColor = AppTheme.textSec}) {
-  switch (classifyBp(sbp, dbp)) {
-    case BpStage.noData:
-      return noDataColor;
-    case BpStage.normal:
-      return AppTheme.success;
-    case BpStage.elevated:
-      return AppTheme.amber;
-    case BpStage.stage1:
-      return AppTheme.stressColor;
-    case BpStage.stage2:
-      return AppTheme.danger;
-  }
+  final a = HealthEngine.instance.assessBloodPressure(sbp, dbp);
+  if (a.label == 'No data') return noDataColor;
+  return a.color;
 }

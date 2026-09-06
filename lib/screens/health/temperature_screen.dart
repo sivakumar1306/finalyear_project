@@ -15,13 +15,17 @@ import '../../widgets/screenshot_share.dart';
 import 'vital_note_screen.dart';
 import '../../services/health_engine/health_engine.dart';
 import '../../services/health_engine/models.dart';
+import '../../services/health_engine/temperature_engine.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/chart_scrubber.dart';
+import '../../utils/date_keys.dart';
+import '../../utils/formatters.dart';
 import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
+import '../../utils/hourly_aggregator.dart';
 
 
 // ── Local design tokens — same system as heart_rate_screen.dart / blood_oxygen_screen.dart ──
@@ -81,12 +85,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
 
   // ── Computed ──────────────────────────────────────────────────────────────
 
-  bool get _isToday {
-    final n = DateTime.now();
-    return _selectedDate.year == n.year &&
-        _selectedDate.month == n.month &&
-        _selectedDate.day == n.day;
-  }
+  bool get _isToday => DateKeys.isToday(_selectedDate);
 
   double get _displayAvg {
     if (!_isToday) return _dayAvg;
@@ -117,11 +116,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     return 0.0;
   }
 
-  String _fmt(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-  static String _tempLabel(double v) => HealthEngine.instance.assessTemperature(v).label;
-  static Color _tempStatusColor(double v) => HealthEngine.instance.assessTemperature(v).color;
+  String _fmt(DateTime d) => DateKeys.fmt(d);
 
   // Display-only conversion — every stored/aggregated value above stays in
   // Celsius (the ring's native unit and the DB's canonical column); only the
@@ -156,9 +151,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   // ── Date selection ────────────────────────────────────────────────────────
 
   void _onDateSelected(DateTime date) {
-    final n = DateTime.now();
-    final isToday =
-        date.year == n.year && date.month == n.month && date.day == n.day;
+    final isToday = DateKeys.isToday(date);
     setState(() {
       _selectedDate = date;
       _manualTemp = 0;
@@ -178,20 +171,8 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
   Future<void> _fetchTodayFromLocalDb() async {
     try {
       final now = DateTime.now();
-      final dayStart = DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ).millisecondsSinceEpoch;
-      final dayEnd = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        23,
-        59,
-        59,
-        999,
-      ).millisecondsSinceEpoch;
+      final dayStart = DateKeys.dayStartMs(now);
+      final dayEnd = DateKeys.dayEndMs(now);
 
       final summary =
           jsonDecode(await _ble.getTodaySummary('temperature'))
@@ -207,19 +188,10 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         );
         final decoded = jsonDecode(readingsJson);
         final list = decoded is List ? decoded : <dynamic>[];
-        final sums = List<double>.filled(24, 0);
-        final counts = List<int>.filled(24, 0);
-        for (final item in list) {
-          final m = item as Map<String, dynamic>;
-          final v = (m['valueC'] as num? ?? 0).toDouble();
-          final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-          if (v <= 0 || measuredAt <= 0) continue;
-          final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
-          sums[h] += v;
-          counts[h] += 1;
-        }
+        final typedTemp = list.whereType<Map<String, dynamic>>().toList();
+        final aggTemp = HourlyAggregator.aggregateDouble(typedTemp, valueKey: 'valueC', measuredAtKey: 'measuredAt', slots: 24);
         for (int h = 0; h < 24; h++) {
-          if (counts[h] > 0) hourly[h] = sums[h] / counts[h];
+          hourly[h] = aggTemp[h];
         }
       } catch (e, st) {
         IncidentService.reportUnhandled(
@@ -269,26 +241,12 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     try {
       // 1) Local Room — hourly chart + summary, works across month boundaries.
       final local = await _local.getDaySummary('temperature', date);
-      final dayStart = DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
-      final dayEnd = DateTime(date.year, date.month, date.day, 23, 59, 59, 999).millisecondsSinceEpoch;
+      final dayStart = DateKeys.dayStartMs(date);
+      final dayEnd = DateKeys.dayEndMs(date);
       final readingsJson = await _ble.getReadings('temperature', fromMs: dayStart, toMs: dayEnd, limit: 1000);
       final decoded = jsonDecode(readingsJson);
       final list = decoded is List ? decoded : <dynamic>[];
-      final hourly = List<double>.filled(24, 0);
-      final sums = List<double>.filled(24, 0);
-      final counts = List<int>.filled(24, 0);
-      for (final item in list) {
-        final m = item as Map<String, dynamic>;
-        final v = (m['valueC'] as num? ?? 0).toDouble();
-        final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-        if (v <= 0 || measuredAt <= 0) continue;
-        final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
-        sums[h] += v;
-        counts[h] += 1;
-      }
-      for (int h = 0; h < 24; h++) {
-        if (counts[h] > 0) hourly[h] = sums[h] / counts[h];
-      }
+      final hourly = HourlyAggregator.aggregateDouble(list.whereType<Map<String, dynamic>>().toList(), valueKey: 'valueC', measuredAtKey: 'measuredAt', slots: 24);
       if (!mounted) return;
       if (_local.hasData(local)) {
         setState(() {
@@ -548,61 +506,16 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     String jsonStr,
     DateTime selectedDate,
   ) {
-    final readings = <_TempReading>[];
-    try {
-      final decoded = jsonDecode(jsonStr);
-      if (decoded is List && decoded.isNotEmpty) {
-        for (final item in decoded) {
-          final m = item as Map<String, dynamic>;
-          final ts = (m['mTime'] as num?)?.toInt() ?? (m['a'] as num?)?.toInt();
-          var val =
-              (m['mValue'] as num?)?.toDouble() ?? (m['b'] as num?)?.toDouble();
-          if (ts == null || val == null || val <= 0) continue;
-          if (val > 100) val /= 10;
-          readings.add(
-            _TempReading(
-              time: DateTime.fromMillisecondsSinceEpoch(ts * 1000).toLocal(),
-              valueC: val,
-            ),
-          );
-        }
-      } else if (decoded is Map<String, dynamic>) {
-        final rawVals =
-            (decoded['mValues'] as List<dynamic>?) ??
-            (decoded['d'] as List<dynamic>?);
-        final spanSec =
-            (decoded['mTimeSpan'] as num?)?.toInt() ??
-            (decoded['b'] as num?)?.toInt() ??
-            5;
-        if (rawVals != null) {
-          final base = DateTime(
-            selectedDate.year,
-            selectedDate.month,
-            selectedDate.day,
-          );
-          for (int i = 0; i < rawVals.length; i++) {
-            var v = (rawVals[i] as num).toDouble();
-            if (v <= 0) continue;
-            if (v > 100) v /= 10;
-            readings.add(
-              _TempReading(
-                time: base.add(Duration(seconds: i * spanSec)),
-                valueC: v,
-              ),
-            );
-          }
-        }
-      }
-    } catch (e, st) {
-      IncidentService.reportUnhandled(
-        source: 'temperature_screen',
-        error: e,
-        stackTrace: st,
-        customMessage: 'decode temperature log failed',
-      );
-    }
-    return readings;
+    return TemperatureEngine.parseTempReadings(jsonStr, selectedDate)
+        .map((r) => _TempReading(time: r.time, valueC: r.valueC))
+        .toList();
   }
+
+  // ignore: unused_element
+  List<TempReading> _demoTempParse(String jsonStr, DateTime d) {
+    return TemperatureEngine.parseTempReadings(jsonStr, d);
+  }
+  // return TemperatureEngine.parseTempReadings(jsonStr, selectedDate);
 
   Future<void> _saveToSupabase(List<_TempReading> readings) async {
     final user = SupabaseService.currentUser;
@@ -653,21 +566,9 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  List<String> _trendXLabels() {
-    final now = DateTime.now();
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return List.generate(7, (i) {
-      final d = now.subtract(Duration(days: 6 - i));
-      return days[d.weekday - 1];
-    });
-  }
+  List<String> _trendXLabels() => DateKeys.trendXLabels();
 
-  String _hourLabel(int hour) {
-    if (hour == 0) return '12am';
-    if (hour < 12) return '${hour}am';
-    if (hour == 12) return '12pm';
-    return '${hour - 12}pm';
-  }
+  String _hourLabel(int hour) => Formatters.hourLabel(hour);
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
@@ -765,15 +666,13 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
               Text(
                 _measuring
                     ? 'Measuring…'
-                    : _tempLabel(_manualTemp > 0 ? _manualTemp : _displayAvg),
+                    : HealthEngine.instance.assessTemperature(_manualTemp > 0 ? _manualTemp : _displayAvg).label,
                 style: _inter(
                   13,
                   weight: FontWeight.w600,
                   color: _measuring
                       ? AppTheme.textTertiary
-                      : _tempStatusColor(
-                          _manualTemp > 0 ? _manualTemp : _displayAvg,
-                        ),
+                      : HealthEngine.instance.assessTemperature(_manualTemp > 0 ? _manualTemp : _displayAvg).color,
                 ),
               ),
               const SizedBox(height: 16),
@@ -794,7 +693,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                   maxY: 40,
                   baseline: 34,
                   yLines: const [40, 38, 36, 34],
-                  colorFor: _tempBarColor,
+                  colorFor: (v) => HealthEngine.instance.tempBarColor(v),
                   accent: AppTheme.tempColor,
                   headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
                   rangeLabel: dailyRangeLabel,
@@ -869,7 +768,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                   maxY: 40,
                   baseline: 34,
                   yLines: const [40, 38, 36, 34],
-                  colorFor: _tempBarColor,
+                  colorFor: (v) => HealthEngine.instance.tempBarColor(v),
                   accent: AppTheme.tempColor,
                   headerLabel: 'LAST 7 DAYS TREND',
                   rangeLabel: trendRangeLabel,
@@ -911,7 +810,6 @@ class _TempReading {
   final double valueC;
   const _TempReading({required this.time, required this.valueC});
 }
-Color _tempBarColor(num v) => HealthEngine.instance.tempBarColor(v);
 
 // ── Real-time measurement card ────────────────────────────────────────────────
 

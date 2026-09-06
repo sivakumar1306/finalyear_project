@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../utils/date_keys.dart';
 import 'ble_service.dart';
 
 /// Local-first vitals access over the native Room DB (`qring_local.db`).
@@ -15,18 +16,11 @@ class LocalVitalsService {
 
   final BleService _ble;
 
-  static int dayStartMs(DateTime d) {
-    final local = DateTime(d.year, d.month, d.day);
-    return local.millisecondsSinceEpoch;
-  }
+  static int dayStartMs(DateTime d) => DateKeys.dayStartMs(d);
 
-  static int dayEndMs(DateTime d) {
-    final local = DateTime(d.year, d.month, d.day, 23, 59, 59, 999);
-    return local.millisecondsSinceEpoch;
-  }
+  static int dayEndMs(DateTime d) => DateKeys.dayEndMs(d);
 
-  static String dateStr(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  static String dateStr(DateTime d) => DateKeys.fmt(d);
 
   /// Day aggregate from local Room only (no network).
   Future<Map<String, dynamic>> getDaySummary(String vital, DateTime date) async {

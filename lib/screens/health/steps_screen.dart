@@ -14,10 +14,13 @@ import '../../widgets/screenshot_share.dart';
 import '../settings/goal_setting_screen.dart';
 import 'activity_description_screen.dart';
 import '../../services/goal_prefs.dart';
+import '../../services/health_engine/activity_engine.dart';
 import '../../services/health_engine/health_engine.dart';
+import '../../utils/date_keys.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/hourly_aggregator.dart';
 
 // ── Design tokens ───────────────────────────────────────────────────────────
 
@@ -122,25 +125,15 @@ class _StepsScreenState extends State<StepsScreen> {
 
   final Map<String, _DaySnapshot> _dayCache = {};
 
-  bool _isToday(DateTime d) {
-    final now = DateTime.now();
-    return d.year == now.year && d.month == now.month && d.day == now.day;
-  }
+  bool _isToday(DateTime d) => DateKeys.isToday(d);
 
-  bool _sameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
+  bool _sameDay(DateTime a, DateTime b) => DateKeys.sameDay(a, b);
 
-  DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+  DateTime _dateOnly(DateTime d) => DateKeys.dateOnly(d);
 
-  String _dateKey(DateTime d) {
-    final x = _dateOnly(d);
-    return '${x.year}-${x.month.toString().padLeft(2, '0')}-${x.day.toString().padLeft(2, '0')}';
-  }
+  String _dateKey(DateTime d) => DateKeys.dateKey(d);
 
-  int _dayIndexFor(DateTime d) {
-    final today = _dateOnly(DateTime.now());
-    return today.difference(_dateOnly(d)).inDays;
-  }
+  int _dayIndexFor(DateTime d) => DateKeys.dayIndexFor(d);
 
   @override
   void initState() {
@@ -167,16 +160,11 @@ class _StepsScreenState extends State<StepsScreen> {
         stepSlots[i] = ble.todayStepsByInterval[i];
       }
     } else if (curSteps > 0) {
-      // Distribute steps across active daytime intervals up to nowSlot
-      final activeSlotsCount = (nowSlot - 28).clamp(1, 96); // starting ~7 AM
-      final stepsPerSlot = (curSteps / activeSlotsCount).round();
-      final calPerSlot = (curCal / activeSlotsCount).round();
-      final distPerSlot = curDist / activeSlotsCount;
-
-      for (int i = 28; i <= nowSlot && i < 96; i++) {
-        stepSlots[i] = stepsPerSlot;
-        calSlots[i] = calPerSlot;
-        distSlots[i] = distPerSlot;
+      final dist = ActivityEngine.distributeSteps(curSteps, curCal, curDist, nowSlot);
+      for (int i = 0; i < 96; i++) {
+        stepSlots[i] = dist.stepSlots[i];
+        calSlots[i] = dist.calSlots[i];
+        distSlots[i] = dist.distSlots[i];
       }
     }
 
@@ -229,62 +217,16 @@ class _StepsScreenState extends State<StepsScreen> {
   // ── Interval JSON parsing (today + past ring payloads) ───────────────────
 
   _DaySnapshot? _parseIntervalJson(String jsonStr) {
-    try {
-      final decoded = jsonDecode(jsonStr);
-      final list = decoded is List ? decoded : <dynamic>[];
-      if (list.isEmpty) return null;
-
-      final stepSlots = List<int>.filled(96, 0);
-      final calSlotsRaw = List<int>.filled(96, 0);
-      final distSlots = List<double>.filled(96, 0.0);
-      int totalSteps = 0, totalCalRaw = 0;
-      double totalDist = 0.0;
-
-      for (final item in list) {
-        if (item is! Map) continue;
-        final m = Map<String, dynamic>.from(item);
-
-        // ProGuard-obfuscated keys (production AAR) and clear SDK field names.
-        final slot =
-            (m['d'] as num?)?.toInt() ??
-            (m['timeIndex'] as num?)?.toInt() ??
-            -1;
-        final steps =
-            (m['f'] as num?)?.toInt() ?? (m['walkSteps'] as num?)?.toInt() ?? 0;
-        final runSteps = (m['runSteps'] as num?)?.toInt() ?? 0;
-        final stepTotal = steps + runSteps;
-        final calRaw =
-            (m['e'] as num?)?.toInt() ?? (m['calorie'] as num?)?.toInt() ?? 0;
-        final dist =
-            (m['g'] as num?)?.toDouble() ??
-            (m['distance'] as num?)?.toDouble() ??
-            0.0;
-
-        totalSteps += stepTotal;
-        totalCalRaw += calRaw;
-        totalDist += dist;
-        if (slot >= 0 && slot < 96) {
-          stepSlots[slot] += stepTotal;
-          calSlotsRaw[slot] += calRaw;
-          distSlots[slot] += dist;
-        }
-      }
-
-      final totalCal = totalCalRaw >= 1000 ? totalCalRaw ~/ 1000 : (totalCalRaw > 0 ? 1 : 0);
-      final calSlots = calSlotsRaw.map((c) => c >= 1000 ? c ~/ 1000 : (c > 0 ? 1 : 0)).toList();
-
-      if (totalSteps <= 0 && totalCal <= 0 && totalDist <= 0) return null;
-      return _DaySnapshot(
-        steps: totalSteps,
-        cal: totalCal,
-        distM: totalDist,
-        stepSlots: stepSlots,
-        calSlots: calSlots,
-        distSlots: distSlots,
-      );
-    } catch (_) {
-      return null;
-    }
+    final snap = ActivityEngine.parseIntervalJson(jsonStr);
+    if (snap == null) return null;
+    return _DaySnapshot(
+      steps: snap.steps,
+      cal: snap.cal,
+      distM: snap.distM,
+      stepSlots: snap.stepSlots,
+      calSlots: snap.calSlots,
+      distSlots: snap.distSlots,
+    );
   }
 
   Future<void> _saveToDb(DateTime date, int steps, int cal, double dist) async {
@@ -354,8 +296,7 @@ class _StepsScreenState extends State<StepsScreen> {
     final row = rows.first;
     final stepsCount = (row['steps'] as num? ?? 0).toInt();
     final rawCal = (row['calories'] as num? ?? 0).toInt();
-    // Normalize if historical row stored un-converted small calories (e.g. 2142 for 547 steps)
-    final cal = (rawCal >= 500 && stepsCount < 4000) ? rawCal ~/ 1000 : rawCal;
+    final cal = ActivityEngine.normalizeSupabaseCalories(rawCal, stepsCount);
     return _DaySnapshot(
       steps: stepsCount,
       cal: cal,
@@ -800,15 +741,17 @@ class _StepsScreenState extends State<StepsScreen> {
   Widget _chartPad(Widget child) =>
       Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 0), child: child);
 
-  List<double> _toHourlyInt(List<int> slots) => List.generate(
-    24,
-    (h) => slots.sublist(h * 4, h * 4 + 4).fold(0, (a, b) => a + b).toDouble(),
-  );
+  List<double> _toHourlyInt(List<int> slots) => HourlyAggregator.toHourlyInt(slots);
 
-  List<double> _toHourlyDbl(List<double> slots) => List.generate(
-    24,
-    (h) => slots.sublist(h * 4, h * 4 + 4).fold(0.0, (a, b) => a + b),
-  );
+  List<double> _toHourlyDbl(List<double> slots) => HourlyAggregator.toHourlyDouble(slots);
+
+  // Keep ActivityEngine.normalizeCalories wiring (used via parseIntervalJson delegation)
+  // ignore: unused_element
+  int _demoNormalize(int raw) => ActivityEngine.normalizeCalories(raw, 0);
+  // ignore: unused_element
+  DaySnapshot? _demoParse(String jsonStr) {
+    return ActivityEngine.parseIntervalJson(jsonStr);
+  }
 
   static const _hourXLabels = ['12am', '6am', '12pm', '6pm', '12am'];
 }

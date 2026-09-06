@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
+import '../utils/scrub_helper.dart';
 import 'app_typography.dart';
 
 /// Thick track + ball thumb scrubber for health charts.
@@ -243,11 +244,12 @@ class _ScrubbableChartState extends State<ScrubbableChart> {
 
   int _initialIndex() {
     if (widget.values.isEmpty) return 0;
-    // Prefer last non-zero bar (most recent reading)
-    for (int i = widget.values.length - 1; i >= 0; i--) {
-      if (widget.values[i] > 0) return i;
+    // Prefer last non-zero bar (most recent reading) — pure engine
+    if (widget.values.first is int) {
+      return ScrubHelper.initialIndex(List<int>.from(widget.values as List));
     }
-    return 0;
+    return ScrubHelper.initialIndexDouble(
+        (widget.values as List).map((v) => (v as num).toDouble()).toList());
   }
 
   @override
@@ -436,10 +438,10 @@ class _ScrubbableChartState extends State<ScrubbableChart> {
           behavior: HitTestBehavior.opaque,
           onHorizontalDragUpdate: hasScrubber
               ? (details) {
-                  final dx = details.localPosition.dx;
-                  final w = constraints.maxWidth;
-                  if (w <= 0) return;
-                  final idx = ((dx / w) * widget.values.length).floor().clamp(0, widget.values.length - 1);
+                  final idx = ScrubHelper.indexFromDx(
+                      details.localPosition.dx,
+                      constraints.maxWidth,
+                      widget.values.length);
                   if (idx != _selectedIndex) {
                     setState(() => _selectedIndex = idx);
                     widget.onScrub?.call(idx);
@@ -449,10 +451,10 @@ class _ScrubbableChartState extends State<ScrubbableChart> {
               : null,
           onTapDown: hasScrubber
               ? (details) {
-                  final dx = details.localPosition.dx;
-                  final w = constraints.maxWidth;
-                  if (w <= 0) return;
-                  final idx = ((dx / w) * widget.values.length).floor().clamp(0, widget.values.length - 1);
+                  final idx = ScrubHelper.indexFromDx(
+                      details.localPosition.dx,
+                      constraints.maxWidth,
+                      widget.values.length);
                   setState(() => _selectedIndex = idx);
                   widget.onScrub?.call(idx);
                   HapticFeedback.selectionClick();

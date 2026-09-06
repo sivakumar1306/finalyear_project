@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config.dart';
 import '../models/health_data.dart';
+import '../utils/date_keys.dart';
+import 'health_engine/health_engine.dart';
 
 class SupabaseService {
   static const _url = AppConfig.supabaseUrl;
@@ -143,8 +145,7 @@ class SupabaseService {
     required int calories,
     required double distanceM,
   }) async {
-    final dateStr =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final dateStr = DateKeys.fmt(date);
     await client.from('user_steps').upsert({
       'user_id': userId,
       'date': dateStr,
@@ -160,8 +161,7 @@ class SupabaseService {
     required DateTime from,
     required DateTime to,
   }) async {
-    String fmt(DateTime d) =>
-        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    String fmt(DateTime d) => DateKeys.fmt(d);
     final data = await client
         .from('user_steps')
         .select()
@@ -180,8 +180,7 @@ class SupabaseService {
     required int maxHr,
     required int sampleCount,
   }) async {
-    final dateStr =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final dateStr = DateKeys.fmt(date);
     await client.from('user_hr').upsert({
       'user_id': userId,
       'date': dateStr,
@@ -195,8 +194,7 @@ class SupabaseService {
 
   static Future<Map<String, dynamic>?> getTodayHr(String userId) async {
     final now = DateTime.now();
-    final dateStr =
-        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final dateStr = DateKeys.fmt(now);
     return client
         .from('user_hr')
         .select()
@@ -209,8 +207,7 @@ class SupabaseService {
     String userId,
     DateTime date,
   ) async {
-    final dateStr =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final dateStr = DateKeys.fmt(date);
     return client
         .from('user_hr')
         .select()
@@ -224,8 +221,7 @@ class SupabaseService {
     required DateTime from,
     required DateTime to,
   }) async {
-    String fmt(DateTime d) =>
-        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    String fmt(DateTime d) => DateKeys.fmt(d);
     final data = await client
         .from('user_hr')
         .select()
@@ -246,8 +242,7 @@ class SupabaseService {
     required int maxSpo2,
     required int sampleCount,
   }) async {
-    final dateStr =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final dateStr = DateKeys.fmt(date);
     await client.from('user_spo2').upsert({
       'user_id': userId,
       'date': dateStr,
@@ -261,8 +256,7 @@ class SupabaseService {
 
   static Future<Map<String, dynamic>?> getTodaySpo2(String userId) async {
     final now = DateTime.now();
-    final dateStr =
-        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final dateStr = DateKeys.fmt(now);
     return client
         .from('user_spo2')
         .select()
@@ -275,8 +269,7 @@ class SupabaseService {
     String userId,
     DateTime date,
   ) async {
-    final dateStr =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final dateStr = DateKeys.fmt(date);
     return client
         .from('user_spo2')
         .select()
@@ -290,8 +283,7 @@ class SupabaseService {
     required DateTime from,
     required DateTime to,
   }) async {
-    String fmt(DateTime d) =>
-        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    String fmt(DateTime d) => DateKeys.fmt(d);
     final data = await client
         .from('user_spo2')
         .select()
@@ -361,10 +353,9 @@ class SupabaseService {
   // ── Stress ─────────────────────────────────────────────────────────────────
 
   static String _stressLabel(int v) {
-    if (v < 40) return 'Relaxed';
-    if (v < 60) return 'Normal';
-    if (v < 80) return 'Elevated';
-    return 'High';
+    final l = HealthEngine.instance.assessStress(v).label;
+    if (l == '--') return 'Relaxed';
+    return l;
   }
 
   static Future<void> insertStress({
@@ -430,8 +421,7 @@ class SupabaseService {
     required int maxHrv,
     required int sampleCount,
   }) async {
-    final dateStr =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final dateStr = DateKeys.fmt(date);
     await client.from('user_hrv').upsert({
       'user_id': userId,
       'date': dateStr,
@@ -447,8 +437,7 @@ class SupabaseService {
     String userId,
     DateTime date,
   ) async {
-    final dateStr =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final dateStr = DateKeys.fmt(date);
     return client
         .from('user_hrv')
         .select()
@@ -462,8 +451,7 @@ class SupabaseService {
     required DateTime from,
     required DateTime to,
   }) async {
-    String fmt(DateTime d) =>
-        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    String fmt(DateTime d) => DateKeys.fmt(d);
     final data = await client
         .from('user_hrv')
         .select()
@@ -622,8 +610,7 @@ class SupabaseService {
     int sleepTime = 0,
     int wakeTime = 0,
   }) async {
-    final dateStr =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final dateStr = DateKeys.fmt(date);
     await client.from('user_sleep').upsert({
       'user_id': userId,
       'date': dateStr,
@@ -643,8 +630,7 @@ class SupabaseService {
     String userId,
     DateTime date,
   ) async {
-    final dateStr =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final dateStr = DateKeys.fmt(date);
     return client
         .from('user_sleep')
         .select()
@@ -658,8 +644,7 @@ class SupabaseService {
     required DateTime from,
     required DateTime to,
   }) async {
-    String fmt(DateTime d) =>
-        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    String fmt(DateTime d) => DateKeys.fmt(d);
     final data = await client
         .from('user_sleep')
         .select()
@@ -672,8 +657,7 @@ class SupabaseService {
 
   // ── Women's Health — Cycles ────────────────────────────────────────────────
 
-  static String _dateStr(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  static String _dateStr(DateTime d) => DateKeys.fmt(d);
 
   static Future<List<Map<String, dynamic>>> getCycles(String userId) async {
     final data = await client

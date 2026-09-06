@@ -1,6 +1,5 @@
 import 'dart:ui' show ImageFilter, TileMode;
 import 'package:flutter/material.dart';
-import '../../../services/health_engine/health_engine.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/app_typography.dart';
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -64,24 +63,6 @@ class BlurOrb extends StatelessWidget {
 }
 
 // DESIGN.md per-metric orb colors (soft, desaturated)
-
-// ── Status helpers — delegated to HealthEngine single source ─────────────
-
-String stressStatus(int v) {
-  final a = HealthEngine.instance.assessStress(v);
-  if (a.label == '--') return 'No data';
-  return a.label;
-}
-
-Color stressColor(int v) => HealthEngine.instance.assessStress(v).color;
-
-String tempStatus(double v) {
-  final a = HealthEngine.instance.assessTemperature(v);
-  if (a.label == '--') return 'No data';
-  return a.label;
-}
-
-String activityScoreLabel(int score) => HealthEngine.instance.activityLabel(score);
 
 TextStyle inter(
   double size, {

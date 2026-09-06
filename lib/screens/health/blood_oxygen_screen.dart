@@ -17,8 +17,13 @@ import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/chart_scrubber.dart';
+import '../../utils/date_keys.dart';
+import '../../utils/formatters.dart';
 import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
+import '../../utils/hourly_aggregator.dart';
+import '../../utils/trend_math.dart';
+import '../../utils/scrub_helper.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -79,12 +84,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
 
   // ── Computed ──────────────────────────────────────────────────────────────
 
-  bool get _isToday {
-    final n = DateTime.now();
-    return _selectedDate.year == n.year &&
-        _selectedDate.month == n.month &&
-        _selectedDate.day == n.day;
-  }
+  bool get _isToday => DateKeys.isToday(_selectedDate);
 
   int get _displayAvg {
     if (!_isToday) return _dayAvg;
@@ -111,8 +111,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     return 0;
   }
 
-  String _fmt(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  String _fmt(DateTime d) => DateKeys.fmt(d);
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -132,9 +131,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
   // ── Date selection ────────────────────────────────────────────────────────
 
   void _onDateSelected(DateTime date) {
-    final n = DateTime.now();
-    final isToday =
-        date.year == n.year && date.month == n.month && date.day == n.day;
+    final isToday = DateKeys.isToday(date);
     setState(() {
       _selectedDate = date;
       _manualSpo2 = 0;
@@ -157,20 +154,8 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     });
     try {
       final now = DateTime.now();
-      final dayStart = DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ).millisecondsSinceEpoch;
-      final dayEnd = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        23,
-        59,
-        59,
-        999,
-      ).millisecondsSinceEpoch;
+      final dayStart = DateKeys.dayStartMs(now);
+      final dayEnd = DateKeys.dayEndMs(now);
 
       final summary =
           jsonDecode(await _ble.getTodaySummary('spo2'))
@@ -188,22 +173,10 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         );
         final decoded = jsonDecode(readingsJson);
         final list = decoded is List ? decoded : <dynamic>[];
-
-        final slotSums = List<int>.filled(totalSlots, 0);
-        final slotCounts = List<int>.filled(totalSlots, 0);
-        for (final item in list) {
-          final m = item as Map<String, dynamic>;
-          final value = (m['valuePct'] as num? ?? 0).toInt();
-          final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-          if (value <= 0 || measuredAt <= 0) continue;
-          final hour = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
-          slotSums[hour] += value;
-          slotCounts[hour] += 1;
-        }
+        final typedSpo2 = list.whereType<Map<String, dynamic>>().toList();
+        final aggSpo2 = HourlyAggregator.aggregateInt(typedSpo2, valueKey: 'valuePct', measuredAtKey: 'measuredAt', slots: 24);
         for (int i = 0; i < totalSlots; i++) {
-          if (slotCounts[i] > 0) {
-            slots[i] = (slotSums[i] / slotCounts[i]).round();
-          }
+          slots[i] = aggSpo2[i];
         }
       } catch (e, st) {
         IncidentService.reportUnhandled(
@@ -254,21 +227,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     try {
       final local = await _local.getDaySummary('spo2', date);
       final list = await _local.getReadings('spo2', date);
-      const totalSlots = 24;
-      final slots = List<int>.filled(totalSlots, 0);
-      final slotSums = List<int>.filled(totalSlots, 0);
-      final slotCounts = List<int>.filled(totalSlots, 0);
-      for (final m in list) {
-        final value = (m['valuePct'] as num? ?? 0).toInt();
-        final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-        if (value <= 0 || measuredAt <= 0) continue;
-        final hour = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
-        slotSums[hour] += value;
-        slotCounts[hour] += 1;
-      }
-      for (int i = 0; i < totalSlots; i++) {
-        if (slotCounts[i] > 0) slots[i] = (slotSums[i] / slotCounts[i]).round();
-      }
+      final slots = HourlyAggregator.aggregateInt(list, valueKey: 'valuePct', measuredAtKey: 'measuredAt', slots: 24);
 
       if (!mounted) return;
       if (_local.hasData(local)) {
@@ -335,18 +294,11 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
       final localValid = localRows.where((r) => r['min'] != null).toList();
       if (!mounted) return;
       if (localVals.any((v) => v > 0)) {
+        final _mm = TrendMath.minMax(localRows, 'min', 'max');
         setState(() {
           _trendValues = localVals;
-          _trendMin = localValid.isEmpty
-              ? 0
-              : localValid
-                  .map((r) => (r['min'] as num).toInt())
-                  .reduce((a, b) => a < b ? a : b);
-          _trendMax = localValid.isEmpty
-              ? 0
-              : localValid
-                  .map((r) => (r['max'] as num).toInt())
-                  .reduce((a, b) => a > b ? a : b);
+          _trendMin = _mm.min;
+          _trendMax = _mm.max;
         });
       }
 
@@ -371,18 +323,11 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         if (!mounted) return;
         final hasLocalTrend = localVals.any((v) => v > 0);
         if (!hasLocalTrend && vals.any((v) => v > 0)) {
+          final _mm2 = TrendMath.minMax(rows, 'min_spo2', 'max_spo2');
           setState(() {
             _trendValues = vals;
-            _trendMin = valid.isEmpty
-                ? 0
-                : valid
-                    .map((r) => (r['min_spo2'] as num).toInt())
-                    .reduce((a, b) => a < b ? a : b);
-            _trendMax = valid.isEmpty
-                ? 0
-                : valid
-                    .map((r) => (r['max_spo2'] as num).toInt())
-                    .reduce((a, b) => a > b ? a : b);
+            _trendMin = _mm2.min;
+            _trendMax = _mm2.max;
           });
         }
         for (final r in rows) {
@@ -648,21 +593,9 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  List<String> _trendXLabels() {
-    final now = DateTime.now();
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return List.generate(7, (i) {
-      final d = now.subtract(Duration(days: 6 - i));
-      return days[d.weekday - 1];
-    });
-  }
+  List<String> _trendXLabels() => DateKeys.trendXLabels();
 
-  String _hourLabel(int hour) {
-    if (hour == 0) return '12am';
-    if (hour < 12) return '${hour}am';
-    if (hour == 12) return '12pm';
-    return '${hour - 12}pm';
-  }
+  String _hourLabel(int hour) => Formatters.hourLabel(hour);
 
   // ── Build ─────────────────────────────────────────────────────────────────
 

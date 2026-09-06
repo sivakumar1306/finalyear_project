@@ -17,8 +17,13 @@ import '../../services/health_engine/models.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/chart_scrubber.dart';
+import '../../utils/date_keys.dart';
+import '../../utils/formatters.dart';
 import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
+import '../../utils/hourly_aggregator.dart';
+import '../../utils/trend_math.dart';
+import '../../utils/scrub_helper.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -79,12 +84,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
 
   // ── Computed ──────────────────────────────────────────────────────────────────
 
-  bool get _isToday {
-    final n = DateTime.now();
-    return _selectedDate.year == n.year &&
-        _selectedDate.month == n.month &&
-        _selectedDate.day == n.day;
-  }
+  bool get _isToday => DateKeys.isToday(_selectedDate);
 
   int get _displayAvg {
     if (!_isToday) return _dayAvg;
@@ -111,8 +111,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     return 0;
   }
 
-  String _fmt(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  String _fmt(DateTime d) => DateKeys.fmt(d);
 
   // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -133,9 +132,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   // ── Date selection ────────────────────────────────────────────────────────────
 
   void _onDateSelected(DateTime date) {
-    final n = DateTime.now();
-    final isToday =
-        date.year == n.year && date.month == n.month && date.day == n.day;
+    final isToday = DateKeys.isToday(date);
     setState(() {
       _selectedDate = date;
       _manualHr = 0;
@@ -158,20 +155,8 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     });
     try {
       final now = DateTime.now();
-      final dayStart = DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ).millisecondsSinceEpoch;
-      final dayEnd = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        23,
-        59,
-        59,
-        999,
-      ).millisecondsSinceEpoch;
+      final dayStart = DateKeys.dayStartMs(now);
+      final dayEnd = DateKeys.dayEndMs(now);
 
       final summaryJson = await _ble.getTodaySummary('heart_rate');
       final summary = jsonDecode(summaryJson) as Map<String, dynamic>;
@@ -186,19 +171,10 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         );
         final decoded = jsonDecode(readingsJson);
         final list = decoded is List ? decoded : <dynamic>[];
-        final sums = List<int>.filled(24, 0);
-        final counts = List<int>.filled(24, 0);
-        for (final item in list) {
-          final m = item as Map<String, dynamic>;
-          final bpm = (m['valueBpm'] as num? ?? 0).toInt();
-          final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-          if (bpm <= 0 || measuredAt <= 0) continue;
-          final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
-          sums[h] += bpm;
-          counts[h] += 1;
-        }
+        final typedForHourly = list.whereType<Map<String, dynamic>>().toList();
+        final aggHourly = HourlyAggregator.aggregateInt(typedForHourly, valueKey: 'valueBpm', measuredAtKey: 'measuredAt', slots: 24);
         for (int h = 0; h < 24; h++) {
-          if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
+          hourly[h] = aggHourly[h];
         }
       } catch (e, st) {
         IncidentService.reportUnhandled(
@@ -340,21 +316,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   }
 
   List<int> _hourlyFromHrReadings(List<Map<String, dynamic>> list) {
-    final hourly = List<int>.filled(24, 0);
-    final sums = List<int>.filled(24, 0);
-    final counts = List<int>.filled(24, 0);
-    for (final m in list) {
-      final bpm = (m['valueBpm'] as num? ?? 0).toInt();
-      final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-      if (bpm <= 0 || measuredAt <= 0) continue;
-      final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
-      sums[h] += bpm;
-      counts[h] += 1;
-    }
-    for (int h = 0; h < 24; h++) {
-      if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
-    }
-    return hourly;
+    return HourlyAggregator.aggregateInt(list, valueKey: 'valueBpm', measuredAtKey: 'measuredAt', slots: 24);
   }
 
   Future<void> _load7DayTrend() async {
@@ -369,18 +331,11 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       final localValid = localRows.where((r) => r['min'] != null).toList();
       if (!mounted) return;
       if (localVals.any((v) => v > 0)) {
+        final _mm = TrendMath.minMax(localRows, 'min', 'max');
         setState(() {
           _trendValues = localVals;
-          _trendMin = localValid.isEmpty
-              ? 0
-              : localValid
-                  .map((r) => (r['min'] as num).toInt())
-                  .reduce((a, b) => a < b ? a : b);
-          _trendMax = localValid.isEmpty
-              ? 0
-              : localValid
-                  .map((r) => (r['max'] as num).toInt())
-                  .reduce((a, b) => a > b ? a : b);
+          _trendMin = _mm.min;
+          _trendMax = _mm.max;
         });
       }
 
@@ -408,18 +363,11 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         if (!mounted) return;
         final hasLocalTrend = localVals.any((v) => v > 0);
         if (!hasLocalTrend && vals.any((v) => v > 0)) {
+          final _mm2 = TrendMath.minMax(rows, 'min_hr', 'max_hr');
           setState(() {
             _trendValues = vals;
-            _trendMin = valid.isEmpty
-                ? 0
-                : valid
-                    .map((r) => (r['min_hr'] as num).toInt())
-                    .reduce((a, b) => a < b ? a : b);
-            _trendMax = valid.isEmpty
-                ? 0
-                : valid
-                    .map((r) => (r['max_hr'] as num).toInt())
-                    .reduce((a, b) => a > b ? a : b);
+            _trendMin = _mm2.min;
+            _trendMax = _mm2.max;
           });
         }
         for (final r in rows) {
@@ -627,21 +575,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
 
-  List<String> _trendXLabels() {
-    final now = DateTime.now();
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return List.generate(7, (i) {
-      final d = now.subtract(Duration(days: 6 - i));
-      return days[d.weekday - 1];
-    });
-  }
+  List<String> _trendXLabels() => DateKeys.trendXLabels();
 
-  String _hourLabel(int hour) {
-    if (hour == 0) return '12am';
-    if (hour < 12) return '${hour}am';
-    if (hour == 12) return '12pm';
-    return '${hour - 12}pm';
-  }
+  String _hourLabel(int hour) => Formatters.hourLabel(hour);
 
   // ── Build ─────────────────────────────────────────────────────────────────────
 

@@ -7,6 +7,7 @@ import '../services/ble_service.dart';
 import '../services/goal_prefs.dart';
 import '../services/health_connect_service.dart';
 import '../services/health_engine/health_engine.dart';
+import '../services/health_engine/models.dart';
 import '../services/incident_service.dart';
 import '../services/notification_prefs.dart';
 import '../services/supabase_service.dart';
@@ -1188,16 +1189,19 @@ Future<void> _loadTodayVitalsFromLocal() async {
       }
       notifyListeners();
       if (last > 0) {
+        final hrAssessment = HealthEngine.instance.assessHeartRate(last);
         _maybeAlert(
           'High Heart Rate',
-          last >= 100,
+          hrAssessment.label == 'Above normal' ||
+              hrAssessment.severity == HealthSeverity.atRisk,
           title: 'High Heart Rate',
           message: 'Your heart rate just read $last bpm.',
           vital: 'heart_rate',
         );
         _maybeAlert(
           'Low Heart Rate',
-          last < 50,
+          hrAssessment.label == 'Below normal' ||
+              hrAssessment.severity == HealthSeverity.borderline,
           title: 'Low Heart Rate',
           message: 'Your heart rate just read $last bpm.',
           vital: 'heart_rate',
@@ -1250,6 +1254,7 @@ Future<void> _loadTodayVitalsFromLocal() async {
       }
       notifyListeners();
       if (last > 0) {
+        final spo2Assessment = HealthEngine.instance.assessSpo2(last);
         _maybeAlert(
           'High SpO2',
           last >= 99,
@@ -1259,7 +1264,8 @@ Future<void> _loadTodayVitalsFromLocal() async {
         );
         _maybeAlert(
           'Low SpO2',
-          last < 90,
+          spo2Assessment.label == 'Low' ||
+              spo2Assessment.severity == HealthSeverity.atRisk,
           title: 'Low Blood Oxygen',
           message: 'Your SpO2 just read $last%.',
           vital: 'spo2',
@@ -1349,9 +1355,13 @@ Future<void> _loadTodayVitalsFromLocal() async {
       _latestBpDbp = (m['diastolic'] as num?)?.toInt() ?? 0;
       notifyListeners();
       if (_latestBpSbp > 0 && _latestBpDbp > 0) {
+        final bpAssessment = HealthEngine.instance
+            .assessBloodPressure(_latestBpSbp, _latestBpDbp);
         _maybeAlert(
           'High BP',
-          _latestBpSbp >= 140 || _latestBpDbp >= 90,
+          bpAssessment.label == 'Stage 1' ||
+              bpAssessment.label == 'Stage 2' ||
+              bpAssessment.severity == HealthSeverity.atRisk,
           title: 'High Blood Pressure',
           message: 'Your blood pressure just read $_latestBpSbp/$_latestBpDbp.',
           vital: 'blood_pressure',
@@ -1455,9 +1465,11 @@ Future<void> _loadTodayVitalsFromLocal() async {
       if (v > 0) {
         _latestTempC = v;
         notifyListeners();
+        final tempAssessment = HealthEngine.instance.assessTemperature(v);
         _maybeAlert(
           'High temperature notification',
-          v > 38.0,
+          tempAssessment.label == 'Fever' ||
+              tempAssessment.severity == HealthSeverity.atRisk,
           title: 'High Temperature',
           message: 'Your skin temperature just read ${v.toStringAsFixed(1)}°C.',
           vital: 'temperature',

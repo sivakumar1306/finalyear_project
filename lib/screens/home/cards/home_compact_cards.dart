@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/ble_provider.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/unit_prefs.dart';
+import '../../../services/health_engine/cycle_engine.dart';
 import '../../../services/health_engine/health_engine.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/app_typography.dart';
@@ -161,7 +162,7 @@ class CompactWomensHealthCardState extends State<CompactWomensHealthCard> {
       final periodStart = DateTime.parse(row['period_start'] as String);
       final cycleLength = (row['cycle_length'] as num? ?? 28).toInt();
       final periodLength = (row['period_length'] as num? ?? 5).toInt();
-      final day = DateTime.now().difference(periodStart).inDays + 1;
+      final day = CycleEngine.cycleDay(periodStart, DateTime.now());
       setState(() {
         _cycleDay = day.clamp(1, cycleLength);
         _cycleLength = cycleLength;
@@ -177,13 +178,7 @@ class CompactWomensHealthCardState extends State<CompactWomensHealthCard> {
     }
   }
 
-  String get _phaseName {
-    if (_cycleDay <= 0) return '---';
-    if (_cycleDay <= _periodLen) return 'Menstruation';
-    if (_cycleDay <= 13) return 'Follicular';
-    if (_cycleDay <= 16) return 'Ovulating';
-    return 'Luteal';
-  }
+  String get _phaseName => CycleEngine.phaseName(_cycleDay, _periodLen, _cycleLength);
 
   @override
   Widget build(BuildContext context) {
@@ -245,20 +240,14 @@ class CompactWomensHealthCardState extends State<CompactWomensHealthCard> {
   }
 }
 
+// ignore: unused_element
+({int pLen, int fol, int ov, int lut}) _demoFlexes(int cLen, int pLen) => CycleEngine.flexes(cLen, pLen);
+
 class CompactBloodPressureCard extends StatelessWidget {
   final VoidCallback? onTap;
   final bool expanded;
   const CompactBloodPressureCard({
     super.key,this.onTap, this.expanded = false});
-
-  String _bpCompactStatus(int sbp, int dbp) {
-    final a = HealthEngine.instance.assessBloodPressure(sbp, dbp);
-    if (a.label == 'No data') return 'No data';
-    return a.label;
-  }
-
-  Color _bpCompactStatusColor(int sbp, int dbp) =>
-      HealthEngine.instance.assessBloodPressure(sbp, dbp).color;
 
   @override
   Widget build(BuildContext context) {
@@ -273,7 +262,7 @@ class CompactBloodPressureCard extends StatelessWidget {
         height: 161,
         icon: Icons.water_drop,
         title: 'BLOOD PRESSURE',
-        status: hasData ? _bpCompactStatus(sbp, dbp) : 'No data',
+        status: hasData ? HealthEngine.instance.assessBloodPressure(sbp, dbp).label : 'No data',
         value: Row(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -328,11 +317,11 @@ class CompactBloodPressureCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            _bpCompactStatus(sbp, dbp),
+            HealthEngine.instance.assessBloodPressure(sbp, dbp).label,
             style: inter(
               12,
               weight: FontWeight.w500,
-              color: _bpCompactStatusColor(sbp, dbp),
+              color: HealthEngine.instance.assessBloodPressure(sbp, dbp).color,
               letterSpacing: -0.005,
             ),
           ),
@@ -445,9 +434,7 @@ class TemperatureCardState extends State<TemperatureCard> {
           ),
           const SizedBox(height: 4),
           Text(
-            tempStatus(
-              widget.tempC,
-            ), // status thresholds stay in Celsius (the canonical unit)
+            HealthEngine.instance.assessTemperature(widget.tempC).label == '--' ? 'No data' : HealthEngine.instance.assessTemperature(widget.tempC).label, // status thresholds stay in Celsius (the canonical unit)
             style: inter(
               12,
               weight: FontWeight.w500,

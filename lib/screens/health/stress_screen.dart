@@ -19,8 +19,11 @@ import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/chart_scrubber.dart';
+import '../../utils/date_keys.dart';
+import '../../utils/formatters.dart';
 import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
+import '../../utils/hourly_aggregator.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -42,24 +45,6 @@ TextStyle _inter(
   letterSpacing: letterSpacing,
   height: height,
 );
-
-// ── Stress label / color helpers — delegated to HealthEngine ──────────────
-
-String _stressLabel(int v) {
-  final l = HealthEngine.instance.assessStress(v).label;
-  // engine returns '--' for unknown, keep previous '' for hero empty state
-  if (l == '--') return '';
-  return l;
-}
-
-Color _stressLevelColor(int v) {
-  final a = HealthEngine.instance.assessStress(v);
-  // preserve previous _kSec2 for empty so hero spacing unchanged
-  if (a.severity == HealthSeverity.unknown) return _kSec2;
-  return a.color;
-}
-
-Color _barColor(num v) => HealthEngine.instance.stressBarColor(v);
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -102,12 +87,7 @@ class _StressScreenState extends State<StressScreen> {
 
   // ── Computed ──────────────────────────────────────────────────────────────
 
-  bool get _isToday {
-    final n = DateTime.now();
-    return _selectedDate.year == n.year &&
-        _selectedDate.month == n.month &&
-        _selectedDate.day == n.day;
-  }
+  bool get _isToday => DateKeys.isToday(_selectedDate);
 
   int get _displayAvg {
     if (!_isToday) return _dayAvg;
@@ -127,8 +107,7 @@ class _StressScreenState extends State<StressScreen> {
     try { return context.read<BleProvider>().todayMaxStress; } catch(_) { return 0; }
   }
 
-  String _fmt(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  String _fmt(DateTime d) => DateKeys.fmt(d);
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -148,9 +127,7 @@ class _StressScreenState extends State<StressScreen> {
   // ── Date selection ────────────────────────────────────────────────────────
 
   void _onDateSelected(DateTime date) {
-    final n = DateTime.now();
-    final isToday =
-        date.year == n.year && date.month == n.month && date.day == n.day;
+    final isToday = DateKeys.isToday(date);
     setState(() {
       _selectedDate = date;
       _manualStress = 0;
@@ -173,20 +150,8 @@ class _StressScreenState extends State<StressScreen> {
     });
     try {
       final now = DateTime.now();
-      final dayStart = DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ).millisecondsSinceEpoch;
-      final dayEnd = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        23,
-        59,
-        59,
-        999,
-      ).millisecondsSinceEpoch;
+      final dayStart = DateKeys.dayStartMs(now);
+      final dayEnd = DateKeys.dayEndMs(now);
 
       final summary =
           jsonDecode(await _ble.getTodaySummary('stress'))
@@ -202,19 +167,10 @@ class _StressScreenState extends State<StressScreen> {
         );
         final decoded = jsonDecode(readingsJson);
         final list = decoded is List ? decoded : <dynamic>[];
-        final sums = List<int>.filled(24, 0);
-        final counts = List<int>.filled(24, 0);
-        for (final item in list) {
-          final m = item as Map<String, dynamic>;
-          final value = (m['value'] as num? ?? 0).toInt();
-          final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-          if (value <= 0 || measuredAt <= 0) continue;
-          final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
-          sums[h] += value;
-          counts[h] += 1;
-        }
+        final typedStress = list.whereType<Map<String, dynamic>>().toList();
+        final aggStress = HourlyAggregator.aggregateInt(typedStress, valueKey: 'value', measuredAtKey: 'measuredAt', slots: 24);
         for (int h = 0; h < 24; h++) {
-          if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
+          hourly[h] = aggStress[h];
         }
       } catch (e, st) {
         IncidentService.reportUnhandled(
@@ -269,20 +225,7 @@ class _StressScreenState extends State<StressScreen> {
       // 1) Local Room first — works offline and across month boundaries.
       final local = await _local.getDaySummary('stress', date);
       final localReadings = await _local.getReadings('stress', date);
-      final hourly = List<int>.filled(24, 0);
-      final sums = List<int>.filled(24, 0);
-      final counts = List<int>.filled(24, 0);
-      for (final m in localReadings) {
-        final value = (m['value'] as num? ?? m['stress_value'] as num? ?? 0).toInt();
-        final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-        if (value <= 0 || measuredAt <= 0) continue;
-        final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
-        sums[h] += value;
-        counts[h] += 1;
-      }
-      for (int h = 0; h < 24; h++) {
-        if (counts[h] > 0) hourly[h] = (sums[h] / counts[h]).round();
-      }
+      final hourly = HourlyAggregator.aggregateInt(localReadings, valueKey: 'value', measuredAtKey: 'measuredAt', slots: 24);
       if (!mounted) return;
       if (_local.hasData(local)) {
         setState(() {
@@ -582,21 +525,9 @@ class _StressScreenState extends State<StressScreen> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  List<String> _trendXLabels() {
-    final now = DateTime.now();
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return List.generate(7, (i) {
-      final d = now.subtract(Duration(days: 6 - i));
-      return days[d.weekday - 1];
-    });
-  }
+  List<String> _trendXLabels() => DateKeys.trendXLabels();
 
-  String _hourLabel(int hour) {
-    if (hour == 0) return '12am';
-    if (hour < 12) return '${hour}am';
-    if (hour == 12) return '12pm';
-    return '${hour - 12}pm';
-  }
+  String _hourLabel(int hour) => Formatters.hourLabel(hour);
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
@@ -614,11 +545,12 @@ class _StressScreenState extends State<StressScreen> {
 
     final currentLabel = _measuring
         ? 'Measuring…'
-        : _stressLabel(_manualStress > 0 ? _manualStress : _displayAvg);
+        : (HealthEngine.instance.assessStress(_manualStress > 0 ? _manualStress : _displayAvg).label == '--' ? '' : HealthEngine.instance.assessStress(_manualStress > 0 ? _manualStress : _displayAvg).label);
 
-    final currentLabelColor = _stressLevelColor(
-      _manualStress > 0 ? _manualStress : _displayAvg,
-    );
+    final currentLabelColor = (() {
+      final a = HealthEngine.instance.assessStress(_manualStress > 0 ? _manualStress : _displayAvg);
+      return a.severity == HealthSeverity.unknown ? _kSec2 : a.color;
+    })();
 
     final hasData = _chartValues.any((v) => v > 0);
 
@@ -701,7 +633,7 @@ class _StressScreenState extends State<StressScreen> {
                   values: _chartValues,
                   maxY: 100,
                   yLines: const [100, 75, 50, 25],
-                  colorFor: (v) => _barColor(v).withValues(alpha: 0.88),
+                  colorFor: (v) => HealthEngine.instance.stressBarColor(v).withValues(alpha: 0.88),
                   accent: AppTheme.stressColor,
                   headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
                   rangeLabel: hasData ? '$_displayMin - $_displayMax' : '-- --',
@@ -728,8 +660,8 @@ class _StressScreenState extends State<StressScreen> {
                         label: 'AVERAGE',
                         value: _displayAvg > 0 ? '$_displayAvg' : '--',
                         unit: _displayAvg > 0 ? '/100' : '--',
-                        caption: _displayAvg > 0 ? _stressLabel(_displayAvg) : '--',
-                        captionColor: _stressLevelColor(_displayAvg),
+                        caption: _displayAvg > 0 ? (HealthEngine.instance.assessStress(_displayAvg).label == '--' ? '' : HealthEngine.instance.assessStress(_displayAvg).label) : '--',
+                        captionColor: (() { final a = HealthEngine.instance.assessStress(_displayAvg); return a.severity == HealthSeverity.unknown ? _kSec2 : a.color; })(),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -738,8 +670,8 @@ class _StressScreenState extends State<StressScreen> {
                         label: 'MINIMUM',
                         value: _displayMin > 0 ? '$_displayMin' : '--',
                         unit: _displayMin > 0 ? '/100' : '--',
-                        caption: _displayMin > 0 ? _stressLabel(_displayMin) : '--',
-                        captionColor: _stressLevelColor(_displayMin),
+                        caption: _displayMin > 0 ? (HealthEngine.instance.assessStress(_displayMin).label == '--' ? '' : HealthEngine.instance.assessStress(_displayMin).label) : '--',
+                        captionColor: (() { final a = HealthEngine.instance.assessStress(_displayMin); return a.severity == HealthSeverity.unknown ? _kSec2 : a.color; })(),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -748,8 +680,8 @@ class _StressScreenState extends State<StressScreen> {
                         label: 'MAXIMUM',
                         value: _displayMax > 0 ? '$_displayMax' : '--',
                         unit: _displayMax > 0 ? '/100' : '--',
-                        caption: _displayMax > 0 ? _stressLabel(_displayMax) : '--',
-                        captionColor: _stressLevelColor(_displayMax),
+                        caption: _displayMax > 0 ? (HealthEngine.instance.assessStress(_displayMax).label == '--' ? '' : HealthEngine.instance.assessStress(_displayMax).label) : '--',
+                        captionColor: (() { final a = HealthEngine.instance.assessStress(_displayMax); return a.severity == HealthSeverity.unknown ? _kSec2 : a.color; })(),
                       ),
                     ),
                   ],
@@ -774,7 +706,7 @@ class _StressScreenState extends State<StressScreen> {
                   values: _trendValues,
                   maxY: 100,
                   yLines: const [100, 75, 50, 25],
-                  colorFor: (v) => _barColor(v).withValues(alpha: 0.88),
+                  colorFor: (v) => HealthEngine.instance.stressBarColor(v).withValues(alpha: 0.88),
                   accent: AppTheme.stressColor,
                   headerLabel: 'LAST 7 DAYS TREND',
                   rangeLabel: trendRangeLabel,

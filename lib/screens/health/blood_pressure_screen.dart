@@ -19,8 +19,10 @@ import '../../services/health_engine/health_engine.dart';
 import '../../services/health_engine/models.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/chart_scrubber.dart';
+import '../../utils/date_keys.dart';
 import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
+import '../../utils/hourly_aggregator.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -39,14 +41,6 @@ TextStyle _inter(
   letterSpacing: letterSpacing,
   height: height,
 );
-
-String _bpStatus(int sbp, int dbp) {
-  final a = HealthEngine.instance.assessBloodPressure(sbp, dbp);
-  if (a.severity == HealthSeverity.unknown) return '';
-  return a.label;
-}
-
-Color _bpStatusColor(int sbp, int dbp) => HealthEngine.instance.assessBloodPressure(sbp, dbp).color;
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -89,12 +83,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
 
   // ── Computed ──────────────────────────────────────────────────────────────────
 
-  bool get _isToday {
-    final n = DateTime.now();
-    return _selectedDate.year == n.year &&
-        _selectedDate.month == n.month &&
-        _selectedDate.day == n.day;
-  }
+  bool get _isToday => DateKeys.isToday(_selectedDate);
 
   int get _displaySbpAvg {
     if (!_isToday) return _daySbpAvg;
@@ -154,8 +143,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     return 0;
   }
 
-  String _fmt(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  String _fmt(DateTime d) => DateKeys.fmt(d);
 
   // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -175,9 +163,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
   // ── Date selection ────────────────────────────────────────────────────────────
 
   void _onDateSelected(DateTime date) {
-    final n = DateTime.now();
-    final isToday =
-        date.year == n.year && date.month == n.month && date.day == n.day;
+    final isToday = DateKeys.isToday(date);
     setState(() {
       _selectedDate = date;
       _manualSbp = 0;
@@ -203,28 +189,16 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     });
     try {
       final now = DateTime.now();
-      final dayStart = DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ).millisecondsSinceEpoch;
-      final dayEnd = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        23,
-        59,
-        59,
-        999,
-      ).millisecondsSinceEpoch;
+      final dayStart = DateKeys.dayStartMs(now);
+      final dayEnd = DateKeys.dayEndMs(now);
 
       final summary =
           jsonDecode(await _ble.getTodaySummary('blood_pressure'))
               as Map<String, dynamic>;
       final count = (summary['count'] as num? ?? 0).toInt();
 
-      final sbpHourly = List<int>.filled(24, 0);
-      final dbpHourly = List<int>.filled(24, 0);
+      var sbpHourly = List<int>.filled(24, 0);
+      var dbpHourly = List<int>.filled(24, 0);
       if (count > 0) {
         final readingsJson = await _ble.getReadings(
           'blood_pressure',
@@ -234,26 +208,10 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
         );
         final decoded = jsonDecode(readingsJson);
         final list = decoded is List ? decoded : <dynamic>[];
-        final sbpSums = List<int>.filled(24, 0);
-        final dbpSums = List<int>.filled(24, 0);
-        final counts = List<int>.filled(24, 0);
-        for (final item in list) {
-          final m = item as Map<String, dynamic>;
-          final sbp = (m['systolic'] as num? ?? 0).toInt();
-          final dbp = (m['diastolic'] as num? ?? 0).toInt();
-          final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-          if (sbp <= 0 || dbp <= 0 || measuredAt <= 0) continue;
-          final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
-          sbpSums[h] += sbp;
-          dbpSums[h] += dbp;
-          counts[h] += 1;
-        }
-        for (int h = 0; h < 24; h++) {
-          if (counts[h] > 0) {
-            sbpHourly[h] = (sbpSums[h] / counts[h]).round();
-            dbpHourly[h] = (dbpSums[h] / counts[h]).round();
-          }
-        }
+        final typedBp = list.whereType<Map<String, dynamic>>().toList();
+        final agg = HourlyAggregator.aggregateBp(typedBp);
+        sbpHourly = agg.sbp;
+        dbpHourly = agg.dbp;
       }
 
       if (!mounted) return;
@@ -302,27 +260,9 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
       // 1) Local Room first — works offline and across month boundaries.
       final local = await _local.getDaySummary('blood_pressure', date);
       final localReadings = await _local.getReadings('blood_pressure', date);
-      final sbpHourly = List<int>.filled(24, 0);
-      final dbpHourly = List<int>.filled(24, 0);
-      final sbpSums = List<int>.filled(24, 0);
-      final dbpSums = List<int>.filled(24, 0);
-      final counts = List<int>.filled(24, 0);
-      for (final m in localReadings) {
-        final sbp = (m['systolic'] as num? ?? m['valueSbp'] as num? ?? 0).toInt();
-        final dbp = (m['diastolic'] as num? ?? m['valueDbp'] as num? ?? 0).toInt();
-        final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-        if (sbp <= 0 || dbp <= 0 || measuredAt <= 0) continue;
-        final h = DateTime.fromMillisecondsSinceEpoch(measuredAt).hour;
-        sbpSums[h] += sbp;
-        dbpSums[h] += dbp;
-        counts[h] += 1;
-      }
-      for (int h = 0; h < 24; h++) {
-        if (counts[h] > 0) {
-          sbpHourly[h] = (sbpSums[h] / counts[h]).round();
-          dbpHourly[h] = (dbpSums[h] / counts[h]).round();
-        }
-      }
+      final agg = HourlyAggregator.aggregateBp(localReadings);
+      final sbpHourly = agg.sbp;
+      final dbpHourly = agg.dbp;
       if (!mounted) return;
       // Local summary keys: avg/min/max for SBP, avgSecondary/minSecondary/maxSecondary for DBP
       // Fallback to legacy keys avgSbp etc if present.
@@ -666,14 +606,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
 
-  List<String> _trendXLabels() {
-    final now = DateTime.now();
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return List.generate(7, (i) {
-      final d = now.subtract(Duration(days: 6 - i));
-      return days[d.weekday - 1];
-    });
-  }
+  List<String> _trendXLabels() => DateKeys.trendXLabels();
 
   // ── Build ─────────────────────────────────────────────────────────────────────
 
@@ -700,8 +633,8 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     final currentDbp = _manualDbp > 0 ? _manualDbp : _displayDbpAvg;
     final currentLabel = _measuring
         ? 'Measuring…'
-        : _bpStatus(currentSbp, currentDbp);
-    final currentLabelColor = _bpStatusColor(currentSbp, currentDbp);
+        : (HealthEngine.instance.assessBloodPressure(currentSbp, currentDbp).label == 'No data' ? '' : HealthEngine.instance.assessBloodPressure(currentSbp, currentDbp).label);
+    final currentLabelColor = HealthEngine.instance.assessBloodPressure(currentSbp, currentDbp).color;
 
     final hasData = _chartSbp.any((v) => v > 0) || _chartDbp.any((v) => v > 0);
 

@@ -8,6 +8,7 @@ import '../../services/ble_service.dart';
 import '../../services/health_connect_service.dart';
 import '../../services/health_engine/health_engine.dart';
 import '../../services/health_engine/models.dart';
+import '../../services/health_engine/sleep_engine.dart';
 import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
@@ -21,6 +22,9 @@ import '../../widgets/glass_card.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/legend_dot.dart';
+import '../../utils/date_keys.dart';
+import '../../utils/formatters.dart';
+import '../../utils/trend_math.dart';
 import '../../widgets/metric_chart_card.dart';
 import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
@@ -215,78 +219,8 @@ class _SleepScreenState extends State<SleepScreen> {
 
   void _parseSleepData(String jsonStr, {DateTime? date}) {
     try {
-      final d = jsonDecode(jsonStr) as Map<String, dynamic>;
-      int total = (d['totalSleepDuration'] as num? ?? 0).toInt();
-      int deep = (d['deepDuration'] as num? ?? 0).toInt();
-      int light = (d['lightDuration'] as num? ?? 0).toInt();
-      int rem = (d['remDuration'] as num? ?? 0).toInt();
-      int awake = (d['awakeDuration'] as num? ?? 0).toInt();
-      int st = (d['sleepTime'] as num? ?? 0).toInt();
-      int et = (d['wakeTime'] as num? ?? 0).toInt();
-      dynamic rawList = d['list'];
-
-      // New proto fallback: st/et + list with d/t (QRing large-data path)
-      // This is what QRing's syncSleep (LargeDataHandler.syncSleepList) returns
-      // when the ring firmware uses SleepNewProtoResp instead of SleepDisplay.
-      if ((total <= 0 || rawList == null) && d.containsKey('st')) {
-        st = (d['st'] as num? ?? st).toInt();
-        et = (d['et'] as num? ?? et).toInt();
-        rawList = d['list'];
-        // Some new-proto payloads nest list inside data/stList, try alternative keys
-        rawList ??= d['data'];
-      }
-      // Also handle case where JSON is directly the new-proto map without wrapper
-      // e.g. from syncSleep's sleepNewProtoToMap: {st,et,list:[{d,t}]}
-      if (total <= 0 && st > 0 && rawList != null) {
-        final segsTmp = _parseSegments(rawList, st, et);
-        if (segsTmp.isNotEmpty) {
-          int calcTotal = 0, calcDeep = 0, calcLight = 0, calcRem = 0, calcAwake = 0;
-          for (final s in segsTmp) {
-            final dur = s['end']! - s['start']!;
-            if (dur <= 0) continue;
-            calcTotal += dur;
-            switch (s['type']) {
-              case _kDeep:
-                calcDeep += dur;
-                break;
-              case _kLight:
-                calcLight += dur;
-                break;
-              case _kRem:
-                calcRem += dur;
-                break;
-              case _kAwake:
-                calcAwake += dur;
-                break;
-            }
-          }
-          if (calcTotal > 0) {
-            if (total <= 0) total = calcTotal;
-            if (deep == 0) deep = calcDeep;
-            if (light == 0) light = calcLight;
-            if (rem == 0) rem = calcRem;
-            if (awake == 0) awake = calcAwake;
-            final score = _calcScore(total, deep, rem, st, et);
-            if (!mounted) return;
-            setState(() {
-              _totalDuration = total;
-              _deepDuration = deep;
-              _lightDuration = light;
-              _remDuration = rem;
-              _awakeDuration = awake;
-              _sleepTime = st;
-              _wakeTime = et;
-              _sleepScore = score;
-              _segments = segsTmp;
-            });
-            _saveToDb(total, deep, light, rem, awake, score, st, et, date: date ?? _selectedDate);
-            return;
-          }
-        }
-      }
-
-      if (total <= 0) {
-        // Try Supabase fallback but also report to Supabase for visibility
+      final result = SleepEngine.parseSleepData(jsonStr);
+      if (!result.hasData) {
         IncidentService.reportUnhandled(
           source: 'sleep_screen',
           error: Exception('sleep total <=0'),
@@ -296,8 +230,15 @@ class _SleepScreenState extends State<SleepScreen> {
         _loadDayFromDb();
         return;
       }
-      final segs = _parseSegments(rawList, st, et);
-      final score = _calcScore(total, deep, rem, st, et);
+      final total = result.total;
+      final deep = result.deep;
+      final light = result.light;
+      final rem = result.rem;
+      final awake = result.awake;
+      final st = result.st;
+      final et = result.et;
+      final segs = result.segments;
+      final score = result.score;
       if (!mounted) return;
       setState(() {
         _totalDuration = total;
@@ -324,120 +265,8 @@ class _SleepScreenState extends State<SleepScreen> {
   }
 
   List<Map<String, int>> _parseSegments(dynamic rawList, [int st = 0, int et = 0]) {
-    if (rawList == null) return [];
-    final segs = <Map<String, int>>[];
-    // Detect new-proto vs old by inspecting first element keys
-    final list = rawList as List<dynamic>;
-    if (list.isEmpty) return [];
-    final first = list.first as Map<String, dynamic>;
-    final isNewProto = first.containsKey('d') || first.containsKey('t');
-    if (isNewProto) {
-      // New proto: each item {d, t} where d is either timestamp or duration
-      // Heuristic: if d > 1000000000 treat as absolute timestamp (sec),
-      // otherwise treat as duration (minutes if <500 else seconds)
-      bool isTimestamp = false;
-      final firstD = (first['d'] as num? ?? 0).toInt();
-      if (firstD > 1000000000) isTimestamp = true;
-      if (isTimestamp) {
-        for (final item in list) {
-          final m = item as Map<String, dynamic>;
-          final s = (m['d'] as num? ?? 0).toInt();
-          final t = (m['t'] as num? ?? _kLight).toInt();
-          // Need end - use next item's d or et
-          // Since we don't have explicit end, infer: segment ends at next start or et
-          // For now treat d as start, next d as end; last segment ends at et
-          // This will be corrected in post-loop
-          if (s > 0) segs.add({'start': s, 'end': s + 1800, 'type': t}); // placeholder 30min
-        }
-        // Reconstruct ends correctly
-        for (int i = 0; i < segs.length; i++) {
-          final start = segs[i]['start']!;
-          int end;
-          if (i + 1 < segs.length) {
-            end = segs[i + 1]['start']!;
-          } else {
-            end = et > start ? et : start + 1800;
-          }
-          if (end > start) {
-            segs[i] = {'start': start, 'end': end, 'type': segs[i]['type']!};
-          }
-        }
-        // If placeholder still, fallback to duration mode
-        if (segs.isEmpty || segs.any((s) => s['end']! - s['start']! > 3600 * 3)) {
-          // Likely mis-parsed, try duration mode instead
-          segs.clear();
-          int cursor = st > 0 ? st : 0;
-          for (final item in list) {
-            final m = item as Map<String, dynamic>;
-            int dVal = (m['d'] as num? ?? 0).toInt();
-            final t = (m['t'] as num? ?? _kLight).toInt();
-            if (dVal <= 0) continue;
-            int durSec;
-            if (dVal < 500) {
-              durSec = dVal * 60; // minutes -> seconds
-            } else if (dVal < 10000) {
-              durSec = dVal; // seconds
-            } else {
-              durSec = dVal; // already seconds
-            }
-            final s = cursor;
-            final e = cursor + durSec;
-            segs.add({'start': s, 'end': e, 'type': t});
-            cursor = e;
-          }
-        }
-      } else {
-        // Duration mode
-        int cursor = st > 0 ? st : 0;
-        // If st is 0, use 0 as base; segments will be relative
-        for (final item in list) {
-          final m = item as Map<String, dynamic>;
-          int dVal = (m['d'] as num? ?? 0).toInt();
-          final t = (m['t'] as num? ?? _kLight).toInt();
-          if (dVal <= 0) continue;
-          int durSec;
-          if (dVal < 500) {
-            durSec = dVal * 60;
-          } else if (dVal < 10000) {
-            durSec = dVal;
-          } else {
-            durSec = dVal;
-          }
-          final s = cursor;
-          final e = cursor + durSec;
-          segs.add({'start': s, 'end': e, 'type': t});
-          cursor = e;
-        }
-        // If st was 0, shift so last segment ends at et if available
-        if (st == 0 && et > 0 && segs.isNotEmpty) {
-          final shift = et - segs.last['end']!;
-          if (shift != 0) {
-            for (int i = 0; i < segs.length; i++) {
-              segs[i] = {
-                'start': segs[i]['start']! + shift,
-                'end': segs[i]['end']! + shift,
-                'type': segs[i]['type']!
-              };
-            }
-          }
-        }
-      }
-      return segs.where((s) => s['end']! > s['start']!).toList();
-    } else {
-      // Old proto: sleepStart/sleepEnd/type
-      for (final item in list) {
-        final m = item as Map<String, dynamic>;
-        final s = (m['sleepStart'] as num? ?? m['start'] as num? ?? 0).toInt();
-        final e = (m['sleepEnd'] as num? ?? m['end'] as num? ?? 0).toInt();
-        final t = (m['type'] as num? ?? m['t'] as num? ?? _kLight).toInt();
-        if (s > 0 && e > s) segs.add({'start': s, 'end': e, 'type': t});
-      }
-      return segs;
-    }
+    return SleepEngine.parseSegments(rawList, st, et);
   }
-
-  int _calcScore(int total, int deep, int rem, int st, int et) =>
-      HealthEngine.instance.calcSleepScore(total: total, deep: deep, rem: rem, st: st, et: et);
 
   // ── DB ───────────────────────────────────────────────────────────────────────
 
@@ -604,12 +433,11 @@ class _SleepScreenState extends State<SleepScreen> {
                 }
                 if (total <= 0) continue;
                 final d = now.subtract(Duration(days: dayIdx));
-                final dateStr =
-                    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+                final dateStr = DateKeys.fmt(d);
                 final deep = (data['deepDuration'] as num? ?? 0).toInt();
                 final light = (data['lightDuration'] as num? ?? 0).toInt();
                 final rem = (data['remDuration'] as num? ?? 0).toInt();
-                final score = (total > 0 && deep >= 0 && rem >= 0) ? _calcScore(total, deep, rem, st, et) : 0;
+                final score = (total > 0 && deep >= 0 && rem >= 0) ? HealthEngine.instance.calcSleepScore(total: total, deep: deep, rem: rem, st: st, et: et) : 0;
                 ringRows.add({
                   'date': dateStr,
                   'total_duration': total,
@@ -736,79 +564,23 @@ class _SleepScreenState extends State<SleepScreen> {
 
   // ── Computed helpers ─────────────────────────────────────────────────────────
 
-  String _fmt(int secs) {
-    if (secs <= 0) return '--';
-    final h = secs ~/ 3600;
-    final m = (secs % 3600) ~/ 60;
-    if (h > 0) return '${h}h ${m.toString().padLeft(2, '0')}m';
-    return '${m}m';
-  }
+  String _fmt(int secs) => Formatters.sleepDuration(secs);
 
-  String _timeLabel(int ts) {
-    if (ts <= 0) return '--';
-    final dt = DateTime.fromMillisecondsSinceEpoch(ts * 1000);
-    final h = dt.hour;
-    final m = dt.minute.toString().padLeft(2, '0');
-    final suffix = h < 12 ? 'am' : 'pm';
-    final h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    return '$h12:$m$suffix';
-  }
+  String _timeLabel(int ts) => Formatters.sleepTimeLabel(ts);
 
   String _efficiency() {
-    if (_sleepTime <= 0 || _wakeTime <= 0 || _totalDuration <= 0) return '--';
-    final window = _wakeTime - _sleepTime;
-    if (window <= 0) return '--';
-    return '${(_totalDuration / window * 100).round()}%';
+    return SleepEngine.efficiencyLabel(_totalDuration, _sleepTime, _wakeTime);
   }
 
-  String _quality() => HealthEngine.instance.assessSleep(_sleepScore).label == 'No data'
-      ? '--'
-      : HealthEngine.instance.assessSleep(_sleepScore).label;
+  int _avgHistoryScore() => TrendMath.avgHistoryScore(_historyRows);
 
-  int _avgHistoryScore() {
-    final vals = _historyRows
-        .map((r) => (r['sleep_score'] as num? ?? 0).toInt())
-        .where((v) => v > 0)
-        .toList();
-    if (vals.isEmpty) return 0;
-    return vals.fold(0, (a, b) => a + b) ~/ vals.length;
-  }
+  int _avgHistoryDuration() => TrendMath.avgHistoryDuration(_historyRows);
 
-  int _avgHistoryDuration() {
-    final vals = _historyRows
-        .map((r) => (r['total_duration'] as num? ?? 0).toInt())
-        .where((v) => v > 0)
-        .toList();
-    if (vals.isEmpty) return 0;
-    return vals.fold(0, (a, b) => a + b) ~/ vals.length;
-  }
-
-  List<int> _last7Bars() {
-    final now = DateTime.now();
-    final bars = <int>[];
-    for (int i = 6; i >= 0; i--) {
-      final d = now.subtract(Duration(days: i));
-      final key =
-          '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-      final row = _historyRows.firstWhere(
-        (r) => r['date'] == key,
-        orElse: () => <String, dynamic>{},
-      );
-      bars.add((row['total_duration'] as num? ?? 0).toInt());
-    }
-    return bars;
-  }
+  List<int> _last7Bars() => TrendMath.last7Bars(_historyRows);
 
   /// Day-of-week letters for the last 7 days (oldest → newest), matching
   /// `_last7Bars()` order so each bar sits over its label.
-  List<String> _trendDayLabels() {
-    const names = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-    final now = DateTime.now();
-    return List.generate(7, (i) {
-      final d = now.subtract(Duration(days: 6 - i));
-      return names[d.weekday - 1];
-    });
-  }
+  List<String> _trendDayLabels() => DateKeys.trendDayLabelsShort();
 
   // ── Three-dot menu ────────────────────────────────────────────────────────
 
@@ -911,7 +683,7 @@ class _SleepScreenState extends State<SleepScreen> {
               ),
               Text(
                 hasData
-                    ? 'Score $_sleepScore · ${_quality()}'
+                    ? 'Score $_sleepScore · ${(HealthEngine.instance.assessSleep(_sleepScore).label == 'No data' ? '--' : HealthEngine.instance.assessSleep(_sleepScore).label)}'
                     : (_loading ? 'Loading…' : 'No data yet'),
                 style: _inter(13, color: AppTheme.textTertiary),
               ),

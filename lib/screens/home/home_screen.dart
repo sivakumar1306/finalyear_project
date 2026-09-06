@@ -15,6 +15,7 @@ import '../../services/health_engine/health_engine.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/footer_spacer.dart';
 import '../../widgets/glass_card.dart';
+import '../../utils/formatters.dart';
 import '../../widgets/glass_icon_button.dart';
 import '../settings/about_screen.dart';
 import '../settings/fall_detection_screen.dart';
@@ -140,40 +141,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (mounted) _loadGoals();
   }
 
-  String get _greeting {
-    final h = DateTime.now().hour;
-    if (h < 12) return 'Good Morning,';
-    if (h < 17) return 'Good Afternoon,';
-    if (h < 21) return 'Good Evening,';
-    return 'Good Night,';
-  }
+  String get _greeting => Formatters.greetingForHour(DateTime.now().hour);
 
-  String get _dateLabel {
-    final now = DateTime.now();
-    const d = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-    const m = [
-      'JAN',
-      'FEB',
-      'MAR',
-      'APR',
-      'MAY',
-      'JUN',
-      'JUL',
-      'AUG',
-      'SEP',
-      'OCT',
-      'NOV',
-      'DEC',
-    ];
-    return '${d[now.weekday - 1]} · ${now.day.toString().padLeft(2, '0')} ${m[now.month - 1]}';
-  }
-
-  // ── Delegates to HealthEngine single source of truth ────────────
-  // Keep static wrappers so existing tests/callers compile, but all logic lives in engine.
-
-  static String _spo2Status(int v) => HealthEngine.instance.assessSpo2(v).label;
-  static String _hrStatus(int v) => HealthEngine.instance.assessHeartRate(v).label;
-  static String _hrvStatus(int v) => HealthEngine.instance.assessHrv(v).label;
+  String get _dateLabel => Formatters.dateLabel(DateTime.now());
 
   // Goal-aware: was hardcoded 8000/250/5000 — now uses GoalPrefs via engine.
   int _computeActivityScore(int steps, double distanceM, int calories) {
@@ -193,17 +163,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         steps: steps, distanceM: distanceM, calories: calories, goals: fallback);
   }
 
-  static String _sleepDurationLabel(int seconds) {
-    if (seconds <= 0) return '--';
-    final h = seconds ~/ 3600;
-    final m = (seconds % 3600) ~/ 60;
-    if (h > 0 && m > 0) return '${h}h ${m}m';
-    if (h > 0) return '${h}h';
-    return '${m}m';
-  }
-
-  static String _sleepStatus(int score) => HealthEngine.instance.assessSleep(score).label;
-  static Color _sleepStatusColor(int score) => HealthEngine.instance.assessSleep(score).color;
+  static String _sleepDurationLabel(int seconds) => Formatters.sleepDuration(seconds);
 
   /// Renders a single metric card.  [expanded] spans the full grid width at
   /// 1.5× the standard card height.
@@ -261,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             height: 175,
             icon: Icons.bedtime_outlined,
             title: 'SLEEP',
-            status: dur > 0 ? _sleepStatus(ble.todaySleepScore) : 'No data',
+            status: dur > 0 ? HealthEngine.instance.assessSleep(ble.todaySleepScore).label : 'No data',
             value: dur > 0
                 ? Row(
                     mainAxisSize: MainAxisSize.min,
@@ -297,9 +257,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           value: _sleepDurationLabel(ble.todaySleepDuration),
           unit: '',
           status: ble.todaySleepDuration > 0
-              ? _sleepStatus(ble.todaySleepScore)
+              ? HealthEngine.instance.assessSleep(ble.todaySleepScore).label
               : 'No data',
-          statusColor: _sleepStatusColor(ble.todaySleepScore),
+          statusColor: HealthEngine.instance.assessSleep(ble.todaySleepScore).color,
           orbColor: AppTheme.sleepColor,
           sparkData: const [
             0.5,
@@ -325,7 +285,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           label: 'HRV',
           value: latestHrvHome > 0 ? '$latestHrvHome' : '--',
           unit: latestHrvHome > 0 ? 'ms' : '',
-          status: _hrvStatus(latestHrvHome),
+          status: HealthEngine.instance.assessHrv(latestHrvHome).label,
           statusColor: latestHrvHome > 0 ? AppTheme.hrvColor : AppTheme.textSec,
           orbColor: AppTheme.hrvColor,
           sparkData: const [
@@ -355,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           status: ble.todayAvgSpo2 > 0
               ? (ble.todayMinSpo2 > 0 && ble.todayMaxSpo2 > 0
                     ? 'Range: ${ble.todayMinSpo2}-${ble.todayMaxSpo2}%'
-                    : _spo2Status(latestSpo2Home))
+                    : HealthEngine.instance.assessSpo2(latestSpo2Home).label)
               : 'No data',
           statusColor: latestSpo2Home > 0 ? AppTheme.spo2Color : AppTheme.textSec,
           orbColor: AppTheme.spo2Color,
@@ -388,7 +348,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             height: 158,
             icon: Icons.favorite,
             title: 'HEART RATE',
-            status: hr > 0 ? _hrStatus(hr) : 'No data',
+            status: hr > 0 ? HealthEngine.instance.assessHeartRate(hr).label : 'No data',
             value: Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -418,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             footnoteLead: hrv > 0 ? 'HRV $hrv' : 'No data',
             footnoteRest: hr > 0
-                ? ' · ${_hrStatus(hr)} zones today.'
+                ? ' · ${HealthEngine.instance.assessHeartRate(hr).label} zones today.'
                 : ' · connect ring to track',
             onTap: () => _navigateTo('/heart-rate'),
           );
@@ -431,7 +391,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           status: ble.todayAvgHr > 0
               ? (ble.todayMinHr > 0 && ble.todayMaxHr > 0
                     ? 'Range: ${ble.todayMinHr}-${ble.todayMaxHr}bpm'
-                    : _hrStatus(latestForHome > 0 ? latestForHome : ble.todayAvgHr))
+                    : HealthEngine.instance.assessHeartRate(latestForHome > 0 ? latestForHome : ble.todayAvgHr).label)
               : 'No data',
           statusColor: latestForHome > 0 ? AppTheme.hrColor : AppTheme.textSec,
           orbColor: AppTheme.hrColor,
@@ -491,7 +451,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         );
         final dist = ble.todayDistanceM;
         final distLabel = dist <= 0
-            ? activityScoreLabel(score)
+            ? HealthEngine.instance.activityLabel(score)
             : dist >= 1000
             ? '${(dist / 1000).toStringAsFixed(1)} km'
             : '${dist.round()} m';
@@ -508,7 +468,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return MiniCard(
           label: 'Stress',
           value: ble.latestStressValue > 0 ? '${ble.latestStressValue}' : '--',
-          sub: stressStatus(ble.latestStressValue),
+          sub: (HealthEngine.instance.assessStress(ble.latestStressValue).label == '--' ? 'No data' : HealthEngine.instance.assessStress(ble.latestStressValue).label),
           color: AppTheme.stressColor,
           icon: Icons.water_drop,
           expanded: expanded,
@@ -525,7 +485,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           label: 'Sleep',
           value: _sleepDurationLabel(ble.todaySleepDuration),
           sub: ble.todaySleepDuration > 0
-              ? _sleepStatus(ble.todaySleepScore)
+              ? HealthEngine.instance.assessSleep(ble.todaySleepScore).label
               : '',
           color: AppTheme.sleepColor,
           icon: Icons.bedtime,

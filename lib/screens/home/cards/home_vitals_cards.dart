@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../models/womens_health_models.dart';
 import '../../../providers/ble_provider.dart';
+import '../../../services/health_engine/cycle_engine.dart';
+import '../../../services/health_engine/health_engine.dart';
 import '../../../services/incident_service.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/womens_health_prediction_service.dart';
@@ -341,9 +343,8 @@ class CyclePhaseBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final len = cycleLength > 0 ? cycleLength : 28;
-    final pLen = periodLen > 0 ? periodLen : 5;
+    final f = CycleEngine.flexes(cycleLength, periodLen);
     final day = cycleDay.clamp(1, len).toInt();
-    int flex(int v) => v.clamp(1, len).toInt();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -352,7 +353,7 @@ class CyclePhaseBar extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  flex: flex(pLen),
+                  flex: f.pLen,
                   child: Container(
                     height: 8,
                     decoration: BoxDecoration(
@@ -365,17 +366,17 @@ class CyclePhaseBar extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Expanded(
-                  flex: flex(13 - pLen),
+                  flex: f.fol,
                   child: Container(height: 8, color: _kFigmaLightBar),
                 ),
                 const SizedBox(width: 4),
                 Expanded(
-                  flex: flex(3),
+                  flex: f.ov,
                   child: Container(height: 8, color: kFigmaStressLow),
                 ),
                 const SizedBox(width: 4),
                 Expanded(
-                  flex: flex(len - 16),
+                  flex: f.lut,
                   child: Container(
                     height: 8,
                     decoration: BoxDecoration(
@@ -403,6 +404,9 @@ class CyclePhaseBar extends StatelessWidget {
     );
   }
 }
+
+// ignore: unused_element
+String _demoPhase(int day, int pLen, int cLen) => CycleEngine.phaseName(day, pLen, cLen);
 
 // ── Chevron button (glass) ────────────────────────────────────────────────────
 
@@ -539,10 +543,9 @@ class WomensHealthMiniCardState extends State<WomensHealthMiniCard> {
         final startStr = latest['period_start'] as String;
         final start = DateTime.parse(startStr);
         final now = DateTime.now();
-        // Calculate day based on difference in calendar dates
         final startDt = DateTime(start.year, start.month, start.day);
         final nowDt = DateTime(now.year, now.month, now.day);
-        final day = nowDt.difference(startDt).inDays + 1;
+        final day = CycleEngine.cycleDay(startDt, nowDt);
 
         final cycleLen = latest['cycle_length'] as int;
 
@@ -818,8 +821,8 @@ class StressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = stressStatus(value);
-    final color = stressColor(value);
+    final status = HealthEngine.instance.assessStress(value).label == '--' ? 'No data' : HealthEngine.instance.assessStress(value).label;
+    final color = HealthEngine.instance.assessStress(value).color;
 
     if (expanded) {
       return FigmaExpandedCard(
@@ -923,7 +926,7 @@ class StressCard extends StatelessWidget {
                 child: StressStatColumn(
                   label: 'Daily Average',
                   value: avgStress > 0 ? '$avgStress' : '--',
-                  status: stressStatus(avgStress),
+                  status: HealthEngine.instance.assessStress(avgStress).label == '--' ? 'No data' : HealthEngine.instance.assessStress(avgStress).label,
                 ),
               ),
               Container(
@@ -935,7 +938,7 @@ class StressCard extends StatelessWidget {
                 child: StressStatColumn(
                   label: 'Daily Range',
                   value: maxStress > 0 ? '$minStress-$maxStress' : '--',
-                  status: stressStatus(maxStress),
+                  status: HealthEngine.instance.assessStress(maxStress).label == '--' ? 'No data' : HealthEngine.instance.assessStress(maxStress).label,
                 ),
               ),
             ],
@@ -1050,7 +1053,7 @@ class ActivityScoreCard extends StatelessWidget {
         icon: Icons.directions_walk,
         title: 'ACTIVITY',
         status: showData
-            ? activityScoreLabel(score)
+            ? HealthEngine.instance.activityLabel(score)
             : 'No data',
         value: showData
             ? Row(
@@ -1130,7 +1133,7 @@ class ActivityScoreCard extends StatelessWidget {
           Text(
             hasData && distanceM > 0
                 ? _distanceLabel
-                : activityScoreLabel(score),
+                : HealthEngine.instance.activityLabel(score),
             style: inter(
               13,
               weight: FontWeight.w500,

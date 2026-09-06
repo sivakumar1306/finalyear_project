@@ -21,8 +21,13 @@ import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/chart_scrubber.dart';
+import '../../utils/date_keys.dart';
+import '../../utils/formatters.dart';
 import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
+import '../../utils/hourly_aggregator.dart';
+import '../../utils/trend_math.dart';
+import '../../utils/scrub_helper.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -82,12 +87,7 @@ class _HrvScreenState extends State<HrvScreen> {
 
   // ── Computed ──────────────────────────────────────────────────────────────
 
-  bool get _isToday {
-    final n = DateTime.now();
-    return _selectedDate.year == n.year &&
-        _selectedDate.month == n.month &&
-        _selectedDate.day == n.day;
-  }
+  bool get _isToday => DateKeys.isToday(_selectedDate);
 
   bool get _hasRingData => _chartValues.any((v) => v > 0);
 
@@ -116,19 +116,9 @@ class _HrvScreenState extends State<HrvScreen> {
     return 0;
   }
 
-  String _fmt(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  String _fmt(DateTime d) => DateKeys.fmt(d);
 
-  static String _hrvLabel(int v) => HealthEngine.instance.assessHrv(v).label;
-  static Color _hrvColor(int v) => HealthEngine.instance.assessHrv(v).color;
-
-  static String _fmtTime(DateTime dt) {
-    final h = dt.hour;
-    final m = dt.minute.toString().padLeft(2, '0');
-    final ampm = h < 12 ? 'AM' : 'PM';
-    final h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    return '$h12:$m $ampm';
-  }
+  static String _fmtTime(DateTime dt) => Formatters.fmtTime(dt);
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -148,9 +138,7 @@ class _HrvScreenState extends State<HrvScreen> {
   // ── Date selection ────────────────────────────────────────────────────────
 
   void _onDateSelected(DateTime date) {
-    final n = DateTime.now();
-    final isToday =
-        date.year == n.year && date.month == n.month && date.day == n.day;
+    final isToday = DateKeys.isToday(date);
     setState(() {
       _selectedDate = date;
       if (isToday) {
@@ -169,20 +157,8 @@ class _HrvScreenState extends State<HrvScreen> {
   Future<void> _fetchTodayFromLocalDb() async {
     try {
       final now = DateTime.now();
-      final dayStart = DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ).millisecondsSinceEpoch;
-      final dayEnd = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        23,
-        59,
-        59,
-        999,
-      ).millisecondsSinceEpoch;
+      final dayStart = DateKeys.dayStartMs(now);
+      final dayEnd = DateKeys.dayEndMs(now);
 
       final summary =
           jsonDecode(await _ble.getTodaySummary('hrv')) as Map<String, dynamic>;
@@ -199,25 +175,10 @@ class _HrvScreenState extends State<HrvScreen> {
         );
         final decoded = jsonDecode(readingsJson);
         final list = decoded is List ? decoded : <dynamic>[];
-
-        final slotSums = List<int>.filled(totalSlots, 0);
-        final slotCounts = List<int>.filled(totalSlots, 0);
-        for (final item in list) {
-          final m = item as Map<String, dynamic>;
-          final value = (m['valueMs'] as num? ?? 0).toInt();
-          final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-          if (value <= 0 || measuredAt <= 0) continue;
-          final dt = DateTime.fromMillisecondsSinceEpoch(measuredAt);
-          final slot = (dt.hour * 60 + dt.minute) ~/ 30;
-          if (slot >= 0 && slot < totalSlots) {
-            slotSums[slot] += value;
-            slotCounts[slot] += 1;
-          }
-        }
+        final typedHrv = list.whereType<Map<String, dynamic>>().toList();
+        final aggHrv = HourlyAggregator.aggregateHrv(typedHrv);
         for (int i = 0; i < totalSlots; i++) {
-          if (slotCounts[i] > 0) {
-            slots[i] = (slotSums[i] / slotCounts[i]).round();
-          }
+          slots[i] = aggHrv[i];
         }
       } catch (e, st) {
         IncidentService.reportUnhandled(
@@ -461,24 +422,7 @@ class _HrvScreenState extends State<HrvScreen> {
     try {
       final local = await _local.getDaySummary('hrv', date);
       final list = await _local.getReadings('hrv', date);
-      const totalSlots = 48;
-      final slots = List<int>.filled(totalSlots, 0);
-      final slotSums = List<int>.filled(totalSlots, 0);
-      final slotCounts = List<int>.filled(totalSlots, 0);
-      for (final m in list) {
-        final value = (m['valueMs'] as num? ?? 0).toInt();
-        final measuredAt = (m['measuredAt'] as num? ?? 0).toInt();
-        if (value <= 0 || measuredAt <= 0) continue;
-        final dt = DateTime.fromMillisecondsSinceEpoch(measuredAt);
-        final slot = (dt.hour * 60 + dt.minute) ~/ 30;
-        if (slot >= 0 && slot < totalSlots) {
-          slotSums[slot] += value;
-          slotCounts[slot] += 1;
-        }
-      }
-      for (int i = 0; i < totalSlots; i++) {
-        if (slotCounts[i] > 0) slots[i] = (slotSums[i] / slotCounts[i]).round();
-      }
+      final slots = HourlyAggregator.aggregateHrv(list);
 
       if (!mounted) return;
       if (_local.hasData(local)) {
@@ -545,18 +489,11 @@ class _HrvScreenState extends State<HrvScreen> {
       final localValid = localRows.where((r) => r['min'] != null).toList();
       if (!mounted) return;
       if (localVals.any((v) => v > 0)) {
+        final _mm = TrendMath.minMax(localRows, 'min', 'max');
         setState(() {
           _trendValues = localVals;
-          _trendMin = localValid.isEmpty
-              ? 0
-              : localValid
-                  .map((r) => (r['min'] as num).toInt())
-                  .reduce((a, b) => a < b ? a : b);
-          _trendMax = localValid.isEmpty
-              ? 0
-              : localValid
-                  .map((r) => (r['max'] as num).toInt())
-                  .reduce((a, b) => a > b ? a : b);
+          _trendMin = _mm.min;
+          _trendMax = _mm.max;
         });
       }
 
@@ -657,24 +594,9 @@ class _HrvScreenState extends State<HrvScreen> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  List<String> _trendXLabels() {
-    final now = DateTime.now();
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return List.generate(7, (i) {
-      final d = now.subtract(Duration(days: 6 - i));
-      return days[d.weekday - 1];
-    });
-  }
+  List<String> _trendXLabels() => DateKeys.trendXLabels();
 
-  String _halfHourLabel(int slot) {
-    final minutes = slot * 30;
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    final h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    final ampm = h < 12 ? 'am' : 'pm';
-    final mm = m == 0 ? '00' : '30';
-    return '$h12:$mm$ampm';
-  }
+  String _halfHourLabel(int slot) => Formatters.halfHourLabel(slot);
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
@@ -774,22 +696,22 @@ class _HrvScreenState extends State<HrvScreen> {
                   children: [
                     Text('ms', style: _inter(13, color: AppTheme.textTertiary)),
                     const SizedBox(width: 10),
-                    if (!_loading && (displayLatest > 0 ? _hrvLabel(displayLatest) != '--' : displayAvg > 0))
+                    if (!_loading && (displayLatest > 0 ? HealthEngine.instance.assessHrv(displayLatest).label != '--' : displayAvg > 0))
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: _hrvColor(displayLatest > 0 ? displayLatest : displayAvg).withValues(alpha: 0.15),
+                          color: HealthEngine.instance.assessHrv(displayLatest > 0 ? displayLatest : displayAvg).color.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          _hrvLabel(displayLatest > 0 ? displayLatest : displayAvg),
+                          HealthEngine.instance.assessHrv(displayLatest > 0 ? displayLatest : displayAvg).label,
                           style: _inter(
                             11,
                             weight: FontWeight.w600,
-                            color: _hrvColor(displayLatest > 0 ? displayLatest : displayAvg),
+                            color: HealthEngine.instance.assessHrv(displayLatest > 0 ? displayLatest : displayAvg).color,
                           ),
                         ),
                       ),
@@ -823,7 +745,7 @@ class _HrvScreenState extends State<HrvScreen> {
                     values: _chartValues,
                     maxY: 100,
                     yLines: const [100, 80, 60, 40, 20],
-                    colorFor: (v) => _hrvBarColor(v).withValues(alpha: 0.88),
+                    colorFor: (v) => HealthEngine.instance.hrvBarColor(v).withValues(alpha: 0.88),
                     accent: AppTheme.hrvColor,
                     headerLabel: hasData ? 'TODAY' : (_isToday ? 'NO DATA YET' : _dateLabel()),
                     rangeLabel: dailyRangeLabel,
@@ -893,7 +815,7 @@ class _HrvScreenState extends State<HrvScreen> {
                     values: _trendValues,
                     maxY: 100,
                     yLines: const [100, 80, 60, 40, 20],
-                    colorFor: (v) => _hrvBarColor(v).withValues(alpha: 0.88),
+                    colorFor: (v) => HealthEngine.instance.hrvBarColor(v).withValues(alpha: 0.88),
                     accent: AppTheme.hrvColor,
                     headerLabel: 'LAST 7 DAYS TREND',
                     rangeLabel: trendRangeLabel,
@@ -995,8 +917,8 @@ class _HrvScreenState extends State<HrvScreen> {
           ...entries.asMap().entries.map((e) {
             final time = e.value.$1;
             final v = e.value.$2;
-            final color = _hrvColor(v);
-            final label = _hrvLabel(v);
+            final color = HealthEngine.instance.assessHrv(v).color;
+            final label = HealthEngine.instance.assessHrv(v).label;
             final isLast = e.key == entries.length - 1;
             return Column(
               children: [
@@ -1056,7 +978,3 @@ class _HrvScreenState extends State<HrvScreen> {
     );
   }
 }
-
-
-// ── HRV bar color — delegated to engine ─────────────────────────────────────
-Color _hrvBarColor(num v) => HealthEngine.instance.hrvBarColor(v);
