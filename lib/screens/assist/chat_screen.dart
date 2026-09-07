@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:markdown/markdown.dart' hide {Text} as md;
 import '../../providers/main_tab_provider.dart';
 import '../../services/chat_api_service.dart';
 import '../../services/incident_service.dart';
@@ -762,14 +763,45 @@ class _ChatScreenState extends State<ChatScreen> {
                 bottomRight: Radius.circular(18),
               ),
             ),
-            child: Text(
-              content,
-              style: AppTypography.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w400,
-                height: 1.50,
-                letterSpacing: -0.005 * 13,
-                color: AppTheme.white96, // rgba(255,255,255,0.96)
+            child: md.Markdown(
+              data: content,
+              styleSheet: md.MarkdownStyleSheet(
+                p: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                  height: 1.50,
+                  letterSpacing: -0.005 * 13,
+                  color: AppTheme.white96, // rgba(255,255,255,0.96),
+                ),
+                code: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                  height: 1.50,
+                  letterSpacing: -0.005 * 13,
+                  color: AppTheme.white96,
+                  backgroundColor: AppTheme.white04,
+                ),
+                bullet: null,
+                inlineCode: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                  color: AppTheme.white96,
+                ),
+                heading1: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.gold,
+                ),
+                heading2: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.gold,
+                ),
+                heading3: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.gold,
+                ),
               ),
             ),
           ),
