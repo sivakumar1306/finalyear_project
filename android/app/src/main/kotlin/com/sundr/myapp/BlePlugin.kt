@@ -1024,14 +1024,10 @@ class BlePlugin(private val context: Context) {
                                 MeasurementCoordinator.release(owner)
                                 mainHandler.post { result.success(value) }
                             }
-                        } else {
-                            if (done.compareAndSet(false, true)) {
-                                timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-                                try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
-                                MeasurementCoordinator.release(owner)
-                                mainHandler.post { result.success(null) }
-                            }
                         }
+                        // Note: do not abort on rsp.status != RESULT_OK; the ring sends intermediate
+                        // calibration/status frames before the actual measurement result.
+                        // Only abort if errCode != 0 (handled above) or timeoutRunnable fires.
                     },
                     false
                 )

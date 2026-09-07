@@ -121,7 +121,24 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       if (!mounted) return;
       _fetchTodayFromLocalDb();
       _load7DayTrend();
+      // QRing parity: sync interval and manual backlog immediately when viewing HR screen.
+      _syncRingHrData();
     });
+  }
+
+  Future<void> _syncRingHrData() async {
+    try {
+      final ble = context.read<BleProvider>();
+      if (!ble.isConnected) return;
+      // Pull autonomous 24h interval points from ring into Room
+      await _ble.syncIntervalHeartRateDetail().timeout(const Duration(seconds: 15));
+      // Also pull manual measurement list from ring
+      await _tryManualListFallback();
+      if (!mounted) return;
+      await _fetchTodayFromLocalDb();
+    } catch (_) {
+      // Non-blocking sync attempt
+    }
   }
 
 
@@ -148,10 +165,12 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
 
   // ── Local DB fetch (today) ──────────────────────────────────────────────────
 
-  Future<void> _fetchTodayFromLocalDb() async {
-    setState(() {
-      _manualHr = 0;
-    });
+  Future<void> _fetchTodayFromLocalDb({bool resetManual = false}) async {
+    if (resetManual) {
+      setState(() {
+        _manualHr = 0;
+      });
+    }
     try {
       final now = DateTime.now();
       final dayStart = DateKeys.dayStartMs(now);
@@ -193,9 +212,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       // Don't fabricate an hourly bucket from AVG — leave empty to surface sparsity (QRing style).
       setState(() {
         _chartValues = hourly;
-        _avgHr = avg;
-        _minHr = minVal;
-        _maxHr = maxVal;
+        if (avg > 0) _avgHr = avg;
+        if (minVal > 0) _minHr = minVal;
+        if (maxVal > 0) _maxHr = maxVal;
         if (latest > 0) {
           _latestHr = latest;
           _latestHrAt = latestAt;
@@ -671,9 +690,12 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         : '--';
     final isStale = !_measuring && displayLatest == 0 && _displayAvg > 0;
 
-    final hasData = _chartValues.any((v) => v > 0);
+    final hasChartData = _chartValues.any((v) => v > 0);
+    final hasData = hasChartData || displayLatest > 0 || _displayAvg > 0;
 
-    final dailyRangeLabel = hasData ? '$_displayMin - $_displayMax' : '-- --';
+    final dailyRangeLabel = (_displayMin > 0 && _displayMax > 0)
+        ? '$_displayMin - $_displayMax'
+        : (displayLatest > 0 ? '$displayLatest BPM' : '-- --');
 
     final trendRangeLabel = _trendMin > 0 && _trendMax > 0
         ? '$_trendMin - $_trendMax BPM'
@@ -773,7 +795,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
                   yLines: const [120, 100, 80, 60],
                   barColor: AppTheme.hrColor.withValues(alpha: 0.88),
                   accent: AppTheme.hrColor,
-                  headerLabel: hasData ? 'TODAY' : 'NO DATA YET',
+                  headerLabel: hasChartData ? 'TODAY' : 'NO DATA YET',
                   rangeLabel: dailyRangeLabel,
                   yLabels: const ['120', '100', '80', '60'],
                   xLabels: const ['12am', '6am', '12pm', '6pm', ''],

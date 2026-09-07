@@ -150,6 +150,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _navigateTo(String route) async {
     await Navigator.pushNamed(context, route);
     if (!mounted) return;
+    try {
+      context.read<BleProvider>().refreshVitalsFromLocal();
+    } catch (_) {}
     await _loadUserProfile();
     await _loadGoals();
     if (!mounted) return;
