@@ -283,7 +283,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
           avg = vals.reduce((a, b) => a + b) / vals.length;
           minV = vals.reduce((a, b) => a < b ? a : b);
           maxV = vals.reduce((a, b) => a > b ? a : b);
-          if (!_local.hasData(local)) {
+          if (!_local.hasData(local) && _selectedDate.year == date.year && _selectedDate.month == date.month && _selectedDate.day == date.day) {
             setState(() {
               _dayAvg = avg;
               _dayMin = minV;
@@ -293,6 +293,15 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         }
         if (vals.isNotEmpty) {
           await _local.cacheSimpleDay(vital: 'temperature', date: date, avg: avg, min: minV, max: maxV, count: vals.length);
+        }
+        if (!_local.hasData(local) && vals.isEmpty && !hourly.any((v) => v > 0) &&
+            _selectedDate.year == date.year && _selectedDate.month == date.month && _selectedDate.day == date.day) {
+          setState(() {
+            _dayAvg = 0;
+            _dayMin = 0;
+            _dayMax = 0;
+            _chartValues = [];
+          });
         }
       } catch (e) {
         if (mounted && isNetworkError(e) && !_local.hasData(local)) setState(() => _dayOffline = true);
@@ -585,7 +594,8 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         ? _disp(_displayAvg).toStringAsFixed(1)
         : '--';
 
-    final hasData = _chartValues.any((v) => v > 0);
+    final hasChartData = _chartValues.any((v) => v > 0);
+    final hasData = hasChartData || _displayAvg > 0 || _manualTemp > 0;
 
     final dailyRangeLabel = hasData
         ? '${_disp(_displayMin).toStringAsFixed(1)} - ${_disp(_displayMax).toStringAsFixed(1)}'
@@ -680,12 +690,13 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
 
               // ── 3. Daily chart ────────────────────────────────────────────
               // ── 3-5. Daily section — collapse to single glass card when empty
-              if (!hasData && !_loading && !_loadingDay && !_dayOffline) ...[
+              if (!hasData && !_loading && !_dayOffline) ...[
                 NotEnoughDataCard(
                   metric: 'temperature',
                   date: _selectedDate,
                   isConnected: connected,
                   measuring: _measuring,
+                  loading: _loadingDay,
                   onMeasure: _startMeasurement,
                   measureLabel: 'Measure temperature',
                 ),

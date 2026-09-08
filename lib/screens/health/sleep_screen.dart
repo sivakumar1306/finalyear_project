@@ -704,6 +704,7 @@ class _SleepScreenState extends State<SleepScreen> {
                 NotEnoughDataCard(
                   metric: 'sleep',
                   date: _selectedDate,
+                  loading: _loading,
                   isConnected: context.read<BleProvider>().isConnected,
                 )
               else ...[

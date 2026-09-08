@@ -300,58 +300,75 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
       }
 
       // 2) Cloud enrich + cache.
+      List<int> sbps = [];
+      List<int> dbps = [];
       final user = SupabaseService.currentUser;
-      if (user == null) return;
-      try {
-        final from = DateTime(date.year, date.month, date.day);
-        final to = DateTime(date.year, date.month, date.day, 23, 59, 59, 999);
-        final rows = await SupabaseService.getBpReadings(
-          userId: user.id,
-          from: from,
-          to: to,
-        );
-        if (!mounted) return;
-        final sbps = rows.map((r) => (r['systolic'] as num? ?? 0).toInt()).where((v) => v > 0).toList();
-        final dbps = rows.map((r) => (r['diastolic'] as num? ?? 0).toInt()).where((v) => v > 0).toList();
-        int avgSbp = 0, minSbp = 0, maxSbp = 0, avgDbp = 0, minDbp = 0, maxDbp = 0;
-        if (sbps.isNotEmpty) {
-          avgSbp = (sbps.reduce((a, b) => a + b) / sbps.length).round();
-          minSbp = sbps.reduce((a, b) => a < b ? a : b);
-          maxSbp = sbps.reduce((a, b) => a > b ? a : b);
-        }
-        if (dbps.isNotEmpty) {
-          avgDbp = (dbps.reduce((a, b) => a + b) / dbps.length).round();
-          minDbp = dbps.reduce((a, b) => a < b ? a : b);
-          maxDbp = dbps.reduce((a, b) => a > b ? a : b);
-        }
-        if (!hasLocal) {
-          if (avgSbp > 0 || avgDbp > 0) {
-            setState(() {
-              if (avgSbp > 0) _daySbpAvg = avgSbp;
-              if (minSbp > 0) _daySbpMin = minSbp;
-              if (maxSbp > 0) _daySbpMax = maxSbp;
-              if (avgDbp > 0) _dayDbpAvg = avgDbp;
-              if (minDbp > 0) _dayDbpMin = minDbp;
-              if (maxDbp > 0) _dayDbpMax = maxDbp;
-            });
+      if (user != null) {
+        try {
+          final from = DateTime(date.year, date.month, date.day);
+          final to = DateTime(date.year, date.month, date.day, 23, 59, 59, 999);
+          final rows = await SupabaseService.getBpReadings(
+            userId: user.id,
+            from: from,
+            to: to,
+          );
+          if (!mounted) return;
+          sbps = rows.map((r) => (r['systolic'] as num? ?? 0).toInt()).where((v) => v > 0).toList();
+          dbps = rows.map((r) => (r['diastolic'] as num? ?? 0).toInt()).where((v) => v > 0).toList();
+          int avgSbp = 0, minSbp = 0, maxSbp = 0, avgDbp = 0, minDbp = 0, maxDbp = 0;
+          if (sbps.isNotEmpty) {
+            avgSbp = (sbps.reduce((a, b) => a + b) / sbps.length).round();
+            minSbp = sbps.reduce((a, b) => a < b ? a : b);
+            maxSbp = sbps.reduce((a, b) => a > b ? a : b);
+          }
+          if (dbps.isNotEmpty) {
+            avgDbp = (dbps.reduce((a, b) => a + b) / dbps.length).round();
+            minDbp = dbps.reduce((a, b) => a < b ? a : b);
+            maxDbp = dbps.reduce((a, b) => a > b ? a : b);
+          }
+          if (!hasLocal && _selectedDate.year == date.year && _selectedDate.month == date.month && _selectedDate.day == date.day) {
+            if (avgSbp > 0 || avgDbp > 0) {
+              setState(() {
+                if (avgSbp > 0) _daySbpAvg = avgSbp;
+                if (minSbp > 0) _daySbpMin = minSbp;
+                if (maxSbp > 0) _daySbpMax = maxSbp;
+                if (avgDbp > 0) _dayDbpAvg = avgDbp;
+                if (minDbp > 0) _dayDbpMin = minDbp;
+                if (maxDbp > 0) _dayDbpMax = maxDbp;
+              });
+            }
+          }
+          if (sbps.isNotEmpty || dbps.isNotEmpty) {
+            await _local.cacheBpDay(
+              date: date,
+              avgSbp: avgSbp,
+              minSbp: minSbp,
+              maxSbp: maxSbp,
+              avgDbp: avgDbp,
+              minDbp: minDbp,
+              maxDbp: maxDbp,
+              count: rows.length,
+            );
+          }
+        } catch (e) {
+          if (mounted && isNetworkError(e) && !_local.hasData(local)) {
+            setState(() => _dayOffline = true);
           }
         }
-        if (sbps.isNotEmpty || dbps.isNotEmpty) {
-          await _local.cacheBpDay(
-            date: date,
-            avgSbp: avgSbp,
-            minSbp: minSbp,
-            maxSbp: maxSbp,
-            avgDbp: avgDbp,
-            minDbp: minDbp,
-            maxDbp: maxDbp,
-            count: rows.length,
-          );
-        }
-      } catch (e) {
-        if (mounted && isNetworkError(e) && !_local.hasData(local)) {
-          setState(() => _dayOffline = true);
-        }
+      }
+
+      if (!hasLocal && sbps.isEmpty && dbps.isEmpty && !(sbpHourly.any((v) => v > 0) || dbpHourly.any((v) => v > 0)) &&
+          _selectedDate.year == date.year && _selectedDate.month == date.month && _selectedDate.day == date.day) {
+        setState(() {
+          _daySbpAvg = 0;
+          _daySbpMin = 0;
+          _daySbpMax = 0;
+          _dayDbpAvg = 0;
+          _dayDbpMin = 0;
+          _dayDbpMax = 0;
+          _chartSbp = [];
+          _chartDbp = [];
+        });
       }
     } catch (e, st) {
       IncidentService.reportUnhandled(
@@ -637,7 +654,8 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
         : (HealthEngine.instance.assessBloodPressure(currentSbp, currentDbp).label == 'No data' ? '' : HealthEngine.instance.assessBloodPressure(currentSbp, currentDbp).label);
     final currentLabelColor = HealthEngine.instance.assessBloodPressure(currentSbp, currentDbp).color;
 
-    final hasData = _chartSbp.any((v) => v > 0) || _chartDbp.any((v) => v > 0);
+    final hasChartData = _chartSbp.any((v) => v > 0) || _chartDbp.any((v) => v > 0);
+    final hasData = hasChartData || _displaySbpAvg > 0 || _manualSbp > 0;
 
     final dailyRangeLabel = hasData
         ? '$_displaySbpMin-$_displaySbpMax / $_displayDbpMin-$_displayDbpMax'
@@ -758,12 +776,13 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               const SizedBox(height: 16),
 
               // ── 4-6. Daily section — collapse to single glass card when empty
-              if (!hasData && !_loading && !_loadingDay && !_dayOffline) ...[
+              if (!hasData && !_loading && !_dayOffline) ...[
                 NotEnoughDataCard(
                   metric: 'blood pressure',
                   date: _selectedDate,
                   isConnected: connected,
                   measuring: _measuring,
+                  loading: _loadingDay,
                   onMeasure: _startMeasurement,
                   measureLabel: 'Measure blood pressure',
                 ),

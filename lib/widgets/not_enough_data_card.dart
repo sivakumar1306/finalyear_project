@@ -11,6 +11,7 @@ class NotEnoughDataCard extends StatelessWidget {
   final DateTime? date;
   final bool isConnected;
   final bool measuring;
+  final bool loading;
   final VoidCallback? onMeasure;
   final String? measureLabel;
 
@@ -20,6 +21,7 @@ class NotEnoughDataCard extends StatelessWidget {
     this.date,
     this.isConnected = false,
     this.measuring = false,
+    this.loading = false,
     this.onMeasure,
     this.measureLabel,
   });
@@ -33,7 +35,17 @@ class NotEnoughDataCard extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.insights_rounded, size: 28, color: AppTheme.textTertiary.withValues(alpha: 0.6)),
+          if (loading)
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppTheme.gold,
+              ),
+            )
+          else
+            Icon(Icons.insights_rounded, size: 28, color: AppTheme.textTertiary.withValues(alpha: 0.6)),
           const SizedBox(height: 10),
           Text('NOT ENOUGH DATA',
             style: AppTypography.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textTertiary, letterSpacing: 1.2)),

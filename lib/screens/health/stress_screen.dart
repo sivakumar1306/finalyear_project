@@ -267,7 +267,7 @@ class _StressScreenState extends State<StressScreen> {
           avg = (vals.reduce((a, b) => a + b) / vals.length).round();
           minV = vals.reduce((a, b) => a < b ? a : b);
           maxV = vals.reduce((a, b) => a > b ? a : b);
-          if (!_local.hasData(local)) {
+          if (!_local.hasData(local) && _selectedDate.year == date.year && _selectedDate.month == date.month && _selectedDate.day == date.day) {
             setState(() {
               _dayAvg = avg;
               _dayMin = minV;
@@ -284,6 +284,15 @@ class _StressScreenState extends State<StressScreen> {
             max: maxV,
             count: vals.length,
           );
+        }
+        if (!_local.hasData(local) && vals.isEmpty && !hourly.any((v) => v > 0) &&
+            _selectedDate.year == date.year && _selectedDate.month == date.month && _selectedDate.day == date.day) {
+          setState(() {
+            _dayAvg = 0;
+            _dayMin = 0;
+            _dayMax = 0;
+            _chartValues = [];
+          });
         }
       } catch (e) {
         if (mounted && isNetworkError(e) && !_local.hasData(local)) {
@@ -553,7 +562,8 @@ class _StressScreenState extends State<StressScreen> {
       return a.severity == HealthSeverity.unknown ? _kSec2 : a.color;
     })();
 
-    final hasData = _chartValues.any((v) => v > 0);
+    final hasChartData = _chartValues.any((v) => v > 0);
+    final hasData = hasChartData || _displayAvg > 0;
 
     final trendRangeLabel = _trendMin > 0 && _trendMax > 0
         ? '$_trendMin - $_trendMax'
@@ -621,12 +631,13 @@ class _StressScreenState extends State<StressScreen> {
               const SizedBox(height: 16),
 
               // ── 4. Daily chart ─────────────────────────────────────────────
-              if (!hasData && !_loading && !_loadingDay && !_dayOffline) ...[
+              if (!hasData && !_loading && !_dayOffline) ...[
                 NotEnoughDataCard(
                   metric: 'stress',
                   date: _selectedDate,
                   isConnected: connected,
                   measuring: _measuring,
+                  loading: _loadingDay,
                   onMeasure: _startMeasurement,
                   measureLabel: 'Measure stress',
                 ),

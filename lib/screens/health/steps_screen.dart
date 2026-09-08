@@ -638,12 +638,13 @@ class _StepsScreenState extends State<StepsScreen> {
                 ),
 
                 // ── Daily section — collapse to single card when empty ──────
-                if (_daySteps == 0 && _dayCal == 0 && _dayDistM == 0 && !_dayLoad && !_pastDayOffline)
+                if (_daySteps == 0 && _dayCal == 0 && _dayDistM == 0 && !_pastDayOffline)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                     child: NotEnoughDataCard(
                       metric: 'activity',
                       date: _selectedDate,
+                      loading: _dayLoad,
                       isConnected: (() {
                         try {
                           return context.read<BleProvider>().isConnected;

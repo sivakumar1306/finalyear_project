@@ -435,35 +435,48 @@ class _HrvScreenState extends State<HrvScreen> {
         setState(() => _chartValues = slots);
       }
 
+      Map<String, dynamic>? row;
       final user = SupabaseService.currentUser;
-      if (user == null) return;
-      try {
-        final row = await SupabaseService.getHrvForDate(user.id, date);
-        if (!mounted || row == null) return;
-        final avg = (row['avg_hrv'] as num? ?? 0).toInt();
-        final minV = (row['min_hrv'] as num? ?? 0).toInt();
-        final maxV = (row['max_hrv'] as num? ?? 0).toInt();
-        if (!_local.hasData(local)) {
-          if (avg > 0 || minV > 0 || maxV > 0) {
-            setState(() {
-              if (avg > 0) _dayAvg = avg;
-              if (minV > 0) _dayMin = minV;
-              if (maxV > 0) _dayMax = maxV;
-            });
+      if (user != null) {
+        try {
+          row = await SupabaseService.getHrvForDate(user.id, date);
+          if (!mounted) return;
+          if (row != null) {
+            final avg = (row['avg_hrv'] as num? ?? 0).toInt();
+            final minV = (row['min_hrv'] as num? ?? 0).toInt();
+            final maxV = (row['max_hrv'] as num? ?? 0).toInt();
+            if (!_local.hasData(local) && _selectedDate == date) {
+              if (avg > 0 || minV > 0 || maxV > 0) {
+                setState(() {
+                  if (avg > 0) _dayAvg = avg;
+                  if (minV > 0) _dayMin = minV;
+                  if (maxV > 0) _dayMax = maxV;
+                });
+              }
+            }
+            await _local.cacheSimpleDay(
+              vital: 'hrv',
+              date: date,
+              avg: avg,
+              min: minV,
+              max: maxV,
+              count: (row['sample_count'] as num?)?.toInt() ?? 1,
+            );
+          }
+        } catch (e) {
+          if (mounted && isNetworkError(e) && !_local.hasData(local)) {
+            setState(() => _dayOffline = true);
           }
         }
-        await _local.cacheSimpleDay(
-          vital: 'hrv',
-          date: date,
-          avg: avg,
-          min: minV,
-          max: maxV,
-          count: (row['sample_count'] as num?)?.toInt() ?? 1,
-        );
-      } catch (e) {
-        if (mounted && isNetworkError(e) && !_local.hasData(local)) {
-          setState(() => _dayOffline = true);
-        }
+      }
+
+      if (!_local.hasData(local) && (row == null || row.isEmpty) && !slots.any((v) => v > 0) && _selectedDate == date) {
+        setState(() {
+          _dayAvg = 0;
+          _dayMin = 0;
+          _dayMax = 0;
+          _chartValues = [];
+        });
       }
     } catch (e, st) {
       IncidentService.reportUnhandled(
@@ -619,7 +632,7 @@ class _HrvScreenState extends State<HrvScreen> {
         : '--';
     final isStale = !_loading && displayLatest == 0 && displayAvg > 0;
 
-    final hasData = _hasRingData;
+    final hasData = _hasRingData || displayAvg > 0 || displayLatest > 0;
     final dailyRangeLabel = hasData
         ? '$displayMin - $displayMax ms'
         : '-- -- ms';
@@ -730,12 +743,13 @@ class _HrvScreenState extends State<HrvScreen> {
                 const SizedBox(height: 16),
 
                 // ── 3. Daily chart ─────────────────────────────────────────
-                if (!hasData && !_loading && !_loadingDay && !_dayOffline) ...[
+                if (!hasData && !_loading && !_dayOffline) ...[
                   NotEnoughDataCard(
                     metric: 'HRV',
                     date: _selectedDate,
                     isConnected: connected,
                     measuring: _measuring,
+                    loading: _loadingDay,
                     onMeasure: _startMeasurement,
                     measureLabel: 'Measure HRV',
                   ),

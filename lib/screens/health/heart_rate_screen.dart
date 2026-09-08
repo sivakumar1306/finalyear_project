@@ -290,36 +290,49 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       // QRing-style: local Room is authoritative for past days if present; cloud
       // is fallback for days never measured on this device. Never overwrite a
       // non-empty local display with cloud stale 87.
+      Map<String, dynamic>? row;
       final user = SupabaseService.currentUser;
-      if (user == null) return;
-      try {
-        final row = await SupabaseService.getHrForDate(user.id, date);
-        if (!mounted || row == null) return;
-        final avg = (row['avg_hr'] as num? ?? 0).toInt();
-        final minV = (row['min_hr'] as num? ?? 0).toInt();
-        final maxV = (row['max_hr'] as num? ?? 0).toInt();
-        final count = (row['sample_count'] as num? ?? 1).toInt();
-        if (!_local.hasData(local)) {
-          if (avg > 0 || minV > 0 || maxV > 0) {
-            setState(() {
-              if (avg > 0) _dayAvg = avg;
-              if (minV > 0) _dayMin = minV;
-              if (maxV > 0) _dayMax = maxV;
-            });
+      if (user != null) {
+        try {
+          row = await SupabaseService.getHrForDate(user.id, date);
+          if (!mounted) return;
+          if (row != null) {
+            final avg = (row['avg_hr'] as num? ?? 0).toInt();
+            final minV = (row['min_hr'] as num? ?? 0).toInt();
+            final maxV = (row['max_hr'] as num? ?? 0).toInt();
+            final count = (row['sample_count'] as num? ?? 1).toInt();
+            if (!_local.hasData(local) && _selectedDate == date) {
+              if (avg > 0 || minV > 0 || maxV > 0) {
+                setState(() {
+                  if (avg > 0) _dayAvg = avg;
+                  if (minV > 0) _dayMin = minV;
+                  if (maxV > 0) _dayMax = maxV;
+                });
+              }
+            }
+            await _local.cacheSimpleDay(
+              vital: 'heart_rate',
+              date: date,
+              avg: avg,
+              min: minV,
+              max: maxV,
+              count: count,
+            );
+          }
+        } catch (e) {
+          if (mounted && isNetworkError(e) && !_local.hasData(local)) {
+            setState(() => _dayOffline = true);
           }
         }
-        await _local.cacheSimpleDay(
-          vital: 'heart_rate',
-          date: date,
-          avg: avg,
-          min: minV,
-          max: maxV,
-          count: count,
-        );
-      } catch (e) {
-        if (mounted && isNetworkError(e) && !_local.hasData(local)) {
-          setState(() => _dayOffline = true);
-        }
+      }
+
+      if (!_local.hasData(local) && (row == null || row.isEmpty) && !hourly.any((v) => v > 0) && _selectedDate == date) {
+        setState(() {
+          _dayAvg = 0;
+          _dayMin = 0;
+          _dayMax = 0;
+          _chartValues = [];
+        });
       }
     } catch (e, st) {
       IncidentService.reportUnhandled(
@@ -779,12 +792,13 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
               const SizedBox(height: 16),
 
               // ── 4-6. Daily section — collapse to single glass card when empty
-              if (!hasData && !_loading && !_loadingDay && !_dayOffline) ...[
+              if (!hasData && !_loading && !_dayOffline) ...[
                 NotEnoughDataCard(
                   metric: 'heart rate',
                   date: _selectedDate,
                   isConnected: connected,
                   measuring: _measuring,
+                  loading: _loadingDay,
                   onMeasure: _startMeasurement,
                   measureLabel: 'Measure heart rate',
                 ),

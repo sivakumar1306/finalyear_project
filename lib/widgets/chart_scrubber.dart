@@ -254,7 +254,9 @@ class _ScrubbableChartState extends State<ScrubbableChart> {
 
   @override
   Widget build(BuildContext context) {
-    final hasScrubber = widget.showScrubber && widget.values.length > 1;
+    final hasScrubber = widget.showScrubber &&
+        widget.values.length > 1 &&
+        widget.values.any((v) => v > 0);
     final selectedValue =
         widget.values.isNotEmpty && _selectedIndex < widget.values.length
             ? widget.values[_selectedIndex]
@@ -671,7 +673,9 @@ class _ScrubbableBPChartState extends State<ScrubbableBPChart> {
 
   @override
   Widget build(BuildContext context) {
-    final hasScrubber = widget.showScrubber && widget.sbpValues.length > 1;
+    final hasScrubber = widget.showScrubber &&
+        widget.sbpValues.length > 1 &&
+        (widget.sbpValues.any((v) => v > 0) || widget.dbpValues.any((v) => v > 0));
     final selSbp = widget.sbpValues.isNotEmpty && _selectedIndex < widget.sbpValues.length
         ? widget.sbpValues[_selectedIndex]
         : 0;

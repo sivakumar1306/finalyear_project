@@ -240,35 +240,48 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         setState(() => _chartValues = slots);
       }
 
+      Map<String, dynamic>? row;
       final user = SupabaseService.currentUser;
-      if (user == null) return;
-      try {
-        final row = await SupabaseService.getSpo2ForDate(user.id, date);
-        if (!mounted || row == null) return;
-        final avg = (row['avg_spo2'] as num? ?? 0).toInt();
-        final minV = (row['min_spo2'] as num? ?? 0).toInt();
-        final maxV = (row['max_spo2'] as num? ?? 0).toInt();
-        if (!_local.hasData(local)) {
-          if (avg > 0 || minV > 0 || maxV > 0) {
-            setState(() {
-              if (avg > 0) _dayAvg = avg;
-              if (minV > 0) _dayMin = minV;
-              if (maxV > 0) _dayMax = maxV;
-            });
+      if (user != null) {
+        try {
+          row = await SupabaseService.getSpo2ForDate(user.id, date);
+          if (!mounted) return;
+          if (row != null) {
+            final avg = (row['avg_spo2'] as num? ?? 0).toInt();
+            final minV = (row['min_spo2'] as num? ?? 0).toInt();
+            final maxV = (row['max_spo2'] as num? ?? 0).toInt();
+            if (!_local.hasData(local) && _selectedDate == date) {
+              if (avg > 0 || minV > 0 || maxV > 0) {
+                setState(() {
+                  if (avg > 0) _dayAvg = avg;
+                  if (minV > 0) _dayMin = minV;
+                  if (maxV > 0) _dayMax = maxV;
+                });
+              }
+            }
+            await _local.cacheSimpleDay(
+              vital: 'spo2',
+              date: date,
+              avg: avg,
+              min: minV,
+              max: maxV,
+              count: (row['sample_count'] as num?)?.toInt() ?? 1,
+            );
+          }
+        } catch (e) {
+          if (mounted && isNetworkError(e) && !_local.hasData(local)) {
+            setState(() => _dayOffline = true);
           }
         }
-        await _local.cacheSimpleDay(
-          vital: 'spo2',
-          date: date,
-          avg: avg,
-          min: minV,
-          max: maxV,
-          count: (row['sample_count'] as num?)?.toInt() ?? 1,
-        );
-      } catch (e) {
-        if (mounted && isNetworkError(e) && !_local.hasData(local)) {
-          setState(() => _dayOffline = true);
-        }
+      }
+
+      if (!_local.hasData(local) && (row == null || row.isEmpty) && !slots.any((v) => v > 0) && _selectedDate == date) {
+        setState(() {
+          _dayAvg = 0;
+          _dayMin = 0;
+          _dayMax = 0;
+          _chartValues = [];
+        });
       }
     } catch (e, st) {
       IncidentService.reportUnhandled(
@@ -613,7 +626,8 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         : '--';
     final isStale = !_measuring && displayLatest == 0 && _displayAvg > 0;
 
-    final hasData = _chartValues.any((v) => v > 0);
+    final hasChartData = _chartValues.any((v) => v > 0);
+    final hasData = hasChartData || _displayAvg > 0 || _latestSpo2 > 0;
 
     final dailyRangeLabel = hasData ? '$_displayMin – $_displayMax' : '-- --';
 
@@ -702,12 +716,13 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
               const SizedBox(height: 16),
 
               // ── 4-6. Daily section — collapse to single glass card when empty
-              if (!hasData && !_loading && !_loadingDay && !_dayOffline) ...[
+              if (!hasData && !_loading && !_dayOffline) ...[
                 NotEnoughDataCard(
                   metric: 'blood oxygen',
                   date: _selectedDate,
                   isConnected: connected,
                   measuring: _measuring,
+                  loading: _loadingDay,
                   onMeasure: _startMeasurement,
                   measureLabel: 'Measure SpO₂',
                 ),

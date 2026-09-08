@@ -3,7 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:markdown/markdown.dart' hide {Text} as md;
+import 'package:flutter_markdown/flutter_markdown.dart' as md;
 import '../../providers/main_tab_provider.dart';
 import '../../services/chat_api_service.dart';
 import '../../services/incident_service.dart';
@@ -763,7 +763,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 bottomRight: Radius.circular(18),
               ),
             ),
-            child: md.Markdown(
+            child: md.MarkdownBody(
               data: content,
               styleSheet: md.MarkdownStyleSheet(
                 p: TextStyle(
@@ -781,23 +781,17 @@ class _ChatScreenState extends State<ChatScreen> {
                   color: AppTheme.white96,
                   backgroundColor: AppTheme.white04,
                 ),
-                bullet: null,
-                inlineCode: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  color: AppTheme.white96,
-                ),
-                heading1: TextStyle(
+                h1: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.gold,
                 ),
-                heading2: TextStyle(
+                h2: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.gold,
                 ),
-                heading3: TextStyle(
+                h3: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.gold,
