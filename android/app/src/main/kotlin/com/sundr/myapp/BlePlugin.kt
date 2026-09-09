@@ -1190,7 +1190,6 @@ class BlePlugin(private val context: Context) {
                         val rawArray: List<Int> = try {
                             when (val arr = data.array) {
                                 is List<*> -> arr.filterIsInstance<Number>().map { it.toInt() }
-                                is IntArray -> arr.toList()
                                 else -> emptyList()
                             }
                         } catch (_: Exception) { emptyList() }
@@ -1254,7 +1253,6 @@ class BlePlugin(private val context: Context) {
                     val rawArray: List<Int> = try {
                         when (val arr = data.array) {
                             is List<*> -> arr.filterIsInstance<Number>().map { it.toInt() }
-                            is IntArray -> arr.toList()
                             else -> emptyList()
                         }
                     } catch (_: Exception) { emptyList() }
@@ -1298,9 +1296,6 @@ class BlePlugin(private val context: Context) {
                     val rawFloats: List<Float> = try {
                         when (val arr = data.array) {
                             is List<*> -> arr.filterIsInstance<Number>().map { it.toFloat() }
-                            is FloatArray -> arr.toList()
-                            is DoubleArray -> arr.map { it.toFloat() }
-                            is IntArray -> arr.map { it.toFloat() }
                             else -> emptyList()
                         }
                     } catch (_: Exception) { emptyList() }
@@ -3119,19 +3114,22 @@ class BlePlugin(private val context: Context) {
         if (bpm <= 0) {
             result.error("BAD_ARGS", "valueBpm required", null); return
         }
-        // reuse MeasurementLoop phantom cycle
         repo().ioScope.launch {
             try {
                 val cycleId = try { repo().startCycle() } catch (_: Exception) { 0L }
+                val attemptId = try { repo().startAttempt("HEART_RATE", source, cycleId) } catch (_: Exception) { 0L }
                 val id = repo().insertHeartRateAt(bpm, at, cycleId, source)
-                try { repo().completeCycle(cycleId, "COMPLETED", null) } catch (_: Exception) {}
                 if (id > 0) {
+                    try { repo().finishAttempt(attemptId, "success", null, null) } catch (_: Exception) {}
                     EventBus.getDefault().post(
                         com.sundr.myapp.events.NewReadingEvent(
                             com.sundr.myapp.data.Vital.HEART_RATE, id, cycleId, at, bpm.toDouble()
                         )
                     )
+                } else {
+                    try { repo().finishAttempt(attemptId, "failed", "insert returned $id", null) } catch (_: Exception) {}
                 }
+                try { repo().completeCycle(cycleId, "COMPLETED", null) } catch (_: Exception) {}
                 mainHandler.post { result.success(id > 0) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("INSERT_FAILED", e.message, null) }
@@ -3147,9 +3145,15 @@ class BlePlugin(private val context: Context) {
         repo().ioScope.launch {
             try {
                 val cycleId = try { repo().startCycle() } catch (_: Exception) { 0L }
+                val attemptId = try { repo().startAttempt("SPO2", source, cycleId) } catch (_: Exception) { 0L }
                 val id = repo().insertSpo2At(pct, at, cycleId, source)
+                if (id > 0) {
+                    try { repo().finishAttempt(attemptId, "success", null, null) } catch (_: Exception) {}
+                    EventBus.getDefault().post(com.sundr.myapp.events.NewReadingEvent(com.sundr.myapp.data.Vital.SPO2, id, cycleId, at, pct.toDouble()))
+                } else {
+                    try { repo().finishAttempt(attemptId, "failed", "insert returned $id", null) } catch (_: Exception) {}
+                }
                 try { repo().completeCycle(cycleId, "COMPLETED", null) } catch (_: Exception) {}
-                if (id > 0) EventBus.getDefault().post(com.sundr.myapp.events.NewReadingEvent(com.sundr.myapp.data.Vital.SPO2, id, cycleId, at, pct.toDouble()))
                 mainHandler.post { result.success(id > 0) }
             } catch (e: Exception) { mainHandler.post { result.error("INSERT_FAILED", e.message, null) } }
         }
@@ -3163,9 +3167,15 @@ class BlePlugin(private val context: Context) {
         repo().ioScope.launch {
             try {
                 val cycleId = try { repo().startCycle() } catch (_: Exception) { 0L }
+                val attemptId = try { repo().startAttempt("HRV", source, cycleId) } catch (_: Exception) { 0L }
                 val id = repo().insertHrvAt(ms, at, cycleId, source)
+                if (id > 0) {
+                    try { repo().finishAttempt(attemptId, "success", null, null) } catch (_: Exception) {}
+                    EventBus.getDefault().post(com.sundr.myapp.events.NewReadingEvent(com.sundr.myapp.data.Vital.HRV, id, cycleId, at, ms.toDouble()))
+                } else {
+                    try { repo().finishAttempt(attemptId, "failed", "insert returned $id", null) } catch (_: Exception) {}
+                }
                 try { repo().completeCycle(cycleId, "COMPLETED", null) } catch (_: Exception) {}
-                if (id > 0) EventBus.getDefault().post(com.sundr.myapp.events.NewReadingEvent(com.sundr.myapp.data.Vital.HRV, id, cycleId, at, ms.toDouble()))
                 mainHandler.post { result.success(id > 0) }
             } catch (e: Exception) { mainHandler.post { result.error("INSERT_FAILED", e.message, null) } }
         }
@@ -3179,9 +3189,15 @@ class BlePlugin(private val context: Context) {
         repo().ioScope.launch {
             try {
                 val cycleId = try { repo().startCycle() } catch (_: Exception) { 0L }
+                val attemptId = try { repo().startAttempt("TEMPERATURE", source, cycleId) } catch (_: Exception) { 0L }
                 val id = repo().insertTemperatureAt(v, at, cycleId, source)
+                if (id > 0) {
+                    try { repo().finishAttempt(attemptId, "success", null, null) } catch (_: Exception) {}
+                    EventBus.getDefault().post(com.sundr.myapp.events.NewReadingEvent(com.sundr.myapp.data.Vital.TEMPERATURE, id, cycleId, at, v))
+                } else {
+                    try { repo().finishAttempt(attemptId, "failed", "insert returned $id", null) } catch (_: Exception) {}
+                }
                 try { repo().completeCycle(cycleId, "COMPLETED", null) } catch (_: Exception) {}
-                if (id > 0) EventBus.getDefault().post(com.sundr.myapp.events.NewReadingEvent(com.sundr.myapp.data.Vital.TEMPERATURE, id, cycleId, at, v))
                 mainHandler.post { result.success(id > 0) }
             } catch (e: Exception) { mainHandler.post { result.error("INSERT_FAILED", e.message, null) } }
         }
