@@ -62,7 +62,7 @@ class NotEnoughDataCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: (isConnected && !measuring) ? onMeasure : null,
+                onPressed: isConnected ? onMeasure : null,
                 style: OutlinedButton.styleFrom(
                   backgroundColor: Colors.white.withValues(alpha: 0.03),
                   side: BorderSide(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
@@ -71,8 +71,11 @@ class NotEnoughDataCard extends StatelessWidget {
                   foregroundColor: AppTheme.gold,
                 ),
                 child: measuring
-                    ? const SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(color: AppTheme.gold, strokeWidth: 2))
+                    ? Text('Cancel measurement',
+                        style: AppTypography.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.gold))
                     : Text(measureLabel ?? 'Measure now',
                         style: AppTypography.inter(
                             fontSize: 13,

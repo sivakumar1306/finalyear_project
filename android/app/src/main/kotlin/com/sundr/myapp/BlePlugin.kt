@@ -163,6 +163,15 @@ class BlePlugin(private val context: Context) {
     private var pendingBindConfirmation: Runnable? = null
     private val bindConfirmed = AtomicBoolean(false)
 
+    // Active manual HR session. Lets a second tap (cancelHeartRate) or a
+    // disconnect terminate the in-flight readHeartRate: remove its timeout,
+    // send the sensor stop, free the "manual" coordinator slot, and complete
+    // the original result. Volatile refs; terminal paths funnel through
+    // clearManualHrSession() so late SDK callbacks can't double-reply.
+    @Volatile private var manualHrResult: MethodChannel.Result? = null
+    private var manualHrDone: AtomicBoolean? = null
+    private var manualHrTimeout: Runnable? = null
+
     // Populated by QRingBluetoothReceiver.onCharacteristicRead once the SDK broadcasts them.
     var cachedFirmwareVersion: String = ""
     var cachedHardwareVersion: String = ""
@@ -292,6 +301,7 @@ class BlePlugin(private val context: Context) {
             "setHeartRateSetting"        -> setHeartRateSetting(call, result)
             "manualModeHeart"            -> manualModeHeart(call, result)
             "readHeartRate"              -> readHeartRate(result)
+            "cancelHeartRate"            -> cancelHeartRate(result)
             "syncIntervalHeartRate"      -> syncIntervalHeartRate(result)
             "syncHistoryHeartRate"       -> syncHistoryHeartRate(result)
             "getTodayBloodPressure"      -> getTodayBloodPressure(result)
@@ -677,6 +687,7 @@ class BlePlugin(private val context: Context) {
     private fun disconnect(result: MethodChannel.Result) {
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         pendingConnectResult = null
+        abortActiveManualHr("DISCONNECTED", "Ring disconnected during heart rate measurement")
         com.sundr.myapp.sdk.BleSdkLifecycle.unBindDevice()
         _isConnected = false
         sendEvent("connectionState", mapOf("connected" to false))
@@ -703,6 +714,7 @@ class BlePlugin(private val context: Context) {
     fun onDeviceDisconnected() {
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         pendingConnectResult = null
+        abortActiveManualHr("DISCONNECTED", "Ring disconnected during heart rate measurement")
         _isConnected = false
         sendEvent("connectionState", mapOf("connected" to false))
         MeasurementLoopManager.onRingDisconnected()
@@ -991,62 +1003,158 @@ class BlePlugin(private val context: Context) {
         acquireManualSlot(owner, result) {
             val done = AtomicBoolean(false)
             var timeoutRunnable: Runnable? = null
+            // Legacy fallback stash (pre-Aug24 extraction, still 30-220 gated). Strict
+            // type-aware values succeed immediately; legacy median is only used at
+            // timeout when strict produced nothing. Guarded: BLE callbacks may arrive
+            // off the main thread while timeout fires on it.
+            val legacyCandidates = mutableListOf<Int>()
+            // Register session so cancelHeartRate/disconnect can terminate it.
+            manualHrResult = result
+            manualHrDone = done
+            fun clearSession() {
+                if (manualHrDone === done) {
+                    manualHrDone = null
+                    manualHrResult = null
+                    manualHrTimeout = null
+                }
+            }
 
-            try {
-                BleOperateManager.getInstance().manualModeHeart(
-                    ICommandResponse<StartHeartRateRsp> { rsp ->
-                        if (done.get()) return@ICommandResponse
+            fun startMeasurement() {
+                if (done.get()) return
+                try {
+                    BleOperateManager.getInstance().manualModeHeart(
+                        ICommandResponse<StartHeartRateRsp> { rsp ->
+                            if (done.get()) return@ICommandResponse
 
-                        // Fail fast on ring-reported errors (not worn, low signal, etc.)
-                        // instead of hanging until the 60s TIMEOUT. Matches QRing
-                        // behavior which surfaces errCode immediately.
-                        val errCode: Int = try { rsp.getErrCode().toInt() } catch (_: Exception) { 0 }
-                        if (errCode != 0 && done.compareAndSet(false, true)) {
-                            timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-                            try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
-                            MeasurementCoordinator.release(owner)
-                            mainHandler.post { result.error("HR_ERR_$errCode", "Ring reported heart-rate error $errCode — keep ring snug and retry", null) }
-                            return@ICommandResponse
-                        }
-                        if (rsp.status == BaseRspCmd.RESULT_OK) {
-                            // Only trust HR-carrying frames. Per SDK StartHeartRateRsp.acceptData,
-                            // type 13 sets heartRate; type 12 (vital frame) carries HR in value.
-                            // Other types leave heartRate=0 while value holds SpO2 or unrelated
-                            // bytes — accepting getValue() from those persisted junk as bpm.
-                            val value = when {
+                            // Fail fast on ring-reported errors (not worn, low signal, etc.)
+                            // instead of hanging until the 60s TIMEOUT. Matches QRing
+                            // behavior which surfaces errCode immediately.
+                            val errCode: Int = try { rsp.getErrCode().toInt() } catch (_: Exception) { 0 }
+                            if (errCode != 0 && done.compareAndSet(false, true)) {
+                                timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+                                try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
+                                MeasurementCoordinator.release(owner)
+                                clearSession()
+                                mainHandler.post { result.error("HR_ERR_$errCode", "Ring reported heart-rate error $errCode — keep ring snug and retry", null) }
+                                return@ICommandResponse
+                            }
+                            // Strict tier: only trust HR-carrying frames. Per SDK
+                            // StartHeartRateRsp.acceptData, type 13 sets heartRate; type 12
+                            // (vital frame) carries HR in value. Other types leave
+                            // heartRate=0 while value holds SpO2 or unrelated bytes.
+                            // Deliberately not gated on rsp.status: the ring sends
+                            // intermediate calibration frames without RESULT_OK before the
+                            // real result (same as auto loop + hr branch).
+                            val strictValue = when {
                                 rsp.getHeartRate() > 0 -> rsp.getHeartRate()
                                 rsp.type.toInt() == 12 -> rsp.value
                                 else -> 0
                             }
-                            if (com.sundr.myapp.data.VitalRanges.isValidBpm(value) && done.compareAndSet(false, true)) {
+                            if (com.sundr.myapp.data.VitalRanges.isValidBpm(strictValue) && done.compareAndSet(false, true)) {
                                 timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
                                 try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
                                 MeasurementCoordinator.release(owner)
-                                mainHandler.post { result.success(value) }
+                                clearSession()
+                                mainHandler.post { result.success(strictValue) }
+                                return@ICommandResponse
                             }
-                        }
-                        // Note: do not abort on rsp.status != RESULT_OK; the ring sends intermediate
-                        // calibration/status frames before the actual measurement result.
-                        // Only abort if errCode != 0 (handled above) or timeoutRunnable fires.
-                    },
-                    false
-                )
-            } catch (e: Exception) {
-                if (done.compareAndSet(false, true)) {
-                    MeasurementCoordinator.release(owner)
-                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                            // Legacy tier stash: pre-Aug24 getHeartRate-else-getValue,
+                            // still range-gated. Used only at timeout below.
+                            val legacy = if (rsp.getHeartRate() > 0) rsp.getHeartRate() else rsp.getValue()
+                            if (com.sundr.myapp.data.VitalRanges.isValidBpm(legacy)) {
+                                synchronized(legacyCandidates) {
+                                    if (!done.get()) legacyCandidates.add(legacy)
+                                }
+                            }
+                            // Note: do not abort on rsp.status != RESULT_OK; the ring sends intermediate
+                            // calibration/status frames before the actual measurement result.
+                            // Only abort if errCode != 0 (handled above) or timeoutRunnable fires.
+                        },
+                        false
+                    )
+                } catch (e: Exception) {
+                    if (done.compareAndSet(false, true)) {
+                        MeasurementCoordinator.release(owner)
+                        clearSession()
+                        mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                    }
+                    return
                 }
-                return@acquireManualSlot
+
+                timeoutRunnable = Runnable {
+                    if (done.compareAndSet(false, true)) {
+                        try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
+                        MeasurementCoordinator.release(owner)
+                        clearSession()
+                        val fallback: Int? = synchronized(legacyCandidates) {
+                            if (legacyCandidates.isEmpty()) null
+                            else legacyCandidates.sorted()[(legacyCandidates.size - 1) / 2]
+                        }
+                        if (fallback != null) {
+                            android.util.Log.w(TAG, "readHeartRate: strict empty, returning legacy fallback=$fallback (n=${legacyCandidates.size})")
+                            result.success(fallback)
+                        } else {
+                            result.error("TIMEOUT", "Heart rate measurement timed out", null)
+                        }
+                    }
+                }
+                manualHrTimeout = timeoutRunnable
+                mainHandler.postDelayed(timeoutRunnable!!, 60_000L)
             }
 
-            timeoutRunnable = Runnable {
-                if (done.compareAndSet(false, true)) {
-                    try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
+            // Reset-first: clear a possibly stuck sensor state from a leaked prior
+            // session before starting. Best-effort stop, then settle briefly so the
+            // ring's firmware exits measuring mode before the new start goes out.
+            try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
+            mainHandler.postDelayed({
+                if (done.get()) {
                     MeasurementCoordinator.release(owner)
-                    result.error("TIMEOUT", "Heart rate measurement timed out", null)
+                    clearSession()
+                    return@postDelayed
                 }
-            }
-            mainHandler.postDelayed(timeoutRunnable!!, 60_000L)
+                startMeasurement()
+            }, 300L)
+        }
+    }
+
+    // Second-tap cancel for the HR screen. Terminates the in-flight readHeartRate
+    // (timeout removed, sensor stopped, slot freed, original result completed with
+    // CANCELLED) so the next tap starts on an idle sensor instead of BUSY.
+    private fun cancelHeartRate(result: MethodChannel.Result) {
+        val done = manualHrDone
+        val pending = manualHrResult
+        val timeout = manualHrTimeout
+        if (done == null || pending == null) {
+            result.success(false)
+            return
+        }
+        if (done.compareAndSet(false, true)) {
+            timeout?.let { mainHandler.removeCallbacks(it) }
+            try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
+            MeasurementCoordinator.release("manual")
+            manualHrDone = null
+            manualHrResult = null
+            manualHrTimeout = null
+            mainHandler.post { pending.error("CANCELLED", "Heart rate measurement cancelled", null) }
+        }
+        result.success(true)
+    }
+
+    // Shared cleanup for disconnect paths: same termination as cancel but the
+    // original result completes with DISCONNECTED so Dart can prompt reconnect.
+    private fun abortActiveManualHr(code: String, message: String) {
+        val done = manualHrDone
+        val pending = manualHrResult
+        val timeout = manualHrTimeout
+        if (done == null || pending == null) return
+        if (done.compareAndSet(false, true)) {
+            timeout?.let { mainHandler.removeCallbacks(it) }
+            try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
+            MeasurementCoordinator.release("manual")
+            manualHrDone = null
+            manualHrResult = null
+            manualHrTimeout = null
+            mainHandler.post { pending.error(code, message, null) }
         }
     }
 
@@ -1078,9 +1186,13 @@ class BlePlugin(private val context: Context) {
                         }
                         val intervalMin = try { data.interval } catch (_: Exception) { 10 }
                         val dayIdx = try { data.dayIndex } catch (_: Exception) { 0 }
+                        // SDK array may arrive as ArrayList<Number>/IntArray, not List<Int>.
                         val rawArray: List<Int> = try {
-                            @Suppress("UNCHECKED_CAST")
-                            (data.array as? List<Int>) ?: emptyList()
+                            when (val arr = data.array) {
+                                is List<*> -> arr.filterIsInstance<Number>().map { it.toInt() }
+                                is IntArray -> arr.toList()
+                                else -> emptyList()
+                            }
                         } catch (_: Exception) { emptyList() }
                         if (rawArray.isEmpty()) {
                             mainHandler.post { result.success(gson.toJson(data)) }
@@ -1139,7 +1251,13 @@ class BlePlugin(private val context: Context) {
                     if (data == null) { mainHandler.post { result.success(gson.toJson(mapOf("inserted" to 0))) }; return }
                     val intervalMin = try { data.interval } catch (_: Exception) { 10 }
                     val dayIdx = try { data.dayIndex } catch (_: Exception) { 0 }
-                    val rawArray: List<Int> = try { (data.array as? List<Int>) ?: emptyList() } catch (_: Exception) { emptyList() }
+                    val rawArray: List<Int> = try {
+                        when (val arr = data.array) {
+                            is List<*> -> arr.filterIsInstance<Number>().map { it.toInt() }
+                            is IntArray -> arr.toList()
+                            else -> emptyList()
+                        }
+                    } catch (_: Exception) { emptyList() }
                     if (rawArray.isEmpty()) { mainHandler.post { result.success(gson.toJson(data)) }; return }
                     repo().ioScope.launch {
                         var inserted = 0
@@ -1178,8 +1296,13 @@ class BlePlugin(private val context: Context) {
                     val dayIdx = try { data.dayIndex } catch (_: Exception) { 0 }
                     // IntervalTemperatureEntity has both array (List<Float>) and values (List<IntervalTemperature>)
                     val rawFloats: List<Float> = try {
-                        @Suppress("UNCHECKED_CAST")
-                        (data.array as? List<Float>) ?: emptyList()
+                        when (val arr = data.array) {
+                            is List<*> -> arr.filterIsInstance<Number>().map { it.toFloat() }
+                            is FloatArray -> arr.toList()
+                            is DoubleArray -> arr.map { it.toFloat() }
+                            is IntArray -> arr.map { it.toFloat() }
+                            else -> emptyList()
+                        }
                     } catch (_: Exception) { emptyList() }
                     val rawInts: List<Int> = rawFloats.mapNotNull { try { (it * 10).toInt() } catch (_: Exception) { null } }
                     // Fallback to values list if array empty

@@ -169,6 +169,11 @@ class BleService {
   Future<int?> readHeartRate() async =>
       _methodChannel.invokeMethod<int>('readHeartRate');
 
+  /// Cancels an in-flight [readHeartRate]. Returns true when a session was
+  /// active. The pending read completes with a CANCELLED error.
+  Future<bool> cancelHeartRate() async =>
+      await _methodChannel.invokeMethod<bool>('cancelHeartRate') ?? false;
+
   /// Ring-recorded manual heart-rate list (large-data, QRing parity).
   /// Fallback when live streaming yields nothing — returns raw JSON list
   /// of {index, data:[{m,v}]} entries.

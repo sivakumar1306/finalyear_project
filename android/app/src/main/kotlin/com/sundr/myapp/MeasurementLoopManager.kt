@@ -183,14 +183,18 @@ object MeasurementLoopManager {
             if (attemptIdHolder[0] > 0) {
                 repository.ioScope.launch {
                     try {
-                        // Success is inferred when a reading was persisted for this cycle;
-                        // timeout/rejected branches inside measure* log their own finish.
-                        // If still RUNNING here, mark success (per-vital methods override on failure).
+                        // HR now finishes its attempt explicitly (success + extractor tag,
+                        // or failed_no_data). If still RUNNING here, no reading was
+                        // persisted — record failure instead of the old false-success that
+                        // hid empty HR charts. Other vitals keep legacy success marking
+                        // until they get explicit finish paths of their own.
                         val existing = repository.attemptsForCycle(cycleId).find { it.vital == vital.name && it.status == "RUNNING" }
                         if (existing != null) {
-                            repository.finishAttempt(existing.id, "success", null, null)
-                        } else {
-                            repository.finishAttempt(attemptIdHolder[0], "success", null, null)
+                            if (vital == Vital.HEART_RATE) {
+                                repository.finishAttempt(existing.id, "failed_no_data", "no reading persisted before onDone", null)
+                            } else {
+                                repository.finishAttempt(existing.id, "success", null, null)
+                            }
                         }
                     } catch (_: Exception) {}
                 }
@@ -299,11 +303,24 @@ object MeasurementLoopManager {
         // QRing comparison: firmware interval blob is already pre-averaged; phone-side
         // polling is warm-up prone, so we relax the 8 bpm agreement to 12 bpm and use
         // lower-median (not upper-median) to avoid biasing toward early warm-up 87.
+        //
+        // Legacy fallback (pre-Aug24 mechanism): strict extraction above can yield zero
+        // candidates when firmware sends HR in an unexpected frame while getHeartRate()==0
+        // and type!=12. As a second tier we also collect legacy candidates
+        // (getHeartRate else getValue, still range-gated to 30-220) and use their median
+        // only when strict produced nothing. Tagged source=auto_cycle_fallback so the
+        // Measurement Log distinguishes them.
         val samples = mutableListOf<Int>()
+        val legacySamples = mutableListOf<Int>()
         val sampleLock = Any()
         fun extractBpm(rsp: StartHeartRateRsp): Int? {
             if (rsp.getHeartRate() > 0) return rsp.getHeartRate()
             if (rsp.type.toInt() == 12) return rsp.value
+            return null
+        }
+        fun extractLegacyBpm(rsp: StartHeartRateRsp): Int? {
+            val v = if (rsp.getHeartRate() > 0) rsp.getHeartRate() else rsp.getValue()
+            if (v > 0 && com.sundr.myapp.data.VitalRanges.isValidBpm(v)) return v
             return null
         }
         try {
@@ -322,7 +339,13 @@ object MeasurementLoopManager {
                     // and not all of them report RESULT_OK. Just wait for a genuine value;
                     // MEASURE_TIMEOUT_MS below handles the case where none ever comes.
                     val candidate = extractBpm(rsp)
-                    Log.d(TAG, "measureHeartRate: status=${rsp.status} heartRate=${rsp.getHeartRate()} value=${rsp.getValue()} candidate=$candidate")
+                    val legacyCandidate = extractLegacyBpm(rsp)
+                    Log.d(TAG, "measureHeartRate: status=${rsp.status} heartRate=${rsp.getHeartRate()} value=${rsp.getValue()} candidate=$candidate legacy=$legacyCandidate")
+                    if (legacyCandidate != null) {
+                        synchronized(sampleLock) {
+                            if (!done.get()) legacySamples.add(legacyCandidate)
+                        }
+                    }
                     if (candidate != null && com.sundr.myapp.data.VitalRanges.isValidBpm(candidate)) {
                         var accepted: Int? = null
                         synchronized(sampleLock) {
@@ -340,6 +363,7 @@ object MeasurementLoopManager {
                             persist(Vital.HEART_RATE, cycleId, accepted!!.toDouble()) {
                                 repository.insertHeartRate(accepted!!, cycleId, "auto_cycle")
                             }
+                            finishHrAttempt(cycleId, "success", null, "{\"extractor\":\"strict\",\"value\":$accepted}")
                             finishWithStop()
                         }
                     }
@@ -352,15 +376,18 @@ object MeasurementLoopManager {
             return
         }
         handler.postDelayed({
-            // Timeout: accept median of what we have. Require at least 2 samples to avoid
-            // persisting an isolated warm-up 87 when the sensor only emitted one spike.
-            // If only one sample arrived but it's plausible, we still persist it (some rings
-            // emit exactly one final value) — single-sample case kept for compatibility.
+            // Timeout tier: strict median first; then legacy median (pre-Aug24 extraction,
+            // still range-gated); else record failure so the log no longer shows false success.
             var median: Int? = null
+            var legacyMedian: Int? = null
             synchronized(sampleLock) {
                 if (samples.isNotEmpty()) {
                     val sorted = samples.sorted()
                     median = sorted[(sorted.size - 1) / 2]
+                }
+                if (legacySamples.isNotEmpty()) {
+                    val sortedLegacy = legacySamples.sorted()
+                    legacyMedian = sortedLegacy[(sortedLegacy.size - 1) / 2]
                 }
             }
             if (done.compareAndSet(false, true)) {
@@ -368,6 +395,14 @@ object MeasurementLoopManager {
                     persist(Vital.HEART_RATE, cycleId, median!!.toDouble()) {
                         repository.insertHeartRate(median!!, cycleId, "auto_cycle")
                     }
+                    finishHrAttempt(cycleId, "success", null, "{\"extractor\":\"strict_timeout\",\"value\":$median}")
+                } else if (legacyMedian != null) {
+                    persist(Vital.HEART_RATE, cycleId, legacyMedian!!.toDouble()) {
+                        repository.insertHeartRate(legacyMedian!!, cycleId, "auto_cycle_fallback")
+                    }
+                    finishHrAttempt(cycleId, "success", null, "{\"extractor\":\"legacy\",\"value\":$legacyMedian}")
+                } else {
+                    finishHrAttempt(cycleId, "failed_no_data", "strict+legacy empty after timeout", null)
                 }
                 finishWithStop()
             }
@@ -642,10 +677,25 @@ object MeasurementLoopManager {
         repository.ioScope.launch {
             try {
                 val id = insert()
-                EventBus.getDefault().post(NewReadingEvent(vital, id, cycleId, System.currentTimeMillis(), primaryValue))
+                if (id > 0) {
+                    EventBus.getDefault().post(NewReadingEvent(vital, id, cycleId, System.currentTimeMillis(), primaryValue))
+                } else {
+                    Log.w(TAG, "persist($vital) rejected (id=$id value=$primaryValue) — not posting event")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "persist($vital) failed", e)
             }
+        }
+    }
+
+    private fun finishHrAttempt(cycleId: Long, status: String, error: String?, valueJson: String?) {
+        repository.ioScope.launch {
+            try {
+                val existing = repository.attemptsForCycle(cycleId).find { it.vital == Vital.HEART_RATE.name && it.status == "RUNNING" }
+                if (existing != null) {
+                    repository.finishAttempt(existing.id, status, error, valueJson)
+                }
+            } catch (_: Exception) {}
         }
     }
 }

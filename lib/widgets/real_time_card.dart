@@ -78,7 +78,7 @@ class RealTimeCard extends StatelessWidget {
           const SizedBox(height: 12),
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: measuring ? null : onTap,
+            onTap: enabled ? onTap : null,
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -89,13 +89,27 @@ class RealTimeCard extends StatelessWidget {
               ),
               child: Center(
                 child: measuring
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: accent,
-                          strokeWidth: 2,
-                        ),
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: accent,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Tap to cancel',
+                            style: AppTypography.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.textTertiary,
+                            ),
+                          ),
+                        ],
                       )
                     : Text(
                         'Click to start measurement',

@@ -436,17 +436,28 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   }
 
   Future<void> _startMeasurement() async {
-    if (_measuring) return;
+    // Second tap while measuring cancels the in-flight native request so the
+    // sensor returns to idle and the next tap starts clean instead of BUSY.
+    if (_measuring) {
+      try {
+        await _ble.cancelHeartRate();
+      } catch (e) {
+        debugPrint('[heart_rate_screen] cancelHeartRate failed: $e');
+      }
+      if (mounted) {
+        setState(() => _measuring = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Heart rate measurement cancelled')),
+        );
+      }
+      return;
+    }
     bool isConnected = false;
     try {
       isConnected = context.read<BleProvider>().isConnected;
     } catch (_) {}
     if (!isConnected) {
-      IncidentService.reportUnhandled(
-        source: 'heart_rate_screen',
-        error: Exception('manual HR tapped while disconnected'),
-        customMessage: 'Measurement tapped while ring not connected',
-      );
+      debugPrint('[heart_rate_screen] manual HR tapped while disconnected');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -484,13 +495,19 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     }
     if (streamError != null && (hr == null || hr <= 0)) {
       // Streaming hard-failed and fallback found nothing — surface mapped error.
+      // Expected ring errors (TIMEOUT/HR_ERR/BUSY/...) stay local; only unexpected
+      // failures go to app_incidents so the table stops piling expected retries.
       if (!mounted) return;
       setState(() => _measuring = false);
-      IncidentService.reportUnhandled(
-        source: 'heart_rate_screen',
-        error: Exception(streamError),
-        customMessage: 'readHeartRate failed',
-      );
+      if (_isExpectedHrError(streamError)) {
+        debugPrint('[heart_rate_screen] readHeartRate expected failure: $streamError');
+      } else {
+        IncidentService.reportUnhandled(
+          source: 'heart_rate_screen',
+          error: Exception(streamError),
+          customMessage: 'readHeartRate failed',
+        );
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_measureErrorMessage(streamError)), backgroundColor: AppTheme.danger),
@@ -523,8 +540,13 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           );
         }
         // Persist to local Room so hourly chart + daily aggregate include it.
+        // insertHeartRate returns false when native rejects (id<=0) — surface it
+        // instead of silently recomputing an unchanged summary.
         try {
-          await _ble.insertHeartRate(valueBpm: bpm, measuredAtMs: nowMs, source: 'manual');
+          final inserted = await _ble.insertHeartRate(valueBpm: bpm, measuredAtMs: nowMs, source: 'manual');
+          if (!inserted) {
+            debugPrint('[heart_rate_screen] insertHeartRate rejected bpm=$bpm');
+          }
         } catch (e, st) {
           IncidentService.reportUnhandled(
             source: 'heart_rate_screen',
@@ -594,12 +616,18 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         }
       }
     } catch (e, st) {
-      IncidentService.reportUnhandled(
-        source: 'heart_rate_screen',
-        error: e,
-        stackTrace: st,
-        customMessage: 'readHeartRate failed',
-      );
+      // Outer guard: expected transport errors stay local, unexpected ones report.
+      final raw = e.toString();
+      if (_isExpectedHrError(raw)) {
+        debugPrint('[heart_rate_screen] readHeartRate expected error: $raw');
+      } else {
+        IncidentService.reportUnhandled(
+          source: 'heart_rate_screen',
+          error: e,
+          stackTrace: st,
+          customMessage: 'readHeartRate failed',
+        );
+      }
       if (mounted) {
         setState(() => _measuring = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -625,8 +653,26 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     if (raw.contains('HR_ERR_')) {
       return 'Ring could not read heart rate — keep ring snug, stay still and retry.';
     }
+    if (raw.contains('CANCELLED')) {
+      return 'Heart rate measurement cancelled.';
+    }
+    if (raw.contains('DISCONNECTED')) {
+      return 'Ring disconnected — reconnect and retry.';
+    }
     return 'Heart rate measurement failed: $raw';
   }
+
+  /// Expected ring/transport failures that should not flood app_incidents.
+  /// Only truly unexpected errors (parse failures, DB errors, out-of-range
+  /// values passing both extractors) are reported.
+  bool _isExpectedHrError(String raw) =>
+      raw.contains('BUSY') ||
+      raw.contains('TIMEOUT') ||
+      raw.contains('NOT_CONNECTED') ||
+      raw.contains('SDK_GUARD_OPEN') ||
+      raw.contains('CANCELLED') ||
+      raw.contains('DISCONNECTED') ||
+      raw.contains('HR_ERR_');
 
   /// Latest value from the ring-recorded manual HR entry.
   /// Returns null when empty/unparseable. Handles both the single-object
@@ -859,7 +905,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
                   unit: 'BPM',
                   accent: AppTheme.hrColor,
                   measuring: _measuring,
-                  enabled: connected && !_measuring,
+                  enabled: connected,
                   onTap: _startMeasurement,
                 ),
               ],

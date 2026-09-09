@@ -14,9 +14,13 @@ object MeasurementConfig {
     private const val KEY_CYCLE_COOLDOWN_MS = "cycle_cooldown_ms"
 
     // Default gap between the end of one auto-measurement cycle and the start of the next.
-    // Product spec: 60s as part of measurement cycle — ensures heart rate (common) populates
-    // quickly without manual tap while preserving battery/heat constraints.
-    private const val DEFAULT_CYCLE_COOLDOWN_MS = 60_000L // 60s (was 180s)
+    // 3 minutes: spaces measurements so the single BLE manual-mode slot is idle when a
+    // manual "Measure Now" tap arrives, preventing BUSY races with the auto loop while
+    // keeping heart rate (common) populating without manual taps. Battery/heat safe.
+    private const val DEFAULT_CYCLE_COOLDOWN_MS = 180_000L // 3 min (was 60s)
+    // One-time migration: devices that stored the old 60s default keep it forever via
+    // prefs, so map it to the new default on read and persist the upgrade.
+    private const val LEGACY_DEFAULT_CYCLE_COOLDOWN_MS = 60_000L
 
     // Sanity bounds so a bad value (e.g. a stray 0 or a typo like "300" meaning ms instead
     // of seconds) can't make the loop spin constantly or effectively stop running.
@@ -57,6 +61,10 @@ object MeasurementConfig {
     // BlePlugin.getCycleCooldownMs/setCycleCooldownMs) so it can be tuned without a rebuild.
     fun getCycleCooldownMs(): Long {
         val stored = prefs?.getLong(KEY_CYCLE_COOLDOWN_MS, DEFAULT_CYCLE_COOLDOWN_MS) ?: DEFAULT_CYCLE_COOLDOWN_MS
+        if (stored == LEGACY_DEFAULT_CYCLE_COOLDOWN_MS) {
+            prefs?.edit()?.putLong(KEY_CYCLE_COOLDOWN_MS, DEFAULT_CYCLE_COOLDOWN_MS)?.apply()
+            return DEFAULT_CYCLE_COOLDOWN_MS
+        }
         return stored.coerceIn(MIN_CYCLE_COOLDOWN_MS, MAX_CYCLE_COOLDOWN_MS)
     }
 
