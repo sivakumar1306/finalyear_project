@@ -1812,21 +1812,38 @@ class BlePlugin(private val context: Context) {
     }
 
     private fun syncSleep(result: MethodChannel.Result) {
+        val done = AtomicBoolean(false)
+        var timeoutRunnable: Runnable? = null
+
+        fun respond(json: String) {
+            if (done.compareAndSet(false, true)) {
+                timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+                mainHandler.post { result.success(json) }
+            }
+        }
+
         LargeDataHandler.getInstance().syncSleepList(
             0,
             object : ILargeDataSleepResponse {
                 override fun sleepData(p0: SleepDisplay?) {
-                    val json = if (p0 != null) gson.toJson(sleepDisplayToMap(p0)) else "{}"
-                    mainHandler.post { result.success(json) }
+                    if (p0 != null) {
+                        respond(gson.toJson(sleepDisplayToMap(p0)))
+                    }
                 }
             },
             object : ILargeDataLaunchSleepResponse {
                 override fun sleepData(p0: SleepNewProtoResp?) {
-                    val json = if (p0 != null) gson.toJson(sleepNewProtoToMap(p0)) else "{}"
-                    mainHandler.post { result.success(json) }
+                    if (p0 != null) {
+                        respond(gson.toJson(sleepNewProtoToMap(p0)))
+                    }
                 }
             }
         )
+
+        timeoutRunnable = Runnable {
+            respond("{}")
+        }
+        mainHandler.postDelayed(timeoutRunnable!!, 10_000L)
     }
 
     // ─────────────────────────────────────────────────────────────────

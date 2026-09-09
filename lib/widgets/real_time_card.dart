@@ -89,8 +89,9 @@ class RealTimeCard extends StatelessWidget {
               ),
               child: Center(
                 child: measuring
-                    ? Column(
+                    ? Row(
                         mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           SizedBox(
                             width: 20,
@@ -100,7 +101,7 @@ class RealTimeCard extends StatelessWidget {
                               strokeWidth: 2,
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(width: 8),
                           Text(
                             'Tap to cancel',
                             style: AppTypography.inter(

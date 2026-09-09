@@ -7,6 +7,7 @@ import '../services/ble_service.dart';
 import '../services/goal_prefs.dart';
 import '../services/health_connect_service.dart';
 import '../services/health_engine/health_engine.dart';
+import '../services/health_engine/sleep_engine.dart';
 import '../services/health_engine/models.dart';
 import '../services/incident_service.dart';
 import '../services/notification_prefs.dart';
@@ -1707,8 +1708,15 @@ Future<void> syncAllFromRing() async {
 
       // 2. Sleep (33% → 66%)
       try {
-        final json = await _ble.getTodaySleep().timeout(kTimeout);
-        _parseAndSaveSleep(json);
+        final json1 = await _ble.getTodaySleep().timeout(kTimeout);
+        _parseAndSaveSleep(json1);
+      } catch (e, st) {
+        _recordError(e, st);
+      }
+      if (!alive()) return;
+      try {
+        final json2 = await _ble.syncSleep().timeout(const Duration(seconds: 15));
+        _parseAndSaveSleep(json2);
       } catch (e, st) {
         _recordError(e, st);
       }
@@ -1807,25 +1815,17 @@ void _parseAndSaveHrv(String jsonStr) {
 
   void _parseAndSaveSleep(String jsonStr) {
     try {
-      final d = jsonDecode(jsonStr) as Map<String, dynamic>;
-      final total = (d['totalSleepDuration'] as num? ?? 0).toInt();
-      final deep = (d['deepDuration'] as num? ?? 0).toInt();
-      final light = (d['lightDuration'] as num? ?? 0).toInt();
-      final rem = (d['remDuration'] as num? ?? 0).toInt();
-      final awake = (d['awakeDuration'] as num? ?? 0).toInt();
-      final st = (d['sleepTime'] as num? ?? 0).toInt();
-      final et = (d['wakeTime'] as num? ?? 0).toInt();
-      if (total <= 0) return;
-      final score = HealthEngine.instance.calcSleepScore(total: total, deep: deep, rem: rem, st: st, et: et);
-      _todaySleepDuration = total;
-      _todaySleepScore = score;
-      _todaySleepDeepSecs = deep;
-      _todaySleepLightSecs = light;
-      _todaySleepRemSecs = rem;
+      final res = SleepEngine.parseSleepData(jsonStr);
+      if (!res.hasData) return;
+      _todaySleepDuration = res.total;
+      _todaySleepScore = res.score;
+      _todaySleepDeepSecs = res.deep;
+      _todaySleepLightSecs = res.light;
+      _todaySleepRemSecs = res.rem;
       notifyListeners();
-      _saveSleepToDb(total, deep, light, rem, awake, score, st, et);
+      _saveSleepToDb(res.total, res.deep, res.light, res.rem, res.awake, res.score, res.st, res.et);
       // Two-way sync: push last night's sleep into Health Connect.
-      unawaited(_pushSleepToHealthConnect(st, et, deep, light, rem, awake));
+      unawaited(_pushSleepToHealthConnect(res.st, res.et, res.deep, res.light, res.rem, res.awake));
     } catch (e, st) {
       _recordError(e, st);
     }
