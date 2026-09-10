@@ -11,6 +11,7 @@ import android.content.SharedPreferences
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.google.gson.Gson
@@ -198,13 +199,19 @@ class WorkoutService : Service() {
     }
 
     private fun syncSteps() {
+        // Best-effort periodic read: skip the tick when a measurement owns the
+        // shared SDK slot instead of firing a colliding command (vendor NPE).
+        if (!MeasurementCoordinator.tryAcquireRead()) return
         try {
+            Log.d("WorkoutService", "sdk> getTodayStepDetail (workout)")
             CommandHandle.getInstance().executeReqCmd(
                 SimpleKeyReq(Constants.CMD_GET_STEP_TODAY),
                 ICommandResponse<BaseRspCmd> { _ ->
                     BleOperateManager.getInstance().getTodayStepDetail(
                         object : BleOperateManager.HealthDataCallback<List<BleStepDetails>> {
-                            override fun onSuccess(data: List<BleStepDetails>) {
+                            override fun onSuccess(data: List<BleStepDetails>?) {
+                                MeasurementCoordinator.releaseRead()
+                                if (data == null) return
                                 val json = gson.toJson(data)
                                 val arr = gson.fromJson(json, JsonArray::class.java) ?: return
                                 var totalSteps = 0
@@ -227,19 +234,29 @@ class WorkoutService : Service() {
                                     .putString("flutter.workout_current_distance", maxOf(0.0, totalDist - baseDist).toString())
                                     .apply()
                             }
-                            override fun onError(code: Int, message: String?) {}
+                            override fun onError(code: Int, message: String?) {
+                                MeasurementCoordinator.releaseRead()
+                            }
                         }
                     )
                 }
             )
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            MeasurementCoordinator.releaseRead()
+        }
     }
 
     private fun readLatestHr() {
+        // Best-effort periodic read: skip the tick when a measurement owns the
+        // shared SDK slot instead of firing a colliding command (vendor NPE).
+        if (!MeasurementCoordinator.tryAcquireRead()) return
         try {
+            Log.d("WorkoutService", "sdk> getTodayHeartRate (workout)")
             BleOperateManager.getInstance().getTodayHeartRate(
                 object : BleOperateManager.HealthDataCallback<ReadHeartRateRsp> {
-                    override fun onSuccess(data: ReadHeartRateRsp) {
+                    override fun onSuccess(data: ReadHeartRateRsp?) {
+                        MeasurementCoordinator.releaseRead()
+                        if (data == null) return
                         val json = gson.toJson(data)
                         val obj = gson.fromJson(json, com.google.gson.JsonObject::class.java) ?: return
                         val arr = obj.get("e")?.asJsonArray ?: return
@@ -254,10 +271,14 @@ class WorkoutService : Service() {
                             prefs.edit().putLong("flutter.workout_latest_hr", latest.toLong()).apply()
                         }
                     }
-                    override fun onError(code: Int, message: String?) {}
+                    override fun onError(code: Int, message: String?) {
+                        MeasurementCoordinator.releaseRead()
+                    }
                 }
             )
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            MeasurementCoordinator.releaseRead()
+        }
     }
 
     private fun measureSpo2() {

@@ -140,6 +140,10 @@ class BlePlugin(private val context: Context) {
         private const val INIT_MAX_ATTEMPTS = 3
         private const val MANUAL_ACQUIRE_POLL_MS = 300L
         private const val MANUAL_ACQUIRE_TIMEOUT_MS = 8_000L
+        // Passive reads wait for the shared SDK slot (without preempting
+        // measurements) only briefly — Dart-side timeouts start at 8s.
+        private const val READ_ACQUIRE_POLL_MS = 250L
+        private const val READ_ACQUIRE_TIMEOUT_MS = 5_000L
         // How often to re-send ACTION_KEEP_SCREEN_ON while the ring camera UI is active —
         // per the SDK docs, the ring's screen would otherwise dim/sleep on its own.
         private const val CAMERA_KEEP_ALIVE_MS = 2_000L
@@ -884,66 +888,132 @@ class BlePlugin(private val context: Context) {
         mainHandler.postDelayed({ poll() }, MANUAL_ACQUIRE_POLL_MS)
     }
 
+    // Passive-read preamble for all getToday*/get*/list ring reads. Drops fast when
+    // the ring can't serve (circuit open / disconnected); otherwise waits briefly for
+    // the shared SDK slot WITHOUT preempting measurements (unlike acquireManualSlot),
+    // then runs the caller's block with the "read" slot held — the block must call
+    // releaseReadSlot() on every terminal path. Logs a breadcrumb so any future
+    // vendor-SDK crash log shows exactly which SDK call was last issued.
+    private fun acquireReadSlot(name: String, result: MethodChannel.Result, onAcquired: () -> Unit) {
+        if (com.sundr.myapp.sdk.SdkGuard.isOpen()) {
+            result.error("SDK_GUARD_OPEN", "Sensor busy, try again shortly", null)
+            return
+        }
+        if (!com.sundr.myapp.sdk.BleSdkLifecycle.isConnected()) {
+            result.error("NOT_CONNECTED", "Ring not connected", null)
+            return
+        }
+        val deadline = System.currentTimeMillis() + READ_ACQUIRE_TIMEOUT_MS
+        fun poll() {
+            if (MeasurementCoordinator.tryAcquireRead()) {
+                Log.d(TAG, "sdk> $name")
+                onAcquired()
+                return
+            }
+            if (System.currentTimeMillis() >= deadline) {
+                result.error("BUSY", "Sensor busy, try again shortly", null)
+                return
+            }
+            mainHandler.postDelayed({ poll() }, READ_ACQUIRE_POLL_MS)
+        }
+        poll()
+    }
+
+    private fun releaseReadSlot() {
+        MeasurementCoordinator.releaseRead()
+    }
+
     // ─────────────────────────────────────────────────────────────────
     // Heart Rate
     // ─────────────────────────────────────────────────────────────────
 
     private fun getTodayHeartRate(result: MethodChannel.Result) {
-        val done = java.util.concurrent.atomic.AtomicBoolean(false)
-        try {
-            BleOperateManager.getInstance().getTodayHeartRate(
-                object : BleOperateManager.HealthDataCallback<ReadHeartRateRsp> {
-                    override fun onSuccess(data: ReadHeartRateRsp?) {
-                        if (done.compareAndSet(false, true))
-                            mainHandler.post { result.success(if (data != null) gson.toJson(data) else "{}") }
+        acquireReadSlot("getTodayHeartRate", result) {
+            val done = java.util.concurrent.atomic.AtomicBoolean(false)
+            try {
+                BleOperateManager.getInstance().getTodayHeartRate(
+                    object : BleOperateManager.HealthDataCallback<ReadHeartRateRsp> {
+                        override fun onSuccess(data: ReadHeartRateRsp?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                mainHandler.post { result.success(if (data != null) gson.toJson(data) else "{}") }
+                            }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                            }
+                        }
                     }
-                    override fun onError(code: Int, message: String?) {
-                        if (done.compareAndSet(false, true))
-                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                    }
+                )
+            } catch (e: Exception) {
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                    return@acquireReadSlot
                 }
-            )
-        } catch (e: Exception) {
-            if (done.compareAndSet(false, true)) {
-                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
-                return
             }
+            mainHandler.postDelayed({
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    result.error("TIMEOUT", "Heart rate data fetch timed out", null)
+                }
+            }, 20_000L)
         }
-        mainHandler.postDelayed({
-            if (done.compareAndSet(false, true))
-                result.error("TIMEOUT", "Heart rate data fetch timed out", null)
-        }, 20_000L)
     }
 
     private fun getHeartRate(call: MethodCall, result: MethodChannel.Result) {
         val dayIndex = call.argument<Int>("dayIndex") ?: 0
-        BleOperateManager.getInstance().getHeartRate(
-            dayIndex,
-            object : BleOperateManager.HealthDataCallback<ReadHeartRateRsp> {
-                override fun onSuccess(data: ReadHeartRateRsp) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getHeartRate dayIndex=$dayIndex", result) {
+            try {
+                BleOperateManager.getInstance().getHeartRate(
+                    dayIndex,
+                    object : BleOperateManager.HealthDataCallback<ReadHeartRateRsp> {
+                        override fun onSuccess(data: ReadHeartRateRsp?) {
+                            releaseReadSlot()
+                            if (data == null) {
+                                mainHandler.post { result.error("EMPTY", "No heart rate data", null) }
+                                return
+                            }
+                            mainHandler.post { result.success(gson.toJson(data)) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getHeartRates(call: MethodCall, result: MethodChannel.Result) {
         val startDay = call.argument<Int>("startDay") ?: 0
         val count = call.argument<Int>("count") ?: 1
-        BleOperateManager.getInstance().getHeartRates(
-            startDay, count,
-            object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<ReadHeartRateRsp>>> {
-                override fun onSuccess(data: List<BleOperateManager.DayIndexedData<ReadHeartRateRsp>>) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getHeartRates startDay=$startDay count=$count", result) {
+            try {
+                BleOperateManager.getInstance().getHeartRates(
+                    startDay, count,
+                    object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<ReadHeartRateRsp>>> {
+                        override fun onSuccess(data: List<BleOperateManager.DayIndexedData<ReadHeartRateRsp>>?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleOperateManager.DayIndexedData<ReadHeartRateRsp>>())) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getHeartRateSetting(result: MethodChannel.Result) {
@@ -1354,58 +1424,89 @@ class BlePlugin(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────
 
     private fun getTodayBloodPressure(result: MethodChannel.Result) {
-        val done = AtomicBoolean(false)
-        BleOperateManager.getInstance().getTodayBloodPressure(
-            object : BleOperateManager.HealthDataCallback<List<BlePressure>> {
-                override fun onSuccess(data: List<BlePressure>?) {
-                    if (done.compareAndSet(false, true)) {
-                        val mapped = (data ?: emptyList()).map { p: BlePressure -> mapOf("sbp" to p.sbp, "dbp" to p.dbp, "time" to p.time) }
-                        mainHandler.post { result.success(gson.toJson(mapped)) }
+        acquireReadSlot("getTodayBloodPressure", result) {
+            val done = AtomicBoolean(false)
+            try {
+                BleOperateManager.getInstance().getTodayBloodPressure(
+                    object : BleOperateManager.HealthDataCallback<List<BlePressure>> {
+                        override fun onSuccess(data: List<BlePressure>?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                val mapped = (data ?: emptyList()).map { p: BlePressure -> mapOf("sbp" to p.sbp, "dbp" to p.dbp, "time" to p.time) }
+                                mainHandler.post { result.success(gson.toJson(mapped)) }
+                            }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                            }
+                        }
                     }
-                }
-                override fun onError(code: Int, message: String?) {
-                    if (done.compareAndSet(false, true)) {
-                        mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                    }
+                )
+            } catch (e: Exception) {
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                    return@acquireReadSlot
                 }
             }
-        )
-        mainHandler.postDelayed({
-            if (done.compareAndSet(false, true)) {
-                result.error("TIMEOUT", "Blood pressure data fetch timed out", null)
-            }
-        }, 30000)
+            mainHandler.postDelayed({
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    result.error("TIMEOUT", "Blood pressure data fetch timed out", null)
+                }
+            }, 30000)
+        }
     }
 
     private fun getBloodPressure(call: MethodCall, result: MethodChannel.Result) {
         val dayIndex = call.argument<Int>("dayIndex") ?: 0
-        BleOperateManager.getInstance().getBloodPressure(
-            dayIndex,
-            object : BleOperateManager.HealthDataCallback<List<BlePressure>> {
-                override fun onSuccess(data: List<BlePressure>) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getBloodPressure dayIndex=$dayIndex", result) {
+            try {
+                BleOperateManager.getInstance().getBloodPressure(
+                    dayIndex,
+                    object : BleOperateManager.HealthDataCallback<List<BlePressure>> {
+                        override fun onSuccess(data: List<BlePressure>?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BlePressure>())) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getBloodPressures(call: MethodCall, result: MethodChannel.Result) {
         val startDay = call.argument<Int>("startDay") ?: 0
         val count = call.argument<Int>("count") ?: 1
-        BleOperateManager.getInstance().getBloodPressures(
-            startDay, count,
-            object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<List<BlePressure>>>> {
-                override fun onSuccess(data: List<BleOperateManager.DayIndexedData<List<BlePressure>>>) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getBloodPressures startDay=$startDay count=$count", result) {
+            try {
+                BleOperateManager.getInstance().getBloodPressures(
+                    startDay, count,
+                    object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<List<BlePressure>>>> {
+                        override fun onSuccess(data: List<BleOperateManager.DayIndexedData<List<BlePressure>>>?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleOperateManager.DayIndexedData<List<BlePressure>>>())) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getBloodPressureSetting(result: MethodChannel.Result) {
@@ -1485,75 +1586,103 @@ class BlePlugin(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────
 
     private fun getTodayBloodOxygen(result: MethodChannel.Result) {
-        val done = AtomicBoolean(false)
-        try {
-            BleOperateManager.getInstance().getTodayBloodOxygen(
-                object : BleOperateManager.HealthDataCallback<BloodOxygenEntity> {
-                    override fun onSuccess(data: BloodOxygenEntity?) {
-                        if (done.compareAndSet(false, true)) {
-                            if (data == null) { mainHandler.post { result.success("{}") }; return }
-                            try {
-                                val map = mapOf(
-                                    "dateStr"   to (data.getDateStr() ?: ""),
-                                    "maxArray"  to (data.getMaxArray()  ?: emptyList<Int>()),
-                                    "minArray"  to (data.getMinArray()  ?: emptyList<Int>()),
-                                    "unix_time" to data.getUnix_time()
-                                )
-                                mainHandler.post { result.success(gson.toJson(map)) }
-                            } catch (e: Exception) {
-                                mainHandler.post { result.error("PARSE_FAILED", e.message, null) }
+        acquireReadSlot("getTodayBloodOxygen", result) {
+            val done = AtomicBoolean(false)
+            try {
+                BleOperateManager.getInstance().getTodayBloodOxygen(
+                    object : BleOperateManager.HealthDataCallback<BloodOxygenEntity> {
+                        override fun onSuccess(data: BloodOxygenEntity?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                if (data == null) { mainHandler.post { result.success("{}") }; return }
+                                try {
+                                    val map = mapOf(
+                                        "dateStr"   to (data.getDateStr() ?: ""),
+                                        "maxArray"  to (data.getMaxArray()  ?: emptyList<Int>()),
+                                        "minArray"  to (data.getMinArray()  ?: emptyList<Int>()),
+                                        "unix_time" to data.getUnix_time()
+                                    )
+                                    mainHandler.post { result.success(gson.toJson(map)) }
+                                } catch (e: Exception) {
+                                    mainHandler.post { result.error("PARSE_FAILED", e.message, null) }
+                                }
+                            }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
                             }
                         }
                     }
-                    override fun onError(code: Int, message: String?) {
-                        if (done.compareAndSet(false, true)) {
-                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                        }
-                    }
+                )
+            } catch (e: Exception) {
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                    return@acquireReadSlot
                 }
-            )
-        } catch (e: Exception) {
-            if (done.compareAndSet(false, true)) {
-                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
-                return
             }
+            mainHandler.postDelayed({
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    result.error("TIMEOUT", "Blood oxygen data fetch timed out", null)
+                }
+            }, 30000)
         }
-        mainHandler.postDelayed({
-            if (done.compareAndSet(false, true)) {
-                result.error("TIMEOUT", "Blood oxygen data fetch timed out", null)
-            }
-        }, 30000)
     }
 
     private fun getBloodOxygen(call: MethodCall, result: MethodChannel.Result) {
         val dayIndex = call.argument<Int>("dayIndex") ?: 0
-        BleOperateManager.getInstance().getBloodOxygen(
-            dayIndex,
-            object : BleOperateManager.HealthDataCallback<BloodOxygenEntity> {
-                override fun onSuccess(data: BloodOxygenEntity) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getBloodOxygen dayIndex=$dayIndex", result) {
+            try {
+                BleOperateManager.getInstance().getBloodOxygen(
+                    dayIndex,
+                    object : BleOperateManager.HealthDataCallback<BloodOxygenEntity> {
+                        override fun onSuccess(data: BloodOxygenEntity?) {
+                            releaseReadSlot()
+                            if (data == null) {
+                                mainHandler.post { result.success("{}") }
+                                return
+                            }
+                            mainHandler.post { result.success(gson.toJson(data)) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getBloodOxygens(call: MethodCall, result: MethodChannel.Result) {
         val startDay = call.argument<Int>("startDay") ?: 0
         val count = call.argument<Int>("count") ?: 1
-        BleOperateManager.getInstance().getBloodOxygens(
-            startDay, count,
-            object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<BloodOxygenEntity>>> {
-                override fun onSuccess(data: List<BleOperateManager.DayIndexedData<BloodOxygenEntity>>) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getBloodOxygens startDay=$startDay count=$count", result) {
+            try {
+                BleOperateManager.getInstance().getBloodOxygens(
+                    startDay, count,
+                    object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<BloodOxygenEntity>>> {
+                        override fun onSuccess(data: List<BleOperateManager.DayIndexedData<BloodOxygenEntity>>?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleOperateManager.DayIndexedData<BloodOxygenEntity>>())) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getBloodOxygenSetting(result: MethodChannel.Result) {
@@ -1633,55 +1762,81 @@ class BlePlugin(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────
 
     private fun getTodaySteps(result: MethodChannel.Result) {
-        val done = AtomicBoolean(false)
-        try {
-            BleOperateManager.getInstance().getTodayStepDetail(
-                object : BleOperateManager.HealthDataCallback<List<BleStepDetails>> {
-                    override fun onSuccess(data: List<BleStepDetails>) {
-                        if (done.compareAndSet(false, true))
-                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleStepDetails>())) }
+        acquireReadSlot("getTodaySteps", result) {
+            val done = AtomicBoolean(false)
+            try {
+                BleOperateManager.getInstance().getTodayStepDetail(
+                    object : BleOperateManager.HealthDataCallback<List<BleStepDetails>> {
+                        override fun onSuccess(data: List<BleStepDetails>?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleStepDetails>())) }
+                            }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                            }
+                        }
                     }
-                    override fun onError(code: Int, message: String?) {
-                        if (done.compareAndSet(false, true))
-                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                    }
+                )
+            } catch (e: Exception) {
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
                 }
-            )
-        } catch (e: Exception) {
-            if (done.compareAndSet(false, true))
-                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+            }
         }
     }
 
     private fun getSteps(call: MethodCall, result: MethodChannel.Result) {
         val dayIndex = call.argument<Int>("dayIndex") ?: 0
-        BleOperateManager.getInstance().getStepDetail(
-            dayIndex,
-            object : BleOperateManager.HealthDataCallback<List<BleStepDetails>> {
-                override fun onSuccess(data: List<BleStepDetails>) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getSteps dayIndex=$dayIndex", result) {
+            try {
+                BleOperateManager.getInstance().getStepDetail(
+                    dayIndex,
+                    object : BleOperateManager.HealthDataCallback<List<BleStepDetails>> {
+                        override fun onSuccess(data: List<BleStepDetails>?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleStepDetails>())) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getStepsList(call: MethodCall, result: MethodChannel.Result) {
         val startDay = call.argument<Int>("startDay") ?: 0
         val count = call.argument<Int>("count") ?: 1
-        BleOperateManager.getInstance().getStepDetails(
-            startDay, count,
-            object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<List<BleStepDetails>>>> {
-                override fun onSuccess(data: List<BleOperateManager.DayIndexedData<List<BleStepDetails>>>) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getStepsList startDay=$startDay count=$count", result) {
+            try {
+                BleOperateManager.getInstance().getStepDetails(
+                    startDay, count,
+                    object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<List<BleStepDetails>>>> {
+                        override fun onSuccess(data: List<BleOperateManager.DayIndexedData<List<BleStepDetails>>>?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleOperateManager.DayIndexedData<List<BleStepDetails>>>())) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun syncTodaySteps(result: MethodChannel.Result) {
@@ -1743,13 +1898,60 @@ class BlePlugin(private val context: Context) {
     }
 
     private fun getTodaySleep(result: MethodChannel.Result) {
-        val done = AtomicBoolean(false)
-        try {
-            BleOperateManager.getInstance().getTodaySleep(
-                object : BleOperateManager.HealthDataCallback<SleepDisplay> {
-                    override fun onSuccess(data: SleepDisplay?) {
-                        if (done.compareAndSet(false, true)) {
-                            if (data == null) { mainHandler.post { result.success("{}") }; return }
+        acquireReadSlot("getTodaySleep", result) {
+            val done = AtomicBoolean(false)
+            try {
+                BleOperateManager.getInstance().getTodaySleep(
+                    object : BleOperateManager.HealthDataCallback<SleepDisplay> {
+                        override fun onSuccess(data: SleepDisplay?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                if (data == null) { mainHandler.post { result.success("{}") }; return }
+                                try {
+                                    val json = gson.toJson(sleepDisplayToMap(data))
+                                    mainHandler.post { result.success(json) }
+                                } catch (e: Exception) {
+                                    mainHandler.post { result.error("PARSE_FAILED", e.message, null) }
+                                }
+                            }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                            }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                    return@acquireReadSlot
+                }
+            }
+            mainHandler.postDelayed({
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    result.error("TIMEOUT", "Sleep data fetch timed out", null)
+                }
+            }, 20_000L)
+        }
+    }
+
+    private fun getSleep(call: MethodCall, result: MethodChannel.Result) {
+        val dayIndex = call.argument<Int>("dayIndex") ?: 0
+        acquireReadSlot("getSleep dayIndex=$dayIndex", result) {
+            try {
+                BleOperateManager.getInstance().getSleep(
+                    dayIndex,
+                    object : BleOperateManager.HealthDataCallback<SleepDisplay> {
+                        override fun onSuccess(data: SleepDisplay?) {
+                            releaseReadSlot()
+                            if (data == null) {
+                                mainHandler.post { result.success("{}") }
+                                return
+                            }
                             try {
                                 val json = gson.toJson(sleepDisplayToMap(data))
                                 mainHandler.post { result.success(json) }
@@ -1757,61 +1959,46 @@ class BlePlugin(private val context: Context) {
                                 mainHandler.post { result.error("PARSE_FAILED", e.message, null) }
                             }
                         }
-                    }
-                    override fun onError(code: Int, message: String?) {
-                        if (done.compareAndSet(false, true))
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
                             mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
                     }
-                }
-            )
-        } catch (e: Exception) {
-            if (done.compareAndSet(false, true))
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
                 mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
-            return
-        }
-        mainHandler.postDelayed({
-            if (done.compareAndSet(false, true))
-                result.error("TIMEOUT", "Sleep data fetch timed out", null)
-        }, 20_000L)
-    }
-
-    private fun getSleep(call: MethodCall, result: MethodChannel.Result) {
-        val dayIndex = call.argument<Int>("dayIndex") ?: 0
-        BleOperateManager.getInstance().getSleep(
-            dayIndex,
-            object : BleOperateManager.HealthDataCallback<SleepDisplay> {
-                override fun onSuccess(data: SleepDisplay) {
-                    try {
-                        val json = gson.toJson(sleepDisplayToMap(data))
-                        mainHandler.post { result.success(json) }
-                    } catch (e: Exception) {
-                        mainHandler.post { result.error("PARSE_FAILED", e.message, null) }
-                    }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
             }
-        )
+        }
     }
 
     private fun getSleepList(call: MethodCall, result: MethodChannel.Result) {
         val startDay = call.argument<Int>("startDay") ?: 0
         val count = call.argument<Int>("count") ?: 1
-        BleOperateManager.getInstance().getSleeps(
-            startDay, count,
-            object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<SleepDisplay>>> {
-                override fun onSuccess(data: List<BleOperateManager.DayIndexedData<SleepDisplay>>) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getSleepList startDay=$startDay count=$count", result) {
+            try {
+                BleOperateManager.getInstance().getSleeps(
+                    startDay, count,
+                    object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<SleepDisplay>>> {
+                        override fun onSuccess(data: List<BleOperateManager.DayIndexedData<SleepDisplay>>?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleOperateManager.DayIndexedData<SleepDisplay>>())) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun syncSleep(result: MethodChannel.Result) {
+        Log.d(TAG, "sdk> syncSleep")
         val done = AtomicBoolean(false)
         var timeoutRunnable: Runnable? = null
 
@@ -1851,61 +2038,92 @@ class BlePlugin(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────
 
     private fun getTodayHrv(result: MethodChannel.Result) {
-        val done = java.util.concurrent.atomic.AtomicBoolean(false)
-        try {
-            BleOperateManager.getInstance().getTodayHrv(
-                object : BleOperateManager.HealthDataCallback<HRVRsp> {
-                    override fun onSuccess(data: HRVRsp?) {
-                        if (done.compareAndSet(false, true))
-                            mainHandler.post { result.success(if (data != null) gson.toJson(data) else "{}") }
+        acquireReadSlot("getTodayHrv", result) {
+            val done = java.util.concurrent.atomic.AtomicBoolean(false)
+            try {
+                BleOperateManager.getInstance().getTodayHrv(
+                    object : BleOperateManager.HealthDataCallback<HRVRsp> {
+                        override fun onSuccess(data: HRVRsp?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                mainHandler.post { result.success(if (data != null) gson.toJson(data) else "{}") }
+                            }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                            }
+                        }
                     }
-                    override fun onError(code: Int, message: String?) {
-                        if (done.compareAndSet(false, true))
-                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                    }
+                )
+            } catch (e: Exception) {
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                    return@acquireReadSlot
                 }
-            )
-        } catch (e: Exception) {
-            if (done.compareAndSet(false, true)) {
-                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
-                return
             }
+            mainHandler.postDelayed({
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    result.error("TIMEOUT", "HRV data fetch timed out", null)
+                }
+            }, 20_000L)
         }
-        mainHandler.postDelayed({
-            if (done.compareAndSet(false, true))
-                result.error("TIMEOUT", "HRV data fetch timed out", null)
-        }, 20_000L)
     }
 
     private fun getHrv(call: MethodCall, result: MethodChannel.Result) {
         val dayIndex = call.argument<Int>("dayIndex") ?: 0
-        BleOperateManager.getInstance().getHrv(
-            dayIndex,
-            object : BleOperateManager.HealthDataCallback<HRVRsp> {
-                override fun onSuccess(data: HRVRsp) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getHrv dayIndex=$dayIndex", result) {
+            try {
+                BleOperateManager.getInstance().getHrv(
+                    dayIndex,
+                    object : BleOperateManager.HealthDataCallback<HRVRsp> {
+                        override fun onSuccess(data: HRVRsp?) {
+                            releaseReadSlot()
+                            if (data == null) {
+                                mainHandler.post { result.success("{}") }
+                                return
+                            }
+                            mainHandler.post { result.success(gson.toJson(data)) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getHrvList(call: MethodCall, result: MethodChannel.Result) {
         val startDay = call.argument<Int>("startDay") ?: 0
         val count = call.argument<Int>("count") ?: 1
-        BleOperateManager.getInstance().getHrvs(
-            startDay, count,
-            object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<HRVRsp>>> {
-                override fun onSuccess(data: List<BleOperateManager.DayIndexedData<HRVRsp>>) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getHrvList startDay=$startDay count=$count", result) {
+            try {
+                BleOperateManager.getInstance().getHrvs(
+                    startDay, count,
+                    object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<HRVRsp>>> {
+                        override fun onSuccess(data: List<BleOperateManager.DayIndexedData<HRVRsp>>?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleOperateManager.DayIndexedData<HRVRsp>>())) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getHrvSetting(result: MethodChannel.Result) {
@@ -1983,54 +2201,92 @@ class BlePlugin(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────
 
     private fun getTodayPressure(result: MethodChannel.Result) {
-        val done = java.util.concurrent.atomic.AtomicBoolean(false)
-        BleOperateManager.getInstance().getTodayPressure(
-            object : BleOperateManager.HealthDataCallback<PressureRsp> {
-                override fun onSuccess(data: PressureRsp?) {
-                    if (done.compareAndSet(false, true))
-                        mainHandler.post { result.success(if (data != null) gson.toJson(data) else "{}") }
-                }
-                override fun onError(code: Int, message: String?) {
-                    if (done.compareAndSet(false, true))
-                        mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+        acquireReadSlot("getTodayPressure", result) {
+            val done = java.util.concurrent.atomic.AtomicBoolean(false)
+            try {
+                BleOperateManager.getInstance().getTodayPressure(
+                    object : BleOperateManager.HealthDataCallback<PressureRsp> {
+                        override fun onSuccess(data: PressureRsp?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                mainHandler.post { result.success(if (data != null) gson.toJson(data) else "{}") }
+                            }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                            }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                    return@acquireReadSlot
                 }
             }
-        )
-        mainHandler.postDelayed({
-            if (done.compareAndSet(false, true))
-                result.error("TIMEOUT", "Pressure data fetch timed out", null)
-        }, 20_000L)
+            mainHandler.postDelayed({
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    result.error("TIMEOUT", "Pressure data fetch timed out", null)
+                }
+            }, 20_000L)
+        }
     }
 
     private fun getPressure(call: MethodCall, result: MethodChannel.Result) {
         val dayIndex = call.argument<Int>("dayIndex") ?: 0
-        BleOperateManager.getInstance().getPressure(
-            dayIndex,
-            object : BleOperateManager.HealthDataCallback<PressureRsp> {
-                override fun onSuccess(data: PressureRsp) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getPressure dayIndex=$dayIndex", result) {
+            try {
+                BleOperateManager.getInstance().getPressure(
+                    dayIndex,
+                    object : BleOperateManager.HealthDataCallback<PressureRsp> {
+                        override fun onSuccess(data: PressureRsp?) {
+                            releaseReadSlot()
+                            if (data == null) {
+                                mainHandler.post { result.success("{}") }
+                                return
+                            }
+                            mainHandler.post { result.success(gson.toJson(data)) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getPressureList(call: MethodCall, result: MethodChannel.Result) {
         val startDay = call.argument<Int>("startDay") ?: 0
         val count = call.argument<Int>("count") ?: 1
-        BleOperateManager.getInstance().getPressures(
-            startDay, count,
-            object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<PressureRsp>>> {
-                override fun onSuccess(data: List<BleOperateManager.DayIndexedData<PressureRsp>>) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getPressureList startDay=$startDay count=$count", result) {
+            try {
+                BleOperateManager.getInstance().getPressures(
+                    startDay, count,
+                    object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<PressureRsp>>> {
+                        override fun onSuccess(data: List<BleOperateManager.DayIndexedData<PressureRsp>>?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleOperateManager.DayIndexedData<PressureRsp>>())) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getPressureSetting(result: MethodChannel.Result) {
@@ -2104,50 +2360,77 @@ class BlePlugin(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────
 
     private fun getTodayTemperature(result: MethodChannel.Result) {
-        BleOperateManager.getInstance().getTemperatures(
-            0, 1,
-            object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>> {
-                override fun onSuccess(data: List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>) {
-                    val entity = data.firstOrNull()?.data
-                    mainHandler.post { result.success(gson.toJson(entity)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getTodayTemperature", result) {
+            try {
+                BleOperateManager.getInstance().getTemperatures(
+                    0, 1,
+                    object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>> {
+                        override fun onSuccess(data: List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>?) {
+                            releaseReadSlot()
+                            val entity = data?.firstOrNull()?.data
+                            mainHandler.post { result.success(gson.toJson(entity)) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getTemperature(call: MethodCall, result: MethodChannel.Result) {
         val dayIndex = call.argument<Int>("dayIndex") ?: 0
-        BleOperateManager.getInstance().getTemperatures(
-            dayIndex, 1,
-            object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>> {
-                override fun onSuccess(data: List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>) {
-                    val entity = data.firstOrNull()?.data
-                    mainHandler.post { result.success(gson.toJson(entity)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getTemperature dayIndex=$dayIndex", result) {
+            try {
+                BleOperateManager.getInstance().getTemperatures(
+                    dayIndex, 1,
+                    object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>> {
+                        override fun onSuccess(data: List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>?) {
+                            releaseReadSlot()
+                            val entity = data?.firstOrNull()?.data
+                            mainHandler.post { result.success(gson.toJson(entity)) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getTemperatureList(call: MethodCall, result: MethodChannel.Result) {
         val startDay = call.argument<Int>("startDay") ?: 0
         val count = call.argument<Int>("count") ?: 1
-        BleOperateManager.getInstance().getTemperatures(
-            startDay, count,
-            object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>> {
-                override fun onSuccess(data: List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>) {
-                    mainHandler.post { result.success(gson.toJson(data)) }
-                }
-                override fun onError(code: Int, message: String?) {
-                    mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                }
+        acquireReadSlot("getTemperatureList startDay=$startDay count=$count", result) {
+            try {
+                BleOperateManager.getInstance().getTemperatures(
+                    startDay, count,
+                    object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>> {
+                        override fun onSuccess(data: List<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleOperateManager.DayIndexedData<IntervalTemperatureEntity>>())) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
             }
-        )
+        }
     }
 
     private fun getTemperatureSetting(result: MethodChannel.Result) {
@@ -3646,30 +3929,39 @@ class BlePlugin(private val context: Context) {
     // QRing parity: fetch the ring-recorded manual heart-rate entry.
     // Used as fallback when live manualModeHeart streaming yields nothing.
     private fun syncManualHeartRate(result: MethodChannel.Result) {
-        val done = java.util.concurrent.atomic.AtomicBoolean(false)
-        try {
-            BleOperateManager.getInstance().getTodayManualHeartRate(
-                object : BleOperateManager.HealthDataCallback<ManualHeartRate> {
-                    override fun onSuccess(data: ManualHeartRate?) {
-                        if (done.compareAndSet(false, true))
-                            mainHandler.post { result.success(if (data != null) gson.toJson(data) else "{}") }
+        acquireReadSlot("getTodayManualHeartRate", result) {
+            val done = java.util.concurrent.atomic.AtomicBoolean(false)
+            try {
+                BleOperateManager.getInstance().getTodayManualHeartRate(
+                    object : BleOperateManager.HealthDataCallback<ManualHeartRate> {
+                        override fun onSuccess(data: ManualHeartRate?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                mainHandler.post { result.success(if (data != null) gson.toJson(data) else "{}") }
+                            }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            if (done.compareAndSet(false, true)) {
+                                releaseReadSlot()
+                                mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                            }
+                        }
                     }
-                    override fun onError(code: Int, message: String?) {
-                        if (done.compareAndSet(false, true))
-                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
-                    }
+                )
+            } catch (e: Exception) {
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                    return@acquireReadSlot
                 }
-            )
-        } catch (e: Exception) {
-            if (done.compareAndSet(false, true)) {
-                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
-                return
             }
+            mainHandler.postDelayed({
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    result.error("TIMEOUT", "Manual heart-rate fetch timed out", null)
+                }
+            }, 20_000L)
         }
-        mainHandler.postDelayed({
-            if (done.compareAndSet(false, true))
-                result.error("TIMEOUT", "Manual heart-rate fetch timed out", null)
-        }, 20_000L)
     }
 
     private fun setVitalEnabled(call: MethodCall, result: MethodChannel.Result) {

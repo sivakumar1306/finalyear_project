@@ -140,13 +140,9 @@ class _RingScanSheetState extends State<_RingScanSheet>
     if (!mounted) return;
     setState(() => _connectingAddress = null);
     if (ok) {
+      // Success feedback is handled by the DevicePill celebration banner on
+      // Home (all connects) — no toast here.
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Connected to ${device.name}'),
-          backgroundColor: AppTheme.success,
-        ),
-      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -165,13 +161,9 @@ class _RingScanSheetState extends State<_RingScanSheet>
     if (!mounted) return;
     setState(() => _connectingLast = false);
     if (ok) {
+      // Success feedback is handled by the DevicePill celebration banner on
+      // Home (all connects) — no toast here.
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Connected to ${_ble.deviceName}'),
-          backgroundColor: AppTheme.success,
-        ),
-      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

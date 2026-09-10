@@ -32,6 +32,21 @@ class ReadingRepository private constructor(context: Context) {
     private val zone: ZoneId = ZoneId.systemDefault()
     private val dateFmt: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
+    // Supabase upserts key raw rows on (user_id, measured_at/captured_at). Two writers
+    // (flutter_push racing auto_cycle) can insert within the same millisecond and mint
+    // identical timestamps, which PostgREST then rejects wholesale ("ON CONFLICT DO UPDATE
+    // command cannot affect row a second time"). Hand out strictly increasing timestamps
+    // so locally-created rows can never collide. (+1ms is invisible to hourly charts.)
+    private val timestampLock = Any()
+    @Volatile private var lastIssuedTimestampMs = 0L
+
+    private fun nextTimestampMs(): Long = synchronized(timestampLock) {
+        val now = System.currentTimeMillis()
+        val t = if (now <= lastIssuedTimestampMs) lastIssuedTimestampMs + 1 else now
+        lastIssuedTimestampMs = t
+        t
+    }
+
     suspend fun startCycle(): Long = withContext(Dispatchers.IO) {
         db.measurementCycleDao().insert(MeasurementCycleEntity(startedAt = System.currentTimeMillis(), status = "RUNNING"))
     }
@@ -76,7 +91,7 @@ class ReadingRepository private constructor(context: Context) {
                 Log.w(TAG, "Rejected implausible heart rate reading: $bpm bpm (source=$source)")
                 return@withContext -1L
             }
-            val at = System.currentTimeMillis()
+            val at = nextTimestampMs()
             val id = db.heartRateDao().insert(
                 HeartRateReadingEntity(
                     valueBpm = bpm, measuredAt = at, cycleId = cycleId, source = source, deviceAddress = deviceAddress
@@ -107,7 +122,7 @@ class ReadingRepository private constructor(context: Context) {
 
     suspend fun insertSpo2(pct: Int, cycleId: Long, source: String, deviceAddress: String? = null): Long =
         withContext(Dispatchers.IO) {
-            val at = System.currentTimeMillis()
+            val at = nextTimestampMs()
             val id = db.spo2Dao().insert(
                 Spo2ReadingEntity(
                     valuePct = pct, measuredAt = at, cycleId = cycleId, source = source, deviceAddress = deviceAddress
@@ -131,7 +146,7 @@ class ReadingRepository private constructor(context: Context) {
 
     suspend fun insertStress(value: Int, label: String?, cycleId: Long, source: String, deviceAddress: String? = null): Long =
         withContext(Dispatchers.IO) {
-            val at = System.currentTimeMillis()
+            val at = nextTimestampMs()
             val id = db.stressDao().insert(
                 StressReadingEntity(
                     value = value, label = label, measuredAt = at, cycleId = cycleId, source = source, deviceAddress = deviceAddress
@@ -143,7 +158,7 @@ class ReadingRepository private constructor(context: Context) {
 
     suspend fun insertBloodPressure(sbp: Int, dbp: Int, cycleId: Long, source: String, deviceAddress: String? = null): Long =
         withContext(Dispatchers.IO) {
-            val at = System.currentTimeMillis()
+            val at = nextTimestampMs()
             val id = db.bloodPressureDao().insert(
                 BloodPressureReadingEntity(
                     systolic = sbp, diastolic = dbp, measuredAt = at, cycleId = cycleId, source = source, deviceAddress = deviceAddress
@@ -155,7 +170,7 @@ class ReadingRepository private constructor(context: Context) {
 
     suspend fun insertHrv(valueMs: Int, cycleId: Long, source: String, deviceAddress: String? = null): Long =
         withContext(Dispatchers.IO) {
-            val at = System.currentTimeMillis()
+            val at = nextTimestampMs()
             val id = db.hrvDao().insert(
                 HrvReadingEntity(
                     valueMs = valueMs, measuredAt = at, cycleId = cycleId, source = source, deviceAddress = deviceAddress
@@ -179,7 +194,7 @@ class ReadingRepository private constructor(context: Context) {
 
     suspend fun insertTemperature(valueC: Double, cycleId: Long, source: String, deviceAddress: String? = null): Long =
         withContext(Dispatchers.IO) {
-            val at = System.currentTimeMillis()
+            val at = nextTimestampMs()
             val id = db.temperatureDao().insert(
                 TemperatureReadingEntity(
                     valueC = valueC, measuredAt = at, cycleId = cycleId, source = source, deviceAddress = deviceAddress
@@ -209,7 +224,7 @@ class ReadingRepository private constructor(context: Context) {
         source: String,
         deviceAddress: String? = null
     ): Long = withContext(Dispatchers.IO) {
-        val at = System.currentTimeMillis()
+        val at = nextTimestampMs()
         val id = db.stepsSnapshotDao().insert(
             StepsSnapshotEntity(
                 steps = steps,

@@ -139,17 +139,34 @@ object SupabaseSyncManager {
     // cross-install collisions/overwrites. measured_at is real wall-clock time and is
     // immune to that. local_reading_id is still sent along for local traceability only. ──
 
+    // PostgREST rejects a batch whose rows propose the same ON CONFLICT key twice
+    // ("ON CONFLICT DO UPDATE command cannot affect row a second time", HTTP 500).
+    // Two local inserts can share a millisecond timestamp (e.g. flutter_push racing
+    // auto_cycle), so collapse duplicates by conflict key, keeping the latest row.
+    private fun dedupeByKey(
+        payload: List<Map<String, Any?>>,
+        keyOf: (Map<String, Any?>) -> String
+    ): List<Map<String, Any?>> {
+        if (payload.size < 2) return payload
+        val merged = LinkedHashMap<String, Map<String, Any?>>()
+        for (row in payload) merged[keyOf(row)] = row
+        if (merged.size != payload.size) {
+            Log.w(TAG, "dedupeByKey: dropped ${payload.size - merged.size} duplicate-key rows")
+        }
+        return merged.values.toList()
+    }
+
     private suspend fun pushHeartRate(): Boolean {
         val userId = SupabaseConfig.userId ?: return false
         val rows = repository.unsyncedHeartRate(BATCH_LIMIT)
         if (rows.isEmpty()) return true
-        val payload = rows.map { r ->
+        val payload = dedupeByKey(rows.map { r ->
             mapOf(
                 "user_id" to userId, "value_bpm" to r.valueBpm,
                 "measured_at" to isoTimestamp(r.measuredAt), "source" to r.source,
                 "local_reading_id" to r.id
             )
-        }
+        }) { "${it["measured_at"]}" }
         val ok = postJsonWithRetry("user_hr_readings", "user_id,measured_at", gson.toJson(payload))
         if (ok) repository.markHeartRateSynced(rows.map { it.id }, System.currentTimeMillis())
         return ok
@@ -159,13 +176,13 @@ object SupabaseSyncManager {
         val userId = SupabaseConfig.userId ?: return false
         val rows = repository.unsyncedSpo2(BATCH_LIMIT)
         if (rows.isEmpty()) return true
-        val payload = rows.map { r ->
+        val payload = dedupeByKey(rows.map { r ->
             mapOf(
                 "user_id" to userId, "value_pct" to r.valuePct,
                 "measured_at" to isoTimestamp(r.measuredAt), "source" to r.source,
                 "local_reading_id" to r.id
             )
-        }
+        }) { "${it["measured_at"]}" }
         val ok = postJsonWithRetry("user_spo2_readings", "user_id,measured_at", gson.toJson(payload))
         if (ok) repository.markSpo2Synced(rows.map { it.id }, System.currentTimeMillis())
         return ok
@@ -175,13 +192,13 @@ object SupabaseSyncManager {
         val userId = SupabaseConfig.userId ?: return false
         val rows = repository.unsyncedHrv(BATCH_LIMIT)
         if (rows.isEmpty()) return true
-        val payload = rows.map { r ->
+        val payload = dedupeByKey(rows.map { r ->
             mapOf(
                 "user_id" to userId, "value_ms" to r.valueMs,
                 "measured_at" to isoTimestamp(r.measuredAt), "source" to r.source,
                 "local_reading_id" to r.id
             )
-        }
+        }) { "${it["measured_at"]}" }
         val ok = postJsonWithRetry("user_hrv_readings", "user_id,measured_at", gson.toJson(payload))
         if (ok) repository.markHrvSynced(rows.map { it.id }, System.currentTimeMillis())
         return ok
@@ -191,13 +208,13 @@ object SupabaseSyncManager {
         val userId = SupabaseConfig.userId ?: return false
         val rows = repository.unsyncedSteps(BATCH_LIMIT)
         if (rows.isEmpty()) return true
-        val payload = rows.map { r ->
+        val payload = dedupeByKey(rows.map { r ->
             mapOf(
                 "user_id" to userId, "steps" to r.steps, "calories_kcal" to r.caloriesKcal,
                 "distance_m" to r.distanceM, "captured_at" to isoTimestamp(r.capturedAt),
                 "source" to r.source, "local_reading_id" to r.id
             )
-        }
+        }) { "${it["captured_at"]}" }
         val ok = postJsonWithRetry("user_steps_snapshots", "user_id,captured_at", gson.toJson(payload))
         if (ok) repository.markStepsSynced(rows.map { it.id }, System.currentTimeMillis())
         return ok
@@ -209,13 +226,13 @@ object SupabaseSyncManager {
         val userId = SupabaseConfig.userId ?: return false
         val rows = repository.unsyncedBloodPressure(BATCH_LIMIT)
         if (rows.isEmpty()) return true
-        val payload = rows.map { r ->
+        val payload = dedupeByKey(rows.map { r ->
             mapOf(
                 "user_id" to userId, "systolic" to r.systolic, "diastolic" to r.diastolic,
                 "measured_at" to isoTimestamp(r.measuredAt), "source" to r.source,
                 "local_reading_id" to r.id
             )
-        }
+        }) { "${it["measured_at"]}" }
         val ok = postJsonWithRetry("user_bp", "user_id,measured_at", gson.toJson(payload))
         if (ok) repository.markBloodPressureSynced(rows.map { it.id }, System.currentTimeMillis())
         return ok
@@ -225,13 +242,13 @@ object SupabaseSyncManager {
         val userId = SupabaseConfig.userId ?: return false
         val rows = repository.unsyncedStress(BATCH_LIMIT)
         if (rows.isEmpty()) return true
-        val payload = rows.map { r ->
+        val payload = dedupeByKey(rows.map { r ->
             mapOf(
                 "user_id" to userId, "stress_value" to r.value, "label" to r.label,
                 "measured_at" to isoTimestamp(r.measuredAt), "source" to r.source,
                 "local_reading_id" to r.id
             )
-        }
+        }) { "${it["measured_at"]}" }
         val ok = postJsonWithRetry("user_stress", "user_id,measured_at", gson.toJson(payload))
         if (ok) repository.markStressSynced(rows.map { it.id }, System.currentTimeMillis())
         return ok
@@ -241,13 +258,13 @@ object SupabaseSyncManager {
         val userId = SupabaseConfig.userId ?: return false
         val rows = repository.unsyncedTemperature(BATCH_LIMIT)
         if (rows.isEmpty()) return true
-        val payload = rows.map { r ->
+        val payload = dedupeByKey(rows.map { r ->
             mapOf(
                 "user_id" to userId, "value_c" to r.valueC,
                 "measured_at" to isoTimestamp(r.measuredAt), "source" to r.source,
                 "local_reading_id" to r.id
             )
-        }
+        }) { "${it["measured_at"]}" }
         val ok = postJsonWithRetry("user_temp", "user_id,measured_at", gson.toJson(payload))
         if (ok) repository.markTemperatureSynced(rows.map { it.id }, System.currentTimeMillis())
         return ok
