@@ -21,6 +21,7 @@ import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/hourly_aggregator.dart';
+import '../../widgets/chart_scrubber.dart';
 
 // ── Design tokens ───────────────────────────────────────────────────────────
 
@@ -883,7 +884,34 @@ class _ChartCard extends StatefulWidget {
 }
 
 class _ChartCardState extends State<_ChartCard> {
-  int? _selectedIndex;
+  late int _selectedIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = _initialIndex();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ChartCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.values != widget.values) {
+      final newIdx = _initialIndex();
+      if (newIdx != _selectedIndex) {
+        _selectedIndex = newIdx.clamp(0, (widget.values.length - 1).clamp(0, 999));
+      } else if (_selectedIndex >= widget.values.length) {
+        _selectedIndex = (widget.values.length - 1).clamp(0, 999);
+      }
+    }
+  }
+
+  int _initialIndex() {
+    if (widget.values.isEmpty) return 0;
+    for (int i = widget.values.length - 1; i >= 0; i--) {
+      if (widget.values[i] > 0) return i;
+    }
+    return 0;
+  }
 
   List<double> get _norm {
     if (widget.values.isEmpty) return [];
@@ -901,14 +929,6 @@ class _ChartCardState extends State<_ChartCard> {
     if (_selectedIndex != idx) {
       setState(() {
         _selectedIndex = idx;
-      });
-    }
-  }
-
-  void _clearSelection() {
-    if (_selectedIndex != null) {
-      setState(() {
-        _selectedIndex = null;
       });
     }
   }
@@ -991,23 +1011,16 @@ class _ChartCardState extends State<_ChartCard> {
                         constraints.maxHeight,
                       );
                       return GestureDetector(
-                        // Added LongPress explicitly for "click and hold" behavior
                         onLongPressStart: (details) =>
                             _handleTapOrDrag(details.localPosition, size),
                         onLongPressMoveUpdate: (details) =>
                             _handleTapOrDrag(details.localPosition, size),
-                        onLongPressEnd: (_) => _clearSelection(),
                         onTapDown: (details) =>
                             _handleTapOrDrag(details.localPosition, size),
-                        onTapUp: (_) => _clearSelection(),
-                        onTapCancel: () => _clearSelection(),
-                        // Using HorizontalDrag instead of Pan to allow vertical scrolling safely
                         onHorizontalDragStart: (details) =>
                             _handleTapOrDrag(details.localPosition, size),
                         onHorizontalDragUpdate: (details) =>
                             _handleTapOrDrag(details.localPosition, size),
-                        onHorizontalDragEnd: (_) => _clearSelection(),
-                        onHorizontalDragCancel: () => _clearSelection(),
                         child: CustomPaint(
                           size: size,
                           painter: _BarPainter(
@@ -1026,6 +1039,18 @@ class _ChartCardState extends State<_ChartCard> {
           if (!widget.loading) ...[
             const SizedBox(height: 8),
             _XAxisRow(labels: widget.xLabels, count: widget.values.length),
+            if (hasData) ...[
+              const SizedBox(height: 14),
+              ChartScrubber(
+                itemCount: widget.values.length,
+                selectedIndex: _selectedIndex,
+                accent: widget.color,
+                enabled: !widget.loading,
+                onChanged: (idx) {
+                  setState(() => _selectedIndex = idx);
+                },
+              ),
+            ],
           ],
         ],
       ),

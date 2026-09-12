@@ -48,7 +48,7 @@ class ChartScrubber extends StatelessWidget {
               enabled: enabled,
             ),
             overlayShape: SliderComponentShape.noOverlay,
-            trackShape: const _NotchedTrackShape(),
+            trackShape: _NotchedTrackShape(itemCount: itemCount),
             tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 0),
           ),
           child: Slider(
@@ -111,7 +111,8 @@ class _BallThumbShape extends SliderComponentShape {
 }
 
 class _NotchedTrackShape extends SliderTrackShape {
-  const _NotchedTrackShape();
+  final int itemCount;
+  const _NotchedTrackShape({required this.itemCount});
 
   @override
   Rect getPreferredRect({
@@ -122,9 +123,10 @@ class _NotchedTrackShape extends SliderTrackShape {
     bool isDiscrete = false,
   }) {
     final trackHeight = sliderTheme.trackHeight ?? 2.0;
-    final trackLeft = offset.dx;
+    final slotW = itemCount > 0 ? parentBox.size.width / itemCount : 0.0;
+    final trackLeft = offset.dx + slotW / 2;
     final trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
-    final trackWidth = parentBox.size.width;
+    final trackWidth = parentBox.size.width - slotW;
     return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
   }
 
@@ -411,15 +413,19 @@ class _ScrubbableChartState extends State<ScrubbableChart> {
           ],
           if (hasScrubber) ...[
             const SizedBox(height: 14),
-            ChartScrubber(
-              itemCount: widget.values.length,
-              selectedIndex: _selectedIndex,
-              accent: widget.accent,
-              enabled: !widget.loading,
-              onChanged: (idx) {
-                setState(() => _selectedIndex = idx);
-                widget.onScrub?.call(idx);
-              },
+            Padding(
+              padding: EdgeInsets.only(
+                  left: widget.yLabels != null && widget.yLabels!.isNotEmpty ? 30 : 0),
+              child: ChartScrubber(
+                itemCount: widget.values.length,
+                selectedIndex: _selectedIndex,
+                accent: widget.accent,
+                enabled: !widget.loading,
+                onChanged: (idx) {
+                  setState(() => _selectedIndex = idx);
+                  widget.onScrub?.call(idx);
+                },
+              ),
             ),
           ],
           if (widget.footer != null) ...[
@@ -797,15 +803,19 @@ class _ScrubbableBPChartState extends State<ScrubbableBPChart> {
           ],
           if (hasScrubber) ...[
             const SizedBox(height: 14),
-            ChartScrubber(
-              itemCount: widget.sbpValues.length,
-              selectedIndex: _selectedIndex,
-              accent: widget.accent,
-              enabled: !widget.loading,
-              onChanged: (idx) {
-                setState(() => _selectedIndex = idx);
-                widget.onScrub?.call(idx);
-              },
+            Padding(
+              padding: EdgeInsets.only(
+                  left: widget.yLabels != null && widget.yLabels!.isNotEmpty ? 30 : 0),
+              child: ChartScrubber(
+                itemCount: widget.sbpValues.length,
+                selectedIndex: _selectedIndex,
+                accent: widget.accent,
+                enabled: !widget.loading,
+                onChanged: (idx) {
+                  setState(() => _selectedIndex = idx);
+                  widget.onScrub?.call(idx);
+                },
+              ),
             ),
           ],
           if (widget.footer != null) ...[
