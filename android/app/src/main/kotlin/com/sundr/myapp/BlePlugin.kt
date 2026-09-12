@@ -73,6 +73,10 @@ import com.oudmon.ble.base.communication.req.TimeFormatReq
 import com.oudmon.ble.base.communication.req.TouchControlReq
 import com.oudmon.ble.base.communication.responseImpl.DeviceNotifyListener
 import com.oudmon.ble.base.communication.rsp.AgpsRsp
+import com.oudmon.ble.base.communication.rsp.BpSettingRsp
+import com.oudmon.ble.base.communication.rsp.BloodOxygenSettingRsp
+import com.oudmon.ble.base.communication.rsp.HRVSettingRsp
+import com.oudmon.ble.base.communication.rsp.PressureSettingRsp
 import com.oudmon.ble.base.communication.rsp.BaseRspCmd
 import com.oudmon.ble.base.communication.rsp.BatteryRsp
 import com.oudmon.ble.base.communication.rsp.BatterySavingRsp
@@ -1020,7 +1024,11 @@ class BlePlugin(private val context: Context) {
         CommandHandle.getInstance().executeReqCmd(
             HeartRateSettingReq.getReadInstance(),
             ICommandResponse<HeartRateSettingRsp> { rsp ->
-                mainHandler.post { result.success(gson.toJson(rsp)) }
+                val map = mapOf(
+                    "enable" to rsp.isEnable,
+                    "interval" to rsp.heartInterval
+                )
+                mainHandler.post { result.success(gson.toJson(map)) }
             }
         )
     }
@@ -1512,8 +1520,12 @@ class BlePlugin(private val context: Context) {
     private fun getBloodPressureSetting(result: MethodChannel.Result) {
         CommandHandle.getInstance().executeReqCmd(
             BpSettingReq.getReadInstance(),
-            ICommandResponse<BaseRspCmd> { rsp ->
-                mainHandler.post { result.success(gson.toJson(rsp)) }
+            ICommandResponse<BpSettingRsp> { rsp ->
+                val map = mapOf(
+                    "enable" to rsp.isEnable,
+                    "interval" to rsp.multiple
+                )
+                mainHandler.post { result.success(gson.toJson(map)) }
             }
         )
     }
@@ -1689,9 +1701,13 @@ class BlePlugin(private val context: Context) {
         val done = AtomicBoolean(false)
         CommandHandle.getInstance().executeReqCmd(
             BloodOxygenSettingReq.getReadInstance(),
-            ICommandResponse<BaseRspCmd> { rsp ->
+            ICommandResponse<BloodOxygenSettingRsp> { rsp ->
                 if (done.compareAndSet(false, true)) {
-                    mainHandler.post { result.success(gson.toJson(rsp)) }
+                    val map = mapOf(
+                        "enable" to rsp.isEnable,
+                        "interval" to rsp.interval.toInt()
+                    )
+                    mainHandler.post { result.success(gson.toJson(map)) }
                 }
             }
         )
@@ -2129,8 +2145,9 @@ class BlePlugin(private val context: Context) {
     private fun getHrvSetting(result: MethodChannel.Result) {
         CommandHandle.getInstance().executeReqCmd(
             HrvSettingReq.getReadInstance(),
-            ICommandResponse<BaseRspCmd> { rsp ->
-                mainHandler.post { result.success(gson.toJson(rsp)) }
+            ICommandResponse<HRVSettingRsp> { rsp ->
+                val map = mapOf("enable" to rsp.isEnable)
+                mainHandler.post { result.success(gson.toJson(map)) }
             }
         )
     }
@@ -2292,8 +2309,12 @@ class BlePlugin(private val context: Context) {
     private fun getPressureSetting(result: MethodChannel.Result) {
         CommandHandle.getInstance().executeReqCmd(
             PressureSettingReq.getReadInstance(),
-            ICommandResponse<BaseRspCmd> { rsp ->
-                mainHandler.post { result.success(gson.toJson(rsp)) }
+            ICommandResponse<PressureSettingRsp> { rsp ->
+                val map = mapOf(
+                    "enable" to rsp.isEnable,
+                    "interval" to rsp.interval
+                )
+                mainHandler.post { result.success(gson.toJson(map)) }
             }
         )
     }
@@ -2436,8 +2457,12 @@ class BlePlugin(private val context: Context) {
     private fun getTemperatureSetting(result: MethodChannel.Result) {
         CommandHandle.getInstance().executeReqCmd(
             SugarLipidsSettingReq.getReadTemperatureInstance(),
-            ICommandResponse<BaseRspCmd> { rsp ->
-                mainHandler.post { result.success(gson.toJson(rsp)) }
+            ICommandResponse<BloodSugarLipidsSettingRsp> { rsp ->
+                val map = mapOf(
+                    "enable" to rsp.isEnable,
+                    "interval" to rsp.interval
+                )
+                mainHandler.post { result.success(gson.toJson(map)) }
             }
         )
     }
