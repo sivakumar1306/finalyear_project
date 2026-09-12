@@ -438,13 +438,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   _divider(),
                   _SettingsRow.arrow(
-                    icon: Icons.receipt_long_rounded,
-                    title: 'Measurement Log',
-                    onTap: () =>
-                        Navigator.pushNamed(context, '/measurement-log'),
-                  ),
-                  _divider(),
-                  _SettingsRow.arrow(
                     icon: Icons.alarm_rounded,
                     title: 'Alarms & Notifications',
                     onTap: () =>
