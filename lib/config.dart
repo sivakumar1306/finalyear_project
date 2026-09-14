@@ -50,4 +50,9 @@ class AppConfig {
       firebaseProjectId.isNotEmpty &&
       firebaseMessagingSenderId.isNotEmpty &&
       firebaseAppId.isNotEmpty;
+
+  static const bool includeMeasurementLog = bool.fromEnvironment(
+    'INCLUDE_MEASUREMENT_LOG',
+    defaultValue: false,
+  );
 }

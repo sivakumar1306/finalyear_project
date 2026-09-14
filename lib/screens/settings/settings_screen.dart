@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../config.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
@@ -435,7 +436,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Measurement Intervals',
                     onTap: () =>
                         Navigator.pushNamed(context, '/health-settings'),
-                  ),
+                   ),
+                  if (AppConfig.includeMeasurementLog) ...[
+                    _divider(),
+                    _SettingsRow.arrow(
+                      icon: Icons.receipt_long_rounded,
+                      title: 'Measurement Log',
+                      onTap: () =>
+                          Navigator.pushNamed(context, '/measurement-log'),
+                    ),
+                  ],
                   _divider(),
                   _SettingsRow.arrow(
                     icon: Icons.alarm_rounded,
