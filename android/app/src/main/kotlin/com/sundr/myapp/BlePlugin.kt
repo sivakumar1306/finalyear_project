@@ -770,38 +770,16 @@ class BlePlugin(private val context: Context) {
     }
 
     private fun sendBindSuccessWithRetry(attempt: Int = 1) {
-        bindConfirmed.set(false)
-
-        val timeoutRunnable = Runnable {
-            if (!bindConfirmed.get()) {
-                pendingBindConfirmation = null
-                if (attempt < INIT_MAX_ATTEMPTS) {
-                    Log.w(TAG, "CMD_BIND_SUCCESS attempt $attempt: no raw-echo confirmation, retrying")
-                    sendBindSuccessWithRetry(attempt + 1)
-                } else {
-                    Log.e(TAG, "CMD_BIND_SUCCESS: no raw-echo confirmation after $INIT_MAX_ATTEMPTS attempts — proceeding anyway")
-                    sendEvent("bindReady", emptyMap<String, Any>())
-                }
-            }
-        }
-
-        pendingBindConfirmation = Runnable {
-            mainHandler.removeCallbacks(timeoutRunnable)
-            sendEvent("bindReady", emptyMap<String, Any>())
-        }
-        mainHandler.postDelayed(timeoutRunnable, INIT_RETRY_TIMEOUT_MS)
-
+        bindConfirmed.set(true)
         CommandHandle.getInstance().executeReqCmd(
             SimpleKeyReq(Constants.CMD_BIND_SUCCESS),
-            ICommandResponse<BaseRspCmd> {
-                if (bindConfirmed.compareAndSet(false, true)) {
-                    Log.d(TAG, "CMD_BIND_SUCCESS confirmed via ICommandResponse (unexpected but fine)")
-                    val confirm = pendingBindConfirmation
-                    pendingBindConfirmation = null
-                    confirm?.let { mainHandler.post(it) }
-                }
+            ICommandResponse<BaseRspCmd> { _ ->
+                Log.d(TAG, "CMD_BIND_SUCCESS sent to ring")
             }
         )
+        mainHandler.post {
+            sendEvent("bindReady", emptyMap<String, Any>())
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -1116,32 +1094,25 @@ class BlePlugin(private val context: Context) {
                                 mainHandler.post { result.error("HR_ERR_$errCode", "Ring reported heart-rate error $errCode — keep ring snug and retry", null) }
                                 return@ICommandResponse
                             }
-                            // Strict tier: only trust HR-carrying frames. Per SDK
-                            // StartHeartRateRsp.acceptData, type 13 sets heartRate; type 12
-                            // (vital frame) carries HR in value. Other types leave
-                            // heartRate=0 while value holds SpO2 or unrelated bytes.
-                            // Deliberately not gated on rsp.status: the ring sends
-                            // intermediate calibration frames without RESULT_OK before the
-                            // real result (same as auto loop + hr branch).
-                            val strictValue = when {
+                            // Extract heart rate from SDK response frame (matches official SDK sample logic:
+                            // getHeartRate() if > 0, otherwise getValue()).
+                            val bpmValue = when {
                                 rsp.getHeartRate() > 0 -> rsp.getHeartRate()
                                 rsp.type.toInt() == 12 -> rsp.value
-                                else -> 0
+                                else -> rsp.getValue()
                             }
-                            if (com.sundr.myapp.data.VitalRanges.isValidBpm(strictValue) && done.compareAndSet(false, true)) {
+                            if (com.sundr.myapp.data.VitalRanges.isValidBpm(bpmValue) && done.compareAndSet(false, true)) {
                                 timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
                                 try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
                                 MeasurementCoordinator.release(owner)
                                 clearSession()
-                                mainHandler.post { result.success(strictValue) }
+                                mainHandler.post { result.success(bpmValue) }
                                 return@ICommandResponse
                             }
-                            // Legacy tier stash: pre-Aug24 getHeartRate-else-getValue,
-                            // still range-gated. Used only at timeout below.
-                            val legacy = if (rsp.getHeartRate() > 0) rsp.getHeartRate() else rsp.getValue()
-                            if (com.sundr.myapp.data.VitalRanges.isValidBpm(legacy)) {
+                            // Stash valid BPM into fallback candidates if needed
+                            if (com.sundr.myapp.data.VitalRanges.isValidBpm(bpmValue)) {
                                 synchronized(legacyCandidates) {
-                                    if (!done.get()) legacyCandidates.add(legacy)
+                                    if (!done.get()) legacyCandidates.add(bpmValue)
                                 }
                             }
                             // Note: do not abort on rsp.status != RESULT_OK; the ring sends intermediate
@@ -1169,7 +1140,7 @@ class BlePlugin(private val context: Context) {
                             else legacyCandidates.sorted()[(legacyCandidates.size - 1) / 2]
                         }
                         if (fallback != null) {
-                            android.util.Log.w(TAG, "readHeartRate: strict empty, returning legacy fallback=$fallback (n=${legacyCandidates.size})")
+                            android.util.Log.w(TAG, "readHeartRate: returning fallback=$fallback (n=${legacyCandidates.size})")
                             result.success(fallback)
                         } else {
                             result.error("TIMEOUT", "Heart rate measurement timed out", null)
@@ -1177,12 +1148,12 @@ class BlePlugin(private val context: Context) {
                     }
                 }
                 manualHrTimeout = timeoutRunnable
-                mainHandler.postDelayed(timeoutRunnable!!, 60_000L)
+                mainHandler.postDelayed(timeoutRunnable!!, 30_000L)
             }
 
             // Reset-first: clear a possibly stuck sensor state from a leaked prior
-            // session before starting. Best-effort stop, then settle briefly so the
-            // ring's firmware exits measuring mode before the new start goes out.
+            // session before starting. Best-effort stop, then settle so the
+            // ring's firmware cleanly exits measuring mode before the new start goes out.
             try { BleOperateManager.getInstance().manualModeHeart(null, true) } catch (_: Exception) {}
             mainHandler.postDelayed({
                 if (done.get()) {
@@ -1191,7 +1162,7 @@ class BlePlugin(private val context: Context) {
                     return@postDelayed
                 }
                 startMeasurement()
-            }, 300L)
+            }, 1200L)
         }
     }
 
