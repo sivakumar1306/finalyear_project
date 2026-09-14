@@ -47,6 +47,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   String _phone = '';
   String _address = '';
   String _instructions = '';
+  String _defaultEmergencyContact = '101';
 
   bool get _loggedIn => SupabaseService.isLoggedIn;
 
@@ -75,6 +76,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             _phone = (p['phone'] as String?) ?? '';
             _address = (p['address'] as String?) ?? '';
             _instructions = (p['additional_instructions'] as String?) ?? '';
+            _defaultEmergencyContact =
+                (p['default_emergency_contact'] as String?) ?? '101';
           });
         }
       }
@@ -123,6 +126,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         address: _address,
         phone: _phone,
         additionalInstructions: _instructions,
+        defaultEmergencyContact: _defaultEmergencyContact,
       );
     } catch (e) {
       if (mounted) {
@@ -263,6 +267,22 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     );
     if (result != null && result != _phone) {
       setState(() => _phone = result);
+      await _autoSave();
+    }
+  }
+
+  void _editDefaultEmergencyContact() async {
+    final ctrl = TextEditingController(text: _defaultEmergencyContact);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => _InputDialog(
+        title: 'Default Emergency Contact',
+        controller: ctrl,
+        keyboardType: TextInputType.phone,
+      ),
+    );
+    if (result != null && result != _defaultEmergencyContact) {
+      setState(() => _defaultEmergencyContact = result);
       await _autoSave();
     }
   }
@@ -492,10 +512,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     ),
                     child: Column(
                       children: [
-                        const _ProfileRow(
+                        _ProfileRow(
                           icon: Icons.local_hospital_outlined,
                           label: 'Default Emergency Contact',
-                          value: '101',
+                          value: _defaultEmergencyContact.isNotEmpty
+                              ? _defaultEmergencyContact
+                              : '101',
+                          onTap: _editDefaultEmergencyContact,
                         ),
                         for (var i = 0; i < _contacts.length; i++) ...[
                           _divider(),
@@ -723,13 +746,11 @@ class _ProfileRow extends StatelessWidget {
                 ),
               ),
             ),
-            Flexible(
-              child: Text(
-                value,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
-              ),
+            const SizedBox(width: 12),
+            Text(
+              value,
+              textAlign: TextAlign.right,
+              style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
             ),
           ],
         ),
