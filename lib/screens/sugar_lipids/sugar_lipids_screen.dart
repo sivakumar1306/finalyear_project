@@ -5,6 +5,7 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/data_card.dart';
+import '../../widgets/glass_pill.dart';
 
 /// Sugar & Lipids wellness panel.
 ///
@@ -51,15 +52,11 @@ class _SugarLipidsScreenState extends State<SugarLipidsScreen> {
     try {
       await _ble.setHealthSettings(jsonEncode({'sugarLipids': _settings}));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sugar & lipid monitor settings saved')),
-        );
+        showGlassPill(context, 'Sugar & lipid monitor settings saved', type: GlassPillType.success);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        showGlassPill(context, 'Error: $e', type: GlassPillType.error);
       }
     }
   }

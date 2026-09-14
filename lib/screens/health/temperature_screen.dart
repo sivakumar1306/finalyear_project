@@ -21,6 +21,7 @@ import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/chart_scrubber.dart';
+import '../../widgets/glass_pill.dart';
 import '../../utils/date_keys.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/metric_stat_card.dart';
@@ -422,12 +423,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         customMessage: 'Measurement tapped while ring not connected',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please connect your ring first'),
-            backgroundColor: AppTheme.danger,
-          ),
-        );
+        showGlassPill(context, 'Please connect your ring first', type: GlassPillType.error);
       }
       return;
     }
@@ -481,12 +477,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         );
         if (mounted) {
           setState(() => _measuring = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Temperature measurement returned no data — keep ring snug and retry. Raw: $data'),
-              backgroundColor: AppTheme.danger,
-            ),
-          );
+          showGlassPill(context, 'Temperature measurement returned no data — keep ring snug and retry. Raw: $data', type: GlassPillType.error);
         } else {
           setState(() => _measuring = false);
         }
@@ -505,9 +496,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
             : e.toString().contains('TIMEOUT')
                 ? 'Temperature measurement timed out — keep ring on finger (up to 60s).'
                 : 'Temperature measurement failed: $e';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
-        );
+        showGlassPill(context, msg, type: GlassPillType.error);
       }
     }
   }

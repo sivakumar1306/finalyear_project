@@ -6,6 +6,7 @@ import '../../widgets/glass_back_button.dart';
 import 'auth_background.dart';
 import 'reset_password_screen.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_pill.dart';
 
 /// Step 2 of the password-recovery flow — enter the recovery code
 /// sent to the registered email. Supports both 6-digit and 8-digit codes,
@@ -105,9 +106,7 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
     if (text.isNotEmpty) {
       _fillFromPastedText(text);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Code pasted from clipboard.')),
-        );
+        showGlassPill(context, 'Code pasted from clipboard.', type: GlassPillType.success);
       }
     } else {
       setState(() => _error = 'Clipboard is empty.');
@@ -164,9 +163,7 @@ class _RecoveryCodeScreenState extends State<RecoveryCodeScreen> {
     try {
       await SupabaseService.resetPassword(widget.email);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recovery code resent.')),
-      );
+      showGlassPill(context, 'Recovery code resent.', type: GlassPillType.success);
     } catch (e) {
       if (mounted) {
         setState(

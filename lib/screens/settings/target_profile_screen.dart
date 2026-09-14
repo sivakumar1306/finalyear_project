@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/incident_service.dart';
+import '../../widgets/glass_pill.dart';
 
 class TargetProfileScreen extends StatefulWidget {
   const TargetProfileScreen({super.key});
@@ -92,19 +93,17 @@ class _TargetProfileScreenState extends State<TargetProfileScreen> {
     try {
       await _ble.setTargetAndProfile(jsonEncode(data));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-            _profileSupported
-                ? 'Profile saved'
-                : 'Targets saved (user profile is read-only on this ring model)',
-          ),
-        ));
+        showGlassPill(
+          context,
+          _profileSupported
+              ? 'Profile saved'
+              : 'Targets saved (user profile is read-only on this ring model)',
+          type: GlassPillType.success,
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        showGlassPill(context, 'Error: $e', type: GlassPillType.error);
       }
     }
   }

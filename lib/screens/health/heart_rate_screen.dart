@@ -21,6 +21,7 @@ import '../../utils/date_keys.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
+import '../../widgets/glass_pill.dart';
 import '../../utils/hourly_aggregator.dart';
 import '../../utils/trend_math.dart';
 
@@ -446,9 +447,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       }
       if (mounted) {
         setState(() => _measuring = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Heart rate measurement cancelled')),
-        );
+        showGlassPill(context, 'Heart rate measurement cancelled');
       }
       return;
     }
@@ -459,12 +458,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     if (!isConnected) {
       debugPrint('[heart_rate_screen] manual HR tapped while disconnected');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please connect your ring first'),
-            backgroundColor: AppTheme.danger,
-          ),
-        );
+        showGlassPill(context, 'Please connect your ring first', type: GlassPillType.error);
       }
       return;
     }
@@ -509,9 +503,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         );
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_measureErrorMessage(streamError)), backgroundColor: AppTheme.danger),
-        );
+        showGlassPill(context, _measureErrorMessage(streamError), type: GlassPillType.error);
       }
       return;
     }
@@ -610,9 +602,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
           final msg = hr == null
               ? 'Heart rate measurement returned no data — keep ring snug and retry.'
               : 'Heart rate $hr bpm out of range (30-220)';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
-          );
+          showGlassPill(context, msg, type: GlassPillType.error);
         }
       }
     } catch (e, st) {
@@ -630,9 +620,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       }
       if (mounted) {
         setState(() => _measuring = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_measureErrorMessage(e.toString())), backgroundColor: AppTheme.danger),
-        );
+        showGlassPill(context, _measureErrorMessage(e.toString()), type: GlassPillType.error);
       }
     }
   }

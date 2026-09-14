@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/incident_service.dart';
+import '../../widgets/glass_pill.dart';
 
 class DisplaySettingsScreen extends StatefulWidget {
   const DisplaySettingsScreen({super.key});
@@ -62,9 +63,9 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
     };
     try {
       await _ble.setDisplaySetting(jsonEncode(data));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Display settings saved')));
+      if (mounted) showGlassPill(context, 'Display settings saved', type: GlassPillType.success);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) showGlassPill(context, 'Error: $e', type: GlassPillType.error);
     }
   }
 

@@ -25,6 +25,7 @@ import '../../utils/date_keys.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
+import '../../widgets/glass_pill.dart';
 import '../../utils/hourly_aggregator.dart';
 import '../../utils/trend_math.dart';
 
@@ -233,12 +234,7 @@ class _HrvScreenState extends State<HrvScreen> {
         customMessage: 'Measurement tapped while ring not connected',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please connect your ring first'),
-            backgroundColor: AppTheme.danger,
-          ),
-        );
+        showGlassPill(context, 'Please connect your ring first', type: GlassPillType.error);
       }
       return;
     }
@@ -338,12 +334,7 @@ class _HrvScreenState extends State<HrvScreen> {
         );
         if (mounted) {
           setState(() => _measuring = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('HRV measurement returned no data — keep ring snug and retry. Raw: $result'),
-              backgroundColor: AppTheme.danger,
-            ),
-          );
+          showGlassPill(context, 'HRV measurement returned no data — keep ring snug and retry. Raw: $result', type: GlassPillType.error);
         } else {
           setState(() => _measuring = false);
         }
@@ -362,9 +353,7 @@ class _HrvScreenState extends State<HrvScreen> {
           : e.toString().contains('TIMEOUT')
               ? 'HRV measurement timed out — keep ring on finger (up to 90s).'
               : 'HRV measurement failed: $e';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
-      );
+      showGlassPill(context, msg, type: GlassPillType.error);
     }
   }
 

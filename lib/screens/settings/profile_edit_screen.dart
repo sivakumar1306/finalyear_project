@@ -12,6 +12,7 @@ import '../auth/login_screen.dart';
 import 'account_system_settings_screen.dart';
 import 'settings_screen.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/glass_pill.dart';
 import '../../widgets/footer_spacer.dart';
 
 class ProfileEditScreen extends StatefulWidget {
@@ -130,13 +131,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save: $e', style: AppTypography.inter()),
-            backgroundColor: AppTheme.danger,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showGlassPill(context, 'Failed to save: $e', type: GlassPillType.error);
       }
     } finally {
       if (mounted) setState(() => _saving = false);

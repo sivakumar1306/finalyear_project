@@ -10,6 +10,7 @@ import '../../services/incident_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/glass_pill.dart';
 
 /// Available actions that ring touch gestures can be mapped to.
 enum GestureAction {
@@ -242,13 +243,7 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
 
   void _showActionToast(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    showGlassPill(context, message);
   }
 
   @override

@@ -7,6 +7,7 @@ import '../../services/incident_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/glass_pill.dart';
 
 /// Premium interactive screen to locate your paired Vital Smart Ring.
 /// Triggers real-time ring vibration/flashing via SDK [findDevice], displays
@@ -53,12 +54,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
   Future<void> _toggleFindRing(bool enable) async {
     final ble = context.read<BleProvider>();
     if (!ble.isConnected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ring is not connected. Move closer and try again.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      showGlassPill(context, 'Ring is not connected. Move closer and try again.', type: GlassPillType.error);
       return;
     }
 
@@ -98,25 +94,13 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
         }
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Alerting ring continuously! Check for flashing LED or vibration.',
-          ),
-          backgroundColor: AppTheme.card2,
-        ),
-      );
+      showGlassPill(context, 'Alerting ring continuously! Check for flashing LED or vibration.', type: GlassPillType.success);
     } else {
       _pulseController.stop();
       _pulseController.reset();
       setState(() => _isRinging = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to communicate with ring.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      showGlassPill(context, 'Failed to communicate with ring.', type: GlassPillType.error);
     }
   }
 
@@ -427,13 +411,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                               Clipboard.setData(
                                 ClipboardData(text: ble.deviceAddress),
                               );
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'MAC address copied to clipboard.',
-                                  ),
-                                ),
-                              );
+                              showGlassPill(context, 'MAC address copied to clipboard.', type: GlassPillType.success);
                             }
                           : null,
                     ),

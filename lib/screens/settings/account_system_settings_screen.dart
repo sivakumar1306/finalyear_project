@@ -5,6 +5,7 @@ import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/glass_pill.dart';
 import '../auth/recovery_code_screen.dart';
 
 class AccountSystemSettingsScreen extends StatelessWidget {
@@ -163,9 +164,7 @@ class AccountSystemSettingsScreen extends StatelessWidget {
         final message = (err.contains('invalid') || err.contains('auth') || err.contains('not found'))
             ? 'Invalid email address.'
             : e.toString().replaceAll('Exception: ', '');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        showGlassPill(context, message, type: GlassPillType.error);
       }
     }
   }
@@ -267,9 +266,7 @@ class AccountSystemSettingsScreen extends StatelessWidget {
                           debugPrint('Error deleting account: $e');
                           setState(() => isLoading = false);
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error: ${e.toString()}')),
-                            );
+                            showGlassPill(context, 'Error: ${e.toString()}', type: GlassPillType.error);
                           }
                         }
                       },
@@ -288,9 +285,7 @@ class AccountSystemSettingsScreen extends StatelessWidget {
   Future<void> _confirmFactoryReset(BuildContext context) async {
     final ble = Provider.of<BleProvider>(context, listen: false);
     if (!ble.isConnected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ring is not connected.')),
-      );
+      showGlassPill(context, 'Ring is not connected.', type: GlassPillType.error);
       return;
     }
     final ok = await showDialog<bool>(
@@ -320,10 +315,10 @@ class AccountSystemSettingsScreen extends StatelessWidget {
     if (ok == true && context.mounted) {
       final success = await ble.factoryReset();
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success ? 'Ring factory reset completed.' : 'Failed to factory reset ring.'),
-          ),
+        showGlassPill(
+          context,
+          success ? 'Ring factory reset completed.' : 'Failed to factory reset ring.',
+          type: success ? GlassPillType.success : GlassPillType.error,
         );
       }
     }
@@ -332,9 +327,7 @@ class AccountSystemSettingsScreen extends StatelessWidget {
   Future<void> _confirmShutDownRing(BuildContext context) async {
     final ble = Provider.of<BleProvider>(context, listen: false);
     if (!ble.isConnected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ring is not connected.')),
-      );
+      showGlassPill(context, 'Ring is not connected.', type: GlassPillType.error);
       return;
     }
     final ok = await showDialog<bool>(
@@ -364,10 +357,10 @@ class AccountSystemSettingsScreen extends StatelessWidget {
     if (ok == true && context.mounted) {
       final success = await ble.shutDownRing();
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success ? 'Shut down command sent to ring.' : 'Failed to shut down ring.'),
-          ),
+        showGlassPill(
+          context,
+          success ? 'Shut down command sent to ring.' : 'Failed to shut down ring.',
+          type: success ? GlassPillType.success : GlassPillType.error,
         );
       }
     }

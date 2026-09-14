@@ -8,6 +8,7 @@ import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/glass_pill.dart';
 
 /// Full-featured OTA Firmware Update Screen for the Vital Smart Ring.
 /// Simplified UI as requested.
@@ -122,15 +123,9 @@ class _OtaScreenState extends State<OtaScreen> {
 
 
   Future<void> _startUpdateProcess({String? targetUrl, String? targetVersion}) async {
-    final messenger = ScaffoldMessenger.of(context);
     final ble = context.read<BleProvider>();
     if (!ble.isConnected) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Ring is not connected. Please connect before updating.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      showGlassPill(context, 'Ring is not connected. Please connect before updating.', type: GlassPillType.error);
       return;
     }
 
@@ -195,23 +190,13 @@ class _OtaScreenState extends State<OtaScreen> {
 
       if (localFilePath == null) {
         setState(() => _statusMessage = 'Failed to download firmware file.');
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Firmware download failed. Check connection.'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
+        showGlassPill(context, 'Firmware download failed. Check connection.', type: GlassPillType.error);
         return;
       }
     }
 
     if (localFilePath == null) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('No firmware file selected or found online.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      showGlassPill(context, 'No firmware file selected or found online.', type: GlassPillType.error);
       return;
     }
 
@@ -238,12 +223,7 @@ class _OtaScreenState extends State<OtaScreen> {
       if (success) {
         await ble.refreshFirmwareVersion();
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Firmware updated successfully! Ring is rebooting.'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        showGlassPill(context, 'Firmware updated successfully! Ring is rebooting.', type: GlassPillType.success);
       }
     } catch (e) {
       if (!mounted) return;
@@ -251,12 +231,7 @@ class _OtaScreenState extends State<OtaScreen> {
         _isUpdating = false;
         _statusMessage = 'Update error: $e';
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('OTA error: $e'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      showGlassPill(context, 'OTA error: $e', type: GlassPillType.error);
     }
   }
 

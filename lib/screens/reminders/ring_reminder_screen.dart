@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/incident_service.dart';
+import '../../widgets/glass_pill.dart';
 
 enum RingReminderType { drink, sedentary }
 
@@ -83,14 +84,11 @@ class _RingReminderScreenState extends State<RingReminderScreen> {
         await _ble.setDrinkReminder(jsonEncode(data));
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$_title saved')),
-        );
+        showGlassPill(context, '$_title saved', type: GlassPillType.success);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+        showGlassPill(context, 'Error: $e', type: GlassPillType.error);
       }
     }
   }

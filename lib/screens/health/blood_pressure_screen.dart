@@ -19,6 +19,7 @@ import '../../services/health_engine/health_engine.dart';
 import '../../services/health_engine/models.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/chart_scrubber.dart';
+import '../../widgets/glass_pill.dart';
 import '../../utils/date_keys.dart';
 import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
@@ -498,12 +499,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
         customMessage: 'Measurement tapped while ring not connected',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please connect your ring first'),
-            backgroundColor: AppTheme.danger,
-          ),
-        );
+        showGlassPill(context, 'Please connect your ring first', type: GlassPillType.error);
       }
       return;
     }
@@ -545,12 +541,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
           extraInfo: {'rawResult': result, 'sbp': sbp, 'dbp': dbp},
         );
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Blood pressure measurement returned no data — keep ring snug and retry. Raw: $result'),
-              backgroundColor: AppTheme.danger,
-            ),
-          );
+          showGlassPill(context, 'Blood pressure measurement returned no data — keep ring snug and retry. Raw: $result', type: GlassPillType.error);
         }
       }
     } catch (e, st) {
@@ -567,9 +558,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
             : e.toString().contains('TIMEOUT')
                 ? 'Blood pressure measurement timed out — keep ring on finger.'
                 : 'Blood pressure measurement failed: $e';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
-        );
+        showGlassPill(context, msg, type: GlassPillType.error);
       }
     }
   }

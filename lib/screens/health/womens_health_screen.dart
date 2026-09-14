@@ -18,6 +18,7 @@ import '../../widgets/legend_dot.dart';
 import 'womens_health_widgets.dart';
 import '../../services/notification_prefs.dart';
 import '../../widgets/glass_menu.dart';
+import '../../widgets/glass_pill.dart';
 import 'womens_health_notifications_screen.dart';
 import '../../services/local_notification_service.dart';
 import 'log_period_screen.dart';
@@ -299,12 +300,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: AppTheme.danger,
-          ),
-        );
+        showGlassPill(context, 'Error: $e', type: GlassPillType.error);
       }
     } finally {
       if (mounted) setState(() => _savingSetup = false);
@@ -555,12 +551,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                                     _cycles.insert(index, removedCycle);
                                   });
                                   if (ctx.mounted) {
-                                    ScaffoldMessenger.of(ctx).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Failed to delete'),
-                                        backgroundColor: AppTheme.danger,
-                                      ),
-                                    );
+                                    showGlassPill(ctx, 'Failed to delete', type: GlassPillType.error);
                                   }
                                 });
                           }

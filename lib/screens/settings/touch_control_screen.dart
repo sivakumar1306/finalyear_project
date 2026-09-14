@@ -6,6 +6,7 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/incident_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_pill.dart';
 
 class TouchControlScreen extends StatefulWidget {
   const TouchControlScreen({super.key});
@@ -103,7 +104,7 @@ class _TouchControlScreenState extends State<TouchControlScreen> {
       await _ble.setTouchControlSetting(enable: enabled, strength: 5);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        showGlassPill(context, 'Error: $e', type: GlassPillType.error);
       }
     }
   }

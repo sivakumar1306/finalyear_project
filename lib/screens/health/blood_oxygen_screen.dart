@@ -17,6 +17,7 @@ import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/chart_scrubber.dart';
+import '../../widgets/glass_pill.dart';
 import '../../utils/date_keys.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/metric_stat_card.dart';
@@ -389,12 +390,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         customMessage: 'Measurement tapped while ring not connected',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please connect your ring first'),
-            backgroundColor: AppTheme.danger,
-          ),
-        );
+        showGlassPill(context, 'Please connect your ring first', type: GlassPillType.error);
       }
       return;
     }
@@ -495,12 +491,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         );
         if (mounted) {
           setState(() => _measuring = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('SpO2 measurement returned no data — keep ring snug and retry. Raw: $result'),
-              backgroundColor: AppTheme.danger,
-            ),
-          );
+          showGlassPill(context, 'SpO2 measurement returned no data — keep ring snug and retry. Raw: $result', type: GlassPillType.error);
         } else {
           setState(() => _measuring = false);
         }
@@ -519,9 +510,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
             : e.toString().contains('TIMEOUT')
                 ? 'SpO2 measurement timed out — keep ring on finger and retry.'
                 : 'SpO2 measurement failed: $e';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
-        );
+        showGlassPill(context, msg, type: GlassPillType.error);
       } else {
         if (mounted) setState(() => _measuring = false);
       }

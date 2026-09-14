@@ -9,6 +9,7 @@ import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/glass_pill.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Ring-controlled camera screen.
@@ -130,14 +131,10 @@ class _RingCameraScreenState extends State<RingCameraScreen>
       if (!mounted) return;
       setState(() => _lastPhotoPath = file.path);
       _saveToGallery(file.path);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Photo captured')));
+      showGlassPill(context, 'Photo captured', type: GlassPillType.success);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Capture failed: $e')));
+      showGlassPill(context, 'Capture failed: $e', type: GlassPillType.error);
     } finally {
       _pendingCapture = null;
       if (mounted) setState(() => _isCapturing = false);

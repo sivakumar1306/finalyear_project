@@ -6,6 +6,7 @@ import '../../services/health_connect_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/glass_pill.dart';
 
 /// Health Connect — connects Google Health Connect to the app.
 ///
@@ -136,16 +137,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
 
   void _showSnack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: AppTheme.card2,
-        content: Text(
-          message,
-          style: AppTypography.inter(color: Colors.white, fontSize: 13),
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    showGlassPill(context, message);
   }
 
   @override

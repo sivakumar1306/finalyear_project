@@ -6,6 +6,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/glass_pill.dart';
 
 class VoiceListeningSheet extends StatefulWidget {
   const VoiceListeningSheet({super.key});
@@ -104,12 +105,7 @@ class _VoiceListeningSheetState extends State<VoiceListeningSheet>
     if (_disposed) return;
     if (!available) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Microphone permission is needed for voice input.'),
-            backgroundColor: AppTheme.card2,
-          ),
-        );
+        showGlassPill(context, 'Microphone permission is needed for voice input.', type: GlassPillType.error);
         Navigator.of(context).pop(null);
       }
       return;

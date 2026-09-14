@@ -21,6 +21,7 @@ import '../../widgets/footer_spacer.dart';
 import '../../widgets/glass_card.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/glass_icon_button.dart';
+import '../../widgets/glass_pill.dart';
 import '../settings/about_screen.dart';
 import '../settings/fall_detection_screen.dart';
 import '../settings/goal_setting_screen.dart';
@@ -1193,9 +1194,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final rows = await ble.getEmergencyContacts();
     if (rows.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No emergency contact saved yet')),
-      );
+      showGlassPill(context, 'No emergency contact saved yet');
       return;
     }
     final firstRow = rows.first;
@@ -1221,9 +1220,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final uri = Uri(scheme: 'tel', path: phone);
       final ok = await launchUrl(uri);
       if (!ok && mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not reach $phone')));
+        showGlassPill(context, 'Could not reach $phone', type: GlassPillType.error);
       }
       return;
     }
@@ -1240,15 +1237,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final ok = result['ok'] == true;
     final queued = (result['queuedCount'] as num?)?.toInt() ?? 0;
     final err = result['error'] as String?;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok
-              ? 'Sending emergency SMS to $queued contact${queued == 1 ? '' : 's'}… '
-                  'delivery is confirmed as it arrives'
-              : (err ?? 'Failed to send emergency SMS'),
-        ),
-      ),
+    showGlassPill(
+      context,
+      ok
+          ? 'Sending emergency SMS to $queued contact${queued == 1 ? '' : 's'}… delivery is confirmed as it arrives'
+          : (err ?? 'Failed to send emergency SMS'),
+      type: ok ? GlassPillType.success : GlassPillType.error,
     );
   }
 

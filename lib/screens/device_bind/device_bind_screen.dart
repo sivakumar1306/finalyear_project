@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
-import '../../theme/app_theme.dart';
+import '../../widgets/glass_pill.dart';
 
 class DeviceBindScreen extends StatefulWidget {
   const DeviceBindScreen({super.key});
@@ -70,16 +70,10 @@ class _DeviceBindScreenState extends State<DeviceBindScreen> {
     if (!mounted) return;
     setState(() => _connectingAddress = null);
     if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Connected to ${device.name}'),
-        backgroundColor: AppTheme.success,
-      ));
+      showGlassPill(context, 'Connected to ${device.name}', type: GlassPillType.success);
       Navigator.pop(context);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Connection failed. Make sure ring is nearby and awake.'),
-        backgroundColor: AppTheme.danger,
-      ));
+      showGlassPill(context, 'Connection failed. Make sure ring is nearby and awake.', type: GlassPillType.error);
     }
   }
 

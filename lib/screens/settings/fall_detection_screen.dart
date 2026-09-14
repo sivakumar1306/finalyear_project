@@ -10,13 +10,14 @@ import '../../widgets/glass_back_button.dart';
 import '../../widgets/fall_prediction/fall_risk_score_card.dart';
 import '../../widgets/fall_prediction/explainable_ai_dashboard.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/glass_pill.dart';
 import 'fall_detection_widgets.dart';
 
 // Local-only (SharedPreferences), same pattern as device_name/device_address in
 // BleProvider — no backend table for these two fields yet, just a single local user.
 const _kAddressPrefKey = 'fall_emergency_address';
 const _kInstructionsPrefKey = 'fall_emergency_instructions';
-const _kDefaultAddress = 'Flat 101, SingleBar avenue...';
+const _kDefaultAddress = '';
 
 class FallDetectionScreen extends StatefulWidget {
   // Set when navigating here from the Home fall-prediction banner ("Take action") so the
@@ -121,9 +122,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
   // send immediately to **all** saved emergency contacts (true background send).
   Future<void> _alertContact() async {
     if (_contacts.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No emergency contact saved yet')),
-      );
+      showGlassPill(context, 'No emergency contact saved yet');
       return;
     }
     final contact = _contacts.first;
@@ -143,9 +142,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
       final uri = Uri(scheme: 'tel', path: phone);
       final ok = await launchUrl(uri);
       if (!ok && mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not reach $phone')));
+        showGlassPill(context, 'Could not reach $phone', type: GlassPillType.error);
       }
       return;
     }
@@ -157,15 +154,12 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
     final ok = result['ok'] == true;
     final queued = (result['queuedCount'] as num?)?.toInt() ?? 0;
     final err = result['error'] as String?;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok
-              ? 'Sending emergency SMS to $queued contact${queued == 1 ? '' : 's'}… '
-                  'delivery is confirmed as it arrives'
-              : (err ?? 'Failed to send emergency SMS'),
-        ),
-      ),
+    showGlassPill(
+      context,
+      ok
+          ? 'Sending emergency SMS to $queued contact${queued == 1 ? '' : 's'}… delivery is confirmed as it arrives'
+          : (err ?? 'Failed to send emergency SMS'),
+      type: ok ? GlassPillType.info : GlassPillType.error,
     );
   }
 
@@ -346,27 +340,16 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
       final status = await Permission.phone.request();
       if (!status.isGranted) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Phone permission is required to auto-call your emergency contact',
-            ),
-          ),
-        );
+        showGlassPill(context, 'Phone permission is required to auto-call your emergency contact', type: GlassPillType.error);
         await ble.setAutoCallOnFallEnabled(false);
         return;
       }
     }
     await ble.setAutoCallOnFallEnabled(enabled);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          enabled
-              ? 'Auto-call on fall detection enabled'
-              : 'Auto-call on fall detection disabled',
-        ),
-      ),
+    showGlassPill(
+      context,
+      enabled ? 'Auto-call on fall detection enabled' : 'Auto-call on fall detection disabled',
     );
   }
 
@@ -376,27 +359,16 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
       final status = await Permission.phone.request();
       if (!status.isGranted) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Phone permission is required to auto-call your emergency contact',
-            ),
-          ),
-        );
+        showGlassPill(context, 'Phone permission is required to auto-call your emergency contact', type: GlassPillType.error);
         await ble.setAutoCallOnFallPredictionEnabled(false);
         return;
       }
     }
     await ble.setAutoCallOnFallPredictionEnabled(enabled);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          enabled
-              ? 'Auto-call on fall prediction enabled'
-              : 'Auto-call on fall prediction disabled',
-        ),
-      ),
+    showGlassPill(
+      context,
+      enabled ? 'Auto-call on fall prediction enabled' : 'Auto-call on fall prediction disabled',
     );
   }
 
@@ -457,13 +429,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
                   break;
                 case 'clear_mock_data':
                   context.read<BleProvider>().clearMockVitals();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Mock data cleared! Restart the app to refresh all UI.',
-                      ),
-                    ),
-                  );
+                  showGlassPill(context, 'Mock data cleared! Restart the app to refresh all UI.', type: GlassPillType.success);
                   break;
                 case 'notify':
                   context.read<BleProvider>().simulateFallEvent();
@@ -756,7 +722,7 @@ class _FallDetectionScreenState extends State<FallDetectionScreen> {
           const SizedBox(height: 20),
           const SectionLabel('ADDRESS'),
           const SizedBox(height: 8),
-          EditableRow(label: 'Address', value: _address, onTap: _editAddress),
+          EditableRow(label: 'Address', value: _address.isEmpty ? 'Add' : _address, onTap: _editAddress),
           const SizedBox(height: 8),
           EditableRow(
             label: 'Additional instructions',

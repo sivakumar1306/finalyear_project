@@ -19,6 +19,7 @@ import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/chart_scrubber.dart';
+import '../../widgets/glass_pill.dart';
 import '../../utils/date_keys.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/metric_stat_card.dart';
@@ -418,12 +419,7 @@ class _StressScreenState extends State<StressScreen> {
         customMessage: 'Measurement tapped while ring not connected',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please connect your ring first'),
-            backgroundColor: AppTheme.danger,
-          ),
-        );
+        showGlassPill(context, 'Please connect your ring first', type: GlassPillType.error);
       }
       return;
     }
@@ -459,12 +455,7 @@ class _StressScreenState extends State<StressScreen> {
           extraInfo: {'rawResult': result},
         );
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Stress measurement returned no data — keep ring snug and retry. Raw: $result'),
-              backgroundColor: AppTheme.danger,
-            ),
-          );
+          showGlassPill(context, 'Stress measurement returned no data — keep ring snug and retry. Raw: $result', type: GlassPillType.error);
         }
       }
     } catch (e, st) {
@@ -481,9 +472,7 @@ class _StressScreenState extends State<StressScreen> {
             : e.toString().contains('TIMEOUT')
                 ? 'Stress measurement timed out — keep ring on finger.'
                 : 'Stress measurement failed: $e';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
-        );
+        showGlassPill(context, msg, type: GlassPillType.error);
       }
     }
   }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
 import '../../services/incident_service.dart';
+import '../../widgets/glass_pill.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
@@ -44,9 +45,9 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
   Future<void> _save() async {
     try {
       await _ble.setNotificationSetting(jsonEncode(_settings));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Notification settings saved')));
+      if (mounted) showGlassPill(context, 'Notification settings saved', type: GlassPillType.success);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) showGlassPill(context, 'Error: $e', type: GlassPillType.error);
     }
   }
 

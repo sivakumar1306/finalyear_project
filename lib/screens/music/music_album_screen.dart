@@ -4,6 +4,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/glass_pill.dart';
 
 TextStyle _inter(double size, {FontWeight weight = FontWeight.w400, Color color = Colors.white}) =>
     AppTypography.inter(fontSize: size, fontWeight: weight, color: color);
@@ -23,7 +24,7 @@ class _MusicAlbumScreenState extends State<MusicAlbumScreen> {
       final ok = await _ble.toggleMediaPlayPause();
       if (!mounted) return;
       setState(() => _playing = !_playing);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? (_playing ? 'Playing' : 'Paused') : 'Toggle failed'), backgroundColor: AppTheme.gold));
+      showGlassPill(context, ok ? (_playing ? 'Playing' : 'Paused') : 'Toggle failed', type: ok ? GlassPillType.success : GlassPillType.error);
     } catch (_) {}
   }
 

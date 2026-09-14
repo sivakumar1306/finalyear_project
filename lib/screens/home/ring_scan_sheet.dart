@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/glass_pill.dart';
 
 // ── Alphahuman ring detection ─────────────────────────────────────────────────
 // Widened from a narrow allowlist of just 'R08_'/'R02_' (which only matched the
@@ -144,12 +145,7 @@ class _RingScanSheetState extends State<_RingScanSheet>
       // Home (all connects) — no toast here.
       Navigator.pop(context);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Connection failed — make sure the ring is nearby.'),
-          backgroundColor: AppTheme.danger,
-        ),
-      );
+      showGlassPill(context, 'Connection failed — make sure the ring is nearby.', type: GlassPillType.error);
     }
   }
 
@@ -165,14 +161,7 @@ class _RingScanSheetState extends State<_RingScanSheet>
       // Home (all connects) — no toast here.
       Navigator.pop(context);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Could not reach ring — try placing it on the charger to wake it.',
-          ),
-          backgroundColor: AppTheme.danger,
-        ),
-      );
+      showGlassPill(context, 'Could not reach ring — try placing it on the charger to wake it.', type: GlassPillType.error);
     }
   }
 

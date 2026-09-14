@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../widgets/glass_pill.dart';
 
 class AdvancedSettingsScreen extends StatefulWidget {
   const AdvancedSettingsScreen({super.key});
@@ -39,15 +40,11 @@ class _AdvancedSettingsScreenState extends State<AdvancedSettingsScreen> {
     try {
       await _ble.setAdvancedSetting(jsonEncode(_settings));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Advanced settings saved')),
-        );
+        showGlassPill(context, 'Advanced settings saved', type: GlassPillType.success);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        showGlassPill(context, 'Error: $e', type: GlassPillType.error);
       }
     }
   }

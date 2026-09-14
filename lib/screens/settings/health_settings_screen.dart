@@ -7,6 +7,7 @@ import '../../services/ble_service.dart';
 import '../../services/incident_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/glass_pill.dart';
 
 class HealthSettingsScreen extends StatefulWidget {
   const HealthSettingsScreen({super.key});
@@ -205,14 +206,16 @@ class _HealthSettingsScreenState extends State<HealthSettingsScreen> {
   }
 
   void _snack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: AppTheme.card2,
-        content: Text(
-          message,
-          style: AppTypography.inter(color: Colors.white, fontSize: 13),
-        ),
-      ),
+    final isError = message.startsWith('Error');
+    final isSaved = message.contains('saved') || message.contains('set to');
+    showGlassPill(
+      context,
+      message,
+      type: isError
+          ? GlassPillType.error
+          : isSaved
+              ? GlassPillType.success
+              : GlassPillType.info,
     );
   }
 

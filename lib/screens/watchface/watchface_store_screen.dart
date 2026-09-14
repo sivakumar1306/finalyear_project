@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/glass_pill.dart';
 
 TextStyle _inter(double size, {FontWeight weight = FontWeight.w400, Color color = Colors.white}) =>
     AppTypography.inter(fontSize: size, fontWeight: weight, color: color);
@@ -78,7 +79,7 @@ class _WatchfaceStoreScreenState extends State<WatchfaceStoreScreen> {
         await prefs.setString('watchface_installed', name);
         if (!mounted) return;
         setState(() { _installed = name; _downloading = null; });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$name installed — OTA started'), backgroundColor: AppTheme.gold));
+        showGlassPill(context, '$name installed — OTA started', type: GlassPillType.success);
       } else {
         throw Exception('OTA failed');
       }
@@ -86,7 +87,7 @@ class _WatchfaceStoreScreenState extends State<WatchfaceStoreScreen> {
       if (!mounted) return;
       setState(() => _downloading = null);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download/OTA failed: $e'), backgroundColor: AppTheme.danger));
+      showGlassPill(context, 'Download/OTA failed: $e', type: GlassPillType.error);
     }
   }
 
