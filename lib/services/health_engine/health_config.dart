@@ -301,6 +301,8 @@ class HealthConfig {
   static Map<String, dynamic> _current =
       jsonDecode(jsonEncode(kDefaultConfig)) as Map<String, dynamic>;
   static DateTime? _lastFetchAt;
+  static DateTime? _lastFailReportAt;
+  static const Duration _failReportCooldown = Duration(minutes: 15);
 
   static Map<String, dynamic> get current => _current;
 
@@ -335,12 +337,17 @@ class HealthConfig {
       }
     } catch (e, st) {
       debugPrint('[HealthConfig] Supabase fetch failed: $e');
-      IncidentService.reportUnhandled(
-        source: 'health_config',
-        error: e,
-        stackTrace: st,
-        customMessage: 'Supabase health_engine_config fetch failed — using cache/default',
-      );
+      final now = DateTime.now();
+      if (_lastFailReportAt == null ||
+          now.difference(_lastFailReportAt!) >= _failReportCooldown) {
+        _lastFailReportAt = now;
+        IncidentService.reportUnhandled(
+          source: 'health_config',
+          error: e,
+          stackTrace: st,
+          customMessage: 'Supabase health_engine_config fetch failed — using cache/default',
+        );
+      }
     }
 
     // 2) Offline fallback: SharedPreferences cache.

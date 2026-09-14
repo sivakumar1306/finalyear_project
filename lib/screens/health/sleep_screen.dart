@@ -221,12 +221,6 @@ class _SleepScreenState extends State<SleepScreen> {
     try {
       final result = SleepEngine.parseSleepData(jsonStr);
       if (!result.hasData) {
-        IncidentService.reportUnhandled(
-          source: 'sleep_screen',
-          error: Exception('sleep total <=0'),
-          customMessage: 'getTodaySleep returned empty - falling back to DB',
-          extraInfo: {'raw': jsonStr.substring(0, jsonStr.length.clamp(0, 500))},
-        );
         _loadDayFromDb();
         return;
       }
