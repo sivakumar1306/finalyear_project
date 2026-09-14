@@ -122,6 +122,7 @@ class SupabaseService {
     String? address,
     String? phone,
     String? additionalInstructions,
+    String? defaultEmergencyContact,
   }) async {
     await client.from('user_profiles').upsert({
       'id': userId,
@@ -133,6 +134,7 @@ class SupabaseService {
       'address': ?address,
       'phone': ?phone,
       'additional_instructions': ?additionalInstructions,
+      'default_emergency_contact': ?defaultEmergencyContact,
     });
   }
 
