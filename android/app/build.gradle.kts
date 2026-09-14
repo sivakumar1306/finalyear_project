@@ -19,7 +19,6 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = appPackageName
     compileSdk = 37
-    compileSdkExtension = 19
     ndkVersion = "28.2.13676358"
 
     compileOptions {

@@ -1,280 +1,372 @@
-import 'package:health_connector/health_connector.dart';
-import 'package:permission_handler/permission_handler.dart' as perm_handler;
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
+import 'package:health/health.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'incident_service.dart';
 
-enum HealthSyncType {
-  steps('Steps', 'Daily step count', [HealthDataType.steps]),
-  heartRate('Heart Rate', 'Heart rate samples', [HealthDataType.heartRate]),
-  hrv('HRV', 'Heart rate variability (RMSSD)', [HealthDataType.heartRateVariabilityRMSSD]),
-  bloodOxygen('Blood Oxygen', 'SpO\u2082 saturation', [HealthDataType.oxygenSaturation]),
-  sleep('Sleep', 'Sleep stages & duration', [HealthDataType.sleepSession, HealthDataType.sleepStageRecord]),
-  bloodPressure('Blood Pressure', 'Systolic & diastolic', [HealthDataType.bloodPressure]),
-  temperature('Temperature', 'Body temperature', [HealthDataType.bodyTemperature]),
-  menstruation('Menstruation', 'Menstrual flow data', [HealthDataType.menstrualFlow]);
 
-  const HealthSyncType(this.label, this.subtitle, this.dataTypes);
-  final String label;
-  final String subtitle;
-  final List<HealthDataType> dataTypes;
+enum HealthSyncType {
+  steps,
+  heartRate,
+  hrv,
+  bloodOxygen,
+  sleep,
+  bloodPressure,
+  temperature,
+  menstruation,
+}
+
+extension HealthSyncTypeLabel on HealthSyncType {
+  String get label => switch (this) {
+        HealthSyncType.steps => 'Steps',
+        HealthSyncType.heartRate => 'Heart Rate',
+        HealthSyncType.hrv => 'Heart Rate Variability',
+        HealthSyncType.bloodOxygen => 'Blood Oxygen (SpO2)',
+        HealthSyncType.sleep => 'Sleep',
+        HealthSyncType.bloodPressure => 'Blood Pressure',
+        HealthSyncType.temperature => 'Temperature',
+        HealthSyncType.menstruation => 'Menstruation',
+      };
+
+  String get subtitle => switch (this) {
+        HealthSyncType.steps => 'Daily step count',
+        HealthSyncType.heartRate => 'Beats per minute',
+        HealthSyncType.hrv => 'RMSSD in milliseconds',
+        HealthSyncType.bloodOxygen => 'Oxygen saturation %',
+        HealthSyncType.sleep => 'Sleep stages & duration',
+        HealthSyncType.bloodPressure => 'Systolic / diastolic',
+        HealthSyncType.temperature => 'Body temperature',
+        HealthSyncType.menstruation => 'Cycle & period tracking',
+      };
 }
 
 class HealthConnectToday {
-  final DateTime fetchedAt;
   final int? steps;
   final double? avgHeartRate;
   final double? avgHrv;
   final double? avgSpo2;
   final int? sleepMinutes;
-  final int? deepMinutes;
-  final int? lightMinutes;
-  final int? remMinutes;
-  final int? awakeMinutes;
   final int? bpSystolic;
   final int? bpDiastolic;
   final double? avgTemperatureC;
-  final int? daysSinceLastPeriod;
   final bool hasMenstruationData;
+  final int? daysSinceLastPeriod;
+
   const HealthConnectToday({
-    required this.fetchedAt,
     this.steps,
     this.avgHeartRate,
     this.avgHrv,
     this.avgSpo2,
     this.sleepMinutes,
-    this.deepMinutes,
-    this.lightMinutes,
-    this.remMinutes,
-    this.awakeMinutes,
     this.bpSystolic,
     this.bpDiastolic,
     this.avgTemperatureC,
-    this.daysSinceLastPeriod,
     this.hasMenstruationData = false,
+    this.daysSinceLastPeriod,
   });
-  bool get hasData => steps != null || avgHeartRate != null || avgHrv != null || avgSpo2 != null || sleepMinutes != null || bpSystolic != null || avgTemperatureC != null;
 }
 
 class HealthConnectService {
   HealthConnectService._();
+
   static final HealthConnectService instance = HealthConnectService._();
-  static const _enabledTypesKey = 'health_connect_enabled_types';
-  static const _connectedKey = 'health_connect_connected';
-  HealthConnector? _connector;
-  bool _creating = false;
 
-  Future<HealthConnector> _getConnector() async {
-    if (_connector != null) return _connector!;
-    if (_creating) {
-      while (_connector == null && _creating) {
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-      if (_connector != null) return _connector!;
-    }
-    _creating = true;
-    try {
-      _connector = await HealthConnector.create();
-      return _connector!;
-    } finally {
-      _creating = false;
-    }
+  Health? _health;
+  bool? _cachedAvailability;
+
+  static const _kEnabledPrefsKey = 'hc_enabled_types_v2';
+  static const _kConnectedPrefsKey = 'hc_connected';
+
+  // ── Health → HealthSyncType mapping ──────────────────────────────────────
+
+  static final Map<HealthSyncType, List<HealthDataType>> _typeMap = {
+    HealthSyncType.steps: [HealthDataType.STEPS],
+    HealthSyncType.heartRate: [HealthDataType.HEART_RATE],
+    HealthSyncType.hrv: [HealthDataType.HEART_RATE_VARIABILITY_RMSSD],
+    HealthSyncType.bloodOxygen: [HealthDataType.BLOOD_OXYGEN],
+    HealthSyncType.sleep: [
+      HealthDataType.SLEEP_REM,
+      HealthDataType.SLEEP_LIGHT,
+      HealthDataType.SLEEP_DEEP,
+      HealthDataType.SLEEP_AWAKE,
+    ],
+    HealthSyncType.bloodPressure: [
+      HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
+      HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
+    ],
+    HealthSyncType.temperature: [HealthDataType.BODY_TEMPERATURE],
+    HealthSyncType.menstruation: [HealthDataType.MENSTRUATION_FLOW],
+  };
+
+  // ── Sleep configuration ──────────────────────────────────────────────────
+
+  static const _kSleepStageDistribution = [
+    (type: 'awake', fraction: 0.05),
+    (type: 'light', fraction: 0.40),
+    (type: 'deep', fraction: 0.20),
+    (type: 'light', fraction: 0.10),
+    (type: 'rem', fraction: 0.20),
+    (type: 'light', fraction: 0.05),
+  ];
+
+  // ── Persistence ──────────────────────────────────────────────────────────
+
+  Future<Set<HealthSyncType>> loadEnabledTypes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final names = prefs.getStringList(_kEnabledPrefsKey) ?? [];
+    return names
+        .map((n) => HealthSyncType.values.where((t) => t.name == n).firstOrNull)
+        .whereType<HealthSyncType>()
+        .toSet();
   }
 
-  Future<HealthConnector?> _tryGetConnector() async {
-    try {
-      return await _getConnector();
-    } catch (_) {
-      return null;
-    }
+  Future<void> saveEnabledTypes(Set<HealthSyncType> types) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _kEnabledPrefsKey,
+      types.map((t) => t.name).toList(),
+    );
   }
+
+  Future<bool> loadConnected() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kConnectedPrefsKey) ?? false;
+  }
+
+  Future<void> saveConnected(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kConnectedPrefsKey, value);
+  }
+
+  // ── Initialization ───────────────────────────────────────────────────────
+
+  Health get _client => _health ??= Health();
 
   Future<bool> isAvailable() async {
+    if (_cachedAvailability != null) return _cachedAvailability!;
     try {
-      final status = await HealthConnector.getHealthPlatformStatus();
-      return status == HealthPlatformStatus.available;
-    } catch (_) {
+      _cachedAvailability = await _client.isHealthConnectAvailable();
+      return _cachedAvailability!;
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'isAvailable failed',
+      );
+      _cachedAvailability = false;
       return false;
     }
   }
 
   Future<void> installHealthConnect() async {
     try {
-      await HealthConnector.launchHealthAppPageInAppStore();
+      await _client.installHealthConnect();
+      _cachedAvailability = null;
     } catch (e, st) {
-      IncidentService.reportUnhandled(source: 'health_connect_service', error: e, stackTrace: st, customMessage: 'installHealthConnect failed');
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'installHealthConnect failed',
+      );
     }
   }
 
-  Future<Set<HealthSyncType>> loadEnabledTypes() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList(_enabledTypesKey);
-    if (saved == null) return {HealthSyncType.steps, HealthSyncType.heartRate};
-    final Set<HealthSyncType> types = {};
-    for (final name in saved) {
-      try {
-        types.add(HealthSyncType.values.byName(name));
-      } catch (e, st) {
-        IncidentService.reportUnhandled(source: 'health_connect_service', error: e, stackTrace: st, customMessage: 'Unknown HealthSyncType in prefs: $name');
-      }
-    }
-    return types;
-  }
-
-  Future<void> saveEnabledTypes(Set<HealthSyncType> types) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_enabledTypesKey, types.map((e) => e.name).toList());
-  }
-
-  Future<bool> loadConnected() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_connectedKey) ?? false;
-  }
-
-  Future<void> setConnected(bool connected) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_connectedKey, connected);
-  }
-
-  List<dynamic> _permissionsForTypes(Set<HealthSyncType> types) {
-    final perms = <dynamic>[];
-    for (final t in types) {
-      for (final dt in t.dataTypes) {
-        perms.add(HealthDataPermission.read(dt));
-        perms.add(HealthDataPermission.write(dt));
-      }
-    }
-    perms.add(HealthPlatformFeature.readHealthDataHistory.permission);
-    perms.add(HealthPlatformFeature.readHealthDataInBackground.permission);
-    return perms;
-  }
-
-  Future<bool> hasPermissions(Set<HealthSyncType> types) async {
-    if (types.isEmpty) return false;
-    try {
-      final connector = await _tryGetConnector();
-      if (connector == null) return false;
-      final perms = _permissionsForTypes(types);
-      for (final p in perms) {
-        try {
-          final status = await (connector as dynamic).getPermissionStatus(p);
-          if (status != PermissionStatus.granted) return false;
-        } catch (_) {
-          return false;
-        }
-      }
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
+  // ── Authorization ────────────────────────────────────────────────────────
 
   Future<bool> requestAuthorization(Set<HealthSyncType> types) async {
-    if (types.isEmpty) return false;
-    if (types.contains(HealthSyncType.steps)) {
-      final status = await perm_handler.Permission.activityRecognition.request();
-      if (!status.isGranted && !status.isLimited) {
-        // continue anyway
-      }
-    }
     try {
-      final connector = await _getConnector();
-      final perms = _permissionsForTypes(types);
-      final results = await (connector as dynamic).requestPermissions(perms);
-      final granted = (results as List).where((r) => (r as dynamic).status == PermissionStatus.granted).length;
-      final ok = granted == perms.length;
-      if (ok) {
-        await setConnected(true);
-        await refreshWriteGrants(types);
-      } else {
-        final anyGranted = results.any((r) => (r as dynamic).status == PermissionStatus.granted);
-        if (anyGranted) {
-          await setConnected(true);
-          await refreshWriteGrants(types);
-        }
-      }
-      return ok;
+      final healthTypes = _typesForSync(types);
+      if (healthTypes.isEmpty) return false;
+      return await _client.requestAuthorization(healthTypes);
     } catch (e, st) {
-      IncidentService.reportUnhandled(source: 'health_connect_service', error: e, stackTrace: st, customMessage: 'requestAuthorization failed for $types');
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'requestAuthorization failed for $types',
+      );
       return false;
     }
   }
 
-  Future<void> revokeAll() async {
+  Future<void> revokePermissions() async {
     try {
-      final connector = await _tryGetConnector();
-      if (connector != null) await connector.revokeAllPermissions();
+      await _client.revokePermissions();
     } catch (e, st) {
-      IncidentService.reportUnhandled(source: 'health_connect_service', error: e, stackTrace: st, customMessage: 'revokePermissions failed');
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'revokePermissions failed',
+      );
     }
-    _writeGranted.clear();
-    await setConnected(false);
   }
 
-  Set<HealthSyncType> _writeGranted = {};
-
-  Future<Set<HealthSyncType>> refreshWriteGrants(Set<HealthSyncType> types) async {
+  /// Returns the subset of [types] that have write access granted in Health Connect.
+  Future<Set<HealthSyncType>> refreshWriteGrants(
+    Set<HealthSyncType> types,
+  ) async {
     final granted = <HealthSyncType>{};
     for (final type in types) {
-      if (await hasPermissions({type})) granted.add(type);
+      try {
+        final hTypes = _typeMap[type];
+        if (hTypes == null || hTypes.isEmpty) continue;
+        final hasPerm = await _client.hasPermissions(hTypes);
+        if (hasPerm == true) granted.add(type);
+      } catch (_) {
+        // health package throws on some types; treat as not granted.
+      }
     }
-    _writeGranted = granted;
     return granted;
   }
 
-  Future<bool> _canWrite(HealthSyncType type) async {
-    if (_writeGranted.isNotEmpty) return _writeGranted.contains(type);
-    final ok = await hasPermissions({type});
-    if (ok) _writeGranted = {type};
-    return ok;
-  }
+  // ── Writes ───────────────────────────────────────────────────────────────
 
-  // Stub writes — just check permission, actual record write is no-op until verified on device.
-  // Keeping as stubs prevents compile errors from evolving health_connector Record APIs.
-  Future<void> tryWriteHeartRate(int bpm, DateTime at) async {
-    if (bpm <= 0) return;
-    if (!await _canWrite(HealthSyncType.heartRate)) return;
-    // TODO: write HeartRateRecord via health_connector once API stabilized
-  }
-
-  Future<void> tryWriteHrv(int ms, DateTime at) async {
-    if (ms <= 0) return;
-    if (!await _canWrite(HealthSyncType.hrv)) return;
-  }
-
-  Future<void> tryWriteTemperature(double celsius, DateTime at) async {
-    if (celsius <= 0) return;
-    if (!await _canWrite(HealthSyncType.temperature)) return;
-  }
-
-  Future<void> tryWriteBloodOxygen(int pct, DateTime at) async {
-    if (pct <= 0) return;
-    if (!await _canWrite(HealthSyncType.bloodOxygen)) return;
-  }
-
-  Future<void> tryWriteBloodPressure(int systolic, int diastolic, DateTime at) async {
-    if (systolic <= 0 || diastolic <= 0) return;
-    if (!await _canWrite(HealthSyncType.bloodPressure)) return;
-  }
-
-  Future<void> tryWriteSteps(int steps, DateTime at) async {
+  Future<void> tryWriteSteps(int steps, DateTime time) async {
     if (steps <= 0) return;
-    if (!await _canWrite(HealthSyncType.steps)) return;
     try {
-      final connector = await _getConnector();
-      final start = DateTime(at.year, at.month, at.day);
-      final record = StepsRecord(
-        id: HealthRecordId.none,
-        startTime: start,
-        endTime: at,
-        count: Number(steps.toDouble()),
-        metadata: Metadata.automaticallyRecorded(device: Device.fromType(DeviceType.watch)),
+      final ok = await _client.writeHealthData(
+        value: steps.toDouble(),
+        type: HealthDataType.STEPS,
+        startTime: time,
+        endTime: time,
       );
-      await connector.writeRecord(record);
+      if (!ok) {
+        IncidentService.reportUnhandled(
+          source: 'health_connect_service',
+          error: 'writeHealthData returned false',
+          stackTrace: StackTrace.current,
+          customMessage: 'writeSteps failed (ok=false)',
+        );
+      }
     } catch (e, st) {
-      IncidentService.reportUnhandled(source: 'health_connect_service', error: e, stackTrace: st, customMessage: 'writeSteps failed');
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'writeSteps failed',
+      );
     }
   }
 
+  Future<void> tryWriteHrv(num hrvMs, DateTime time) async {
+    if (hrvMs <= 0) return;
+    try {
+      await _client.writeHealthData(
+        value: hrvMs.toDouble(),
+        type: HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
+        startTime: time,
+        endTime: time,
+      );
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'writeHrv failed',
+      );
+    }
+  }
+
+  Future<void> tryWriteHeartRate(num bpm, DateTime time) async {
+    if (bpm <= 0) return;
+    try {
+      await _client.writeHealthData(
+        value: bpm.toDouble(),
+        type: HealthDataType.HEART_RATE,
+        startTime: time,
+        endTime: time,
+      );
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'writeHeartRate failed',
+      );
+    }
+  }
+
+  Future<void> tryWriteSpo2(num percent, DateTime time) async {
+    if (percent <= 0 || percent > 100) return;
+    try {
+      await _client.writeHealthData(
+        value: percent.toDouble(),
+        type: HealthDataType.BLOOD_OXYGEN,
+        startTime: time,
+        endTime: time,
+      );
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'writeSpo2 failed',
+      );
+    }
+  }
+
+  /// Alias used by ble_provider.
+  Future<void> tryWriteBloodOxygen(num percent, DateTime time) =>
+      tryWriteSpo2(percent, time);
+
+  Future<void> tryWriteTemperature(double celsius, DateTime time) async {
+    if (celsius <= 0 || celsius > 50) return;
+    try {
+      await _client.writeHealthData(
+        value: celsius,
+        type: HealthDataType.BODY_TEMPERATURE,
+        startTime: time,
+        endTime: time,
+      );
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'writeTemperature failed',
+      );
+    }
+  }
+
+  Future<void> tryWriteBloodPressure(
+    num systolic,
+    num diastolic,
+    DateTime time,
+  ) async {
+    if (systolic <= 0 || diastolic <= 0) return;
+    try {
+      await _client.writeHealthData(
+        value: systolic.toDouble(),
+        type: HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
+        startTime: time,
+        endTime: time,
+      );
+      await _client.writeHealthData(
+        value: diastolic.toDouble(),
+        type: HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
+        startTime: time,
+        endTime: time,
+      );
+    } catch (e, st) {
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'writeBloodPressure failed',
+      );
+    }
+  }
+
+  /// Writes sleep stages to Health Connect.
+  ///
+  /// Sleep is represented as a continuous timeline from [sleepTime] to [wakeTime]
+  /// split into sequential stages (awake → light → deep → light → rem → light).
+  /// Each stage occupies a contiguous time window with no gaps or overlaps.
   Future<void> tryWriteSleep({
     required DateTime sleepTime,
     required DateTime wakeTime,
@@ -283,87 +375,396 @@ class HealthConnectService {
     required int remMinutes,
     required int awakeMinutes,
   }) async {
-    if (!await _canWrite(HealthSyncType.sleep)) return;
-    var end = wakeTime;
-    if (!end.isAfter(sleepTime)) {
-      end = DateTime(sleepTime.year, sleepTime.month, sleepTime.day + 1, wakeTime.hour, wakeTime.minute);
-      if (!end.isAfter(sleepTime)) end = wakeTime.add(const Duration(days: 1));
+    if (!await isAvailable()) return;
+    if (sleepTime.isAfter(wakeTime) || sleepTime.isAtSameMomentAs(wakeTime)) {
+      return;
     }
-    final total = lightMinutes + deepMinutes + remMinutes + awakeMinutes;
-    try {
-      final connector = await _getConnector();
-      if (total <= 0) {
-        final session = SleepSessionRecord(
-          id: HealthRecordId.none,
-          startTime: sleepTime,
-          endTime: end,
-          title: 'Sleep',
-          samples: [],
-          metadata: Metadata.automaticallyRecorded(device: Device.fromType(DeviceType.watch)),
-        );
-        await connector.writeRecord(session);
-        return;
-      }
-      var cursor = sleepTime;
-      final samples = <SleepStageSample>[];
-      void addStage(SleepStage type, int minutes) {
-        if (minutes <= 0) return;
-        final stageEnd = cursor.add(Duration(minutes: minutes));
-        samples.add(SleepStageSample(startTime: cursor, endTime: stageEnd, stageType: type));
-        cursor = stageEnd;
-      }
 
-      addStage(SleepStage.light, lightMinutes);
-      addStage(SleepStage.deep, deepMinutes);
-      addStage(SleepStage.rem, remMinutes);
-      addStage(SleepStage.awake, awakeMinutes);
-      final session = SleepSessionRecord(
-        id: HealthRecordId.none,
-        startTime: sleepTime,
-        endTime: cursor.isAfter(sleepTime) ? cursor : end,
-        title: 'Sleep',
-        samples: samples,
-        metadata: Metadata.automaticallyRecorded(device: Device.fromType(DeviceType.watch)),
+    try {
+      final stages = _buildSleepStages(
+        sleepTime: sleepTime,
+        wakeTime: wakeTime,
+        lightMinutes: lightMinutes,
+        deepMinutes: deepMinutes,
+        remMinutes: remMinutes,
+        awakeMinutes: awakeMinutes,
       );
-      await connector.writeRecord(session);
+
+      for (final stage in stages) {
+        await _client.writeHealthData(
+          value: stage.value,
+          type: stage.type,
+          startTime: stage.from,
+          endTime: stage.to,
+        );
+      }
     } catch (e, st) {
-      IncidentService.reportUnhandled(source: 'health_connect_service', error: e, stackTrace: st, customMessage: 'writeSleep failed');
+      IncidentService.reportUnhandled(
+        source: 'health_connect_service',
+        error: e,
+        stackTrace: st,
+        customMessage: 'writeSleep failed',
+      );
     }
   }
 
+  // ── Sleep stage builder ──────────────────────────────────────────────────
+
+  List<_SleepStageEntry> _buildSleepStages({
+    required DateTime sleepTime,
+    required DateTime wakeTime,
+    required int lightMinutes,
+    required int deepMinutes,
+    required int remMinutes,
+    required int awakeMinutes,
+  }) {
+    final totalMinutes = wakeTime.difference(sleepTime).inMinutes;
+    if (totalMinutes <= 0) return [];
+
+    final actualMinutes = {
+      'awake': awakeMinutes,
+      'light': lightMinutes,
+      'deep': deepMinutes,
+      'rem': remMinutes,
+    };
+
+    final stages = <_SleepStageEntry>[];
+    var current = sleepTime;
+
+    for (final entry in _kSleepStageDistribution) {
+      final targetMinutes = (totalMinutes * entry.fraction).round();
+      final minutes = max(1, actualMinutes[entry.type] ?? targetMinutes);
+
+      if (current.isAfter(wakeTime)) break;
+
+      final end = current.add(Duration(minutes: minutes));
+      final clampedEnd = end.isAfter(wakeTime) ? wakeTime : end;
+
+      stages.add(
+        _SleepStageEntry(
+          type: _healthDataTypeForStage(entry.type),
+          from: current,
+          to: clampedEnd,
+          value: _sleepStageValue(entry.type),
+        ),
+      );
+
+      current = clampedEnd;
+    }
+
+    // Write any remaining awake time as the final stage.
+    if (current.isBefore(wakeTime)) {
+      stages.add(
+        _SleepStageEntry(
+          type: HealthDataType.SLEEP_AWAKE,
+          from: current,
+          to: wakeTime,
+          value: _sleepStageValue('awake'),
+        ),
+      );
+    }
+
+    return stages;
+  }
+
+  HealthDataType _healthDataTypeForStage(String stage) => switch (stage) {
+        'deep' => HealthDataType.SLEEP_DEEP,
+        'rem' => HealthDataType.SLEEP_REM,
+        'awake' => HealthDataType.SLEEP_AWAKE,
+        _ => HealthDataType.SLEEP_LIGHT,
+      };
+
+  /// Numeric value written into Health Connect for each sleep stage.
+  /// Deep=1, Light=2, REM=3, Awake=4 (matches HC convention).
+  double _sleepStageValue(String stage) => switch (stage) {
+        'deep' => 1.0,
+        'light' => 2.0,
+        'rem' => 3.0,
+        _ => 4.0,
+      };
+
+  // ── Reads ────────────────────────────────────────────────────────────────
+
   Future<HealthConnectToday> fetchToday(Set<HealthSyncType> types) async {
     final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day);
-    int? steps;
-    if (types.contains(HealthSyncType.steps)) {
-      try {
-        final connector = await _getConnector();
-        final req = HealthDataType.steps.aggregateSum(startTime: start, endTime: now);
-        final result = await connector.aggregate(req);
-        final v = (result as dynamic).value;
-        if (v is Number) {
-          steps = v.value.toInt();
-        } else if (v is num) {
-          steps = v.toInt();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final results = <HealthDataType, dynamic>{};
+
+    for (final type in types) {
+      final hTypes = _typeMap[type];
+      if (hTypes == null) continue;
+
+      for (final hType in hTypes) {
+        try {
+          final data = await _client.getHealthDataFromTypes(
+            startTime: startOfDay,
+            endTime: now,
+            types: [hType],
+          );
+          results[hType] = data;
+        } catch (e) {
+          debugPrint('HC fetch error for $hType: $e');
         }
-      } catch (e, st) {
-        IncidentService.reportUnhandled(source: 'health_connect_service', error: e, stackTrace: st, customMessage: 'aggregate steps failed');
       }
     }
-    // For other types, return empty for now — will be filled via local DB + Health Connect read on next iteration
+
     return HealthConnectToday(
-      fetchedAt: now,
-      steps: steps,
+      steps: _sumSteps(types, results),
+      avgHeartRate: _avgNumeric(HealthDataType.HEART_RATE, results),
+      avgHrv: _avgNumeric(HealthDataType.HEART_RATE_VARIABILITY_RMSSD, results),
+      avgSpo2: _avgNumeric(HealthDataType.BLOOD_OXYGEN, results),
+      sleepMinutes: _sumSleepMinutes(results),
+      bpSystolic: _avgInt(HealthDataType.BLOOD_PRESSURE_SYSTOLIC, results),
+      bpDiastolic: _avgInt(HealthDataType.BLOOD_PRESSURE_DIASTOLIC, results),
+      avgTemperatureC: _avgNumeric(HealthDataType.BODY_TEMPERATURE, results),
+      hasMenstruationData: _hasData(HealthDataType.MENSTRUATION_FLOW, results),
+      daysSinceLastPeriod: _daysSinceLastMenstruation(results),
     );
   }
 
   Future<Map<String, double>> fetchHistoricalBaselines() async {
-    // Keep defaults until health_connector read for HR/HRV/Temp is validated
-    return {
-      'rolling14DayMedianHR': 70.0,
-      'rolling28DayMeanHRV': 50.0,
-      'rolling28DayStdDevHRV': 10.0,
-      'baselineAdjustedTemp': 36.5,
-    };
+    final now = DateTime.now();
+
+    try {
+      final stepsData = await _client.getHealthDataFromTypes(
+        startTime: now.subtract(const Duration(days: 14)),
+        endTime: now,
+        types: [HealthDataType.STEPS],
+      );
+      final steps = _numericValues(HealthDataType.STEPS, stepsData);
+      final avgSteps = steps.isNotEmpty ? _median(steps) : 0.0;
+
+      final hrData = await _client.getHealthDataFromTypes(
+        startTime: now.subtract(const Duration(days: 14)),
+        endTime: now,
+        types: [HealthDataType.HEART_RATE],
+      );
+      final hr = _numericValues(HealthDataType.HEART_RATE, hrData);
+      final avgHR = hr.isNotEmpty ? _median(hr) : 70.0;
+
+      final hrvData = await _client.getHealthDataFromTypes(
+        startTime: now.subtract(const Duration(days: 28)),
+        endTime: now,
+        types: [HealthDataType.HEART_RATE_VARIABILITY_RMSSD],
+      );
+      final hrv = _numericValues(
+        HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
+        hrvData,
+      );
+      final avgHRV = hrv.isNotEmpty ? _median(hrv) : 50.0;
+
+      final spo2Data = await _client.getHealthDataFromTypes(
+        startTime: now.subtract(const Duration(days: 14)),
+        endTime: now,
+        types: [HealthDataType.BLOOD_OXYGEN],
+      );
+      final spo2 = _numericValues(HealthDataType.BLOOD_OXYGEN, spo2Data);
+      final avgSpO2 = spo2.isNotEmpty ? _median(spo2) : 96.0;
+
+      final tempData = await _client.getHealthDataFromTypes(
+        startTime: now.subtract(const Duration(days: 14)),
+        endTime: now,
+        types: [HealthDataType.BODY_TEMPERATURE],
+      );
+      final temp = _numericValues(HealthDataType.BODY_TEMPERATURE, tempData);
+      final avgTemp = temp.isNotEmpty ? _median(temp) : 36.5;
+
+      return {
+        'steps': avgSteps,
+        'heartRate': avgHR,
+        'hrv': avgHRV,
+        'spo2': avgSpO2,
+        'temperature': avgTemp,
+      };
+    } catch (e) {
+      debugPrint('Error fetching historical baselines: $e');
+      return {
+        'steps': 0,
+        'heartRate': 70.0,
+        'hrv': 50.0,
+        'spo2': 96.0,
+        'temperature': 36.5,
+      };
+    }
   }
+
+  // ── Read-only fetch methods ──────────────────────────────────────────────
+
+  Future<double?> readLatestHeartRate() async {
+    try {
+      final now = DateTime.now();
+      final data = await _client.getHealthDataFromTypes(
+        startTime: now.subtract(const Duration(days: 1)),
+        endTime: now,
+        types: [HealthDataType.HEART_RATE],
+      );
+      final hrList = data.whereType<HealthDataPoint>().toList()
+        ..sort((a, b) => b.dateTo.compareTo(a.dateTo));
+      return hrList.isNotEmpty ? (hrList.first.value as NumericHealthValue).numericValue.toDouble() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<double?> readLatestHRV() async {
+    try {
+      final now = DateTime.now();
+      final data = await _client.getHealthDataFromTypes(
+        startTime: now.subtract(const Duration(days: 1)),
+        endTime: now,
+        types: [HealthDataType.HEART_RATE_VARIABILITY_RMSSD],
+      );
+      final list = data.whereType<HealthDataPoint>().toList()
+        ..sort((a, b) => b.dateTo.compareTo(a.dateTo));
+      return list.isNotEmpty ? (list.first.value as NumericHealthValue).numericValue.toDouble() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<double?> readLatestSpo2() async {
+    try {
+      final now = DateTime.now();
+      final data = await _client.getHealthDataFromTypes(
+        startTime: now.subtract(const Duration(days: 1)),
+        endTime: now,
+        types: [HealthDataType.BLOOD_OXYGEN],
+      );
+      final list = data.whereType<HealthDataPoint>().toList()
+        ..sort((a, b) => b.dateTo.compareTo(a.dateTo));
+      return list.isNotEmpty ? (list.first.value as NumericHealthValue).numericValue.toDouble() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<int?> readTotalStepsToday() async {
+    try {
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final steps = await _client.getTotalStepsInInterval(startOfDay, now);
+      return steps;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ── Aggregate helpers ────────────────────────────────────────────────────
+
+  int? _sumSteps(Set<HealthSyncType> types, Map results) {
+    if (!types.contains(HealthSyncType.steps)) return null;
+    final list = results[HealthDataType.STEPS];
+    if (list == null || list.isEmpty) return null;
+
+    double total = 0;
+    for (final dp in list) {
+      total += (dp.value as NumericHealthValue).numericValue.toDouble();
+    }
+    return total.round();
+  }
+
+  double? _avgNumeric(HealthDataType type, Map results) {
+    final list = results[type];
+    if (list == null || list.isEmpty) return null;
+
+    double total = 0;
+    int count = 0;
+    for (final dp in list) {
+      final v = (dp.value as NumericHealthValue).numericValue.toDouble();
+      if (v.isFinite && !v.isNaN) {
+        total += v;
+        count++;
+      }
+    }
+    return count > 0 ? total / count : null;
+  }
+
+  int? _avgInt(HealthDataType type, Map results) {
+    final avg = _avgNumeric(type, results);
+    return avg != null ? avg.round() : null;
+  }
+
+  bool _hasData(HealthDataType type, Map results) {
+    final list = results[type];
+    return list != null && list.isNotEmpty;
+  }
+
+  int? _sumSleepMinutes(Map results) {
+    final types = [
+      HealthDataType.SLEEP_REM,
+      HealthDataType.SLEEP_LIGHT,
+      HealthDataType.SLEEP_DEEP,
+      HealthDataType.SLEEP_AWAKE,
+    ];
+
+    int totalMinutes = 0;
+    bool found = false;
+
+    for (final type in types) {
+      final list = results[type];
+      if (list == null || list.isEmpty) continue;
+
+      for (final dp in list) {
+        final dur = (dp as HealthDataPoint).dateTo.difference(dp.dateFrom);
+        totalMinutes += dur.inMinutes;
+        found = true;
+      }
+    }
+    return found ? totalMinutes : null;
+  }
+
+  int? _daysSinceLastMenstruation(Map results) {
+    final list = results[HealthDataType.MENSTRUATION_FLOW];
+    if (list == null || list.isEmpty) return null;
+
+    final sorted = list.toList()
+      ..sort((a, b) => b.dateFrom.compareTo(a.dateFrom));
+    final latest = sorted.first;
+    return DateTime.now().difference(latest.dateFrom).inDays;
+  }
+
+  // ── Numeric value extraction ─────────────────────────────────────────────
+
+  List<double> _numericValues(HealthDataType type, dynamic data) {
+    final list = data.whereType<HealthDataPoint>().toList();
+    final values = <double>[];
+    for (final dp in list) {
+      final v = (dp.value as NumericHealthValue).numericValue.toDouble();
+      if (v.isFinite && !v.isNaN) values.add(v);
+    }
+    return values;
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  List<HealthDataType> _typesForSync(Set<HealthSyncType> syncTypes) {
+    final types = <HealthDataType>{};
+    for (final s in syncTypes) {
+      final hTypes = _typeMap[s];
+      if (hTypes != null) types.addAll(hTypes);
+    }
+    return types.toList();
+  }
+
+  double _median(List<double> values) {
+    if (values.isEmpty) return 0;
+    final sorted = List<double>.of(values)..sort();
+    final mid = sorted.length ~/ 2;
+    if (sorted.length.isOdd) return sorted[mid];
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+}
+
+class _SleepStageEntry {
+  final HealthDataType type;
+  final DateTime from;
+  final DateTime to;
+  final double value;
+
+  const _SleepStageEntry({
+    required this.type,
+    required this.from,
+    required this.to,
+    required this.value,
+  });
 }

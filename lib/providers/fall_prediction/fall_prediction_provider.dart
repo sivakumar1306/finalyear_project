@@ -170,7 +170,7 @@ class FallPredictionProvider extends ChangeNotifier {
     }
 
     double? sleepQualScore = sleepDurScore;
-    final finalDeepMinutes = today.deepMinutes ?? (bleSleepDeepSecs != null && bleSleepDeepSecs > 0 ? bleSleepDeepSecs / 60.0 : null);
+    final finalDeepMinutes = bleSleepDeepSecs != null && bleSleepDeepSecs > 0 ? bleSleepDeepSecs / 60.0 : null;
     if (finalDeepMinutes != null &&
         finalSleepMinutes != null &&
         finalSleepMinutes > 0) {

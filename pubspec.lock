@@ -121,6 +121,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.3.5+6"
+  carp_serializable:
+    dependency: transitive
+    description:
+      name: carp_serializable
+      sha256: "4a78993c03577902f9996e29982c406d5d3c838fa174f18cc0eb53f49b352abd"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.0"
   characters:
     dependency: transitive
     description:
@@ -209,6 +217,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.15"
+  device_info_plus:
+    dependency: transitive
+    description:
+      name: device_info_plus
+      sha256: "0891702f96b2e465fe567b7ec448380e6b1c14f60af552a8536d9f583b6b8442"
+      url: "https://pub.dev"
+    source: hosted
+    version: "13.2.0"
+  device_info_plus_platform_interface:
+    dependency: transitive
+    description:
+      name: device_info_plus_platform_interface
+      sha256: "04b173a92e2d9161dfead145667037c8d834db725ce2e7b942bfe18fd2f45a46"
+      url: "https://pub.dev"
+    source: hosted
+    version: "8.1.0"
   fake_async:
     dependency: transitive
     description:
@@ -488,46 +512,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
-  health_connector:
+  health:
     dependency: "direct main"
     description:
-      name: health_connector
-      sha256: e582adf2030dce855a2a8b688c0cfea149560bd509717f4de0246576e2337a5d
+      name: health
+      sha256: "8dd9625c9c26379a5753ad24c33af1d3dc5ce1f36f19c03e17c676c2f8fdbb80"
       url: "https://pub.dev"
     source: hosted
-    version: "3.10.0"
-  health_connector_core:
-    dependency: transitive
-    description:
-      name: health_connector_core
-      sha256: "08f92bd2ae2be2186c439b6f6e1661a459680b311cc546b3c7097dfac18ec204"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.9.3"
-  health_connector_hc_android:
-    dependency: transitive
-    description:
-      name: health_connector_hc_android
-      sha256: "2b5cb6d0a161267cefc99fc0a25f55b2bb6c2d20d16e1f97e3278e9e0f3c1912"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.7.0"
-  health_connector_hk_ios:
-    dependency: transitive
-    description:
-      name: health_connector_hk_ios
-      sha256: b14f570c1add37edabdc2ae5dc58a242449660be69f53b8d5dc8b0c2e1af9058
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.9.4"
-  health_connector_logger:
-    dependency: transitive
-    description:
-      name: health_connector_logger
-      sha256: "031be7bb55bf219450322fb654cb91ca5bd2c6d69f6fc0f9e96486b5c9e5d2a3"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.0.1"
+    version: "13.3.2"
   hooks:
     dependency: transitive
     description:
@@ -1237,6 +1229,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.4.0"
+  win32_registry:
+    dependency: transitive
+    description:
+      name: win32_registry
+      sha256: "73b1d78920a9d6e03f8b4e43e612b87bf3152a0e5c5e5150267762b7c4116904"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.3"
   xdg_directories:
     dependency: transitive
     description:
