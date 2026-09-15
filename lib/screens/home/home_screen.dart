@@ -1112,7 +1112,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Column(

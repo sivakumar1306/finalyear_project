@@ -497,15 +497,8 @@ class DevicePill extends StatelessWidget {
                       : Colors.white.withValues(alpha: 0.2),
                 ),
               ),
-            const SizedBox(width: 6),
-            Text(
-              ble.deviceName.isNotEmpty ? ble.deviceName : 'Ring',
-              style: inter(12, weight: FontWeight.w500),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
             if (battery >= 0) ...[
-              const SizedBox(width: 5),
+              const SizedBox(width: 6),
               Icon(
                 battery > 60
                     ? Icons.battery_full_rounded
@@ -516,10 +509,6 @@ class DevicePill extends StatelessWidget {
                     ? Colors.white.withValues(alpha: 0.5)
                     : AppTheme.danger,
                 size: 14,
-              ),
-              Text(
-                '$battery%',
-                style: inter(11, color: Colors.white.withValues(alpha: 0.5)),
               ),
             ],
           ],
