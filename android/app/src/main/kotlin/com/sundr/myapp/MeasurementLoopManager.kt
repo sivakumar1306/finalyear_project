@@ -360,8 +360,8 @@ object MeasurementLoopManager {
                             }
                         }
                         if (accepted != null && done.compareAndSet(false, true)) {
-                            persist(Vital.HEART_RATE, cycleId, accepted!!.toDouble()) {
-                                repository.insertHeartRate(accepted!!, cycleId, "auto_cycle")
+                            persist(Vital.HEART_RATE, cycleId, accepted.toDouble()) {
+                                repository.insertHeartRate(accepted, cycleId, "auto_cycle")
                             }
                             finishHrAttempt(cycleId, "success", null, "{\"extractor\":\"strict\",\"value\":$accepted}")
                             finishWithStop()
@@ -392,13 +392,13 @@ object MeasurementLoopManager {
             }
             if (done.compareAndSet(false, true)) {
                 if (median != null) {
-                    persist(Vital.HEART_RATE, cycleId, median!!.toDouble()) {
-                        repository.insertHeartRate(median!!, cycleId, "auto_cycle")
+                    persist(Vital.HEART_RATE, cycleId, median.toDouble()) {
+                        repository.insertHeartRate(median, cycleId, "auto_cycle")
                     }
                     finishHrAttempt(cycleId, "success", null, "{\"extractor\":\"strict_timeout\",\"value\":$median}")
                 } else if (legacyMedian != null) {
-                    persist(Vital.HEART_RATE, cycleId, legacyMedian!!.toDouble()) {
-                        repository.insertHeartRate(legacyMedian!!, cycleId, "auto_cycle_fallback")
+                    persist(Vital.HEART_RATE, cycleId, legacyMedian.toDouble()) {
+                        repository.insertHeartRate(legacyMedian, cycleId, "auto_cycle_fallback")
                     }
                     finishHrAttempt(cycleId, "success", null, "{\"extractor\":\"legacy\",\"value\":$legacyMedian}")
                 } else {

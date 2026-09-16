@@ -681,7 +681,7 @@ class HealthConnectService {
 
   int? _avgInt(HealthDataType type, Map results) {
     final avg = _avgNumeric(type, results);
-    return avg != null ? avg.round() : null;
+    return avg?.round();
   }
 
   bool _hasData(HealthDataType type, Map results) {

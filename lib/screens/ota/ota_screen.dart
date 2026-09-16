@@ -196,6 +196,7 @@ class _OtaScreenState extends State<OtaScreen> {
     }
 
     if (localFilePath == null) {
+      if (!mounted) return;
       showGlassPill(context, 'No firmware file selected or found online.', type: GlassPillType.error);
       return;
     }
