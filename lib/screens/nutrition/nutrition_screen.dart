@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/nutrition_model.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
@@ -76,7 +77,9 @@ class _NutritionScreenState extends State<NutritionScreen> {
       if (user != null) {
         await SupabaseService.client.from('user_nutrition_logs').insert(log.toMap(user.id));
       }
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(source: 'nutrition_screen', error: e, stackTrace: st, customMessage: 'Nutrition log insert to Supabase failed');
+    }
     // local cache
     try {
       final prefs = await SharedPreferences.getInstance();

@@ -396,7 +396,9 @@ class _HrvScreenState extends State<HrvScreen> {
           _maxHrv = newMax;
         });
       }
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(source: 'hrv_screen', error: e, stackTrace: st, customMessage: 'HRV upsert to Supabase failed');
+    }
   }
 
   // ── Local-first day / trend (cloud fills gaps + caches for offline) ────────

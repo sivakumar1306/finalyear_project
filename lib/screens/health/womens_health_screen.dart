@@ -1382,15 +1382,19 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 finalNotes += '${finalNotes.isEmpty ? '' : '\n'}PMS: Yes';
               }
 
-              await SupabaseService.upsertSymptoms(
-                userId: user.id,
-                date: date,
-                flowIntensity: flow,
-                flowColor: color,
-                notes: finalNotes,
-                mood: feelings.join(', '),
-                cramps: pains.contains('Cramps'),
-              );
+              try {
+                await SupabaseService.upsertSymptoms(
+                  userId: user.id,
+                  date: date,
+                  flowIntensity: flow,
+                  flowColor: color,
+                  notes: finalNotes,
+                  mood: feelings.join(', '),
+                  cramps: pains.contains('Cramps'),
+                );
+              } catch (e, st) {
+                IncidentService.reportUnhandled(source: 'womens_health_screen', error: e, stackTrace: st, customMessage: 'Symptom upsert to Supabase failed');
+              }
             }
             if (mounted) {
               await _load();

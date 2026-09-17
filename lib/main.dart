@@ -101,6 +101,7 @@ Future<void> _configureNativeSync() async {
 }
 
 StreamSubscription? _authSub;
+Timer? _nativeSyncRefreshTimer;
 
 void main() async {
   // Zone guard: uncaught Dart errors (including from plugins) are reported but
@@ -196,6 +197,15 @@ void main() async {
       } catch (e) {
         debugPrint('Auth listener setup failed: $e');
       }
+
+      // Periodic JWT refresh for native sync — Supabase JWTs expire after ~1 h;
+      // re-push credentials to the native SupabaseSyncManager every 30 min so
+      // background pushes never start failing with 401.
+      _nativeSyncRefreshTimer?.cancel();
+      _nativeSyncRefreshTimer = Timer.periodic(
+        const Duration(minutes: 30),
+        (_) => unawaited(_configureNativeSync()),
+      );
 
       runApp(
         MultiProvider(

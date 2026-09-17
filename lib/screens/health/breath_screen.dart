@@ -1,9 +1,12 @@
 // ignore_for_file: use_null_aware_elements
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/breath_model.dart';
 import '../../providers/ble_provider.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
@@ -34,10 +37,41 @@ class _BreathScreenState extends State<BreathScreen> {
   Timer? _timer;
   List<int> _history = [];
 
+  static const _kPendingKey = 'pending_breath_sessions';
+
   @override
   void initState() {
     super.initState();
     _loadHistory();
+    _retryPendingSessions();
+  }
+
+  Future<void> _retryPendingSessions() async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getStringList(_kPendingKey);
+      if (raw == null || raw.isEmpty) return;
+      final pending = raw.map((s) => jsonDecode(s) as Map<String, dynamic>).toList();
+      final remaining = <String>[];
+      for (final session in pending) {
+        try {
+          await SupabaseService.client.from('user_breath_sessions').insert({
+            'user_id': user.id,
+            'method_id': session['method_id'],
+            'started_at': session['started_at'],
+            'ended_at': session['ended_at'],
+            'duration_s': session['duration_s'],
+            if (session['average_hr'] != null) 'average_hr': session['average_hr'],
+          });
+        } catch (_) {
+          remaining.add(jsonEncode(session));
+        }
+      }
+      await prefs.setStringList(_kPendingKey, remaining);
+      if (remaining.isEmpty && mounted) _loadHistory();
+    } catch (_) {}
   }
 
   Future<void> _loadHistory() async {
@@ -77,19 +111,29 @@ class _BreathScreenState extends State<BreathScreen> {
     final user = SupabaseService.currentUser;
     if (user == null || _elapsedS < 10) return;
     final now = DateTime.now();
+    final sessionData = {
+      'method_id': _selectedMethodId,
+      'started_at': now.subtract(Duration(seconds: _elapsedS)).toUtc().toIso8601String(),
+      'ended_at': now.toUtc().toIso8601String(),
+      'duration_s': _elapsedS,
+      if (context.read<BleProvider>().latestHr > 0) 'average_hr': context.read<BleProvider>().latestHr,
+    };
     try {
-      final ble = context.read<BleProvider>();
-      final avgHr = ble.latestHr > 0 ? ble.latestHr : null;
       await SupabaseService.client.from('user_breath_sessions').insert({
         'user_id': user.id,
-        'method_id': _selectedMethodId,
-        'started_at': now.subtract(Duration(seconds: _elapsedS)).toUtc().toIso8601String(),
-        'ended_at': now.toUtc().toIso8601String(),
-        'duration_s': _elapsedS,
-        if (avgHr != null) 'average_hr': avgHr,
+        ...sessionData,
       });
       _loadHistory();
-    } catch (_) {}
+    } catch (e, st) {
+      IncidentService.reportUnhandled(source: 'breath_screen', error: e, stackTrace: st, customMessage: 'Breath session insert to Supabase failed — caching locally');
+      // Cache to SharedPreferences for retry on next app start
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final existing = prefs.getStringList(_kPendingKey) ?? [];
+        existing.add(jsonEncode(sessionData));
+        await prefs.setStringList(_kPendingKey, existing);
+      } catch (_) {}
+    }
   }
 
   @override

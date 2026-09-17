@@ -457,7 +457,9 @@ class _SleepScreenState extends State<SleepScreen> {
                     sleepTime: st,
                     wakeTime: et,
                   );
-                } catch (_) {}
+                } catch (e, st) {
+                  IncidentService.reportUnhandled(source: 'sleep_screen', error: e, stackTrace: st, customMessage: 'Sleep upsert to Supabase failed');
+                }
               }
               if (ringRows.isNotEmpty) {
                 // Merge ring rows with existing Supabase rows, preferring ring for recent days

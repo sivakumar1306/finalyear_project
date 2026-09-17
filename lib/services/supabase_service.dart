@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config.dart';
 import '../models/health_data.dart';
 import '../utils/date_keys.dart';
+import '../utils/supabase_retry.dart';
 import 'health_engine/health_engine.dart';
 
 class SupabaseService {
@@ -124,7 +125,7 @@ class SupabaseService {
     String? additionalInstructions,
     String? defaultEmergencyContact,
   }) async {
-    await client.from('user_profiles').upsert({
+    await supabaseRetry(() => client.from('user_profiles').upsert({
       'id': userId,
       'full_name': fullName,
       'age': age,
@@ -135,7 +136,7 @@ class SupabaseService {
       'phone': ?phone,
       'additional_instructions': ?additionalInstructions,
       'default_emergency_contact': ?defaultEmergencyContact,
-    });
+    }), label: 'upsertProfile');
   }
 
   static bool get isLoggedIn => currentUser != null;
@@ -148,14 +149,14 @@ class SupabaseService {
     required double distanceM,
   }) async {
     final dateStr = DateKeys.fmt(date);
-    await client.from('user_steps').upsert({
+    await supabaseRetry(() => client.from('user_steps').upsert({
       'user_id': userId,
       'date': dateStr,
       'steps': steps,
       'calories': calories,
       'distance_m': distanceM,
       'synced_at': DateTime.now().toUtc().toIso8601String(),
-    }, onConflict: 'user_id,date');
+    }, onConflict: 'user_id,date'), label: 'upsertSteps');
   }
 
   static Future<List<Map<String, dynamic>>> getStepsHistory({
@@ -183,7 +184,7 @@ class SupabaseService {
     required int sampleCount,
   }) async {
     final dateStr = DateKeys.fmt(date);
-    await client.from('user_hr').upsert({
+    await supabaseRetry(() => client.from('user_hr').upsert({
       'user_id': userId,
       'date': dateStr,
       'avg_hr': avgHr,
@@ -191,7 +192,7 @@ class SupabaseService {
       'max_hr': maxHr,
       'sample_count': sampleCount,
       'synced_at': DateTime.now().toUtc().toIso8601String(),
-    }, onConflict: 'user_id,date');
+    }, onConflict: 'user_id,date'), label: 'upsertHr');
   }
 
   static Future<Map<String, dynamic>?> getTodayHr(String userId) async {
@@ -245,7 +246,7 @@ class SupabaseService {
     required int sampleCount,
   }) async {
     final dateStr = DateKeys.fmt(date);
-    await client.from('user_spo2').upsert({
+    await supabaseRetry(() => client.from('user_spo2').upsert({
       'user_id': userId,
       'date': dateStr,
       'avg_spo2': avgSpo2,
@@ -253,7 +254,7 @@ class SupabaseService {
       'max_spo2': maxSpo2,
       'sample_count': sampleCount,
       'synced_at': DateTime.now().toUtc().toIso8601String(),
-    }, onConflict: 'user_id,date');
+    }, onConflict: 'user_id,date'), label: 'upsertSpo2');
   }
 
   static Future<Map<String, dynamic>?> getTodaySpo2(String userId) async {
@@ -305,13 +306,13 @@ class SupabaseService {
     required DateTime measuredAt,
     String source = 'manual',
   }) async {
-    await client.from('user_bp').insert({
+    await supabaseRetry(() => client.from('user_bp').insert({
       'user_id': userId,
       'systolic': systolic,
       'diastolic': diastolic,
       'measured_at': measuredAt.toUtc().toIso8601String(),
       'source': source,
-    });
+    }), label: 'insertBp');
   }
 
   static Future<Map<String, dynamic>?> getLatestBp(String userId) async {
@@ -366,13 +367,13 @@ class SupabaseService {
     required DateTime measuredAt,
     String source = 'manual',
   }) async {
-    await client.from('user_stress').insert({
+    await supabaseRetry(() => client.from('user_stress').insert({
       'user_id': userId,
       'stress_value': stressValue,
       'label': _stressLabel(stressValue),
       'measured_at': measuredAt.toUtc().toIso8601String(),
       'source': source,
-    });
+    }), label: 'insertStress');
   }
 
   static Future<Map<String, dynamic>?> getLatestStress(String userId) async {
@@ -424,7 +425,7 @@ class SupabaseService {
     required int sampleCount,
   }) async {
     final dateStr = DateKeys.fmt(date);
-    await client.from('user_hrv').upsert({
+    await supabaseRetry(() => client.from('user_hrv').upsert({
       'user_id': userId,
       'date': dateStr,
       'avg_hrv': avgHrv,
@@ -432,7 +433,7 @@ class SupabaseService {
       'max_hrv': maxHrv,
       'sample_count': sampleCount,
       'synced_at': DateTime.now().toUtc().toIso8601String(),
-    }, onConflict: 'user_id,date');
+    }, onConflict: 'user_id,date'), label: 'upsertHrv');
   }
 
   static Future<Map<String, dynamic>?> getHrvForDate(
@@ -477,7 +478,7 @@ class SupabaseService {
     // timestamps we already have. user_id+measured_at already has a unique
     // constraint (see SupabaseSyncManager.kt's native upsert to this same
     // table), so this just needs to use it too.
-    await client
+    await supabaseRetry(() => client
         .from('user_temp')
         .upsert(
           readings
@@ -491,7 +492,7 @@ class SupabaseService {
               )
               .toList(),
           onConflict: 'user_id,measured_at',
-        );
+        ), label: 'insertTempBatch');
   }
 
   static Future<void> insertTemp({
@@ -500,12 +501,12 @@ class SupabaseService {
     required double valueC,
     String source = 'auto',
   }) async {
-    await client.from('user_temp').upsert({
+    await supabaseRetry(() => client.from('user_temp').upsert({
       'user_id': userId,
       'measured_at': measuredAt.toUtc().toIso8601String(),
       'value_c': valueC,
       'source': source,
-    }, onConflict: 'user_id,measured_at');
+    }, onConflict: 'user_id,measured_at'), label: 'insertTemp');
   }
 
   static Future<List<Map<String, dynamic>>> getTempReadings({
@@ -562,7 +563,7 @@ class SupabaseService {
     required int avgBpSbp,
     required int avgBpDbp,
   }) async {
-    final data = await client
+    final data = await supabaseRetry(() => client
         .from('user_workouts')
         .insert({
           'user_id': userId,
@@ -579,7 +580,7 @@ class SupabaseService {
           'avg_bp_dbp': avgBpDbp,
         })
         .select('id')
-        .single();
+        .single(), label: 'insertWorkout');
     return data['id'] as String?;
   }
 
@@ -613,7 +614,7 @@ class SupabaseService {
     int wakeTime = 0,
   }) async {
     final dateStr = DateKeys.fmt(date);
-    await client.from('user_sleep').upsert({
+    await supabaseRetry(() => client.from('user_sleep').upsert({
       'user_id': userId,
       'date': dateStr,
       'total_duration': totalDuration,
@@ -625,7 +626,7 @@ class SupabaseService {
       'sleep_time': sleepTime,
       'wake_time': wakeTime,
       'synced_at': DateTime.now().toUtc().toIso8601String(),
-    }, onConflict: 'user_id,date');
+    }, onConflict: 'user_id,date'), label: 'upsertSleep');
   }
 
   static Future<Map<String, dynamic>?> getSleepForDate(
@@ -732,7 +733,7 @@ class SupabaseService {
     String? flowIntensity,
     String? flowColor,
   }) async {
-    await client.from('user_symptoms').upsert({
+    await supabaseRetry(() => client.from('user_symptoms').upsert({
       'user_id': userId,
       'logged_date': _dateStr(date),
       'mood': mood,
@@ -743,7 +744,7 @@ class SupabaseService {
       'notes': notes,
       'flow_intensity': flowIntensity,
       'flow_color': flowColor,
-    }, onConflict: 'user_id,logged_date');
+    }, onConflict: 'user_id,logged_date'), label: 'upsertSymptoms');
   }
 
   // ── Emergency Contacts (cloud sync — mirrors the local Room table owned by

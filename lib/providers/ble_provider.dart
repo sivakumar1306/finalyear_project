@@ -1214,19 +1214,7 @@ Future<void> _loadTodayVitalsFromLocal() async {
           vital: 'heart_rate',
         );
       }
-      if (_todayAvgHr > 0) {
-        final user = SupabaseService.currentUser;
-        if (user != null) {
-          SupabaseService.upsertHr(
-            userId: user.id,
-            date: DateTime.now(),
-            avgHr: _todayAvgHr,
-            minHr: _todayMinHr,
-            maxHr: _todayMaxHr,
-            sampleCount: (m['count'] as num? ?? 1).toInt(),
-          ).catchError((_) {});
-        }
-      }
+      // Native SupabaseSyncManager handles aggregate upserts (recomputeAndUpsertAggregates)
       return true;
     } catch (_) {
       return false;
@@ -1291,19 +1279,7 @@ Future<void> _loadTodayVitalsFromLocal() async {
           vital: 'spo2',
         );
       }
-      if (_todayAvgSpo2 > 0) {
-        final user = SupabaseService.currentUser;
-        if (user != null) {
-          SupabaseService.upsertSpo2(
-            userId: user.id,
-            date: DateTime.now(),
-            avgSpo2: _todayAvgSpo2,
-            minSpo2: _todayMinSpo2,
-            maxSpo2: _todayMaxSpo2,
-            sampleCount: (m['count'] as num? ?? 1).toInt(),
-          ).catchError((_) {});
-        }
-      }
+      // Native SupabaseSyncManager handles aggregate upserts (recomputeAndUpsertAggregates)
       return true;
     } catch (_) {
       return false;
@@ -1507,18 +1483,7 @@ Future<void> _loadTodayVitalsFromLocal() async {
           message: 'Your skin temperature just read ${v.toStringAsFixed(1)}°C.',
           vital: 'temperature',
         );
-        final user = SupabaseService.currentUser;
-        if (user != null) {
-          SupabaseService.insertTemp(
-            userId: user.id,
-            measuredAt: DateTime.fromMillisecondsSinceEpoch(
-              (m['measuredAt'] as num?)?.toInt() ??
-                  DateTime.now().millisecondsSinceEpoch,
-            ),
-            valueC: v,
-            source: 'auto',
-          ).catchError((_) {});
-        }
+        // Native SupabaseSyncManager handles temperature push (pushTemperature)
       }
       return true;
     } catch (_) {
@@ -1966,23 +1931,8 @@ void _parseAndSaveHrv(String jsonStr) {
   Future<void> _saveStepsToDb(int steps, int calories, double distanceM) async {
     if (steps <= 0 && calories <= 0) return;
 
-    // 1. Direct Supabase upsert
-    final user = SupabaseService.currentUser;
-    if (user != null) {
-      try {
-        await SupabaseService.upsertSteps(
-          userId: user.id,
-          date: DateTime.now(),
-          steps: steps,
-          calories: calories,
-          distanceM: distanceM,
-        );
-      } catch (e) {
-        debugPrint('_saveStepsToDb Supabase error: $e');
-      }
-    }
-
-    // 2. Room DB insert + native SupabaseSyncManager trigger
+    // Native SupabaseSyncManager handles both Room insert + Supabase push
+    // via saveStepsSnapshot → pushSteps + recomputeAndUpsertAggregates.
     try {
       await _ble.saveStepsSnapshot(
         steps: steps,

@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/ecg_model.dart';
 import '../../providers/ble_provider.dart';
+import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
@@ -25,12 +28,34 @@ class EcgScreen extends StatefulWidget {
 class _EcgScreenState extends State<EcgScreen> {
   final _screenshotKey = GlobalKey();
   final _moreButtonKey = GlobalKey();
+  static const _kPendingKey = 'pending_ecg_samples';
   bool _measuring = false;
   EcgSample? _last;
   List<EcgSample> _history = [];
 
   @override
-  void initState() { super.initState(); _loadHistory(); }
+  void initState() { super.initState(); _loadHistory(); _retryPendingSamples(); }
+
+  Future<void> _retryPendingSamples() async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getStringList(_kPendingKey);
+      if (raw == null || raw.isEmpty) return;
+      final pending = raw.map((s) => jsonDecode(s) as Map<String, dynamic>).toList();
+      final remaining = <String>[];
+      for (final sample in pending) {
+        try {
+          await SupabaseService.client.from('user_ecg').insert(sample);
+        } catch (_) {
+          remaining.add(jsonEncode(sample));
+        }
+      }
+      await prefs.setStringList(_kPendingKey, remaining);
+      if (remaining.isEmpty && mounted) _loadHistory();
+    } catch (_) {}
+  }
 
   Future<void> _loadHistory() async {
     final user = SupabaseService.currentUser;
@@ -52,7 +77,19 @@ class _EcgScreenState extends State<EcgScreen> {
     setState(() { _measuring = false; _last = sample; _history = [..._history, sample].take(7).toList(); });
     final user = SupabaseService.currentUser;
     if (user != null) {
-      try { await SupabaseService.client.from('user_ecg').insert(sample.toMap(user.id)); } catch (_) {}
+      final sampleMap = sample.toMap(user.id);
+      try {
+        await SupabaseService.client.from('user_ecg').insert(sampleMap);
+      } catch (e, st) {
+        IncidentService.reportUnhandled(source: 'ecg_screen', error: e, stackTrace: st, customMessage: 'ECG insert to Supabase failed — caching locally');
+        // Cache to SharedPreferences for retry on next app start
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final existing = prefs.getStringList(_kPendingKey) ?? [];
+          existing.add(jsonEncode(sampleMap));
+          await prefs.setStringList(_kPendingKey, existing);
+        } catch (_) {}
+      }
     }
   }
 
