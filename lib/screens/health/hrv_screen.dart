@@ -28,6 +28,7 @@ import '../../widgets/not_enough_data_card.dart';
 import '../../widgets/glass_pill.dart';
 import '../../utils/hourly_aggregator.dart';
 import '../../utils/trend_math.dart';
+import 'measurement_log_screen.dart';
 
 
 // ── Local design tokens ───────────────────────────────────────────────────────
@@ -117,8 +118,6 @@ class _HrvScreenState extends State<HrvScreen> {
   }
 
   String _fmt(DateTime d) => DateKeys.fmt(d);
-
-  static String _fmtTime(DateTime dt) => Formatters.fmtTime(dt);
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -846,10 +845,10 @@ class _HrvScreenState extends State<HrvScreen> {
                 ],
                 const SizedBox(height: 10),
 
-                // ── 6. Slot readings (today only) ──────────────────────────
+                // ── 6. View All Readings ────────────────────────────────────
                 if (hasData) ...[
                   const SizedBox(height: 10),
-                  _slotReadingsList(_chartValues),
+                  _buildViewAllReadingsButton(),
                 ],
 
                 const SizedBox(height: 80),
@@ -879,10 +878,63 @@ class _HrvScreenState extends State<HrvScreen> {
     return '${months[_selectedDate.month - 1]} ${_selectedDate.day}';
   }
 
-  Widget _slotReadingsList(List<int> values) {
-    final entries = <(String, int)>[];
-    for (int i = 0; i < values.length; i++) {
-      if (values[i] <= 0) continue;
+  // ── View All Readings ────────────────────────────────────────────────────
+
+  Widget _buildViewAllReadingsButton() {
+    return GestureDetector(
+      onTap: _openMeasurementLog,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.div),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.list_alt_rounded,
+              color: AppTheme.hrvColor,
+              size: 18,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'View All Readings',
+                style: _inter(14, weight: FontWeight.w600),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: AppTheme.textTertiary,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openMeasurementLog() {
+    final entries = _buildLogEntries();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MeasurementLogScreen(
+          title: 'HRV Readings',
+          date: _selectedDate,
+          entries: entries,
+          accentColor: AppTheme.hrvColor,
+        ),
+      ),
+    );
+  }
+
+  List<MeasurementEntry> _buildLogEntries() {
+    final entries = <MeasurementEntry>[];
+    for (int i = 0; i < _chartValues.length; i++) {
+      if (_chartValues[i] <= 0) continue;
       final minutes = i * 30;
       final dt = DateTime(
         _selectedDate.year,
@@ -891,92 +943,17 @@ class _HrvScreenState extends State<HrvScreen> {
         minutes ~/ 60,
         minutes % 60,
       );
-      entries.add((_fmtTime(dt), values[i]));
+      final v = _chartValues[i];
+      final assessment = HealthEngine.instance.assessHrv(v);
+      entries.add(MeasurementEntry(
+        time: dt,
+        value: '$v',
+        unit: 'ms',
+        label: assessment.label,
+        color: assessment.color,
+        icon: Icons.monitor_heart_rounded,
+      ));
     }
-    if (entries.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.div),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Text(
-              'READINGS',
-              style: _inter(
-                10,
-                weight: FontWeight.w600,
-                color: AppTheme.textTertiary,
-                letterSpacing: 0.7,
-              ),
-            ),
-          ),
-          ...entries.asMap().entries.map((e) {
-            final time = e.value.$1;
-            final v = e.value.$2;
-            final color = HealthEngine.instance.assessHrv(v).color;
-            final label = HealthEngine.instance.assessHrv(v).label;
-            final isLast = e.key == entries.length - 1;
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          Icons.monitor_heart_rounded,
-                          color: color,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              time,
-                              style: _inter(14, weight: FontWeight.w600),
-                            ),
-                            Text(label, style: _inter(11, color: color)),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            '$v',
-                            style: _inter(22, weight: FontWeight.w700),
-                          ),
-                          Text('ms', style: _inter(10, color: AppTheme.textTertiary)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                if (!isLast)
-                  const Divider(color: AppTheme.div, height: 0.5, indent: 66),
-              ],
-            );
-          }),
-        ],
-      ),
-    );
+    return entries;
   }
 }

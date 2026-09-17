@@ -28,6 +28,7 @@ import '../../widgets/metric_stat_card.dart';
 import '../../widgets/not_enough_data_card.dart';
 import '../../utils/hourly_aggregator.dart';
 import '../../utils/trend_math.dart';
+import 'measurement_log_screen.dart';
 
 
 // ── Local design tokens — same system as heart_rate_screen.dart / blood_oxygen_screen.dart ──
@@ -563,6 +564,55 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     );
   }
 
+  // ── View All Readings ─────────────────────────────────────────────────────
+
+  Widget _buildViewAllReadingsButton() {
+    return GestureDetector(
+      onTap: _openMeasurementLog,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.div),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.list_alt_rounded, color: AppTheme.tempColor, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text('View All Readings', style: _inter(14, weight: FontWeight.w600)),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: AppTheme.textTertiary, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openMeasurementLog() {
+    final entries = <MeasurementEntry>[];
+    for (int i = 0; i < _chartValues.length; i++) {
+      if (_chartValues[i] <= 0) continue;
+      final minutes = i * 30;
+      final dt = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, minutes ~/ 60, minutes % 60);
+      final v = _chartValues[i];
+      final assessment = HealthEngine.instance.assessTemperature(v);
+      entries.add(MeasurementEntry(
+        time: dt, value: v.toStringAsFixed(1), unit: '°C',
+        label: assessment.label, color: assessment.color,
+        icon: Icons.thermostat_rounded,
+      ));
+    }
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => MeasurementLogScreen(
+        title: 'Temperature Readings', date: _selectedDate,
+        entries: entries, accentColor: AppTheme.tempColor,
+      ),
+    ));
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   List<String> _trendXLabels() => DateKeys.trendXLabels();
@@ -759,6 +809,9 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                 ),
               ],
               const SizedBox(height: 20),
+
+              // ── View All Readings
+              if (hasChartData) _buildViewAllReadingsButton(),
 
               // ── 6. 7-day trend — also collapse when empty (2+ days)
               if (!TrendMath.hasEnoughTrendData(_trendValues) && !_loadingTrend && !_trendOffline)
