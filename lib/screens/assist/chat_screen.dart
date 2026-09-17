@@ -799,6 +799,17 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.only(left: 6, top: 4),
+            child: Text(
+              'This is just a suggestion, not medical advice.',
+              style: AppTypography.inter(
+                fontSize: 10,
+                fontWeight: FontWeight.w400,
+                color: AppTheme.white40,
+              ),
+            ),
+          ),
         ],
       ),
     );
