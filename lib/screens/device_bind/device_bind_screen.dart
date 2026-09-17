@@ -143,7 +143,8 @@ class _DeviceBindScreenState extends State<DeviceBindScreen> {
           if (ble.isScanning) const LinearProgressIndicator(),
           Expanded(
             child: ble.scannedDevices.isEmpty
-                ? Center(
+                ? Align(
+                    alignment: const Alignment(0, -0.1),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
