@@ -515,6 +515,13 @@ class HealthConnectService {
   }
 
   // ── Sleep stage builder ──────────────────────────────────────────────────
+  //
+  // Slots tile [sleepTime, wakeTime] exactly: each type's measured minutes are
+  // split across its distribution slots by fraction weight, then scaled so the
+  // whole timeline sums to the window. (The old code wrote each type's FULL
+  // total into EVERY slot of that type — e.g. light 3x — overflowing the
+  // window; the clamped tail collapsed to zero-duration stages that Health
+  // Connect rejects, aborting the write mid-loop with missing/REM-less data.)
 
   List<_SleepStageEntry> _buildSleepStages({
     required DateTime sleepTime,
@@ -527,36 +534,57 @@ class HealthConnectService {
     final totalMinutes = wakeTime.difference(sleepTime).inMinutes;
     if (totalMinutes <= 0) return [];
 
-    final actualMinutes = {
-      'awake': awakeMinutes,
-      'light': lightMinutes,
-      'deep': deepMinutes,
-      'rem': remMinutes,
+    final totals = {
+      'awake': max(0, awakeMinutes),
+      'light': max(0, lightMinutes),
+      'deep': max(0, deepMinutes),
+      'rem': max(0, remMinutes),
     };
+    final typeFrac = <String, double>{};
+    for (final e in _kSleepStageDistribution) {
+      typeFrac[e.type] = (typeFrac[e.type] ?? 0) + e.fraction;
+    }
+    // Exact slot lengths: measured breakdown where present, template
+    // fractions for types with no measured data.
+    final exact = <double>[];
+    for (final e in _kSleepStageDistribution) {
+      final t = totals[e.type] ?? 0;
+      exact.add(t > 0
+          ? t * e.fraction / (typeFrac[e.type] ?? e.fraction)
+          : totalMinutes * e.fraction);
+    }
+    // Scale to the window, then largest-remainder rounding so slots sum
+    // to exactly totalMinutes.
+    final sumExact = exact.fold<double>(0, (a, b) => a + b);
+    final scale = sumExact > 0 ? totalMinutes / sumExact : 0;
+    final floored = exact.map((v) => (v * scale).floor()).toList();
+    var remainder = totalMinutes - floored.fold(0, (a, b) => a + b);
+    final order = List.generate(exact.length, (i) => i)
+      ..sort((a, b) => ((exact[b] * scale) - floored[b])
+          .compareTo((exact[a] * scale) - floored[a]));
+    for (var k = 0; k < remainder && k < order.length; k++) {
+      floored[order[k]]++;
+    }
 
     final stages = <_SleepStageEntry>[];
     var current = sleepTime;
 
-    for (final entry in _kSleepStageDistribution) {
-      final targetMinutes = (totalMinutes * entry.fraction).round();
-      final minutes = max(1, actualMinutes[entry.type] ?? targetMinutes);
-
-      if (current.isAfter(wakeTime)) break;
+    for (var i = 0; i < _kSleepStageDistribution.length; i++) {
+      final minutes = floored[i];
+      if (minutes <= 0) continue;
+      if (!current.isBefore(wakeTime)) break;
 
       final end = current.add(Duration(minutes: minutes));
       final clampedEnd = end.isAfter(wakeTime) ? wakeTime : end;
       // Zero-duration windows are rejected by Health Connect — skip them.
-      if (!clampedEnd.isAfter(current)) {
-        current = clampedEnd;
-        continue;
-      }
+      if (!clampedEnd.isAfter(current)) break;
 
       stages.add(
         _SleepStageEntry(
-          type: _healthDataTypeForStage(entry.type),
+          type: _healthDataTypeForStage(_kSleepStageDistribution[i].type),
           from: current,
           to: clampedEnd,
-          value: _sleepStageValue(entry.type),
+          value: _sleepStageValue(_kSleepStageDistribution[i].type),
         ),
       );
 

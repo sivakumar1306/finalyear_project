@@ -122,12 +122,22 @@ class _SleepScreenState extends State<SleepScreen> {
           _selectedDate.year == today.year &&
           _selectedDate.month == today.month &&
           _selectedDate.day == today.day;
-      if (isToday && context.read<BleProvider>().isConnected) {
-        await _fetchFromRing();
-      } else {
-        await _loadDayFromDb();
-      }
+      bool connected = false;
+      try {
+        connected = context.read<BleProvider>().isConnected;
+      } catch (_) {}
+      // Cache first: Supabase data renders immediately. The ring refresh
+      // below runs in the background — previously _fetchFromRing() blocked
+      // the whole page on up to ~60s of sequential BLE calls whenever the
+      // (stale) connected flag was true but the ring wasn't responding.
+      await _loadDayFromDb(skipRing: true);
       await _loadVitals();
+      if (mounted) setState(() => _loading = false);
+      if (isToday && connected) {
+        unawaited(_fetchFromRing().whenComplete(() {
+          if (mounted) setState(() => _loading = false);
+        }));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -294,14 +304,17 @@ class _SleepScreenState extends State<SleepScreen> {
 
   // ── DB ───────────────────────────────────────────────────────────────────────
 
-  Future<void> _loadDayFromDb() async {
+  Future<void> _loadDayFromDb({bool skipRing = false}) async {
     // Try ring first for recent dates when connected (mirrors QRing's historical fetch)
-    // QRing stores ~7 days on-device; Supabase is fallback/cache for offline
-    try {
-      bool isConnected = false;
+    // QRing stores ~7 days on-device; Supabase is fallback/cache for offline.
+    // skipRing=true renders the cache immediately (page open); the caller is
+    // expected to trigger the ring refresh separately in the background.
+    if (!skipRing) {
       try {
-        isConnected = context.read<BleProvider>().isConnected;
-      } catch (_) {}
+        bool isConnected = false;
+        try {
+          isConnected = context.read<BleProvider>().isConnected;
+        } catch (_) {}
       final today = DateTime.now();
       final selDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
       final todayDay = DateTime(today.year, today.month, today.day);
@@ -344,6 +357,7 @@ class _SleepScreenState extends State<SleepScreen> {
         }
       }
     } catch (_) {}
+    }
 
     final user = SupabaseService.currentUser;
     if (user == null) return;

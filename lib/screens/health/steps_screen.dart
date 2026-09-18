@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -345,64 +346,85 @@ class _StepsScreenState extends State<StepsScreen> {
 
     _DaySnapshot? snap;
 
+    // Cache-first: local/Supabase snapshots render immediately and clear the
+    // spinner; the ring refresh runs in the background (bounded by the BLE
+    // timeouts in BleService). Previously the page awaited ring calls before
+    // showing anything, stalling on a dead ring.
     if (isToday) {
       final local = await _loadFromLocalDb();
       if (!mounted || gen != _loadGen) return;
       if (local != null) {
         snap = local;
         _applySnapshot(local, isToday: true);
+        _dayCache[key] = local;
+        setState(() => _dayLoad = false);
       }
 
-      final ring = await _loadFromRing(0);
+      unawaited(() async {
+        final ring = await _loadFromRing(0);
+        if (!mounted || gen != _loadGen) return;
+        if (ring != null && ring.hasTotals) {
+          _applySnapshot(ring, isToday: true);
+          try {
+            context.read<BleProvider>().updateStepsData(
+              ring.steps,
+              ring.cal,
+              ring.distM,
+              ring.stepSlots,
+            );
+          } catch (_) {}
+          await _saveToDb(day, ring.steps, ring.cal, ring.distM);
+          _dayCache[key] = ring;
+        }
+        if (mounted && gen == _loadGen) setState(() => _dayLoad = false);
+      }());
+      return;
+    }
+
+    // Past day: Supabase first so scores show instantly…
+    try {
+      final cloud = await _loadFromSupabase(day);
       if (!mounted || gen != _loadGen) return;
-      if (ring != null && ring.hasTotals) {
-        snap = ring;
-        _applySnapshot(ring, isToday: true);
-        context.read<BleProvider>().updateStepsData(
-          ring.steps,
-          ring.cal,
-          ring.distM,
-          ring.stepSlots,
-        );
-        await _saveToDb(day, ring.steps, ring.cal, ring.distM);
+      if (cloud != null) {
+        snap = cloud;
+        _applySnapshot(cloud, isToday: false);
+        _dayCache[key] = cloud;
+        setState(() => _dayLoad = false);
       }
-    } else {
-      final dayIndex = _dayIndexFor(day);
-      if (dayIndex > 0 && dayIndex <= 7) {
+    } catch (e) {
+      if (mounted && gen == _loadGen && isNetworkError(e)) {
+        setState(() => _pastDayOffline = true);
+      }
+    }
+
+    // …then upgrade from the ring in the background (7-day on-device window).
+    final dayIndex = _dayIndexFor(day);
+    if (dayIndex > 0 && dayIndex <= 7) {
+      unawaited(() async {
         final ring = await _loadFromRing(dayIndex);
         if (!mounted || gen != _loadGen) return;
         if (ring != null && ring.hasTotals) {
-          snap = ring;
           _applySnapshot(ring, isToday: false);
           await _saveToDb(day, ring.steps, ring.cal, ring.distM);
+          _dayCache[key] = ring;
+        } else if (ring != null &&
+            ring.hasIntervals &&
+            snap != null &&
+            !snap.hasIntervals) {
+          final merged = _DaySnapshot(
+            steps: snap.steps,
+            cal: snap.cal,
+            distM: snap.distM,
+            stepSlots: ring.stepSlots,
+            calSlots: ring.calSlots,
+            distSlots: ring.distSlots,
+          );
+          _applySnapshot(merged, isToday: false);
+          _dayCache[key] = merged;
         }
-      }
-
-      if (snap == null || !snap.hasTotals) {
-        try {
-          final cloud = await _loadFromSupabase(day);
-          if (!mounted || gen != _loadGen) return;
-          if (cloud != null) {
-            if (snap != null && snap.hasIntervals && !cloud.hasIntervals) {
-              snap = _DaySnapshot(
-                steps: cloud.hasTotals ? cloud.steps : snap.steps,
-                cal: cloud.hasTotals ? cloud.cal : snap.cal,
-                distM: cloud.hasTotals ? cloud.distM : snap.distM,
-                stepSlots: snap.stepSlots,
-                calSlots: snap.calSlots,
-                distSlots: snap.distSlots,
-              );
-            } else {
-              snap = cloud;
-            }
-            _applySnapshot(snap, isToday: false);
-          }
-        } catch (e) {
-          if (mounted && gen == _loadGen && isNetworkError(e)) {
-            setState(() => _pastDayOffline = true);
-          }
-        }
-      }
+        if (mounted && gen == _loadGen) setState(() => _dayLoad = false);
+      }());
+      return;
     }
 
     if (!mounted || gen != _loadGen) return;

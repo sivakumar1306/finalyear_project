@@ -264,27 +264,42 @@ class BleService {
       '[]';
 
   // ── Steps ──────────────────────────────────────────────────────────
+  // Dart-side timeouts (same rationale as Sleep): a hung native call
+  // surfaces as TimeoutException instead of stalling the Activity page.
   Future<bool> syncTodaySteps() async =>
-      await _methodChannel.invokeMethod<bool>('syncTodaySteps') ?? false;
+      await _methodChannel
+          .invokeMethod<bool>('syncTodaySteps')
+          .timeout(const Duration(seconds: 15)) ??
+      false;
 
   Future<String> getTodaySteps() async =>
-      await _methodChannel.invokeMethod<String>('getTodaySteps') ?? '{}';
+      await _methodChannel
+          .invokeMethod<String>('getTodaySteps')
+          .timeout(const Duration(seconds: 10)) ??
+      '{}';
 
   Future<String> getSteps(int dayIndex) async =>
-      await _methodChannel.invokeMethod<String>('getSteps', {
-        'dayIndex': dayIndex,
-      }) ??
+      await _methodChannel
+          .invokeMethod<String>('getSteps', {
+            'dayIndex': dayIndex,
+          })
+          .timeout(const Duration(seconds: 10)) ??
       '{}';
 
   Future<String> getStepsList(int startDay, int count) async =>
-      await _methodChannel.invokeMethod<String>('getStepsList', {
-        'startDay': startDay,
-        'count': count,
-      }) ??
+      await _methodChannel
+          .invokeMethod<String>('getStepsList', {
+            'startDay': startDay,
+            'count': count,
+          })
+          .timeout(const Duration(seconds: 12)) ??
       '[]';
 
   Future<String> syncStepDetails() async =>
-      await _methodChannel.invokeMethod<String>('syncStepDetails') ?? '[]';
+      await _methodChannel
+          .invokeMethod<String>('syncStepDetails')
+          .timeout(const Duration(seconds: 15)) ??
+      '[]';
 
   // ── Sleep ──────────────────────────────────────────────────────────
   // 10s Dart-side timeouts: a hung native call surfaces as TimeoutException,
@@ -767,7 +782,10 @@ class BleService {
       '[]';
 
   Future<String> getStepsToday() async =>
-      await _methodChannel.invokeMethod<String>('getStepsToday') ?? '{}';
+      await _methodChannel
+          .invokeMethod<String>('getStepsToday')
+          .timeout(const Duration(seconds: 10)) ??
+      '{}';
 
   Future<String> getSyncStatus() async =>
       await _methodChannel.invokeMethod<String>('getSyncStatus') ?? '{}';
