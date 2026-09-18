@@ -417,19 +417,24 @@ class HealthConnectService {
   ) async {
     if (systolic <= 0 || diastolic <= 0) return;
     if (!await canWrite(HealthSyncType.bloodPressure)) return;
+    // Health Connect stores BP as ONE BloodPressureRecord (systolic+diastolic
+    // together). The generic writeHealthData path explicitly rejects both BP
+    // types ("You must use the [writeBloodPressure] API") and silently
+    // returns false — so the old two-call version never wrote anything.
     try {
-      await _client.writeHealthData(
-        value: systolic.toDouble(),
-        type: HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
+      final ok = await _client.writeBloodPressure(
+        systolic: systolic.toInt(),
+        diastolic: diastolic.toInt(),
         startTime: time,
-        endTime: time,
       );
-      await _client.writeHealthData(
-        value: diastolic.toDouble(),
-        type: HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
-        startTime: time,
-        endTime: time,
-      );
+      if (!ok) {
+        IncidentService.reportUnhandled(
+          source: 'health_connect_service',
+          error: 'writeBloodPressure returned false',
+          stackTrace: StackTrace.current,
+          customMessage: 'writeBloodPressure failed (ok=false)',
+        );
+      }
     } catch (e, st) {
       IncidentService.reportUnhandled(
         source: 'health_connect_service',
