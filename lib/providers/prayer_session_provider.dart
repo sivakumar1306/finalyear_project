@@ -68,6 +68,16 @@ class PrayerSessionProvider extends ChangeNotifier {
 
   final _bleService = BleService();
 
+  // Battery: sample every 5s (was 1s with 7 Room reads + notify per tick).
+  // Elapsed clock still advances in 5s steps; calmness waves are slow enough
+  // that 5s resolution is visually identical.
+  static const _sampleInterval = Duration(seconds: 5);
+  // Battery: never use a zero cooldown — 0 bypasses the native 30s floor and
+  // turns the background loop continuous for the whole session. 30s is the
+  // minimum the native clamp intends.
+  static const _sessionCooldownMs = 30000;
+  static const _maxSnapshots = 1000;
+
   void startSession(BleProvider ble) {
     if (_isSessionActive && _timer != null && _timer!.isActive) {
       return;
@@ -78,13 +88,13 @@ class PrayerSessionProvider extends ChangeNotifier {
     _baselineSteps = ble.todaySteps;
     _currentCalmnessScore = 85;
 
-    // Trigger high-frequency ring measurement mode (zero cooldown cycle + active workout mode)
-    _bleService.setCycleCooldownMs(0);
+    // Elevated (not continuous) ring measurement mode for the session.
+    _bleService.setCycleCooldownMs(_sessionCooldownMs);
     _bleService.startWorkout('Prayer', DateTime.now().millisecondsSinceEpoch);
 
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _elapsedSeconds++;
+    _timer = Timer.periodic(_sampleInterval, (timer) {
+      _elapsedSeconds += _sampleInterval.inSeconds;
       _recordSnapshot(ble);
       notifyListeners();
     });
@@ -133,6 +143,10 @@ class PrayerSessionProvider extends ChangeNotifier {
 
     _currentCalmnessScore = (score.round() + (wave * 2).round()).clamp(10, 100);
 
+    // Cap memory on very long sessions (oldest dropped first).
+    if (_snapshots.length >= _maxSnapshots) {
+      _snapshots.removeAt(0);
+    }
     _snapshots.add(PrayerMetricSnapshot(
       timestamp: DateTime.now(),
       heartRate: hr,

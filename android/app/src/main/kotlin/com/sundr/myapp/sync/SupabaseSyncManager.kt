@@ -2,6 +2,8 @@ package com.sundr.myapp.sync
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -30,6 +32,9 @@ object SupabaseSyncManager {
     private const val KEY_LAST_SUCCESS = "last_success_at"
     private const val TICK_MS = 60 * 1000L // check every 1 min whether a push is due
     private const val PUSH_INTERVAL_MS = 5 * 60 * 1000L
+    // Battery: on consecutive failures back off exponentially (5 -> 10 -> 15 min),
+    // capped at 15 min, instead of retrying the full 7-table push every minute.
+    private const val MAX_BACKOFF_MS = 15 * 60 * 1000L
     private const val BATCH_LIMIT = 200
     // Keep raw Room samples long enough for offline past-day hour charts; day rollups
     // (daily_vital_summary) are retained longer inside ReadingRepository.purgeOldSyncedReadings.
@@ -40,6 +45,9 @@ object SupabaseSyncManager {
     private var started = false
     private lateinit var repository: ReadingRepository
     private lateinit var prefs: SharedPreferences
+    private var appContext: Context? = null
+    private var consecutiveFailures = 0
+    private var nextRetryAtMs = 0L
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -60,11 +68,12 @@ object SupabaseSyncManager {
             return
         }
         started = true
-        val appContext = context.applicationContext
-        MeasurementConfig.init(appContext)
-        SupabaseConfig.init(appContext)
-        repository = ReadingRepository.getInstance(appContext)
-        prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val appCtx = context.applicationContext
+        appContext = appCtx
+        MeasurementConfig.init(appCtx)
+        SupabaseConfig.init(appCtx)
+        repository = ReadingRepository.getInstance(appCtx)
+        prefs = appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         Log.d(TAG, "start: scheduling tick loop (first tick in 30s, then every ${TICK_MS}ms)")
         handler.postDelayed(tickRunnable, 30_000L) // let the connection settle first
     }
@@ -99,14 +108,60 @@ object SupabaseSyncManager {
                 "anonKey=${SupabaseConfig.anonKey != null}, userId=${SupabaseConfig.userId != null})")
             return
         }
-        val lastSuccess = prefs.getLong(KEY_LAST_SUCCESS, 0L)
-        val elapsedMs = System.currentTimeMillis() - lastSuccess
-        if (elapsedMs < PUSH_INTERVAL_MS) {
-            Log.d(TAG, "maybePush: skipped — only ${elapsedMs}ms elapsed, need ${PUSH_INTERVAL_MS}ms")
+        val now = System.currentTimeMillis()
+        // Battery: after failures, hold off until the backoff deadline instead of
+        // retrying the full push every 60s tick.
+        if (consecutiveFailures > 0 && now < nextRetryAtMs) {
+            Log.d(TAG, "maybePush: skipped — in backoff (${consecutiveFailures} fails, retry in ${(nextRetryAtMs - now) / 1000}s)")
+            return
+        }
+        if (consecutiveFailures == 0) {
+            val lastSuccess = prefs.getLong(KEY_LAST_SUCCESS, 0L)
+            val elapsedMs = now - lastSuccess
+            if (elapsedMs < PUSH_INTERVAL_MS) {
+                Log.d(TAG, "maybePush: skipped — only ${elapsedMs}ms elapsed, need ${PUSH_INTERVAL_MS}ms")
+                return
+            }
+        }
+        // Battery: no point firing 11 HTTPS posts with no route — skip the radio
+        // entirely and enter backoff directly.
+        if (!isNetworkAvailable()) {
+            Log.w(TAG, "maybePush: skipped — no network, entering backoff")
+            recordFailure()
             return
         }
         Log.d(TAG, "maybePush: starting push cycle")
         repository.ioScope.launch { runPushCycle() }
+    }
+
+    private fun backoffForFailures(failures: Int): Long {
+        // 5 -> 10 -> 15 min cap.
+        val shift = (failures - 1).coerceIn(0, 2)
+        return minOf(PUSH_INTERVAL_MS * (1L shl shift), MAX_BACKOFF_MS)
+    }
+
+    private fun recordFailure() {
+        consecutiveFailures++
+        nextRetryAtMs = System.currentTimeMillis() + backoffForFailures(consecutiveFailures)
+    }
+
+    private fun recordSuccess() {
+        consecutiveFailures = 0
+        nextRetryAtMs = 0L
+        prefs.edit().putLong(KEY_LAST_SUCCESS, System.currentTimeMillis()).apply()
+    }
+
+    private fun isNetworkAvailable(): Boolean {
+        return try {
+            val ctx = appContext ?: return true // fail open if not started yet
+            val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val net = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(net) ?: return false
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        } catch (_: Exception) {
+            true // fail open — a check error must not block syncing forever
+        }
     }
 
     private suspend fun runPushCycle() {
@@ -116,7 +171,7 @@ object SupabaseSyncManager {
             pushBloodPressure(), pushStress(), pushTemperature()
         ).all { it }
         if (allOk) {
-            prefs.edit().putLong(KEY_LAST_SUCCESS, System.currentTimeMillis()).apply()
+            recordSuccess()
             Log.d(TAG, "runPushCycle: all pushes succeeded")
             try {
                 val n = repository.purgeOldSyncedReadings(PURGE_RETENTION_DAYS)
@@ -125,7 +180,11 @@ object SupabaseSyncManager {
                 Log.e(TAG, "local purge failed", e)
             }
         } else {
-            Log.w(TAG, "runPushCycle: one or more pushes failed — will retry next tick, lastSuccess not advanced")
+            // Battery: don't compound a failed raw push with 4 more aggregate
+            // posts — wait for backoff and retry everything together.
+            recordFailure()
+            Log.w(TAG, "runPushCycle: one or more pushes failed — backing off (${consecutiveFailures} fails), aggregates skipped")
+            return
         }
         try {
             recomputeAndUpsertAggregates()

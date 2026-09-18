@@ -51,6 +51,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   GoalTargets? _goals;
   bool _showBatteryCard = false;
   bool? _lastConnected;
+  // Battery: debounce the resume storm (5 MethodChannels + Health + config).
+  DateTime? _lastResumeRefreshAt;
   @override
   void initState() {
     super.initState();
@@ -103,6 +105,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Re-check on resume: prediction may have fired while backgrounded, or the user
     // may have opened via the notification while the engine was still warm.
     if (state == AppLifecycleState.resumed) {
+      // Battery: skip the full refresh if one ran <60s ago (e.g. quick
+      // app-switch or return from a pushed route).
+      final now = DateTime.now();
+      if (_lastResumeRefreshAt != null &&
+          now.difference(_lastResumeRefreshAt!).inSeconds < 60) {
+        return;
+      }
+      _lastResumeRefreshAt = now;
       final ble = context.read<BleProvider>();
       ble.checkPendingFallPrediction();
       ble.refreshEmergencySmsStatus();

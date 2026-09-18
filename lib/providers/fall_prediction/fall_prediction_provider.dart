@@ -94,8 +94,10 @@ class FallPredictionProvider extends ChangeNotifier {
       corroborationService: _MockCorroborationService(),
     );
     _fetchHealthData();
+    // Battery: was every 5 min with ~8 heavy Health Connect queries per fire.
+    // 15 min is plenty for fall-risk baselines (trailing falls already 24h-cached).
     _healthSyncTimer = Timer.periodic(
-      const Duration(minutes: 5),
+      const Duration(minutes: 15),
       (_) => _fetchHealthData(),
     );
   }

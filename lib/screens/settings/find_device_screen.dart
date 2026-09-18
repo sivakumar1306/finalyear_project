@@ -26,6 +26,10 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
   late Animation<double> _pulseAnimation;
 
   Timer? _ringTimer;
+  // Battery: safety auto-stop so a backgrounded/forgotten screen can't keep
+  // the ring vibrating + BLE TX every 4s forever.
+  Timer? _autoStopTimer;
+  static const _findTimeout = Duration(seconds: 120);
 
   @override
   void initState() {
@@ -47,6 +51,10 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
   @override
   void dispose() {
     _ringTimer?.cancel();
+    _autoStopTimer?.cancel();
+    try {
+      if (_isRinging) context.read<BleProvider>().findDevice(enable: false);
+    } catch (_) {}
     _pulseController.dispose();
     super.dispose();
   }
@@ -59,6 +67,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
     }
 
     _ringTimer?.cancel();
+    _autoStopTimer?.cancel();
 
     if (!enable) {
       _ringTimer = null;
@@ -92,6 +101,10 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
         } else {
           _ringTimer?.cancel();
         }
+      });
+      // Auto-stop after 2 min (also covered by dispose above).
+      _autoStopTimer = Timer(_findTimeout, () {
+        if (mounted && _isRinging) _toggleFindRing(false);
       });
       if (!mounted) return;
       showGlassPill(context, 'Alerting ring continuously! Check for flashing LED or vibration.', type: GlassPillType.success);

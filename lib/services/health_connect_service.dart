@@ -128,6 +128,7 @@ class HealthConnectService {
       _kEnabledPrefsKey,
       types.map((t) => t.name).toList(),
     );
+    invalidateWriteCache();
   }
 
   Future<bool> loadConnected() async {
@@ -138,6 +139,7 @@ class HealthConnectService {
   Future<void> saveConnected(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kConnectedPrefsKey, value);
+    invalidateWriteCache();
   }
 
   // ── Initialization ───────────────────────────────────────────────────────
@@ -181,7 +183,17 @@ class HealthConnectService {
     try {
       final healthTypes = _typesForSync(types);
       if (healthTypes.isEmpty) return false;
-      return await _client.requestAuthorization(healthTypes);
+      // health 13.x requests READ-only when permissions are omitted, so ask
+      // for READ+WRITE explicitly — the screen promises both and every
+      // tryWrite* call needs WRITE.
+      final permissions = List<HealthDataAccess>.filled(
+        healthTypes.length,
+        HealthDataAccess.READ_WRITE,
+      );
+      return await _client.requestAuthorization(
+        healthTypes,
+        permissions: permissions,
+      );
     } catch (e, st) {
       IncidentService.reportUnhandled(
         source: 'health_connect_service',
@@ -194,6 +206,7 @@ class HealthConnectService {
   }
 
   Future<void> revokePermissions() async {
+    invalidateWriteCache();
     try {
       await _client.revokePermissions();
     } catch (e, st) {
@@ -206,16 +219,39 @@ class HealthConnectService {
     }
   }
 
-  /// Returns the subset of [types] that have write access granted in Health Connect.
+  /// Returns the subset of [types] that have WRITE access granted in Health
+  /// Connect. (hasPermissions defaults to a READ-only check when permissions
+  /// are omitted, so WRITE must be passed explicitly.)
   Future<Set<HealthSyncType>> refreshWriteGrants(
     Set<HealthSyncType> types,
+  ) async =>
+      _refreshGrants(types, HealthDataAccess.WRITE);
+
+  /// Returns the subset of [types] that have READ access granted in Health
+  /// Connect. Used for the read path (Today preview, baselines) so a
+  /// read-only grant still shows data.
+  Future<Set<HealthSyncType>> refreshReadGrants(
+    Set<HealthSyncType> types,
+  ) async =>
+      _refreshGrants(types, HealthDataAccess.READ);
+
+  Future<Set<HealthSyncType>> _refreshGrants(
+    Set<HealthSyncType> types,
+    HealthDataAccess access,
   ) async {
     final granted = <HealthSyncType>{};
     for (final type in types) {
       try {
         final hTypes = _typeMap[type];
         if (hTypes == null || hTypes.isEmpty) continue;
-        final hasPerm = await _client.hasPermissions(hTypes);
+        final permissions = List<HealthDataAccess>.filled(
+          hTypes.length,
+          access,
+        );
+        final hasPerm = await _client.hasPermissions(
+          hTypes,
+          permissions: permissions,
+        );
         if (hasPerm == true) granted.add(type);
       } catch (_) {
         // health package throws on some types; treat as not granted.
@@ -224,10 +260,46 @@ class HealthConnectService {
     return granted;
   }
 
+  // ── Write gating ─────────────────────────────────────────────────────────
+
+  Set<HealthSyncType>? _writableCache;
+  DateTime? _writableCacheTime;
+  static const _writableCacheTtl = Duration(minutes: 5);
+
+  /// Returns true when [type] is user-enabled and holds Health Connect WRITE
+  /// permission. Results are cached briefly so hot paths (ring reading loop)
+  /// don't hit the method channel and SharedPreferences on every sample.
+  /// Without this gate every tryWrite* throws when unauthorized.
+  Future<bool> canWrite(HealthSyncType type) async {
+    final now = DateTime.now();
+    if (_writableCache != null &&
+        _writableCacheTime != null &&
+        now.difference(_writableCacheTime!) < _writableCacheTtl) {
+      return _writableCache!.contains(type);
+    }
+    try {
+      final enabled = await loadEnabledTypes();
+      final granted = await refreshWriteGrants(enabled);
+      _writableCache = granted;
+      _writableCacheTime = now;
+      return granted.contains(type);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Clears the cached write-grant set. Called whenever grants may have
+  /// changed (connect / disconnect / toggle).
+  void invalidateWriteCache() {
+    _writableCache = null;
+    _writableCacheTime = null;
+  }
+
   // ── Writes ───────────────────────────────────────────────────────────────
 
   Future<void> tryWriteSteps(int steps, DateTime time) async {
     if (steps <= 0) return;
+    if (!await canWrite(HealthSyncType.steps)) return;
     try {
       final ok = await _client.writeHealthData(
         value: steps.toDouble(),
@@ -255,6 +327,7 @@ class HealthConnectService {
 
   Future<void> tryWriteHrv(num hrvMs, DateTime time) async {
     if (hrvMs <= 0) return;
+    if (!await canWrite(HealthSyncType.hrv)) return;
     try {
       await _client.writeHealthData(
         value: hrvMs.toDouble(),
@@ -274,6 +347,7 @@ class HealthConnectService {
 
   Future<void> tryWriteHeartRate(num bpm, DateTime time) async {
     if (bpm <= 0) return;
+    if (!await canWrite(HealthSyncType.heartRate)) return;
     try {
       await _client.writeHealthData(
         value: bpm.toDouble(),
@@ -293,6 +367,7 @@ class HealthConnectService {
 
   Future<void> tryWriteSpo2(num percent, DateTime time) async {
     if (percent <= 0 || percent > 100) return;
+    if (!await canWrite(HealthSyncType.bloodOxygen)) return;
     try {
       await _client.writeHealthData(
         value: percent.toDouble(),
@@ -316,6 +391,7 @@ class HealthConnectService {
 
   Future<void> tryWriteTemperature(double celsius, DateTime time) async {
     if (celsius <= 0 || celsius > 50) return;
+    if (!await canWrite(HealthSyncType.temperature)) return;
     try {
       await _client.writeHealthData(
         value: celsius,
@@ -339,6 +415,7 @@ class HealthConnectService {
     DateTime time,
   ) async {
     if (systolic <= 0 || diastolic <= 0) return;
+    if (!await canWrite(HealthSyncType.bloodPressure)) return;
     try {
       await _client.writeHealthData(
         value: systolic.toDouble(),
@@ -376,6 +453,7 @@ class HealthConnectService {
     required int awakeMinutes,
   }) async {
     if (!await isAvailable()) return;
+    if (!await canWrite(HealthSyncType.sleep)) return;
     if (sleepTime.isAfter(wakeTime) || sleepTime.isAtSameMomentAs(wakeTime)) {
       return;
     }
@@ -569,12 +647,22 @@ class HealthConnectService {
       final temp = _numericValues(HealthDataType.BODY_TEMPERATURE, tempData);
       final avgTemp = temp.isNotEmpty ? _median(temp) : 36.5;
 
+      final hrvStdDev = hrv.isNotEmpty ? _stdDev(hrv, avgHRV) : 8.0;
+
       return {
         'steps': avgSteps,
         'heartRate': avgHR,
         'hrv': avgHRV,
         'spo2': avgSpO2,
         'temperature': avgTemp,
+        // Keys consumed by FallPredictionProvider (Layer1Baselines). The
+        // provider previously read these keys while the map only contained
+        // the short names above, so it always fell back to hardcoded
+        // defaults and never actually used Health Connect history.
+        'rolling14DayMedianHR': avgHR,
+        'rolling28DayMeanHRV': avgHRV,
+        'rolling28DayStdDevHRV': hrvStdDev,
+        'baselineAdjustedTemp': avgTemp,
       };
     } catch (e) {
       debugPrint('Error fetching historical baselines: $e');
@@ -584,6 +672,10 @@ class HealthConnectService {
         'hrv': 50.0,
         'spo2': 96.0,
         'temperature': 36.5,
+        'rolling14DayMedianHR': 65.0,
+        'rolling28DayMeanHRV': 45.0,
+        'rolling28DayStdDevHRV': 8.0,
+        'baselineAdjustedTemp': 36.5,
       };
     }
   }
@@ -752,6 +844,16 @@ class HealthConnectService {
     final mid = sorted.length ~/ 2;
     if (sorted.length.isOdd) return sorted[mid];
     return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+
+  double _stdDev(List<double> values, double mean) {
+    if (values.isEmpty) return 0;
+    var sumSq = 0.0;
+    for (final v in values) {
+      final d = v - mean;
+      sumSq += d * d;
+    }
+    return sqrt(sumSq / values.length);
   }
 }
 

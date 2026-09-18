@@ -27,7 +27,10 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
   bool _connected = false;
   bool _busy = false;
   Set<HealthSyncType> _enabled = {};
+  // WRITE grants drive the "Sending & syncing" badges; READ grants drive the
+  // Today preview. They can differ when the user grants only one side.
   Set<HealthSyncType> _granted = {};
+  Set<HealthSyncType> _readable = {};
   HealthConnectToday? _today;
 
   @override
@@ -47,15 +50,18 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
 
   Future<void> _refreshGrantedAndToday() async {
     final granted = await _service.refreshWriteGrants(_enabled);
+    final readable = await _service.refreshReadGrants(_enabled);
     if (!mounted) return;
     setState(() {
       _granted = granted;
-      _connected = _connected || granted.isNotEmpty;
+      _readable = readable;
+      _connected =
+          _connected || granted.isNotEmpty || readable.isNotEmpty;
     });
 
-    final enabledGranted = _enabled.intersection(granted);
-    if (enabledGranted.isEmpty) return;
-    final today = await _service.fetchToday(enabledGranted);
+    final enabledReadable = _enabled.intersection(readable);
+    if (enabledReadable.isEmpty) return;
+    final today = await _service.fetchToday(enabledReadable);
     if (!mounted) return;
     setState(() => _today = today);
   }
@@ -99,6 +105,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
       } else {
         _enabled = {..._enabled}..remove(type);
         _granted = {..._granted}..remove(type);
+        _readable = {..._readable}..remove(type);
       }
     });
     await _service.saveEnabledTypes(_enabled);
@@ -115,6 +122,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
       _busy = false;
       _connected = false;
       _granted = {};
+      _readable = {};
       _today = null;
     });
     _showSnack('Disconnected from Health Connect.');
@@ -288,7 +296,8 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
   // ── Connect CTA ─────────────────────────────────────────────────────────────
 
   Widget _buildConnectButton() {
-    final connected = _connected && _granted.isNotEmpty;
+    final connected =
+        _connected && (_granted.isNotEmpty || _readable.isNotEmpty);
     return SizedBox(
       width: double.infinity,
       height: 48,
@@ -339,7 +348,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
   // ── Today's data ────────────────────────────────────────────────────────────
 
   Widget _buildTodaySection() {
-    final shown = _enabled.intersection(_granted);
+    final shown = _enabled.intersection(_readable);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

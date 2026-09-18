@@ -64,7 +64,9 @@ class _QiblaScreenState extends State<QiblaScreen> {
 
   void _initCompass() {
     _compassSub = _qibla.compassStream().listen((h) {
-      if (mounted) setState(() => _heading = h);
+      // Battery: magnetometer fires at sensor rate — only rebuild when the
+      // heading actually moved (>1°) to avoid sensor-rate full-list rebuilds.
+      if (mounted && (h - _heading).abs() > 1.0) setState(() => _heading = h);
     }, onError: (_) {});
   }
 

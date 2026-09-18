@@ -36,6 +36,9 @@ object FallMotionDetector : SensorEventListener {
     private const val SAMPLE_RATE_HZ = 50f
     private const val ANALYSIS_INTERVAL_MS = 200L
     private const val COOLDOWN_MS = 8_000L
+    // Battery: a stuck HIGH tier must not keep 50Hz accel+gyro on forever.
+    // Auto-stop after 10 min; the next fresh HIGH event re-arms (duty cycles).
+    private const val SENSOR_AUTO_OFF_MS = 10 * 60 * 1000L
 
     private const val GRAVITY = 9.81f
 
@@ -80,6 +83,7 @@ object FallMotionDetector : SensorEventListener {
     private var sensorManager: SensorManager? = null
     private var repository: ReadingRepository? = null
     private var appContext: Context? = null
+    private var sensorsStartedAtMs = 0L
 
     fun start(context: Context) {
         if (active) return
@@ -118,6 +122,7 @@ object FallMotionDetector : SensorEventListener {
         val gyroscope = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
 
         sensorsActive = true
+        sensorsStartedAtMs = SystemClock.elapsedRealtime()
         // Use 50Hz (20,000us) sampling with 5s (5,000,000us) batching latency to allow the CPU to sleep
         val samplingPeriodUs = 20_000
         val maxReportLatencyUs = 5_000_000
@@ -128,6 +133,7 @@ object FallMotionDetector : SensorEventListener {
     private fun stopSensors() {
         if (!sensorsActive) return
         sensorsActive = false
+        sensorsStartedAtMs = 0L
         sensorManager?.unregisterListener(this)
         writeIndex = 0
         filled = 0
@@ -153,6 +159,13 @@ object FallMotionDetector : SensorEventListener {
 
     private fun appendSample(accel: FloatArray, timestampNanos: Long) {
         if (accel.size < 3 || capacity <= 0) return
+        // Battery: stuck-HIGH auto-off — stop even without a tier-drop event.
+        if (sensorsActive && sensorsStartedAtMs > 0 &&
+            SystemClock.elapsedRealtime() - sensorsStartedAtMs >= SENSOR_AUTO_OFF_MS
+        ) {
+            stopSensors()
+            return
+        }
         val idx = writeIndex
         if (idx !in 0 until capacity) return
         accelX[idx] = accel[0]

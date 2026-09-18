@@ -93,6 +93,8 @@ class BleProvider extends ChangeNotifier {
   String _syncStep = '';
   double _syncProgress = 0.0;
   int _syncGen = 0; // incremented to cancel a stale in-progress sync
+  // Battery: debounce the ~100s BLE burst on connect flaps.
+  DateTime? _lastSyncAllAt;
 
   // Delay (seconds) before issuing SDK commands after a connection event.
   int _connectDelaySeconds = 1;
@@ -672,6 +674,9 @@ Future<void> _pushToHealthConnect(String vital) async {
         case 'temperature':
           final v = (m['valueC'] as num?)?.toDouble() ?? 0.0;
           if (v > 0) await hc.tryWriteTemperature(v, at);
+        case 'hrv':
+          final hv = (m['valueMs'] as num?)?.toDouble() ?? 0.0;
+          if (hv > 0) await hc.tryWriteHrv(hv, at);
         case 'steps':
           final v = (m['steps'] as num?)?.toInt() ?? 0;
           if (v > 0) await hc.tryWriteSteps(v, at);
@@ -1648,6 +1653,13 @@ Future<void> _loadSavedDevice() async {
   // scope for this pipeline).
 Future<void> syncAllFromRing() async {
     if (_isSyncing || !_isConnected) return;
+    // Battery: skip if a full sync finished <60s ago (connect flap guard).
+    final now = DateTime.now();
+    if (_lastSyncAllAt != null &&
+        now.difference(_lastSyncAllAt!).inSeconds < 60) {
+      return;
+    }
+    _lastSyncAllAt = now;
     final myGen = ++_syncGen;
     bool alive() => _syncGen == myGen;
 
