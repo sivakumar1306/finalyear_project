@@ -57,6 +57,9 @@ class WorkoutService : Service() {
 
     private val gson = Gson()
     private val handler = Handler(Looper.getMainLooper())
+    // Same ForegroundServiceDidNotStopInTime guard as BleConnectionService:
+    // never re-post the tick after onDestroy.
+    private var destroyed = false
 
     private val prefs: SharedPreferences by lazy {
         getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
@@ -78,6 +81,7 @@ class WorkoutService : Service() {
 
     private val tickRunnable = object : Runnable {
         override fun run() {
+            if (destroyed) return
             try {
                 val now = System.currentTimeMillis()
                 val elapsedMs = now - workoutStartMs
@@ -132,7 +136,7 @@ class WorkoutService : Service() {
             } catch (e: Exception) {
                 android.util.Log.e("WorkoutService", "tick failed", e)
             } finally {
-                handler.postDelayed(this, TICK_MS)
+                if (!destroyed) handler.postDelayed(this, TICK_MS)
             }
         }
     }
@@ -173,7 +177,11 @@ class WorkoutService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        destroyed = true
         handler.removeCallbacksAndMessages(null)
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: Exception) {}
         MeasurementCoordinator.isWorkoutActive = false
         super.onDestroy()
     }

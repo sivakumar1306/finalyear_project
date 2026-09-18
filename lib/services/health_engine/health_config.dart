@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -302,7 +304,9 @@ class HealthConfig {
       jsonDecode(jsonEncode(kDefaultConfig)) as Map<String, dynamic>;
   static DateTime? _lastFetchAt;
   static DateTime? _lastFailReportAt;
-  static const Duration _failReportCooldown = Duration(minutes: 15);
+  // Incident table was flooded (25 rows/2d from resume storm) — cache/default
+  // fallback is benign, so only report uncached failures, at most 1 per 6h.
+  static const Duration _failReportCooldown = Duration(hours: 6);
 
   static Map<String, dynamic> get current => _current;
 
@@ -338,15 +342,40 @@ class HealthConfig {
     } catch (e, st) {
       debugPrint('[HealthConfig] Supabase fetch failed: $e');
       final now = DateTime.now();
-      if (_lastFailReportAt == null ||
-          now.difference(_lastFailReportAt!) >= _failReportCooldown) {
-        _lastFailReportAt = now;
-        IncidentService.reportUnhandled(
-          source: 'health_config',
-          error: e,
-          stackTrace: st,
-          customMessage: 'Supabase health_engine_config fetch failed — using cache/default',
-        );
+      // Expected-offline (no network / timeout): silent fallback to cache,
+      // never an incident — app works fine from bundled defaults.
+      final isOffline = e is TimeoutException ||
+          e is SocketException ||
+          e is HttpException ||
+          e.toString().contains('SocketException') ||
+          e.toString().contains('TimeoutException') ||
+          e.toString().contains('ClientException') ||
+          e.toString().contains('Failed host lookup') ||
+          e.toString().contains('Network is unreachable');
+      if (!isOffline &&
+          (_lastFailReportAt == null ||
+              now.difference(_lastFailReportAt!) >= _failReportCooldown)) {
+        // Only report when there is no usable cache — otherwise the
+        // cache/default fallback covers the user and the row is just noise.
+        bool hasCache = false;
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final cached = prefs.getString(_prefsKey);
+          hasCache = cached != null && cached.isNotEmpty;
+        } catch (_) {}
+        if (!hasCache) {
+          _lastFailReportAt = now;
+          IncidentService.reportUnhandled(
+            source: 'health_config',
+            error: e,
+            stackTrace: st,
+            customMessage:
+                'Supabase health_engine_config fetch failed — using cache/default',
+          );
+        } else {
+          _lastFailReportAt = now;
+          debugPrint('[HealthConfig] using cached config, incident suppressed');
+        }
       }
     }
 

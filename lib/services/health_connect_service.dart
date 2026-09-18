@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:health/health.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -454,14 +455,18 @@ class HealthConnectService {
   }) async {
     if (!await isAvailable()) return;
     if (!await canWrite(HealthSyncType.sleep)) return;
-    if (sleepTime.isAfter(wakeTime) || sleepTime.isAtSameMomentAs(wakeTime)) {
+    // Health Connect rejects future end times — clamp to now.
+    final now = DateTime.now();
+    final effectiveWake = wakeTime.isAfter(now) ? now : wakeTime;
+    if (sleepTime.isAfter(effectiveWake) ||
+        sleepTime.isAtSameMomentAs(effectiveWake)) {
       return;
     }
 
     try {
       final stages = _buildSleepStages(
         sleepTime: sleepTime,
-        wakeTime: wakeTime,
+        wakeTime: effectiveWake,
         lightMinutes: lightMinutes,
         deepMinutes: deepMinutes,
         remMinutes: remMinutes,
@@ -469,6 +474,8 @@ class HealthConnectService {
       );
 
       for (final stage in stages) {
+        // Skip degenerate stages — HC rejects from==to with PlatformException.
+        if (!stage.to.isAfter(stage.from)) continue;
         await _client.writeHealthData(
           value: stage.value,
           type: stage.type,
@@ -477,6 +484,22 @@ class HealthConnectService {
         );
       }
     } catch (e, st) {
+      // Permission revoked / HC disabled / invalid argument are expected:
+      // drop the stale grant cache, stay silent, retry next sync.
+      invalidateWriteCache();
+      final s = e.toString();
+      final expected = s.contains('SecurityException') ||
+          s.contains('Security exception') ||
+          s.contains('permission') ||
+          s.contains('Permission') ||
+          s.contains('not granted') ||
+          s.contains('Invalid argument') ||
+          s.contains('invalid argument') ||
+          e is PlatformException;
+      if (expected) {
+        debugPrint('[HealthConnect] writeSleep suppressed (expected): $e');
+        return;
+      }
       IncidentService.reportUnhandled(
         source: 'health_connect_service',
         error: e,
@@ -517,6 +540,11 @@ class HealthConnectService {
 
       final end = current.add(Duration(minutes: minutes));
       final clampedEnd = end.isAfter(wakeTime) ? wakeTime : end;
+      // Zero-duration windows are rejected by Health Connect — skip them.
+      if (!clampedEnd.isAfter(current)) {
+        current = clampedEnd;
+        continue;
+      }
 
       stages.add(
         _SleepStageEntry(

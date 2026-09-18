@@ -40,6 +40,9 @@ class BleConnectionService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var isConnecting = false
     private var wasConnected = false
+    // ForegroundServiceDidNotStopInTime fix: once onDestroy runs, the loop
+    // must never re-post itself or the process outlives the stop window.
+    private var destroyed = false
 
     // Battery: exponential backoff for the reconnect/health loop while
     // disconnected, capped at 2 min. Steps: 8s -> 15s -> 30s -> 60s -> 120s.
@@ -87,6 +90,7 @@ class BleConnectionService : Service() {
 
     private val checkRunnable = object : Runnable {
         override fun run() {
+            if (destroyed) return
             try {
                 val connected = BleSdkLifecycle.isConnected()
 
@@ -135,9 +139,10 @@ class BleConnectionService : Service() {
                 }
 
                 maybeFireSleepReminder()
-                handler.postDelayed(this, intervalMs)
+                if (!destroyed) handler.postDelayed(this, intervalMs)
             } catch (e: Exception) {
                 android.util.Log.e("BleConnectionService", "checkRunnable failed", e)
+                if (destroyed) return
                 // Keep the backoff on errors too — a tight 8s error loop is a drain.
                 consecutiveDisconnectedTicks =
                     (consecutiveDisconnectedTicks + 1).coerceAtMost(BACKOFF_STEPS_MS.lastIndex)
@@ -223,7 +228,11 @@ class BleConnectionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        destroyed = true
         handler.removeCallbacksAndMessages(null)
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: Exception) {}
         MeasurementLoopManager.stop()
         SupabaseSyncManager.stop()
         FallMotionDetector.stop()

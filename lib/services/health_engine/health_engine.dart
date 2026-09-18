@@ -12,7 +12,10 @@ class HealthEngine {
   // ── Public init ─────────────────────────────────────────────────────────
   /// Call once in main.dart before runApp. Also safe to call on resume/pull-to-refresh.
   Future<void> init() => HealthConfig.load();
-  Future<void> refreshConfig() => HealthConfig.forceRefresh();
+  // Resume/open path: respect kCacheTtl (5m) so Home open + resume doesn't
+  // force a network fetch every time (was the 25-row incident storm source).
+  // Explicit pull-to-refresh should call HealthConfig.forceRefresh() directly.
+  Future<void> refreshConfig() => HealthConfig.refresh();
 
   // ── Color / icon maps (string key from config → actual) ─────────────────
 

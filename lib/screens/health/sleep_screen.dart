@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
@@ -155,6 +156,50 @@ class _SleepScreenState extends State<SleepScreen> {
 
   // ── Ring fetch ───────────────────────────────────────────────────────────────
 
+  /// Expected-offline BLE states (ring out of range / stale isConnected cache /
+  /// SDK busy) fall through to the Supabase cache silently. Only unexpected
+  /// errors become app_incidents rows — one open with a dead ring used to emit
+  /// up to 6 rows.
+  bool _isExpectedBleOffline(Object e) {
+    if (e is TimeoutException) return true;
+    if (e is PlatformException) {
+      const expected = {
+        'NOT_CONNECTED',
+        'SDK_GUARD_OPEN',
+        'BUSY',
+        'TIMEOUT',
+        'CMD_FAILED',
+        'SDK_EXCEPTION',
+      };
+      if (expected.contains(e.code)) return true;
+      final msg = '${e.code} ${e.message}'.toUpperCase();
+      if (msg.contains('NOT_CONNECTED') ||
+          msg.contains('NOT CONNECTED') ||
+          msg.contains('RING NOT CONNECTED') ||
+          msg.contains('TIMEOUT') ||
+          msg.contains('BUSY')) {
+        return true;
+      }
+    }
+    final s = e.toString().toUpperCase();
+    return s.contains('NOT_CONNECTED') ||
+        s.contains('RING NOT CONNECTED') ||
+        s.contains('TIMEOUT');
+  }
+
+  void _reportSleepBle(Object e, StackTrace st, String message) {
+    if (_isExpectedBleOffline(e)) {
+      debugPrint('[sleep_screen] expected offline ($message): $e');
+      return;
+    }
+    IncidentService.reportUnhandled(
+      source: 'sleep_screen',
+      error: e,
+      stackTrace: st,
+      customMessage: message,
+    );
+  }
+
   Future<void> _fetchFromRing() async {
     // Try primary: getTodaySleep (daily summary)
     try {
@@ -169,12 +214,7 @@ class _SleepScreenState extends State<SleepScreen> {
         }
       }
     } catch (e, st) {
-      IncidentService.reportUnhandled(
-        source: 'sleep_screen',
-        error: e,
-        stackTrace: st,
-        customMessage: 'getTodaySleep failed, trying syncSleep fallback',
-      );
+      _reportSleepBle(e, st, 'getTodaySleep failed, trying syncSleep fallback');
     }
     // Fallback 1: large-data sync (handles both SleepDisplay and SleepNewProto)
     try {
@@ -192,12 +232,7 @@ class _SleepScreenState extends State<SleepScreen> {
         // Some firmware returns empty list for syncSleep when no new data - try getSleep
       }
     } catch (e, st) {
-      IncidentService.reportUnhandled(
-        source: 'sleep_screen',
-        error: e,
-        stackTrace: st,
-        customMessage: 'syncSleep fallback failed',
-      );
+      _reportSleepBle(e, st, 'syncSleep fallback failed');
     }
     // Fallback 2: getSleep for today (dayIndex 0) - explicit per-day fetch
     try {
@@ -207,12 +242,7 @@ class _SleepScreenState extends State<SleepScreen> {
         return;
       }
     } catch (e, st) {
-      IncidentService.reportUnhandled(
-        source: 'sleep_screen',
-        error: e,
-        stackTrace: st,
-        customMessage: 'getSleep(0) fallback failed',
-      );
+      _reportSleepBle(e, st, 'getSleep(0) fallback failed');
     }
     await _loadDayFromDb();
   }
@@ -292,12 +322,7 @@ class _SleepScreenState extends State<SleepScreen> {
             }
           }
         } catch (e, st) {
-          IncidentService.reportUnhandled(
-            source: 'sleep_screen',
-            error: e,
-            stackTrace: st,
-            customMessage: 'getSleep($daysDiff) fallback failed',
-          );
+          _reportSleepBle(e, st, 'getSleep($daysDiff) fallback failed');
         }
         // Also try getSleepList as broader fallback (QRing sync path)
         try {
@@ -315,12 +340,7 @@ class _SleepScreenState extends State<SleepScreen> {
             }
           }
         } catch (e, st) {
-          IncidentService.reportUnhandled(
-            source: 'sleep_screen',
-            error: e,
-            stackTrace: st,
-            customMessage: 'getSleepList fallback failed',
-          );
+          _reportSleepBle(e, st, 'getSleepList fallback failed');
         }
       }
     } catch (_) {}
@@ -487,12 +507,7 @@ class _SleepScreenState extends State<SleepScreen> {
             }
           }
         } catch (e, st) {
-          IncidentService.reportUnhandled(
-            source: 'sleep_screen',
-            error: e,
-            stackTrace: st,
-            customMessage: 'getSleepList history fallback failed',
-          );
+          _reportSleepBle(e, st, 'getSleepList history fallback failed');
         }
       }
     } catch (_) {}

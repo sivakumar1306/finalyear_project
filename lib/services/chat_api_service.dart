@@ -108,9 +108,26 @@ class ChatApiService {
         'updates': [],
       };
     }
-    final response = await http
-        .get(Uri.parse('$baseUrl/insights/$userId'), headers: _authHeaders)
-        .timeout(_insightsTimeout);
-    return _decodeOrThrow(response);
+    // Resilient like getConversations/getMessages: a dead/renamed backend
+    // domain (Railway 404 "Application not found") must show the fallback
+    // card, not flood app_incidents via the FutureBuilder zone.
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/insights/$userId'), headers: _authHeaders)
+          .timeout(_insightsTimeout);
+      return _decodeOrThrow(response);
+    } catch (e) {
+      return {
+        'headline_parts': [
+          {
+            'text': 'Your trends will appear here once we have enough recent readings.',
+            'highlight': false
+          },
+        ],
+        'subtext': '',
+        'updates': [],
+        'error': e.toString(),
+      };
+    }
   }
 }

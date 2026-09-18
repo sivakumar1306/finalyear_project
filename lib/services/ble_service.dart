@@ -287,24 +287,36 @@ class BleService {
       await _methodChannel.invokeMethod<String>('syncStepDetails') ?? '[]';
 
   // ── Sleep ──────────────────────────────────────────────────────────
+  // 10s Dart-side timeouts: a hung native call surfaces as TimeoutException,
+  // which callers treat as expected-offline (silent DB fallback, no incident).
   Future<String> getTodaySleep() async =>
-      await _methodChannel.invokeMethod<String>('getTodaySleep') ?? '{}';
+      await _methodChannel
+          .invokeMethod<String>('getTodaySleep')
+          .timeout(const Duration(seconds: 10)) ??
+      '{}';
 
   Future<String> getSleep(int dayIndex) async =>
-      await _methodChannel.invokeMethod<String>('getSleep', {
-        'dayIndex': dayIndex,
-      }) ??
+      await _methodChannel
+          .invokeMethod<String>('getSleep', {
+            'dayIndex': dayIndex,
+          })
+          .timeout(const Duration(seconds: 10)) ??
       '{}';
 
   Future<String> getSleepList(int startDay, int count) async =>
-      await _methodChannel.invokeMethod<String>('getSleepList', {
-        'startDay': startDay,
-        'count': count,
-      }) ??
+      await _methodChannel
+          .invokeMethod<String>('getSleepList', {
+            'startDay': startDay,
+            'count': count,
+          })
+          .timeout(const Duration(seconds: 12)) ??
       '[]';
 
   Future<String> syncSleep() async =>
-      await _methodChannel.invokeMethod<String>('syncSleep') ?? '[]';
+      await _methodChannel
+          .invokeMethod<String>('syncSleep')
+          .timeout(const Duration(seconds: 15)) ??
+      '[]';
 
   // ── HRV ────────────────────────────────────────────────────────────
   Future<String> getTodayHrv() async =>
@@ -421,7 +433,9 @@ class BleService {
       await _methodChannel.invokeMethod<String>('syncAutoTemperature') ?? '{}';
 
   Future<String> syncManualTemperature() async =>
-      await _methodChannel.invokeMethod<String>('syncManualTemperature') ??
+      await _methodChannel
+          .invokeMethod<String>('syncManualTemperature')
+          .timeout(const Duration(seconds: 70)) ??
       '[]';
 
   /// POC: calls BleOperateManager.manualTemperature() to verify the ring

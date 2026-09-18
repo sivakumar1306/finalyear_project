@@ -491,7 +491,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           label: 'Address',
                           value: _address.isNotEmpty
                               ? _address
-                              : 'Flat 101, SingleBar avenue....',
+                              : '—',
                           onTap: _editAddress,
                         ),
                       ],

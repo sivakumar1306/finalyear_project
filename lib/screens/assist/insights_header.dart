@@ -76,6 +76,21 @@ class InsightsHeaderState extends State<InsightsHeader>
         }
       }
       return data;
+    }).catchError((e) {
+      // Defensive: getInsights is already resilient, but a throw here used to
+      // escape via FutureBuilder into flutter_zone app_incidents (2 rows).
+      return <String, dynamic>{
+        'headline_parts': [
+          {
+            'text':
+                'Your trends will appear here once we have enough recent readings.',
+            'highlight': false
+          },
+        ],
+        'subtext': '',
+        'updates': [],
+        'error': e.toString(),
+      };
     });
   }
 

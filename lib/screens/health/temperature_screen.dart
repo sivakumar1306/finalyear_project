@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -484,12 +485,22 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         }
       }
     } catch (e, st) {
-      IncidentService.reportUnhandled(
-        source: 'temperature_screen',
-        error: e,
-        stackTrace: st,
-        customMessage: 'manual temperature measurement failed',
-      );
+      final msg = e.toString();
+      // Expected ring states (busy / timeout / disconnected): user-facing
+      // pill only, no app_incidents row.
+      final expected = msg.contains('BUSY') ||
+          msg.contains('TIMEOUT') ||
+          msg.contains('NOT_CONNECTED') ||
+          msg.contains('RING NOT CONNECTED') ||
+          e is TimeoutException;
+      if (!expected) {
+        IncidentService.reportUnhandled(
+          source: 'temperature_screen',
+          error: e,
+          stackTrace: st,
+          customMessage: 'manual temperature measurement failed',
+        );
+      }
       if (mounted) {
         setState(() => _measuring = false);
         final msg = e.toString().contains('BUSY')
