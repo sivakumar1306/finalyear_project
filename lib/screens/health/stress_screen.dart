@@ -751,7 +751,10 @@ class _StressScreenState extends State<StressScreen> {
               const SizedBox(height: 20),
 
               // ── View All Readings
-              if (hasChartData) _buildViewAllReadingsButton(),
+              if (hasChartData) ...[
+                _buildViewAllReadingsButton(),
+                const SizedBox(height: 16),
+              ],
 
               // ── 7. 7-day trend ───────────────────────────────────────────── (2+ days)
               if (!TrendMath.hasEnoughTrendData(_trendValues) && !_loadingTrend && !_trendOffline)

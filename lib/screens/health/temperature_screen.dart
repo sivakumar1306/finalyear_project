@@ -811,7 +811,10 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
               const SizedBox(height: 20),
 
               // ── View All Readings
-              if (hasChartData) _buildViewAllReadingsButton(),
+              if (hasChartData) ...[
+                _buildViewAllReadingsButton(),
+                const SizedBox(height: 16),
+              ],
 
               // ── 6. 7-day trend — also collapse when empty (2+ days)
               if (!TrendMath.hasEnoughTrendData(_trendValues) && !_loadingTrend && !_trendOffline)

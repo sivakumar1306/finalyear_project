@@ -897,7 +897,10 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
               const SizedBox(height: 20),
 
               // ── View All Readings
-              if (hasChartData) _buildViewAllReadingsButton(),
+              if (hasChartData) ...[
+                _buildViewAllReadingsButton(),
+                const SizedBox(height: 16),
+              ],
 
               // ── 7. 7-day trend — also collapse when empty (2+ paired days)
               if (!TrendMath.hasEnoughBpTrendData(_trendSbp, _trendDbp) && !_loadingTrend && !_trendOffline)

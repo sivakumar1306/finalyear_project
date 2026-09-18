@@ -810,7 +810,13 @@ class _HrvScreenState extends State<HrvScreen> {
                 ],
                 const SizedBox(height: 20),
 
-                // ── 5. 7-day trend ───────────────────────────────────────── (2+ days)
+                // ── 5. View All Readings ────────────────────────────────────
+                if (hasData) ...[
+                  _buildViewAllReadingsButton(),
+                  const SizedBox(height: 16),
+                ],
+
+                // ── 6. 7-day trend ───────────────────────────────────────── (2+ days)
                 if (!TrendMath.hasEnoughTrendData(_trendValues) && !_loadingTrend && !_trendOffline)
                   const NotEnoughTrendDataCard(metric: 'HRV')
                 else ...[
@@ -845,14 +851,6 @@ class _HrvScreenState extends State<HrvScreen> {
                     ),
                   ],
                 ],
-                const SizedBox(height: 10),
-
-                // ── 6. View All Readings ────────────────────────────────────
-                if (hasData) ...[
-                  const SizedBox(height: 10),
-                  _buildViewAllReadingsButton(),
-                ],
-
                 const SizedBox(height: 80),
               ],
             ),
