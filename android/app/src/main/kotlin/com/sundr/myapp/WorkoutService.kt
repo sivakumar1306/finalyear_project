@@ -33,11 +33,17 @@ class WorkoutService : Service() {
     companion object {
         const val NOTIFICATION_ID = 1002
         const val CHANNEL_ID = "qring_workout"
-        private const val TICK_MS = 5_000L
+        // Battery: tick every 30s (was 5s). The notification shows mm:ss/h:mm:ss,
+        // so refresh only when the displayed minute changes; BLE reads stay on
+        // their own 60s/5min/10min gates below.
+        private const val TICK_MS = 30_000L
         private const val STEPS_INTERVAL_MS = 60_000L
         private const val HR_INTERVAL_MS = 60_000L
         private const val SPO2_INTERVAL_MS = 300_000L   // 5 min
         private const val BP_INTERVAL_MS   = 600_000L   // 10 min
+        // Safety: a forgotten workout must not run (and keep the process + BLE
+        // awake) forever. 6h is well beyond any real session.
+        private const val MAX_WORKOUT_MS = 6 * 60 * 60 * 1000L
 
         fun start(context: Context) {
             val intent = Intent(context, WorkoutService::class.java)
@@ -66,6 +72,7 @@ class WorkoutService : Service() {
     private var lastHrMs = 0L
     private var lastSpo2Ms = 0L
     private var lastBpMs = 0L
+    private var lastNotifiedMinute = -1L
     private val spo2InProgress = AtomicBoolean(false)
     private val bpInProgress = AtomicBoolean(false)
 
@@ -74,7 +81,29 @@ class WorkoutService : Service() {
             try {
                 val now = System.currentTimeMillis()
                 val elapsedMs = now - workoutStartMs
-                updateNotification(workoutType, elapsedMs)
+                // Auto-stop a leaked workout instead of ticking forever.
+                if (elapsedMs >= MAX_WORKOUT_MS) {
+                    Log.w("WorkoutService", "auto-stopping leaked workout after 6h")
+                    try {
+                        prefs.edit()
+                            .remove("flutter.workout_active")
+                            .remove("flutter.workout_type")
+                            .remove("flutter.workout_start_time")
+                            .remove("flutter.workout_start_steps")
+                            .remove("flutter.workout_start_calories")
+                            .remove("flutter.workout_start_distance")
+                            .apply()
+                    } catch (_: Exception) {}
+                    stopSelf()
+                    return
+                }
+                // Notification text only changes once per minute — rewriting it
+                // every tick wakes SystemUI for no visible benefit.
+                val minute = elapsedMs / 60_000L
+                if (minute != lastNotifiedMinute) {
+                    lastNotifiedMinute = minute
+                    updateNotification(workoutType, elapsedMs)
+                }
 
                 if (now - lastStepsSyncMs >= STEPS_INTERVAL_MS) {
                     lastStepsSyncMs = now

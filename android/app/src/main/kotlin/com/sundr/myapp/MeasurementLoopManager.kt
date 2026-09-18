@@ -18,6 +18,7 @@ import com.oudmon.ble.base.communication.rsp.StartHeartRateRsp
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.ConcurrentHashMap
 
 // Continuously round-robins Steps -> HR -> SpO2 -> Stress -> BP -> HRV -> Temperature
 // with a configurable cooldown between full cycles (see
@@ -30,19 +31,37 @@ import java.util.concurrent.atomic.AtomicBoolean
 // and this loop polls that flag both between vitals (walkSequence) and while a vital is
 // actively in flight (watchForPreempt) so it can abort quickly instead of running to its
 // own (up to 90s, for HRV) timeout. See watchForPreempt's kdoc for the timing budget.
+//
+// Adaptive timeouts: per-vital timeouts track a rolling average of actual response times
+// so the BLE radio is only held open as long as needed. The cycle cooldown also adapts —
+// when all vitals are normal (no FallRiskAnalyzer anomalies), the cooldown stretches to
+// reduce radio duty cycle; when anomalies are detected, it snaps back to the default.
 object MeasurementLoopManager {
     private const val TAG = "MeasurementLoop"
     private const val DISCONNECTED_RECHECK_MS = 8_000L
     private const val WORKOUT_RECHECK_MS = 15_000L
+
+    // Fixed ceiling timeouts — the adaptive system uses actual response time + headroom,
+    // but these hard caps prevent a stuck ring from blocking the loop indefinitely.
     private const val MEASURE_TIMEOUT_MS = 60_000L
-    // HRV specifically needs much more headroom than the other vitals: a real reading was
-    // clocked at ~60.5s on-device via logcat (manualModeHrv callback trace), right past the
-    // shared 60s timeout above. Mirrors the manual "Measure Now" path's 90s timeout.
     private const val HRV_MEASURE_TIMEOUT_MS = 90_000L
-    // Temperature gets the same headroom as HRV: the live single-temperature measurement
-    // (manualTemperature) streams intermediate callbacks and only settles on the final
-    // value, so cutting it off at the shared 60s timeout could abort real readings.
     private const val TEMP_MEASURE_TIMEOUT_MS = 90_000L
+
+    // Adaptive timeout parameters. Each vital tracks a rolling average of actual response
+    // times; the adaptive timeout is max(avg * 1.5, MIN_TIMEOUT_MS). This lets the loop
+    // finish fast when the ring responds quickly (typical: 5–15 s) while still tolerating
+    // slow HRV/Temp readings that can legitimately take 60 s+.
+    private const val MIN_TIMEOUT_MS = 15_000L
+    private const val TIMEOUT_HEADROOM_FACTOR = 1.5
+    private const val ROLLING_WINDOW = 5
+
+    // Adaptive cooldown between full measurement cycles. When the FallRiskAnalyzer reports
+    // no anomalies for several consecutive cycles, the cooldown stretches to reduce BLE
+    // radio duty cycle. An anomaly immediately resets to the default (fast) cooldown.
+    private const val FAST_COOLDOWN_MS = 180_000L   // 3 min — default, anomaly mode
+    private const val SLOW_COOLDOWN_MS = 900_000L   // 15 min — healthy mode
+    private const val NORMALCY_CONFIRM_CYCLES = 2   // consecutive normal cycles before slowing down
+
     // Gap enforced after sending a "stop" command (success or timeout) before the next
     // vital's "start" command goes out. Without this, back-to-back start-stop-start
     // commands with no settle time can leave the ring's firmware stuck mid-measurement
@@ -56,6 +75,11 @@ object MeasurementLoopManager {
     // window closes: worst case is POLL + POST_STOP_SETTLE_MS (~2.2s), well under 4s.
     private const val PREEMPT_POLL_MS = 200L
 
+    // Rolling actual-response-time tracker per vital. Keyed by Vital.name. Each entry is a
+    // circular buffer of the last ROLLING_WINDOW measurement durations (ms).
+    private val responseTimes = ConcurrentHashMap<String, MutableList<Long>>()
+    private var consecutiveNormalCycles = 0
+
     private val sequence = listOf(
         Vital.STEPS, Vital.HEART_RATE, Vital.SPO2, Vital.STRESS, Vital.BLOOD_PRESSURE,
         Vital.HRV, Vital.TEMPERATURE
@@ -66,6 +90,43 @@ object MeasurementLoopManager {
     private var started = false
     private val runningCycle = AtomicBoolean(false)
     private lateinit var repository: ReadingRepository
+
+    // ── Adaptive timeout helpers ────────────────────────────────────────────
+
+    /** Record an actual measurement duration (ms) for the given vital. */
+    private fun recordResponseTime(vital: String, durationMs: Long) {
+        val list = responseTimes.getOrPut(vital) { mutableListOf() }
+        synchronized(list) {
+            list.add(durationMs)
+            if (list.size > ROLLING_WINDOW) list.removeAt(0)
+        }
+    }
+
+    /**
+     * Compute an adaptive timeout for [vital]: the rolling average of past response times
+     * × [TIMEOUT_HEADROOM_FACTOR], clamped between [MIN_TIMEOUT_MS] and the fixed ceiling
+     * ([MEASURE_TIMEOUT_MS] or the vital-specific override). Falls back to the fixed ceiling
+     * when no history exists yet.
+     */
+    private fun adaptiveTimeout(vital: String, ceilingMs: Long = MEASURE_TIMEOUT_MS): Long {
+        val list = responseTimes[vital] ?: return ceilingMs
+        val avg = synchronized(list) {
+            if (list.isEmpty()) return ceilingMs
+            list.sum().toDouble() / list.size
+        }
+        val adaptive = (avg * TIMEOUT_HEADROOM_FACTOR).toLong()
+        return adaptive.coerceIn(MIN_TIMEOUT_MS, ceilingMs)
+    }
+
+    /** Check whether the FallRiskAnalyzer considers current vitals anomalous. */
+    private fun isAnomalyDetected(): Boolean {
+        return try {
+            com.sundr.myapp.analysis.FallRiskAnalyzer.currentTier() in
+                setOf("HIGH", "CRITICAL", "OVERRIDE")
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     private val cycleRunnable = Runnable { runCycleIfPossible() }
 
@@ -219,10 +280,23 @@ object MeasurementLoopManager {
         runningCycle.set(false)
         // After yielding to manual measurement, come back sooner than the full cooldown so
         // the loop resumes promptly once manual measurement is done, instead of the user
-        // seeing a full cooldown-length gap in the auto cycle. Otherwise use the
-        // user/dev-configurable cooldown (MeasurementConfig.getCycleCooldownMs(), default 3
-        // min) read fresh each time so a runtime change takes effect on the very next cycle.
-        val delay = if (status == "YIELDED_TO_MANUAL") WORKOUT_RECHECK_MS else MeasurementConfig.getCycleCooldownMs()
+        // seeing a full cooldown-length gap in the auto cycle.
+        val delay = when {
+            status == "YIELDED_TO_MANUAL" -> WORKOUT_RECHECK_MS
+            status != "COMPLETED" -> MeasurementConfig.getCycleCooldownMs()
+            isAnomalyDetected() -> {
+                consecutiveNormalCycles = 0
+                MeasurementConfig.getCycleCooldownMs().coerceAtMost(FAST_COOLDOWN_MS)
+            }
+            else -> {
+                consecutiveNormalCycles++
+                if (consecutiveNormalCycles >= NORMALCY_CONFIRM_CYCLES) {
+                    MeasurementConfig.getCycleCooldownMs().coerceAtLeast(SLOW_COOLDOWN_MS)
+                } else {
+                    MeasurementConfig.getCycleCooldownMs()
+                }
+            }
+        }
         scheduleNext(delay)
     }
 
@@ -269,6 +343,7 @@ object MeasurementLoopManager {
     private fun measureHeartRate(cycleId: Long, onDone: () -> Unit) {
         if (!MeasurementCoordinator.tryAcquire(OWNER)) { onDone(); return }
         val done = AtomicBoolean(false)
+        val startTimeMs = System.currentTimeMillis()
         // Sends the stop command, then waits POST_STOP_SETTLE_MS before releasing the
         // coordinator lock and moving on — see POST_STOP_SETTLE_MS doc comment for why.
         fun finishWithStop() {
@@ -360,6 +435,7 @@ object MeasurementLoopManager {
                             }
                         }
                         if (accepted != null && done.compareAndSet(false, true)) {
+                            recordResponseTime(Vital.HEART_RATE.name, System.currentTimeMillis() - startTimeMs)
                             persist(Vital.HEART_RATE, cycleId, accepted.toDouble()) {
                                 repository.insertHeartRate(accepted, cycleId, "auto_cycle")
                             }
@@ -406,12 +482,13 @@ object MeasurementLoopManager {
                 }
                 finishWithStop()
             }
-        }, MEASURE_TIMEOUT_MS)
+        }, adaptiveTimeout(Vital.HEART_RATE.name, MEASURE_TIMEOUT_MS))
     }
 
     private fun measureSpo2(cycleId: Long, onDone: () -> Unit) {
         if (!MeasurementCoordinator.tryAcquire(OWNER)) { onDone(); return }
         val done = AtomicBoolean(false)
+        val startTimeMs = System.currentTimeMillis()
         fun finishWithStop() {
             try { BleOperateManager.getInstance().manualModeSpO2(ICommandResponse<StartHeartRateRsp> {}, true) } catch (_: Exception) {}
             handler.postDelayed({
@@ -430,6 +507,7 @@ object MeasurementLoopManager {
                     if (done.get()) return@ICommandResponse
                     val spo2 = if (rsp.getBloodOxygen() > 0) rsp.getBloodOxygen() else rsp.getValue()
                     if (spo2 > 0 && done.compareAndSet(false, true)) {
+                        recordResponseTime(Vital.SPO2.name, System.currentTimeMillis() - startTimeMs)
                         persist(Vital.SPO2, cycleId, spo2.toDouble()) {
                             repository.insertSpo2(spo2, cycleId, "auto_cycle")
                         }
@@ -445,12 +523,13 @@ object MeasurementLoopManager {
         }
         handler.postDelayed({
             if (done.compareAndSet(false, true)) finishWithStop()
-        }, MEASURE_TIMEOUT_MS)
+        }, adaptiveTimeout(Vital.SPO2.name, MEASURE_TIMEOUT_MS))
     }
 
     private fun measureStress(cycleId: Long, onDone: () -> Unit) {
         if (!MeasurementCoordinator.tryAcquire(OWNER)) { onDone(); return }
         val done = AtomicBoolean(false)
+        val startTimeMs = System.currentTimeMillis()
         fun finishWithStop() {
             try { BleOperateManager.getInstance().manualModePressure(ICommandResponse<StartHeartRateRsp> {}, true) } catch (_: Exception) {}
             handler.postDelayed({
@@ -469,6 +548,7 @@ object MeasurementLoopManager {
                     if (done.get()) return@ICommandResponse
                     val value = rsp.getValue()
                     if (value > 0 && done.compareAndSet(false, true)) {
+                        recordResponseTime(Vital.STRESS.name, System.currentTimeMillis() - startTimeMs)
                         persist(Vital.STRESS, cycleId, value.toDouble()) {
                             repository.insertStress(value, null, cycleId, "auto_cycle")
                         }
@@ -484,12 +564,13 @@ object MeasurementLoopManager {
         }
         handler.postDelayed({
             if (done.compareAndSet(false, true)) finishWithStop()
-        }, MEASURE_TIMEOUT_MS)
+        }, adaptiveTimeout(Vital.STRESS.name, MEASURE_TIMEOUT_MS))
     }
 
     private fun measureBloodPressure(cycleId: Long, onDone: () -> Unit) {
         if (!MeasurementCoordinator.tryAcquire(OWNER)) { onDone(); return }
         val done = AtomicBoolean(false)
+        val startTimeMs = System.currentTimeMillis()
         fun finishWithStop() {
             try { BleOperateManager.getInstance().manualModeBP(ICommandResponse<StartHeartRateRsp> {}, true) } catch (_: Exception) {}
             handler.postDelayed({
@@ -509,6 +590,7 @@ object MeasurementLoopManager {
                     val sbp = rsp.getSbp()
                     val dbp = rsp.getDbp()
                     if (sbp > 0 && dbp > 0 && done.compareAndSet(false, true)) {
+                        recordResponseTime(Vital.BLOOD_PRESSURE.name, System.currentTimeMillis() - startTimeMs)
                         persist(Vital.BLOOD_PRESSURE, cycleId, sbp.toDouble()) {
                             repository.insertBloodPressure(sbp, dbp, cycleId, "auto_cycle")
                         }
@@ -524,14 +606,15 @@ object MeasurementLoopManager {
         }
         handler.postDelayed({
             if (done.compareAndSet(false, true)) finishWithStop()
-        }, MEASURE_TIMEOUT_MS)
+        }, adaptiveTimeout(Vital.BLOOD_PRESSURE.name, MEASURE_TIMEOUT_MS))
     }
 
     // manualModeHrv has no built-in zero-filtering (unlike HR/SpO2/BP/Stress), so it's
     // applied here — same pattern, just checking getHrv() first (see comment below).
     private fun measureHrv(cycleId: Long, onDone: () -> Unit) {
         if (!MeasurementCoordinator.tryAcquire(OWNER)) { onDone(); return }
-        Log.d(TAG, "measureHrv: starting (timeout ${HRV_MEASURE_TIMEOUT_MS}ms)")
+        val startTimeMs = System.currentTimeMillis()
+        Log.d(TAG, "measureHrv: starting (timeout ${adaptiveTimeout(Vital.HRV.name, HRV_MEASURE_TIMEOUT_MS)}ms)")
         val done = AtomicBoolean(false)
         fun finishWithStop() {
             try { BleOperateManager.getInstance().manualModeHrv(ICommandResponse<StartHeartRateRsp> {}, true) } catch (_: Exception) {}
@@ -559,6 +642,7 @@ object MeasurementLoopManager {
                     // meant this never saw a real reading.
                     val value = if (rsp.getHrv() > 0) rsp.getHrv() else rsp.getValue()
                     if (value > 0 && done.compareAndSet(false, true)) {
+                        recordResponseTime(Vital.HRV.name, System.currentTimeMillis() - startTimeMs)
                         Log.d(TAG, "measureHrv: got value=$value")
                         persist(Vital.HRV, cycleId, value.toDouble()) {
                             repository.insertHrv(value, cycleId, "auto_cycle")
@@ -573,12 +657,13 @@ object MeasurementLoopManager {
             if (done.compareAndSet(false, true)) finishNoStop()
             return
         }
+        val hrvTimeoutMs = adaptiveTimeout(Vital.HRV.name, HRV_MEASURE_TIMEOUT_MS)
         handler.postDelayed({
             if (done.compareAndSet(false, true)) {
-                Log.w(TAG, "measureHrv: timed out after ${HRV_MEASURE_TIMEOUT_MS}ms")
+                Log.w(TAG, "measureHrv: timed out after ${hrvTimeoutMs}ms")
                 finishWithStop()
             }
-        }, HRV_MEASURE_TIMEOUT_MS)
+        }, hrvTimeoutMs)
     }
 
     // Live single temperature measurement via the SDK's dedicated manualTemperature() API —
@@ -589,6 +674,7 @@ object MeasurementLoopManager {
     private fun measureTemperature(cycleId: Long, onDone: () -> Unit) {
         if (!MeasurementCoordinator.tryAcquire(OWNER)) { onDone(); return }
         val done = AtomicBoolean(false)
+        val startTimeMs = System.currentTimeMillis()
         fun finishWithStop() {
             try { BleOperateManager.getInstance().manualTemperature(null, true) } catch (_: Exception) {}
             handler.postDelayed({
@@ -609,6 +695,7 @@ object MeasurementLoopManager {
                     // back to the generic getValue() like the manual path does.
                     val raw = if (rsp.getTemperature() > 0) rsp.getTemperature() else rsp.getValue()
                     if (raw > 0 && done.compareAndSet(false, true)) {
+                        recordResponseTime(Vital.TEMPERATURE.name, System.currentTimeMillis() - startTimeMs)
                         val tempC = raw / 10.0
                         Log.d(TAG, "measureTemperature: got raw=$raw tempC=$tempC")
                         persist(Vital.TEMPERATURE, cycleId, tempC) {
@@ -624,12 +711,13 @@ object MeasurementLoopManager {
             if (done.compareAndSet(false, true)) finishNoStop()
             return
         }
+        val tempTimeoutMs = adaptiveTimeout(Vital.TEMPERATURE.name, TEMP_MEASURE_TIMEOUT_MS)
         handler.postDelayed({
             if (done.compareAndSet(false, true)) {
-                Log.w(TAG, "measureTemperature: timed out after ${TEMP_MEASURE_TIMEOUT_MS}ms")
+                Log.w(TAG, "measureTemperature: timed out after ${tempTimeoutMs}ms")
                 finishWithStop()
             }
-        }, TEMP_MEASURE_TIMEOUT_MS)
+        }, tempTimeoutMs)
     }
 
     // Passive fetch (not a blocking manual-mode measurement) of the ring's own cumulative

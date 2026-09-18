@@ -21,7 +21,23 @@ class BootReceiver : BroadcastReceiver() {
                 Log.e("BootReceiver", "prefs read failed", e)
                 ""
             }
-            if (address.isNotEmpty()) {
+            // Battery: don't start the always-on foreground service (and its
+            // reconnect backoff loop) at boot when logged out or with no saved
+            // ring — otherwise a stale address causes a reconnect storm even
+            // though nobody can use the connection.
+            val loggedIn = try {
+                prefs.getBoolean("flutter.user_logged_in", false)
+            } catch (_: ClassCastException) {
+                when (val v = prefs.all["flutter.user_logged_in"]) {
+                    is Boolean -> v
+                    is String -> v.equals("true", ignoreCase = true) || v == "1"
+                    is Number -> v.toInt() != 0
+                    else -> false
+                }
+            } catch (_: Exception) {
+                false
+            }
+            if (address.isNotEmpty() && loggedIn) {
                 BleConnectionService.start(context)
             }
         } catch (e: Exception) {

@@ -162,6 +162,16 @@ class PrayerSessionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
+  void dispose() {
+    _timer?.cancel();
+    if (_isSessionActive) {
+      _bleService.stopWorkout();
+      _bleService.setCycleCooldownMs(180000);
+    }
+    super.dispose();
+  }
+
   int get avgHeartRate {
     if (_snapshots.isEmpty) return 0;
     final sum = _snapshots.fold<int>(0, (acc, s) => acc + s.heartRate);

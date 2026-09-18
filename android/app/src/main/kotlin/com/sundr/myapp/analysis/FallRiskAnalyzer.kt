@@ -35,6 +35,10 @@ object FallRiskAnalyzer {
     private var appContext: Context? = null
     private var initialized = false
     private var lastAlertAt = 0L
+    @Volatile private var _lastTier: String = "LOW"
+
+    /** Most recently computed risk tier. Used by MeasurementLoopManager for adaptive cooldown. */
+    fun currentTier(): String = _lastTier
 
     fun init(context: Context) {
         if (initialized) return
@@ -64,6 +68,7 @@ object FallRiskAnalyzer {
                     )
                 )
                 EventBus.getDefault().post(RiskTierChangeEvent(result.tier))
+                _lastTier = result.tier
                 maybeAlert(result, event.measuredAt, event.simulated)
             } catch (_: Exception) {
                 // Must never affect the rest of the vitals pipeline.

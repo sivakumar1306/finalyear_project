@@ -41,6 +41,13 @@ class BleConnectionService : Service() {
     private var isConnecting = false
     private var wasConnected = false
 
+    // Battery: exponential backoff for the reconnect/health loop while
+    // disconnected, capped at 2 min. Steps: 8s -> 15s -> 30s -> 60s -> 120s.
+    // Resets to fast polling as soon as the ring is connected again so a
+    // fresh disconnect is still noticed within seconds.
+    private var consecutiveDisconnectedTicks = 0
+    private val BACKOFF_STEPS_MS = longArrayOf(8_000L, 15_000L, 30_000L, 60_000L, 120_000L)
+
     // Flutter shared_preferences stores keys with "flutter." prefix
     private val prefs by lazy {
         getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
@@ -81,10 +88,29 @@ class BleConnectionService : Service() {
     private val checkRunnable = object : Runnable {
         override fun run() {
             try {
-                // Back off reconnect storms while the SDK circuit breaker is open.
-                val intervalMs = if (SdkGuard.isOpen()) 30_000L else 8_000L
-
                 val connected = BleSdkLifecycle.isConnected()
+
+                // Back off reconnect storms while the SDK circuit breaker is open.
+                // When connected and stable (was already connected last tick), relax to 30 s
+                // to let the CPU sleep longer. While disconnected, back off exponentially
+                // (8s -> 120s max) so an out-of-range ring doesn't cost ~10k GATT
+                // attempts/night. Sleep-reminder checks piggyback this loop, so a
+                // reminder may fire up to 2 min late in the worst case — acceptable.
+                val intervalMs = when {
+                    SdkGuard.isOpen() -> 30_000L
+                    connected && wasConnected -> 30_000L
+                    connected -> 8_000L
+                    else -> BACKOFF_STEPS_MS[
+                        consecutiveDisconnectedTicks.coerceIn(0, BACKOFF_STEPS_MS.lastIndex)
+                    ]
+                }
+
+                if (connected) {
+                    consecutiveDisconnectedTicks = 0
+                } else {
+                    consecutiveDisconnectedTicks =
+                        (consecutiveDisconnectedTicks + 1).coerceAtMost(BACKOFF_STEPS_MS.lastIndex)
+                }
 
                 if (connected && !wasConnected) {
                     SdkGuard.run("service.bindSuccess") {
@@ -112,7 +138,13 @@ class BleConnectionService : Service() {
                 handler.postDelayed(this, intervalMs)
             } catch (e: Exception) {
                 android.util.Log.e("BleConnectionService", "checkRunnable failed", e)
-                handler.postDelayed(this, 8_000L)
+                // Keep the backoff on errors too — a tight 8s error loop is a drain.
+                consecutiveDisconnectedTicks =
+                    (consecutiveDisconnectedTicks + 1).coerceAtMost(BACKOFF_STEPS_MS.lastIndex)
+                handler.postDelayed(
+                    this,
+                    BACKOFF_STEPS_MS[consecutiveDisconnectedTicks]
+                )
             }
         }
     }
@@ -120,7 +152,7 @@ class BleConnectionService : Service() {
     // Alarms & Notifications screen writes the schedule as plain strings (setInt on Dart's
     // shared_preferences round-trips as Long on Android — getInt() here would crash), and
     // this tracks its own native-only "already fired today" date so it fires exactly once
-    // per day even though this check runs every 8s.
+    // per day even though this check runs on the (backed-off) service loop.
     private fun maybeFireSleepReminder() {
         try {
             if (!safeGetBoolean("flutter.sleep_reminder_enabled", false)) return

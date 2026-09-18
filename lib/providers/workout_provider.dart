@@ -303,45 +303,38 @@ class WorkoutProvider extends ChangeNotifier {
 
   // ── Measurement loop ─────────────────────────────────────────────────────────
   //
-  // Runs HR reading and Steps/Calories/Distance polling concurrently while active.
+  // Single unified BLE poll loop (was two concurrent loops: HR every 4s +
+  // steps every 2s). One 10s loop halves radio wakeups and avoids the two loops
+  // colliding on the shared SDK slot. The 1s UI timer above still drives the
+  // elapsed-time display; this loop only handles BLE data.
   Future<void> _runMeasurementLoop() async {
-    Future<void> hrLoop() async {
-      while (_isWorkoutActive) {
-        try {
-          final hr = await _ble.readHeartRate();
-          if (!_isWorkoutActive) break;
-          // Plausible-range guard (mirrors native VitalRanges): sentinels/junk must
-          // not skew the live reading or the session's average.
-          const hrMin = 30, hrMax = 220;
-          if (hr != null && hr >= hrMin && hr <= hrMax) {
-            if (_hrReadings.length >= 500) {
-              _hrSum -= _hrReadings.removeAt(0);
-            }
-            _hrReadings.add(hr);
-            _hrSum += hr;
-            _latestHr = hr;
-            notifyListeners();
+    while (_isWorkoutActive) {
+      // HR reading (plausible-range guard mirrors native VitalRanges).
+      try {
+        final hr = await _ble.readHeartRate();
+        if (!_isWorkoutActive) break;
+        const hrMin = 30, hrMax = 220;
+        if (hr != null && hr >= hrMin && hr <= hrMax) {
+          if (_hrReadings.length >= 500) {
+            _hrSum -= _hrReadings.removeAt(0);
           }
-        } catch (e, st) {
-          IncidentService.reportUnhandled(
-            source: 'workout_provider',
-            error: e,
-            stackTrace: st,
-            customMessage: 'hrLoop readHeartRate failed',
-          );
+          _hrReadings.add(hr);
+          _hrSum += hr;
+          _latestHr = hr;
+          notifyListeners();
         }
-        await Future.delayed(const Duration(seconds: 4));
+      } catch (e, st) {
+        IncidentService.reportUnhandled(
+          source: 'workout_provider',
+          error: e,
+          stackTrace: st,
+          customMessage: 'measurementLoop readHeartRate failed',
+        );
       }
+      if (!_isWorkoutActive) break;
+      await _pollRing();
+      await Future.delayed(const Duration(seconds: 10));
     }
-
-    Future<void> stepsLoop() async {
-      while (_isWorkoutActive) {
-        await _pollRing();
-        await Future.delayed(const Duration(seconds: 2));
-      }
-    }
-
-    await Future.wait([hrLoop(), stepsLoop()]);
   }
 
   // ── Timer & ring helpers ──────────────────────────────────────────────────
@@ -394,6 +387,7 @@ class WorkoutProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isWorkoutActive = false;
     _uiTimer?.cancel();
     super.dispose();
   }
