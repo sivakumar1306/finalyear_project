@@ -12,9 +12,11 @@ class BloodSugarReading {
   });
 
   factory BloodSugarReading.fromMap(Map<String, dynamic> m) => BloodSugarReading(
-        timestamp: DateTime.tryParse(m['timestamp'] as String? ?? '') ??
+        // DB column is measured_at (see 20260901000000_phase2_detailed_health.sql).
+        timestamp:
+            DateTime.tryParse(m['measured_at'] as String? ?? '') ??
             DateTime.fromMillisecondsSinceEpoch(
-                (m['timestamp'] as num? ?? 0).toInt() * 1000),
+                (m['measured_at'] as num? ?? 0).toInt() * 1000),
         minSugar: (m['min_sugar'] as num? ?? 0).toInt(),
         maxSugar: (m['max_sugar'] as num? ?? 0).toInt(),
         hour: (m['hour'] as num? ?? 0).toInt(),
@@ -22,7 +24,7 @@ class BloodSugarReading {
 
   Map<String, dynamic> toMap(String userId) => {
         'user_id': userId,
-        'timestamp': timestamp.toUtc().toIso8601String(),
+        'measured_at': timestamp.toUtc().toIso8601String(),
         'min_sugar': minSugar,
         'max_sugar': maxSugar,
         'hour': hour,
