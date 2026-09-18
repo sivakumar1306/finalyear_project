@@ -24,7 +24,11 @@ class AppTypography {
         color: color,
         letterSpacing: letterSpacing,
         height: height,
-        decoration: decoration,
+        // Default to no underline so Text rendered outside a Material
+        // ancestor (e.g. Overlay toasts) can't inherit the yellow
+        // double-underline fallback style. Pass an explicit decoration
+        // to opt back into underlining where wanted.
+        decoration: decoration ?? TextDecoration.none,
         decorationColor: decorationColor,
         fontStyle: fontStyle,
         shadows: shadows,

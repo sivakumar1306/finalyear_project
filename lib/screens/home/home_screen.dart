@@ -50,8 +50,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _gender = '';
   GoalTargets? _goals;
   bool _showBatteryCard = false;
-  bool _showConnectCelebration = false;
-  Timer? _celebrationTimer;
   bool? _lastConnected;
   @override
   void initState() {
@@ -118,27 +116,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _celebrationTimer?.cancel();
     super.dispose();
   }
 
-  void _maybeTriggerConnectCelebration(bool connected, String address) {
+  void _maybeTriggerConnectCelebration(
+    bool connected,
+    String address, {
+    String deviceName = '',
+    int battery = -1,
+  }) {
     if (_lastConnected == null) {
       _lastConnected = connected;
       return;
     }
     if (!_lastConnected! && connected && address.isNotEmpty) {
-      _celebrationTimer?.cancel();
-      if (mounted) setState(() => _showConnectCelebration = true);
       HapticFeedback.lightImpact();
-      _celebrationTimer = Timer(const Duration(seconds: 2), () {
-        if (mounted) setState(() => _showConnectCelebration = false);
-      });
-    } else if (_lastConnected! && !connected) {
-      _celebrationTimer?.cancel();
-      if (mounted && _showConnectCelebration) {
-        setState(() => _showConnectCelebration = false);
-      }
+      final name = deviceName.isNotEmpty ? deviceName : 'Ring';
+      final message = battery >= 0
+          ? 'Connected to $name • $battery%'
+          : 'Connected to $name';
+      showGlassPill(context, message, type: GlassPillType.success);
     }
     _lastConnected = connected;
   }
@@ -720,12 +717,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       });
     }
 
-    // Device-connect celebration: false → true triggers the pill expansion
-    // banner below the greeting row (all connects: manual + auto-reconnect).
+    // Device-connect feedback: false → true fires the glass pill toast
+    // (all connects: manual + auto-reconnect).
     final connectedNow = ble.isConnected;
     final addressNow = ble.deviceAddress;
+    final nameNow = ble.deviceName;
+    final batteryNow = ble.battery;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _maybeTriggerConnectCelebration(connectedNow, addressNow);
+      if (mounted) {
+        _maybeTriggerConnectCelebration(
+          connectedNow,
+          addressNow,
+          deviceName: nameNow,
+          battery: batteryNow,
+        );
+      }
     });
 
     return RefreshIndicator(
@@ -1133,28 +1139,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               else
                 DevicePill(ble: ble),
             ],
-          ),
-          // Connect celebration: full-width pill expansion on the next line.
-          // Holds ~2s, then collapses back (compact pill stays put throughout).
-          AnimatedSize(
-            duration: const Duration(milliseconds: 320),
-            curve: Curves.easeOutCubic,
-            child: _showConnectCelebration && ble.deviceAddress.isNotEmpty
-                ? Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 280),
-                      curve: Curves.easeOutCubic,
-                      opacity: _showConnectCelebration ? 1.0 : 0.0,
-                      child: AnimatedScale(
-                        scale: _showConnectCelebration ? 1.0 : 0.98,
-                        duration: const Duration(milliseconds: 320),
-                        curve: Curves.easeOutCubic,
-                        child: DeviceConnectedBanner(ble: ble),
-                      ),
-                    ),
-                  )
-                : const SizedBox.shrink(),
           ),
         ],
       ),

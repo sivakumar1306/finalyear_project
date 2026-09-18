@@ -141,8 +141,8 @@ class _RingScanSheetState extends State<_RingScanSheet>
     if (!mounted) return;
     setState(() => _connectingAddress = null);
     if (ok) {
-      // Success feedback is handled by the DevicePill celebration banner on
-      // Home (all connects) — no toast here.
+      // Success feedback is handled by the glass pill toast on Home
+      // (all connects) — no toast here.
       Navigator.pop(context);
     } else {
       showGlassPill(context, 'Connection failed — make sure the ring is nearby.', type: GlassPillType.error);
@@ -157,8 +157,8 @@ class _RingScanSheetState extends State<_RingScanSheet>
     if (!mounted) return;
     setState(() => _connectingLast = false);
     if (ok) {
-      // Success feedback is handled by the DevicePill celebration banner on
-      // Home (all connects) — no toast here.
+      // Success feedback is handled by the glass pill toast on Home
+      // (all connects) — no toast here.
       Navigator.pop(context);
     } else {
       showGlassPill(context, 'Could not reach ring — try placing it on the charger to wake it.', type: GlassPillType.error);

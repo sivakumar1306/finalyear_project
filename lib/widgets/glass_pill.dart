@@ -5,7 +5,7 @@ import '../theme/app_theme.dart';
 import 'app_typography.dart';
 
 /// Glassmorphism pill notification that drops from the top of the screen.
-/// Matches DevicePill / DeviceConnectedBanner design tokens.
+/// Matches DevicePill design tokens.
 ///
 /// Usage:
 ///   showGlassPill(context, 'Settings saved');
@@ -115,50 +115,60 @@ class _GlassPillOverlayState extends State<_GlassPillOverlay>
       top: 0,
       left: 16,
       right: 16,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return Transform.translate(
-            offset: Offset(0, _slideAnim.value * (topPadding + 80)),
-            child: Opacity(
-              opacity: _fadeAnim.value,
-              child: child,
-            ),
-          );
-        },
-        child: GestureDetector(
-          onTap: _dismiss,
-          child: Padding(
-            padding: EdgeInsets.only(top: topPadding + 8),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppTheme.glassCard,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppTheme.glassBorder, width: 0.5),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(_icon, color: _accentColor, size: 16),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          widget.message,
-                          style: AppTypography.inter(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
+      // Transparent Material gives the overlay a proper DefaultTextStyle.
+      // Without it, Text inherits the fallback style (yellow double
+      // underline) since OverlayEntries sit outside any Scaffold/Material.
+      child: Material(
+        type: MaterialType.transparency,
+        color: Colors.transparent,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(0, _slideAnim.value * (topPadding + 80)),
+              child: Opacity(
+                opacity: _fadeAnim.value,
+                child: child,
+              ),
+            );
+          },
+          child: GestureDetector(
+            onTap: _dismiss,
+            child: Padding(
+              padding: EdgeInsets.only(top: topPadding + 8),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.glassCard,
+                      borderRadius: BorderRadius.circular(20),
+                      border:
+                          Border.all(color: AppTheme.glassBorder, width: 0.5),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(_icon, color: _accentColor, size: 16),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            widget.message,
+                            style: AppTypography.inter(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              decoration: TextDecoration.none,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
