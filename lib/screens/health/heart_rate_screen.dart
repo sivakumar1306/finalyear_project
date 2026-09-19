@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -124,6 +125,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
       if (!mounted) return;
       _fetchTodayFromLocalDb();
       _load7DayTrend();
+      // Ring-buffer backfill (dayIndex 0..6) in the background — upgrades the
+      // trend with previous history once it lands. See _pullRingHistory.
+      unawaited(_pullRingHistory());
       // QRing parity: sync interval and manual backlog immediately when viewing HR screen.
       _syncRingHrData();
     });
@@ -266,6 +270,63 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
 
   // ── Local-first day / trend (cloud only fills gaps + refreshes cache) ──────
 
+  /// Pulls the ring's full 7-day buffer (getHeartRates 0..6) and backfills
+  /// Supabase via the same upsert as today, then quietly reloads the trend.
+  /// Best-effort: bounded by BleService timeouts, silent when offline.
+  Future<void> _pullRingHistory() async {
+    try {
+      if (!context.read<BleProvider>().isConnected) return;
+      final raw = await _ble.fetchRingHistory('heart_rate');
+      final decoded = jsonDecode(raw);
+      if (decoded is! List || decoded.isEmpty) return;
+      final user = SupabaseService.currentUser;
+      if (user == null || !mounted) return;
+      final today = DateTime.now();
+      var wroteAny = false;
+      for (final e in decoded) {
+        if (e is! Map<String, dynamic>) continue;
+        final dayIdx =
+            (e['dayIndex'] as num? ?? e['day_index'] as num? ?? -1).toInt();
+        if (dayIdx < 0 || dayIdx > 6) continue;
+        final inner = e['data'];
+        if (inner is! Map<String, dynamic>) continue;
+        final vals = <int>[];
+        final arr = inner['array'];
+        if (arr is List) {
+          vals.addAll(arr.whereType<num>().map((v) => v.toInt()));
+        }
+        if (vals.isEmpty) {
+          final rawBytes = inner['mHeartRateArray'];
+          if (rawBytes is List) {
+            vals.addAll(
+              rawBytes.whereType<num>().map((v) {
+                var x = v.toInt();
+                if (x < 0) x += 256; // signed byte → unsigned bpm
+                return x;
+              }),
+            );
+          }
+        }
+        final beats = vals.where((v) => v >= 30 && v <= 220).toList();
+        if (beats.isEmpty) continue;
+        beats.sort();
+        final date = DateTime(today.year, today.month, today.day)
+            .subtract(Duration(days: dayIdx));
+        await SupabaseService.upsertHr(
+          userId: user.id,
+          date: date,
+          avgHr: (beats.reduce((a, b) => a + b) / beats.length).round(),
+          minHr: beats.first,
+          maxHr: beats.last,
+          sampleCount: beats.length,
+        );
+        wroteAny = true;
+        if (!mounted) return;
+      }
+      if (wroteAny && mounted) await _load7DayTrend(quiet: true);
+    } catch (_) {}
+  }
+
   Future<void> _loadDayFromSupabase(DateTime date) async {
     setState(() {
       _loadingDay = true;
@@ -353,11 +414,13 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     return HourlyAggregator.aggregateInt(list, valueKey: 'valueBpm', measuredAtKey: 'measuredAt', slots: 24);
   }
 
-  Future<void> _load7DayTrend() async {
-    setState(() {
-      _loadingTrend = true;
-      _trendOffline = false;
-    });
+  Future<void> _load7DayTrend({bool quiet = false}) async {
+    if (!quiet) {
+      setState(() {
+        _loadingTrend = true;
+        _trendOffline = false;
+      });
+    }
     try {
       // 1) Local rollups first.
       final localRows = await _local.getHistory('heart_rate', days: 7);

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -122,12 +123,63 @@ class _StressScreenState extends State<StressScreen> {
 
       _fetchTodayFromLocalDb();
       _load7DayTrend();
+      // Ring-buffer backfill (dayIndex 0..6) in the background.
+      unawaited(_pullRingHistory());
     });
   }
 
 
 
   // ── Date selection ────────────────────────────────────────────────────────
+
+  /// Pulls the ring's full 7-day buffer (getPressures 0..6) and inserts one
+  /// row per day, then quietly reloads the trend. Best-effort.
+  /// Stress samples arrive as signed bytes under `pressureArray`: unsigned
+  /// (+256), 0xFF sentinel dropped, clamped to 0..100 like the 0-100 stress
+  /// scale used by getTodaySummary('stress').
+  Future<void> _pullRingHistory() async {
+    try {
+      if (!context.read<BleProvider>().isConnected) return;
+      final raw = await _ble.fetchRingHistory('pressure');
+      final decoded = jsonDecode(raw);
+      if (decoded is! List || decoded.isEmpty) return;
+      final user = SupabaseService.currentUser;
+      if (user == null || !mounted) return;
+      final today = DateTime.now();
+      var wroteAny = false;
+      for (final e in decoded) {
+        if (e is! Map<String, dynamic>) continue;
+        final dayIdx =
+            (e['dayIndex'] as num? ?? e['day_index'] as num? ?? -1).toInt();
+        if (dayIdx < 0 || dayIdx > 6) continue;
+        final inner = e['data'];
+        if (inner is! Map<String, dynamic>) continue;
+        final arr = inner['pressureArray'];
+        if (arr is! List) continue;
+        final vals = arr
+            .whereType<num>()
+            .map((v) {
+              var x = v.toInt();
+              if (x < 0) x += 256;
+              return x;
+            })
+            .where((v) => v >= 0 && v <= 100 && v != 255)
+            .toList();
+        if (vals.isEmpty) continue;
+        final date = DateTime(today.year, today.month, today.day)
+            .subtract(Duration(days: dayIdx));
+        await SupabaseService.insertStress(
+          userId: user.id,
+          stressValue: (vals.reduce((a, b) => a + b) / vals.length).round(),
+          measuredAt: DateTime(date.year, date.month, date.day, 12),
+          source: 'ring_history',
+        );
+        wroteAny = true;
+        if (!mounted) return;
+      }
+      if (wroteAny && mounted) await _load7DayTrend(quiet: true);
+    } catch (_) {}
+  }
 
   void _onDateSelected(DateTime date) {
     final isToday = DateKeys.isToday(date);
@@ -313,11 +365,13 @@ class _StressScreenState extends State<StressScreen> {
     }
   }
 
-  Future<void> _load7DayTrend() async {
-    setState(() {
-      _loadingTrend = true;
-      _trendOffline = false;
-    });
+  Future<void> _load7DayTrend({bool quiet = false}) async {
+    if (!quiet) {
+      setState(() {
+        _loadingTrend = true;
+        _trendOffline = false;
+      });
+    }
     try {
       // 1) Local rollups first.
       final localRows = await _local.getHistory('stress', days: 7);

@@ -195,6 +195,9 @@ class _StepsScreenState extends State<StepsScreen> {
     );
 
     _loadDay(_selectedDate, force: true);
+    // Ring-buffer backfill (dayIndex 0..6) in the background — persists
+    // previous days the trend has never seen, then refreshes the view.
+    unawaited(_pullRingHistory());
   }
 
   void _applySnapshot(_DaySnapshot snap, {required bool isToday}) {
@@ -309,8 +312,43 @@ class _StepsScreenState extends State<StepsScreen> {
     );
   }
 
-  Future<void> _loadDay(DateTime date, {bool force = false}) async {
-    if (!mounted) return;
+  /// Pulls the ring's full 7-day buffer (getStepsList 0..6) and persists each
+  /// day via the same parse+upsert path as single days, then refreshes the
+  /// visible day. Best-effort and generation-guarded.
+  Future<void> _pullRingHistory() async {
+    final gen = _loadGen;
+    bool alive() => mounted && gen == _loadGen;
+    try {
+      if (!context.read<BleProvider>().isConnected) return;
+      final raw = await _ble.fetchRingHistory('steps');
+      if (!alive()) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List || decoded.isEmpty) return;
+      final today = _dateOnly(DateTime.now());
+      var wroteAny = false;
+      for (final e in decoded) {
+        if (e is! Map<String, dynamic>) continue;
+        final dayIdx =
+            (e['dayIndex'] as num? ?? e['day_index'] as num? ?? -1).toInt();
+        if (dayIdx < 0 || dayIdx > 6) continue;
+        final inner = e['data'];
+        if (inner == null) continue;
+        final snap = _parseIntervalJson(jsonEncode(inner));
+        if (snap == null || !snap.hasTotals) continue;
+        await _saveToDb(
+          today.subtract(Duration(days: dayIdx)),
+          snap.steps,
+          snap.cal,
+          snap.distM,
+        );
+        wroteAny = true;
+        if (!alive()) return;
+      }
+      if (wroteAny && alive()) _loadDay(_selectedDate, force: true);
+    } catch (_) {}
+  }
+
+  Future<void> _loadDay(DateTime date, {bool force = false}) async {    if (!mounted) return;
     final day = _dateOnly(date);
     final key = _dateKey(day);
     final isToday = _isToday(day);

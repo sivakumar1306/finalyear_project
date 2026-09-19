@@ -129,12 +129,69 @@ class _HrvScreenState extends State<HrvScreen> {
 
       _fetchTodayFromLocalDb();
       _load7DayTrend();
+      // Ring-buffer backfill (dayIndex 0..6) in the background.
+      unawaited(_pullRingHistory());
     });
   }
 
 
 
   // ── Date selection ────────────────────────────────────────────────────────
+
+  /// Pulls the ring's full 7-day buffer (getHrvs 0..6) and backfills Supabase
+  /// via upsertHrv, then quietly reloads the trend. Best-effort.
+  /// HRV samples arrive as signed bytes: key `d` (some firmware) or
+  /// `pressureArray` (HRVRsp gson) — negatives are unsigned (+256), 0xFF is
+  /// the invalid sentinel.
+  Future<void> _pullRingHistory() async {
+    try {
+      if (!context.read<BleProvider>().isConnected) return;
+      final raw = await _ble.fetchRingHistory('hrv');
+      final decoded = jsonDecode(raw);
+      if (decoded is! List || decoded.isEmpty) return;
+      final user = SupabaseService.currentUser;
+      if (user == null || !mounted) return;
+      final today = DateTime.now();
+      var wroteAny = false;
+      for (final e in decoded) {
+        if (e is! Map<String, dynamic>) continue;
+        final dayIdx =
+            (e['dayIndex'] as num? ?? e['day_index'] as num? ?? -1).toInt();
+        if (dayIdx < 0 || dayIdx > 6) continue;
+        final inner = e['data'];
+        if (inner is! Map<String, dynamic>) continue;
+        final rawList = inner['d'] is List
+            ? inner['d'] as List
+            : (inner['pressureArray'] is List
+                ? inner['pressureArray'] as List
+                : const []);
+        final readings = rawList
+            .whereType<num>()
+            .map((v) {
+              var x = v.toInt();
+              if (x < 0) x += 256;
+              return x;
+            })
+            .where((v) => v > 0 && v != 255)
+            .toList();
+        if (readings.isEmpty) continue;
+        readings.sort();
+        final date = DateTime(today.year, today.month, today.day)
+            .subtract(Duration(days: dayIdx));
+        await SupabaseService.upsertHrv(
+          userId: user.id,
+          date: date,
+          avgHrv: (readings.reduce((a, b) => a + b) / readings.length).round(),
+          minHrv: readings.first,
+          maxHrv: readings.last,
+          sampleCount: readings.length,
+        );
+        wroteAny = true;
+        if (!mounted) return;
+      }
+      if (wroteAny && mounted) await _load7DayTrend(quiet: true);
+    } catch (_) {}
+  }
 
   void _onDateSelected(DateTime date) {
     final isToday = DateKeys.isToday(date);
@@ -480,11 +537,13 @@ class _HrvScreenState extends State<HrvScreen> {
     }
   }
 
-  Future<void> _load7DayTrend() async {
-    setState(() {
-      _loadingTrend = true;
-      _trendOffline = false;
-    });
+  Future<void> _load7DayTrend({bool quiet = false}) async {
+    if (!quiet) {
+      setState(() {
+        _loadingTrend = true;
+        _trendOffline = false;
+      });
+    }
     try {
       final localRows = await _local.getHistory('hrv', days: 7);
       final localVals = await _local.historyAvgSeries('hrv', days: 7);

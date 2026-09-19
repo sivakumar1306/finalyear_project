@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -125,6 +126,8 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
 
       _fetchToday();
       _load7DayTrend();
+      // Ring-buffer backfill (dayIndex 0..6) in the background.
+      unawaited(_pullRingHistory());
     });
   }
 
@@ -149,6 +152,52 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
   }
 
   // ── Local DB fetch (today) ───────────────────────────────────────────────
+
+  /// Pulls the ring's full 7-day buffer (getBloodOxygens 0..6) and backfills
+  /// Supabase via upsertSpo2, then quietly reloads the trend. Best-effort.
+  Future<void> _pullRingHistory() async {
+    try {
+      if (!context.read<BleProvider>().isConnected) return;
+      final raw = await _ble.fetchRingHistory('spo2');
+      final decoded = jsonDecode(raw);
+      if (decoded is! List || decoded.isEmpty) return;
+      final user = SupabaseService.currentUser;
+      if (user == null || !mounted) return;
+      final today = DateTime.now();
+      var wroteAny = false;
+      for (final e in decoded) {
+        if (e is! Map<String, dynamic>) continue;
+        final dayIdx =
+            (e['dayIndex'] as num? ?? e['day_index'] as num? ?? -1).toInt();
+        if (dayIdx < 0 || dayIdx > 6) continue;
+        final inner = e['data'];
+        if (inner is! Map<String, dynamic>) continue;
+        final vals = <int>[];
+        for (final key in ['array', 'minArray', 'maxArray']) {
+          final arr = inner[key];
+          if (arr is List) {
+            vals.addAll(arr.whereType<num>().map((v) => v.toInt()));
+          }
+        }
+        final clean = vals.where((v) => v > 0 && v <= 100).toList();
+        if (clean.isEmpty) continue;
+        clean.sort();
+        final date = DateTime(today.year, today.month, today.day)
+            .subtract(Duration(days: dayIdx));
+        await SupabaseService.upsertSpo2(
+          userId: user.id,
+          date: date,
+          avgSpo2: (clean.reduce((a, b) => a + b) / clean.length).round(),
+          minSpo2: clean.first,
+          maxSpo2: clean.last,
+          sampleCount: clean.length,
+        );
+        wroteAny = true;
+        if (!mounted) return;
+      }
+      if (wroteAny && mounted) await _load7DayTrend(quiet: true);
+    } catch (_) {}
+  }
 
   Future<void> _fetchToday() async {
     setState(() {
@@ -298,11 +347,13 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     }
   }
 
-  Future<void> _load7DayTrend() async {
-    setState(() {
-      _loadingTrend = true;
-      _trendOffline = false;
-    });
+  Future<void> _load7DayTrend({bool quiet = false}) async {
+    if (!quiet) {
+      setState(() {
+        _loadingTrend = true;
+        _trendOffline = false;
+      });
+    }
     try {
       final localRows = await _local.getHistory('spo2', days: 7);
       final localVals = await _local.historyAvgSeries('spo2', days: 7);

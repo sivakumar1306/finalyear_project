@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -158,12 +159,58 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
 
       _fetchTodayFromLocalDb();
       _load7DayTrend();
+      // Ring-buffer backfill (dayIndex 0..6) in the background.
+      unawaited(_pullRingHistory());
     });
   }
 
 
 
   // ── Date selection ────────────────────────────────────────────────────────────
+
+  /// Pulls the ring's full 7-day buffer (getBloodPressures 0..6) and inserts
+  /// each reading, then quietly reloads the trend. Best-effort.
+  Future<void> _pullRingHistory() async {
+    try {
+      if (!context.read<BleProvider>().isConnected) return;
+      final raw = await _ble.fetchRingHistory('blood_pressure');
+      final decoded = jsonDecode(raw);
+      if (decoded is! List || decoded.isEmpty) return;
+      final user = SupabaseService.currentUser;
+      if (user == null || !mounted) return;
+      var wroteAny = false;
+      for (final e in decoded) {
+        if (e is! Map<String, dynamic>) continue;
+        final dayIdx =
+            (e['dayIndex'] as num? ?? e['day_index'] as num? ?? -1).toInt();
+        if (dayIdx < 0 || dayIdx > 6) continue;
+        final inner = e['data'];
+        if (inner is! List) continue;
+        for (final r in inner) {
+          if (r is! Map<String, dynamic>) continue;
+          final sbp = (r['sbp'] as num?)?.toInt() ?? 0;
+          final dbp = (r['dbp'] as num?)?.toInt() ?? 0;
+          if (sbp < 70 || sbp > 250 || dbp < 40 || dbp > 150) continue;
+          final t = (r['time'] as num?)?.toInt() ?? 0;
+          if (t <= 0) continue;
+          // time may be seconds or millis — normalize by magnitude.
+          final measuredAt = DateTime.fromMillisecondsSinceEpoch(
+            t < 100000000000 ? t * 1000 : t,
+          );
+          await SupabaseService.insertBp(
+            userId: user.id,
+            systolic: sbp,
+            diastolic: dbp,
+            measuredAt: measuredAt,
+            source: 'ring_history',
+          );
+          wroteAny = true;
+          if (!mounted) return;
+        }
+      }
+      if (wroteAny && mounted) await _load7DayTrend(quiet: true);
+    } catch (_) {}
+  }
 
   void _onDateSelected(DateTime date) {
     final isToday = DateKeys.isToday(date);
@@ -384,11 +431,13 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     }
   }
 
-  Future<void> _load7DayTrend() async {
-    setState(() {
-      _loadingTrend = true;
-      _trendOffline = false;
-    });
+  Future<void> _load7DayTrend({bool quiet = false}) async {
+    if (!quiet) {
+      setState(() {
+        _loadingTrend = true;
+        _trendOffline = false;
+      });
+    }
     try {
       // 1) Local first.
       final localSbpVals = await _local.historyAvgSeries('blood_pressure', days: 7, avgKey: 'avg');

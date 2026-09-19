@@ -463,6 +463,41 @@ class BleService {
   Future<String> getSportRecords() async =>
       await _methodChannel.invokeMethod<String>('getSportRecords') ?? '[]';
 
+  // ── Full ring history (dayIndex 0..6 buffer) ──────────────────────────
+  // One dispatcher for the "view all history from the ring" path. Each vital
+  // returns a JSON list of DayIndexedData ({dayIndex|day_index, data}).
+  // See docs/mappings/history-coverage.md.
+  static const int kRingHistoryMaxDays = 7;
+
+  Future<String> fetchRingHistory(
+    String vital, {
+    int startDay = 0,
+    int count = kRingHistoryMaxDays,
+  }) {
+    switch (vital) {
+      case 'sleep':
+        return getSleepList(startDay, count);
+      case 'steps':
+        return getStepsList(startDay, count);
+      case 'heart_rate':
+        return getHeartRates(startDay, count);
+      case 'blood_pressure':
+        return getBloodPressures(startDay, count);
+      case 'pressure':
+        return getPressureList(startDay, count);
+      case 'hrv':
+        return getHrvList(startDay, count);
+      case 'spo2':
+        return getBloodOxygens(startDay, count);
+      case 'temperature':
+        return getTemperatureList(startDay, count);
+      case 'sport':
+        return getSportRecords();
+      default:
+        throw ArgumentError('No ring history for vital: $vital');
+    }
+  }
+
   // ── Settings ───────────────────────────────────────────────────────
   Future<String> getHealthSettings() async =>
       await _methodChannel.invokeMethod<String>('getHealthSettings') ?? '{}';
