@@ -24,6 +24,7 @@ Legend: ✅ mapped end-to-end · 🔶 wired to UI history backfill · ⚠️ par
 | Temperature | `getTodayTemperature` | `getTemperature` | `getTemperatures` | all three | ✅ all + dispatcher | ❌ blocked (see below) | ⚠️ |
 | Sleep | `getTodaySleep` | `getSleep` | `getSleeps` | `getTodaySleep`/`getSleep`/`getSleepList` | ✅ all + dispatcher | 🔶 `sleep_screen._loadHistory` (pre-existing) | ✅ |
 | Sport | `getTodaySport` | `getSport` | `getSports` | `getTodaySport`/`getSport`/`getSports` (+ legacy `getSportRecords`/`syncSportRecords` via `SportPlusHandle`) | ✅ all + `fetchRingHistory('sport')` | 🔶 `workouts_screen._pullRingSports` auto-merge | ✅ |
+| Sport GPS | `SportLocation{mRateReal}` only — no lat/lng fields exist | n/a (HR samples, not coordinates) | — | — | Ring GPS impossible; phone GPS recorded during manual workouts → `user_workouts.locations` → `gps_trace_screen` | ✅ (phone-side) |
 | Emotion | `getTodayEmotion` | `getEmotion` | `getEmotions` | — | — | — | ❌ no consumer in app |
 | Manual HR | `getTodayManualHeartRate` | `getManualHeartRate` | `getManualHeartRates` | `getTodayManualHeartRate`/`syncManualHeartRate` only | ⚠️ single/range missing | — | ⚠️ |
 | Manual SpO₂ | `getTodayManualBloodOxygen` | `getManualBloodOxygen` | `getManualBloodOxygens` | — | — | — | ❌ |

@@ -106,7 +106,13 @@ class _Header extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.circle, color: AppTheme.danger, size: 8),
+                    Icon(
+                      Icons.circle,
+                      color: workout.ringUnreachable
+                          ? AppTheme.textSec
+                          : AppTheme.danger,
+                      size: 8,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       label,
@@ -116,6 +122,17 @@ class _Header extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    if (workout.ringUnreachable) ...[
+                      const SizedBox(width: 6),
+                      const Text(
+                        '• Reconnecting…',
+                        style: TextStyle(
+                          color: AppTheme.textSec,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

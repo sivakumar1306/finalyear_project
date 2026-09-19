@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ble_service.dart';
 import '../services/incident_service.dart';
@@ -34,7 +35,19 @@ class WorkoutProvider extends ChangeNotifier {
   int _hrSum = 0;
   int _latestHr = 0;
 
+  // Phone-GPS trace (the ring reports no coordinates — SportLocation
+  // carries only per-point HR). Sampled each measurement tick; empty when
+  // permission is denied or GPS unavailable.
+  final List<Map<String, dynamic>> _tracePoints = [];
+  List<Map<String, dynamic>> get tracePoints =>
+      List.unmodifiable(_tracePoints);
+
   int _todayWorkoutDurationS = 0;
+
+  // True while ring polls are failing — the active screen shows
+  // "Reconnecting…" instead of silent zeros.
+  bool _ringUnreachable = false;
+  bool get ringUnreachable => _ringUnreachable;
 
   bool get isWorkoutActive => _isWorkoutActive;
   WorkoutCategory? get currentCategory => _currentCategory;
@@ -130,10 +143,15 @@ class WorkoutProvider extends ChangeNotifier {
     _hrReadings.clear();
     _hrSum = 0;
     _latestHr = 0;
+    _tracePoints.clear();
 
-    // Fetch current ring values as the workout baseline before the user
-    // moves. If the ring is unreachable, fall back to zero.
+    // Warm the ring buffer first so the baseline reflects current totals —
+    // without this, baseline == first poll and every delta reads 0.
+    // A failed baseline is flagged (not zeroed): the first successful poll
+    // re-baselines instead of inflating to full-day totals.
+    bool baselineStale = false;
     try {
+      await _ble.syncTodaySteps().timeout(const Duration(seconds: 15));
       final raw = await _ble.getTodaySteps();
       final (s, c, d) = _parseSteps(raw);
       _initialSteps = s;
@@ -143,10 +161,11 @@ class WorkoutProvider extends ChangeNotifier {
       _initialSteps = 0;
       _initialCalories = 0;
       _initialDistance = 0.0;
+      baselineStale = true;
     }
-
     final prefs = await _getPrefs();
     await prefs.setBool('workout_active', true);
+    await prefs.setBool('workout_baseline_stale', baselineStale);
     await prefs.setString('workout_category', category.name);
     await prefs.setString('workout_sport', sport);
     await prefs.setInt('workout_start_time', now.millisecondsSinceEpoch);
@@ -211,6 +230,7 @@ class WorkoutProvider extends ChangeNotifier {
       'distance_m': _workoutDistanceM,
       'avg_hr': computedAvgHr,
       'created_at': endTime.toIso8601String(),
+      'locations': List<Map<String, dynamic>>.from(_tracePoints),
     };
 
     if (userId != null && _startTime != null) {
@@ -228,6 +248,9 @@ class WorkoutProvider extends ChangeNotifier {
           avgSpo2: 0,
           avgBpSbp: 0,
           avgBpDbp: 0,
+          locations: _tracePoints.isEmpty
+              ? null
+              : List<Map<String, dynamic>>.from(_tracePoints),
         );
         if (id != null) workoutMap['id'] = id;
       } catch (e) {
@@ -253,6 +276,7 @@ class WorkoutProvider extends ChangeNotifier {
     final prefs = await _getPrefs();
     for (final key in [
       'workout_active',
+      'workout_baseline_stale',
       'workout_category',
       'workout_sport',
       'workout_start_time',
@@ -264,6 +288,7 @@ class WorkoutProvider extends ChangeNotifier {
     }
 
     _isWorkoutActive = false;
+    _ringUnreachable = false;
     _currentCategory = null;
     _currentSport = null;
     _startTime = null;
@@ -271,6 +296,7 @@ class WorkoutProvider extends ChangeNotifier {
     _hrReadings.clear();
     _hrSum = 0;
     _latestHr = 0;
+    _tracePoints.clear();
     notifyListeners();
     loadTodayWorkoutDuration();
 
@@ -333,8 +359,32 @@ class WorkoutProvider extends ChangeNotifier {
       }
       if (!_isWorkoutActive) break;
       await _pollRing();
+      await _sampleGps();
       await Future.delayed(const Duration(seconds: 10));
     }
+  }
+
+  /// One low-accuracy GPS fix per measurement tick. Silent on denial,
+  /// disabled services, or timeouts — trace stays partial, never fatal.
+  Future<void> _sampleGps() async {
+    if (!_isWorkoutActive || _tracePoints.length >= 600) return;
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.deniedForever) return;
+      if (perm == LocationPermission.denied) return;
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.low,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+      _tracePoints.add({
+        'lat': pos.latitude,
+        'lng': pos.longitude,
+        't': DateTime.now().millisecondsSinceEpoch,
+      });
+    } catch (_) {}
   }
 
   // ── Timer & ring helpers ──────────────────────────────────────────────────
@@ -357,31 +407,55 @@ class WorkoutProvider extends ChangeNotifier {
       final (steps, cal, dist) = _parseSteps(raw);
 
       if (steps > 0 || cal > 0 || dist > 0) {
+        // Recover from a stale zero baseline once the ring responds.
+        try {
+          final prefs = await _getPrefs();
+          if (prefs.getBool('workout_baseline_stale') ?? false) {
+            _initialSteps = steps;
+            _initialCalories = cal;
+            _initialDistance = dist;
+            await prefs.setBool('workout_baseline_stale', false);
+          }
+        } catch (_) {}
         _workoutSteps = (steps - _initialSteps).clamp(0, 9999999);
         _workoutCalories = (cal - _initialCalories).clamp(0, 9999999);
         _workoutDistanceM = (dist - _initialDistance).clamp(0.0, 9999999.0);
+        if (_ringUnreachable) {
+          _ringUnreachable = false;
+        }
         notifyListeners();
       }
     } catch (_) {
-      // Keep last valid values on ring error
+      // Ring unreachable — surface it instead of freezing on stale values.
+      if (!_ringUnreachable) {
+        _ringUnreachable = true;
+        notifyListeners();
+      }
     }
   }
 
   // Same ProGuard field mapping used by StepsScreen and BleProvider:
-  //   e = calories (小卡, divide by 1000 for kcal)
-  //   f = walkSteps
-  //   g = distance (meters)
+  //   e = calories raw (小卡), f = walkSteps, g = distance (meters).
+  // Raw calories are summed first and converted once, so sub-1000 sessions
+  // still count (min 1 kcal) instead of truncating to 0 per slot.
   (int steps, int calories, double distance) _parseSteps(String jsonStr) {
     final decoded = jsonDecode(jsonStr);
     final list = decoded is List ? decoded : <dynamic>[];
-    int totalSteps = 0, totalCal = 0;
+    int totalSteps = 0, totalCalRaw = 0;
     double totalDist = 0.0;
     for (final item in list) {
-      final m = item as Map<String, dynamic>;
-      totalSteps += (m['f'] as num? ?? 0).toInt();
-      totalCal   += (m['e'] as num? ?? 0).toInt() ~/ 1000;
-      totalDist  += (m['g'] as num? ?? 0).toDouble();
+      if (item is! Map<String, dynamic>) continue;
+      final m = item;
+      totalSteps +=
+          (m['f'] as num? ?? m['walkSteps'] as num? ?? 0).toInt() +
+          (m['runSteps'] as num? ?? 0).toInt();
+      totalCalRaw +=
+          (m['e'] as num? ?? m['calorie'] as num? ?? 0).toInt();
+      totalDist +=
+          (m['g'] as num? ?? m['distance'] as num? ?? 0.0).toDouble();
     }
+    final totalCal =
+        totalCalRaw >= 1000 ? totalCalRaw ~/ 1000 : (totalCalRaw > 0 ? 1 : 0);
     return (totalSteps, totalCal, totalDist);
   }
 

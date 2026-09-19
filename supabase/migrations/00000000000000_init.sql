@@ -144,6 +144,7 @@ create table if not exists public.user_workouts (
   avg_spo2 integer,
   avg_bp_sbp integer,
   avg_bp_dbp integer,
+  locations jsonb,
   created_at timestamptz not null default now()
 );
 create index if not exists user_workouts_user_started_idx

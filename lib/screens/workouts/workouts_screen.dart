@@ -133,6 +133,11 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
     if (startMs <= 0 || durS <= 0) return null;
     final start = DateTime.fromMillisecondsSinceEpoch(startMs);
     final end = start.add(Duration(seconds: durS));
+    // mCalories unit is firmware-dependent: real sessions never reach
+    // 10000 kcal, so anything at/above that is 小卡 (÷1000, min 1).
+    final calRaw = (s['mCalories'] as num? ?? 0).toDouble();
+    final calories =
+        calRaw >= 10000 ? (calRaw ~/ 1000).clamp(1, 1 << 31) : calRaw.toInt();
     return {
       'id': 'ring-$startMs-$type',
       'workout_type': _ringSportName(type),
@@ -140,7 +145,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
       'ended_at': end.toIso8601String(),
       'duration_s': durS,
       'steps': (s['steps'] as num? ?? 0).toInt(),
-      'calories': (s['mCalories'] as num? ?? 0).toInt(),
+      'calories': calories,
       'distance_m': (s['mDistance'] as num? ?? 0).toDouble(),
       'avg_hr': (s['mRateAvg'] as num? ?? 0).toInt(),
       'source': 'ring',
@@ -196,6 +201,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
       // Persist unseen sessions so auto-detected sports track in history.
       final userId = SupabaseService.currentUser?.id;
       if (userId != null) {
+        var insertErrors = 0;
         for (final r in fresh) {
           try {
             final startedAt = DateTime.parse(r['started_at'] as String);
@@ -213,8 +219,15 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
               avgBpSbp: 0,
               avgBpDbp: 0,
             );
-          } catch (_) {}
+          } catch (e) {
+            insertErrors++;
+            debugPrint('[Workouts] ring insert failed: $e');
+          }
           if (!mounted) return;
+        }
+        if (insertErrors == fresh.length && fresh.isNotEmpty && mounted) {
+          // All inserts failed — still show ring rows locally this session.
+          debugPrint('[Workouts] all ${fresh.length} ring inserts failed');
         }
       }
 
@@ -825,20 +838,21 @@ class _HistoryRow extends StatelessWidget {
     final avgHr     = (row['avg_hr'] as num? ?? 0).toInt();
 
     final category = workoutCategoryFromString(type);
-    final metrics  = category?.metrics ?? WorkoutCategory.running.metrics;
     final icon     = category?.icon ?? Icons.fitness_center_rounded;
     final label    = type.isNotEmpty
         ? '${type[0].toUpperCase()}${type.substring(1)}'
         : 'Workout';
 
+    // Show any stat the ring actually recorded — category metric lists
+    // would otherwise hide valid steps/distance for non-running sports.
     final stats = <(IconData, Color, String)>[];
-    if (metrics.contains(WorkoutMetric.heartRate) && avgHr > 0) {
+    if (avgHr > 0) {
       stats.add((Icons.monitor_heart_rounded, AppTheme.hrColor, '$avgHr bpm'));
     }
-    if (metrics.contains(WorkoutMetric.steps) && steps > 0) {
+    if (steps > 0) {
       stats.add((Icons.directions_walk_rounded, AppTheme.gold, _fmtSteps(steps)));
     }
-    if (metrics.contains(WorkoutMetric.distance) && distanceM > 0) {
+    if (distanceM > 0) {
       stats.add((Icons.straighten_rounded, AppTheme.success, _fmtDist(distanceM)));
     }
     if (calories > 0) {

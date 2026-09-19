@@ -65,8 +65,27 @@ class WorkoutService : Service() {
         getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
     }
 
+    // Dart (WorkoutProvider) writes: workout_category, workout_sport,
+    // workout_start_time (long), workout_start_steps/calories (long),
+    // workout_start_distance (double). Read defensively: Flutter stores
+    // doubles as longs/floats depending on plugin version.
+    private fun safeGetDouble(key: String, default: Double): Double {
+        return try {
+            when (val v = prefs.all[key]) {
+                is Number -> v.toDouble()
+                is String -> v.toDoubleOrNull() ?: default
+                else -> default
+            }
+        } catch (_: Exception) {
+            default
+        }
+    }
+
     private val workoutType: String
-        get() = prefs.getString("flutter.workout_type", "running") ?: "running"
+        get() = prefs.getString("flutter.workout_sport", null)
+            ?: prefs.getString("flutter.workout_category", null)
+            ?: prefs.getString("flutter.workout_type", null)
+            ?: "running"
 
     private val workoutStartMs: Long
         get() = prefs.getLong("flutter.workout_start_time", System.currentTimeMillis())
@@ -256,15 +275,16 @@ class WorkoutService : Service() {
                                 var totalDist = 0.0
                                 for (el in arr) {
                                     val obj = el.asJsonObject
-                                    totalSteps += obj.get("f")?.asInt ?: 0  // walkSteps
+                                    // f = walk steps; runSteps may carry running sessions.
+                                    totalSteps += (obj.get("f")?.asInt ?: 0) +
+                                        (obj.get("runSteps")?.asInt ?: 0)
                                     totalCalRaw += obj.get("e")?.asInt ?: 0  // calories raw (小卡)
                                     totalDist += obj.get("g")?.asDouble ?: 0.0
                                 }
                                 val totalCal = totalCalRaw / 1000
                                 val baseSteps = prefs.getLong("flutter.workout_start_steps", 0L).toInt()
                                 val baseCal = prefs.getLong("flutter.workout_start_calories", 0L).toInt()
-                                val baseDistStr = prefs.getString("flutter.workout_start_distance", "0.0") ?: "0.0"
-                                val baseDist = baseDistStr.toDoubleOrNull() ?: 0.0
+                                val baseDist = safeGetDouble("flutter.workout_start_distance", 0.0)
                                 prefs.edit()
                                     .putLong("flutter.workout_current_steps", maxOf(0, totalSteps - baseSteps).toLong())
                                     .putLong("flutter.workout_current_calories", maxOf(0, totalCal - baseCal).toLong())

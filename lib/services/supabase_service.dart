@@ -562,6 +562,7 @@ class SupabaseService {
     required int avgSpo2,
     required int avgBpSbp,
     required int avgBpDbp,
+    List<Map<String, dynamic>>? locations,
   }) async {
     final data = await supabaseRetry(() => client
         .from('user_workouts')
@@ -578,6 +579,7 @@ class SupabaseService {
           'avg_spo2': avgSpo2,
           'avg_bp_sbp': avgBpSbp,
           'avg_bp_dbp': avgBpDbp,
+          'locations': locations,
         })
         .select('id')
         .single(), label: 'insertWorkout');

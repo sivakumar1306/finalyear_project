@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../models/workout_model.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_typography.dart';
+import 'gps_trace_screen.dart';
 
 class WorkoutDetailScreen extends StatelessWidget {
   final Map<String, dynamic> row;
@@ -336,7 +339,97 @@ class WorkoutDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       _HrZoneBar(avgHr: avgHr, durationS: durationS),
-                      const SizedBox(height: 24),
+                    const SizedBox(height: 24),
+
+                    // ── GPS route (phone-tracked sessions only) ────────────
+                    Builder(
+                      builder: (context) {
+                        final rawLocations = row['locations'];
+                        final fixes = <Map<String, dynamic>>[];
+                        if (rawLocations is List) {
+                          for (final f in rawLocations) {
+                            if (f is Map<String, dynamic> &&
+                                f['lat'] is num &&
+                                f['lng'] is num) {
+                              fixes.add(f);
+                            } else if (f is Map) {
+                              final lat = (f['lat'] as num?);
+                              final lng = (f['lng'] as num?);
+                              if (lat != null && lng != null) {
+                                fixes.add({'lat': lat, 'lng': lng});
+                              }
+                            }
+                          }
+                        } else if (rawLocations is String &&
+                            rawLocations.isNotEmpty) {
+                          try {
+                            final decoded = jsonDecode(rawLocations);
+                            if (decoded is List) {
+                              for (final f in decoded) {
+                                if (f is Map &&
+                                    f['lat'] is num &&
+                                    f['lng'] is num) {
+                                  fixes.add({
+                                    'lat': f['lat'],
+                                    'lng': f['lng'],
+                                  });
+                                }
+                              }
+                            }
+                          } catch (_) {}
+                        }
+                        if (fixes.length < 2) {
+                          return const SizedBox.shrink();
+                        }
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'ROUTE',
+                              style: _inter(11,
+                                  weight: FontWeight.w700,
+                                  color: AppTheme.textSec,
+                                  letterSpacing: 1.4),
+                            ),
+                            const SizedBox(height: 12),
+                            GestureDetector(
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      GpsTraceScreen(locations: fixes),
+                                ),
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 14),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.card,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: AppTheme.div),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.route,
+                                        color: AppTheme.gold, size: 18),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        '${fixes.length} GPS points • tap to view route',
+                                        style: _inter(13,
+                                            color: AppTheme.textSec),
+                                      ),
+                                    ),
+                                    const Icon(Icons.chevron_right_rounded,
+                                        color: AppTheme.textSec, size: 20),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+                        );
+                      },
+                    ),
                     ],
 
                     // ── AI Insights & Recovery Recommendations ─────────────

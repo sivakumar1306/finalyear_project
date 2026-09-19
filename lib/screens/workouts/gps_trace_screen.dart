@@ -7,15 +7,45 @@ import '../../widgets/glass_card.dart';
 TextStyle _inter(double size, {FontWeight weight = FontWeight.w400, Color color = Colors.white}) =>
     AppTypography.inter(fontSize: size, fontWeight: weight, color: color);
 
+/// GPS route for one workout. Accepts raw phone-GPS fixes
+/// (`[{lat, lng, ...}]`) and normalizes them to the painter's 0..1 space.
+/// The ring reports no coordinates (SportPlusEntity.mLocations carries only
+/// per-point heart rate), so traces only exist for phone-tracked sessions.
 class GpsTraceScreen extends StatelessWidget {
-  const GpsTraceScreen({super.key, this.points = const []});
+  const GpsTraceScreen({super.key, this.points = const [], this.locations = const []});
   final List<Offset> points;
+  final List<Map<String, dynamic>> locations;
+
+  static List<Offset> normalize(List<Map<String, dynamic>> fixes) {
+    final pts = <Offset>[];
+    for (final f in fixes) {
+      final lat = (f['lat'] as num?)?.toDouble();
+      final lng = (f['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
+      pts.add(Offset(lng, lat));
+    }
+    if (pts.length < 2) return pts;
+    var minX = pts.first.dx, maxX = pts.first.dx;
+    var minY = pts.first.dy, maxY = pts.first.dy;
+    for (final p in pts) {
+      if (p.dx < minX) minX = p.dx;
+      if (p.dx > maxX) maxX = p.dx;
+      if (p.dy < minY) minY = p.dy;
+      if (p.dy > maxY) maxY = p.dy;
+    }
+    final spanX = (maxX - minX) == 0 ? 1.0 : (maxX - minX);
+    final spanY = (maxY - minY) == 0 ? 1.0 : (maxY - minY);
+    // Flip latitude so north is up.
+    return pts
+        .map((p) => Offset((p.dx - minX) / spanX, 1.0 - (p.dy - minY) / spanY))
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final demo = points.isEmpty
-        ? List.generate(30, (i) => Offset(i / 29, 0.5 + 0.3 * (i % 5 - 2) / 5))
-        : points;
+    final normalized =
+        points.isNotEmpty ? points : normalize(locations);
+    final hasTrace = normalized.length >= 2;
     return Scaffold(
       backgroundColor: AppTheme.bg,
       appBar: AppBar(backgroundColor: AppTheme.bg, foregroundColor: Colors.white, centerTitle: true, elevation: 0, leading: const GlassBackButton(), title: Text('GPS Trace', style: _inter(17, weight: FontWeight.w600))),
@@ -25,14 +55,32 @@ class GpsTraceScreen extends StatelessWidget {
           GlassCard(
             child: SizedBox(
               height: 220,
-              child: CustomPaint(painter: _TracePainter(demo), child: const SizedBox.expand()),
+              child: hasTrace
+                  ? CustomPaint(painter: _TracePainter(normalized), child: const SizedBox.expand())
+                  : Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'No GPS recorded for this session.\nRoutes record on phone GPS during manually started workouts when location is allowed.',
+                          textAlign: TextAlign.center,
+                          style: _inter(13, color: AppTheme.textSec),
+                        ),
+                      ),
+                    ),
             ),
           ),
           const SizedBox(height: 12),
           GlassCard(child: Row(children: [
             const Icon(Icons.route, color: AppTheme.gold, size: 18),
             const SizedBox(width: 8),
-            Expanded(child: Text('QRing gps_detail polyline — stored in user_workouts.locations. Real trace from SportPlusHandle/ReadDetailSportDataReq.', style: _inter(12, color: AppTheme.textTertiary))),
+            Expanded(
+              child: Text(
+                hasTrace
+                    ? '${normalized.length} GPS points recorded on this phone during the workout.'
+                    : 'Ring auto-detected sessions carry no coordinates — only phone-tracked workouts have a route.',
+                style: _inter(12, color: AppTheme.textTertiary),
+              ),
+            ),
           ])),
         ],
       ),

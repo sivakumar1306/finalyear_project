@@ -17,7 +17,9 @@ Ring buffer: 7 days (`dayIndex 0..6`, `deviceHealthHistoryMaxDayIndex() == 6`).
 | HRV | `getHrvList` | ✅ `_pullRingHistory` → `d` or `pressureArray` → `upsertHrv` per day | Wired 2026-09-19 |
 | Blood oxygen | `getBloodOxygens` | ✅ `_pullRingHistory` → `array`/`minArray`/`maxArray` (1–100) → `upsertSpo2` per day | Wired 2026-09-19 |
 | Temperature | `getTemperatureList` | ❌ blocked: `IntervalTemperatureEntity{array,values[{value1..3}]}` semantics unverified; `TemperatureEngine` Map-case keys don't match | Needs one live-ring sample — log `getTemperatureList` output once and map it |
-| Sport | `getSports` | ✅ `_pullRingSports` on page open → normalize `SportPlusEntity` → merge with RING badge → `insertWorkout` for unseen | Wired 2026-09-19 |
+| Sport | `getSports` | ✅ `_pullRingSports` on page open → normalize `SportPlusEntity` → merge with RING badge → `insertWorkout` for unseen | mCalories kcal-vs-小卡 auto (≥10000 → ÷1000); wired 2026-09-19 |
+| Workout metrics (manual) | ring `getTodaySteps` deltas | ✅ baseline pre-synced, stale-baseline recovery, `runSteps` counted, sub-1000 kcal floor, `ringUnreachable` pill | `WorkoutService` native keys fixed (`workout_sport/category`, safe double) |
+| GPS trace | phone `geolocator` (ring has no coordinates) | ✅ sampled per 10s tick → `user_workouts.locations` jsonb → real polyline in `gps_trace_screen` | Run `alter table public.user_workouts add column if not exists locations jsonb;` on live DB |
 | Breath / ECG / Sugar | n/a (app-side data) | n/a | No ring history; sugar channel is a `"[]"` stub |
 
 ## Standard wiring pattern (all `_pullRingHistory` hooks)
