@@ -2748,7 +2748,9 @@ class BlePlugin(private val context: Context) {
                     object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<List<SportPlusEntity>>>> {
                         override fun onSuccess(data: List<BleOperateManager.DayIndexedData<List<SportPlusEntity>>>?) {
                             releaseReadSlot()
-                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleOperateManager.DayIndexedData<List<SportPlusEntity>>>()) }
+                            val safe: List<BleOperateManager.DayIndexedData<List<SportPlusEntity>>> =
+                                data ?: arrayListOf()
+                            mainHandler.post { result.success(gson.toJson(safe)) }
                         }
                         override fun onError(code: Int, message: String?) {
                             releaseReadSlot()
