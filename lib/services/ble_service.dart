@@ -922,6 +922,12 @@ class BleService {
       }) ??
       '[]';
 
+  /// Read-only Layer 3 input: in-memory phone-motion monitoring state from
+  /// FallMotionDetector (see getMotionSnapshot in BlePlugin.kt). Returns '{}'
+  /// when unavailable — callers treat missing keys as unknown, never as zero.
+  Future<String> getMotionSnapshot() async =>
+      await _methodChannel.invokeMethod<String>('getMotionSnapshot') ?? '{}';
+
   /// Focus/Prayer usage read surface — see PhoneModeSessionEntity / PhoneModePlugin.kt.
   Future<String> getPhoneModeSessions({
     int? fromMs,

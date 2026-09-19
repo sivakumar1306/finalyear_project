@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 import '../../models/fall_prediction/layer_inputs.dart';
 import 'fall_risk_registry.dart';
@@ -53,6 +54,140 @@ class Layer3MotionService {
     } catch (e) {
       return [];
     }
+  }
+
+  /// Parses native Room `fall_event` rows (via `BleProvider.getFallEvents`)
+  /// into [FallEvent]s for the trailing-history rate.
+  ///
+  /// Row shape (Gson-serialized `FallEventEntity`): `detectedAt` (epoch ms),
+  /// `confidence` (0-1 float), `corroborated`, `corroborationSource`,
+  /// `metadataJson` (stringified JSON with `peakG`/`peakGyro`/`stillnessRatio`
+  /// for real detections, or `{"simulated":true}` for dev-triggered rows).
+  ///
+  /// Dev-simulated rows are excluded — they are not real falls and must not
+  /// inflate the history rate. Rows older than [since] are excluded.
+  /// Severity is mapped to the 0-100 scale (`confidence * 100`) to match the
+  /// Supabase `falls.severity` convention. Note: `calculateFHRate` currently
+  /// weights by recency only; severity is carried for future use.
+  static List<FallEvent> parseNativeFallEvents(
+    List<Map<String, dynamic>> rows, {
+    required DateTime since,
+  }) {
+    final events = <FallEvent>[];
+    for (final row in rows) {
+      try {
+        final detectedAt = row['detectedAt'];
+        if (detectedAt is! num) continue;
+        final timestamp =
+            DateTime.fromMillisecondsSinceEpoch(detectedAt.toInt());
+        if (timestamp.isBefore(since) || timestamp.isAfter(DateTime.now().add(const Duration(minutes: 5)))) {
+          continue;
+        }
+        if (_isSimulatedRow(row)) continue;
+        final confidence = row['confidence'];
+        final severity = confidence is num
+            ? (confidence.toDouble() * 100.0).clamp(0.0, 100.0)
+            : 50.0;
+        events.add(FallEvent(timestamp: timestamp, severity: severity));
+      } catch (_) {
+        continue;
+      }
+    }
+    events.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return events;
+  }
+
+  static bool _isSimulatedRow(Map<String, dynamic> row) {
+    final meta = row['metadataJson'];
+    try {
+      final decoded = meta is String ? jsonDecode(meta) : meta;
+      if (decoded is Map && decoded['simulated'] == true) return true;
+    } catch (_) {}
+    return false;
+  }
+
+  /// Returns the (peakG, peakGyro) of the most recent non-simulated native
+  /// event carrying motion peaks, provided it is within [maxAge] of now.
+  /// These feed Layer 3 `acc`/`gyr` as an event-driven (not continuous)
+  /// impact signal. Returns null when there is no fresh peak to report —
+  /// callers must keep `acc`/`gyr` null (unknown), never substitute a
+  /// healthy constant.
+  static ({double acc, double gyr})? recentMotionPeak(
+    List<Map<String, dynamic>> rows, {
+    Duration maxAge = const Duration(hours: 24),
+  }) {
+    final cutoff = DateTime.now().subtract(maxAge);
+    Map<String, dynamic>? best;
+    var bestAt = 0;
+    for (final row in rows) {
+      try {
+        if (_isSimulatedRow(row)) continue;
+        final detectedAt = row['detectedAt'];
+        if (detectedAt is! num) continue;
+        final atMs = detectedAt.toInt();
+        if (atMs <= bestAt) continue;
+        if (DateTime.fromMillisecondsSinceEpoch(atMs).isBefore(cutoff)) {
+          continue;
+        }
+        final meta = row['metadataJson'];
+        final decoded = meta is String ? jsonDecode(meta) : meta;
+        if (decoded is! Map) continue;
+        final peakG = decoded['peakG'];
+        final peakGyro = decoded['peakGyro'];
+        if (peakG is! num || peakGyro is! num) continue;
+        best = row;
+        bestAt = atMs;
+      } catch (_) {
+        continue;
+      }
+    }
+    if (best == null) return null;
+    final decoded = best['metadataJson'] is String
+        ? jsonDecode(best['metadataJson'] as String) as Map
+        : best['metadataJson'] as Map;
+    return (
+      acc: (decoded['peakG'] as num).toDouble(),
+      gyr: (decoded['peakGyro'] as num).toDouble(),
+    );
+  }
+
+  /// Step-pattern variability proxy for Layer 3 `gait` from the 96 daily
+  /// 15-minute step slots (`BleProvider.todayStepsByInterval`).
+  ///
+  /// This is a HEURISTIC PROXY, not clinical gait analysis: it measures the
+  /// coefficient of variation across today's active slots (erratic
+  /// stop-start accumulation vs. steady walking). Only slots up to [now]'s
+  /// slot are considered so future slots don't dilute the statistic.
+  ///
+  /// Mapping is deliberately conservative: CV <= 1.0 (normal day-to-day
+  /// lumpiness) maps to 0.0 (no penalty); extreme erraticness saturates at
+  /// 0.5 so the proxy alone can never dominate the motion score. Returns
+  /// null when fewer than 6 active slots exist (insufficient data) — callers
+  /// must keep `gait` null, not zero-fill.
+  static double? gaitVariabilityFromStepSlots(
+    List<int> slots, {
+    DateTime? now,
+  }) {
+    if (slots.isEmpty) return null;
+    final at = now ?? DateTime.now();
+    final currentSlot = ((at.hour * 60 + at.minute) ~/ 15).clamp(0, 95);
+    final usable = slots.length > 96 ? slots.sublist(0, 96) : slots;
+    final horizon = currentSlot.clamp(0, usable.length - 1);
+    final active = <double>[];
+    for (var i = 0; i <= horizon; i++) {
+      final steps = usable[i];
+      if (steps > 0) active.add(steps.toDouble());
+    }
+    if (active.length < 6) return null;
+    final mean = active.reduce((a, b) => a + b) / active.length;
+    if (mean <= 0) return null;
+    var sumSq = 0.0;
+    for (final v in active) {
+      final d = v - mean;
+      sumSq += d * d;
+    }
+    final cv = sqrt(sumSq / active.length) / mean;
+    return ((cv - 1.0) / 2.0).clamp(0.0, 0.5);
   }
 
   /// Impact/Stability sub-score (0-100).

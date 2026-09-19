@@ -85,6 +85,31 @@ object FallMotionDetector : SensorEventListener {
     private var appContext: Context? = null
     private var sensorsStartedAtMs = 0L
 
+    // Read-only monitoring snapshot for the Flutter Layer 3 motion model.
+    // In-memory only (lost on process restart — the Room fall_event table is
+    // the durable source); exposed via BlePlugin.getMotionSnapshot so Dart can
+    // distinguish "monitored, quiet" from "never monitored".
+    @Volatile private var windowsAnalyzed = 0L
+    @Volatile private var maxMagnitudeGSeen = 0f
+    @Volatile private var monitoringSinceMs = 0L
+    @Volatile private var lastPeakG: Float? = null
+    @Volatile private var lastPeakGyro: Float? = null
+    @Volatile private var lastStillnessRatio: Float? = null
+    @Volatile private var lastDetectionAtMs = 0L
+
+    /** Point-in-time monitoring state; safe to call from any thread. */
+    fun snapshot(): Map<String, Any?> = mapOf(
+        "sensorsActive" to sensorsActive,
+        "windowsAnalyzed" to windowsAnalyzed,
+        "maxMagnitudeG" to maxMagnitudeGSeen,
+        "monitoringSinceMs" to monitoringSinceMs,
+        "lastPeakG" to lastPeakG,
+        "lastPeakGyro" to lastPeakGyro,
+        "lastStillnessRatio" to lastStillnessRatio,
+        "lastDetectionAtMs" to lastDetectionAtMs,
+        "nowMs" to System.currentTimeMillis(),
+    )
+
     fun start(context: Context) {
         if (active) return
         val appCtx = context.applicationContext
@@ -123,6 +148,9 @@ object FallMotionDetector : SensorEventListener {
 
         sensorsActive = true
         sensorsStartedAtMs = SystemClock.elapsedRealtime()
+        monitoringSinceMs = System.currentTimeMillis()
+        windowsAnalyzed = 0L
+        maxMagnitudeGSeen = 0f
         // Use 50Hz (20,000us) sampling with 5s (5,000,000us) batching latency to allow the CPU to sleep
         val samplingPeriodUs = 20_000
         val maxReportLatencyUs = 5_000_000
@@ -201,6 +229,10 @@ object FallMotionDetector : SensorEventListener {
             val src = (writeIndex + i) % n
             sqrt(accelX[src] * accelX[src] + accelY[src] * accelY[src] + accelZ[src] * accelZ[src]) / GRAVITY
         }
+        windowsAnalyzed++
+        for (i in 0 until n) {
+            if (magnitudesG[i] > maxMagnitudeGSeen) maxMagnitudeGSeen = magnitudesG[i]
+        }
         val gyroMagnitudes = FloatArray(n) { i ->
             val src = (writeIndex + i) % n
             sqrt(gyroX[src] * gyroX[src] + gyroY[src] * gyroY[src] + gyroZ[src] * gyroZ[src])
@@ -266,6 +298,10 @@ object FallMotionDetector : SensorEventListener {
 
         lastEventMs = nowMs
         val detectedAtMs = System.currentTimeMillis()
+        lastPeakG = peakG
+        lastPeakGyro = peakGyro
+        lastStillnessRatio = stillnessRatio
+        lastDetectionAtMs = detectedAtMs
 
         repo.ioScope.launch {
             val (corroborated, source) = checkVitalsCorroboration(detectedAtMs, repo)

@@ -53,6 +53,16 @@ class FallPredictionProvider extends ChangeNotifier {
 
   List<FallEvent>? _cachedTrailingFalls;
   DateTime? _lastFallsFetch;
+  ({double acc, double gyr})? _cachedMotionPeak;
+
+  /// Latest native motion-monitoring snapshot (FallMotionDetector state).
+  /// Exposed for future UI ("monitoring active/idle"); deliberately NOT fed
+  /// into scoring — sensors only run during HIGH-tier risk windows, so the
+  /// sample is biased and "quiet while watched 10 min" must not read as
+  /// general stability.
+  Map<String, dynamic> _motionSnapshot = const {};
+  Map<String, dynamic> get motionSnapshot =>
+      Map<String, dynamic>.unmodifiable(_motionSnapshot);
 
   ActivityExposure _lastActExp = const ActivityExposure(100.0);
 
@@ -216,30 +226,88 @@ class FallPredictionProvider extends ChangeNotifier {
 
 
   void _recalculate() async {
-    final userId = SupabaseService.currentUser?.id;
+    // Primary source: native Room `fall_event` (written by FallMotionDetector
+    // and FallRiskAnalyzer). The Supabase `falls` table is merged as a
+    // secondary source for history that outlived the 90-day local retention
+    // (ReadingRepository.purgeOldSyncedReadings) or came from another device.
+    // Cache TTL is 1h (not 24h) so a fresh fall event feeds the next
+    // 15-minute health sync promptly.
     List<FallEvent> trailingFalls = [];
-    if (userId != null) {
-      final now = DateTime.now();
-      if (_cachedTrailingFalls == null ||
-          _lastFallsFetch == null ||
-          now.difference(_lastFallsFetch!).inHours >= 24) {
-        final layer3Svc = Layer3MotionService(SupabaseService.client);
-        _cachedTrailingFalls = await layer3Svc.fetchTrailing12MonthFalls(
-          userId,
+    double? fh;
+    double? motionAcc;
+    double? motionGyr;
+    final now = DateTime.now();
+    final oneYearAgo = now.subtract(const Duration(days: 365));
+    final fallsStale = _cachedTrailingFalls == null ||
+        _lastFallsFetch == null ||
+        now.difference(_lastFallsFetch!).inHours >= 1;
+    if (fallsStale) {
+      try {
+        final nativeRows =
+            await _bleProvider?.getFallEvents(limit: 500) ?? [];
+        final nativeFalls = Layer3MotionService.parseNativeFallEvents(
+          nativeRows,
+          since: oneYearAgo,
         );
+        final userId = SupabaseService.currentUser?.id;
+        var remoteFalls = <FallEvent>[];
+        if (userId != null) {
+          try {
+            remoteFalls = await Layer3MotionService(SupabaseService.client)
+                .fetchTrailing12MonthFalls(userId);
+          } catch (_) {
+            remoteFalls = [];
+          }
+        }
+        final merged = [...nativeFalls, ...remoteFalls]
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        _cachedTrailingFalls = merged;
+        _cachedMotionPeak =
+            Layer3MotionService.recentMotionPeak(nativeRows);
         _lastFallsFetch = now;
+        try {
+          _motionSnapshot =
+              await _bleProvider?.getMotionSnapshot() ?? const {};
+        } catch (_) {
+          _motionSnapshot = const {};
+        }
+      } catch (_) {
+        // Keep the previous cache when the refresh fails; only fall back to
+        // unknown history when there is nothing cached at all.
+        _cachedTrailingFalls ??= [];
       }
       trailingFalls = _cachedTrailingFalls!;
+    } else {
+      trailingFalls = _cachedTrailingFalls!;
+    }
+    // Known-zero history (local DB queried) is 0.0; unknown (no source at
+    // all) stays null so the coverage score penalizes honestly.
+    fh = _bleProvider != null
+        ? trailingFalls.length.toDouble()
+        : (trailingFalls.isNotEmpty ? trailingFalls.length.toDouble() : null);
+    motionAcc = _cachedMotionPeak?.acc;
+    motionGyr = _cachedMotionPeak?.gyr;
+
+    // Step-pattern gait proxy (heuristic, see Layer3MotionService). Stays
+    // null on insufficient data. psw/ortho/plnt stay null: no sway test,
+    // no posture-change timestamps, no smart insole on this hardware.
+    double? gaitProxy;
+    try {
+      gaitProxy = Layer3MotionService.gaitVariabilityFromStepSlots(
+        _bleProvider?.todayStepsByInterval ?? const [],
+      );
+    } catch (_) {
+      gaitProxy = null;
     }
 
     final mData = Layer3MotionData(
-      acc: null,
-      gyr: null,
-      gait: null,
+      acc: motionAcc,
+      gyr: motionGyr,
+      gait: gaitProxy,
       psw: null,
       ortho: null,
       plnt: null,
-      fh: null,
+      fh: fh,
       actExp: _lastActExp,
     );
 
@@ -253,7 +321,7 @@ class FallPredictionProvider extends ChangeNotifier {
       trailingFalls: trailingFalls,
     );
 
-    if (v2Result != null) {
+    if (v2Result != null && !_disposed) {
       _currentResult = PredictionResult(
         hsiBase: v2Result.hsiBase,
         hsi: v2Result.hsiAdj,
@@ -319,8 +387,11 @@ class FallPredictionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     _healthSyncTimer?.cancel();
     _recalcDebounce?.cancel();
     super.dispose();

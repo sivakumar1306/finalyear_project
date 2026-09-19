@@ -485,6 +485,7 @@ class BlePlugin(private val context: Context) {
             "getFallRiskScore"           -> getFallRiskScore(result)
             "getFallRiskLog"             -> getFallRiskLog(call, result)
             "getFallEvents"              -> getFallEvents(call, result)
+            "getMotionSnapshot"          -> getMotionSnapshot(result)
             "getPhoneModeSessions"       -> getPhoneModeSessions(call, result)
             "simulateFallEvent"          -> simulateFallEvent(result)
             "postHealthAlert"            -> postHealthAlert(call, result)
@@ -3645,6 +3646,17 @@ class BlePlugin(private val context: Context) {
                 return@launch
             }
             mainHandler.post { result.success(json) }
+        }
+    }
+
+    // Read-only Layer 3 input: in-memory phone-motion monitoring state from
+    // FallMotionDetector (sensors only run on HIGH-tier risk, so absence of
+    // monitoring is itself information). Never invents motion data.
+    private fun getMotionSnapshot(result: MethodChannel.Result) {
+        try {
+            result.success(gson.toJson(FallMotionDetector.snapshot()))
+        } catch (e: Exception) {
+            result.error("SNAPSHOT_FAILED", e.message, null)
         }
     }
 

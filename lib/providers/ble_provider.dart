@@ -164,6 +164,14 @@ class BleProvider extends ChangeNotifier {
     _lastError = label;
     debugPrint('BleProvider $label');
     if (st != null) debugPrint('$st');
+    // Every error also reaches Supabase app_incidents (fire-and-forget;
+    // IncidentService rate-limits + dedupes, so hot loops can't flood it).
+    IncidentService.reportUnhandled(
+      source: 'ble_provider',
+      error: e,
+      stackTrace: st,
+      customMessage: label,
+    );
   }
 
   void clearLastError() {
@@ -762,6 +770,19 @@ Future<void> _maybeAlert(
     final decoded = jsonDecode(json);
     if (decoded is! List) return [];
     return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  /// In-memory phone-motion monitoring state (FallMotionDetector.snapshot).
+  /// Empty map when unavailable — missing keys mean unknown, never zero.
+  Future<Map<String, dynamic>> getMotionSnapshot() async {
+    try {
+      final json = await _ble.getMotionSnapshot();
+      final decoded = jsonDecode(json);
+      if (decoded is! Map) return {};
+      return Map<String, dynamic>.from(decoded);
+    } catch (_) {
+      return {};
+    }
   }
 
   /// Dev/testing only — posts a real vital reading through the exact same event path a
