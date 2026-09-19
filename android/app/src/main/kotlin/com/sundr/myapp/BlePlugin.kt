@@ -101,6 +101,7 @@ import com.oudmon.ble.base.communication.rsp.StartHeartRateRsp
 import com.oudmon.ble.base.communication.rsp.TargetSettingRsp
 import com.oudmon.ble.base.communication.rsp.TimeFormatRsp
 import com.oudmon.ble.base.communication.rsp.TouchControlResp
+import com.oudmon.ble.base.communication.sport.SportPlusEntity
 import com.oudmon.ble.base.communication.sport.SportPlusHandle
 import com.oudmon.ble.base.scan.BleScannerHelper
 import com.oudmon.ble.base.scan.ScanRecord
@@ -358,6 +359,9 @@ class BlePlugin(private val context: Context) {
             "syncManualTemperature"      -> syncManualTemperature(result)
             "testManualTemperature"      -> testManualTemperature(result)
             "syncSportRecords"           -> syncSportRecords(result)
+            "getTodaySport"              -> getTodaySport(result)
+            "getSport"                   -> getSport(call, result)
+            "getSports"                  -> getSports(call, result)
             "getHealthSettings"          -> getHealthSettings(result)
             "setHealthSettings"          -> setHealthSettings(call, result)
             "getNotificationSettings"    -> getNotificationSettings(result)
@@ -2684,6 +2688,80 @@ class BlePlugin(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────
     // Sport Records
     // ─────────────────────────────────────────────────────────────────
+
+    // Ring auto-detected sport sessions (SportPlusEntity). Same
+    // acquireReadSlot+gson pattern as the other getXList range readers.
+
+    private fun getTodaySport(result: MethodChannel.Result) {
+        acquireReadSlot("getTodaySport", result) {
+            try {
+                BleOperateManager.getInstance().getTodaySport(
+                    object : BleOperateManager.HealthDataCallback<List<SportPlusEntity>> {
+                        override fun onSuccess(data: List<SportPlusEntity>?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<SportPlusEntity>())) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+            }
+        }
+    }
+
+    private fun getSport(call: MethodCall, result: MethodChannel.Result) {
+        val dayIndex = call.argument<Int>("dayIndex") ?: 0
+        acquireReadSlot("getSport dayIndex=$dayIndex", result) {
+            try {
+                BleOperateManager.getInstance().getSport(
+                    dayIndex,
+                    object : BleOperateManager.HealthDataCallback<List<SportPlusEntity>> {
+                        override fun onSuccess(data: List<SportPlusEntity>?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<SportPlusEntity>())) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+            }
+        }
+    }
+
+    private fun getSports(call: MethodCall, result: MethodChannel.Result) {
+        val startDay = call.argument<Int>("startDay") ?: 0
+        val count = call.argument<Int>("count") ?: 1
+        acquireReadSlot("getSports startDay=$startDay count=$count", result) {
+            try {
+                BleOperateManager.getInstance().getSports(
+                    startDay, count,
+                    object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<List<SportPlusEntity>>>> {
+                        override fun onSuccess(data: List<BleOperateManager.DayIndexedData<List<SportPlusEntity>>>?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleOperateManager.DayIndexedData<List<SportPlusEntity>>>()) }
+                        }
+                        override fun onError(code: Int, message: String?) {
+                            releaseReadSlot()
+                            mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                releaseReadSlot()
+                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+            }
+        }
+    }
 
     private fun syncSportRecords(result: MethodChannel.Result) {
         val sportHandle = SportPlusHandle()

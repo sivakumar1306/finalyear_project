@@ -1,8 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math' show min;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../providers/ble_provider.dart';
 import '../../providers/workout_provider.dart';
 import '../../models/workout_model.dart';
+import '../../services/ble_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/offline_notice.dart';
@@ -39,6 +43,7 @@ class WorkoutsScreen extends StatefulWidget {
 }
 
 class _WorkoutsScreenState extends State<WorkoutsScreen> {
+  final _ble = BleService();
   List<Map<String, dynamic>> _history = [];
   bool _loadingHistory = false;
   bool _wasWorkoutActive = false;
@@ -47,7 +52,12 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadHistory());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadHistory();
+      // Ring auto-detected sports (getSports 0..6) merge in the background —
+      // cache-first so the page never waits on the ring.
+      unawaited(_pullRingSports());
+    });
   }
 
   Future<void> _loadHistory() async {
@@ -97,6 +107,133 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
     } catch (_) {
       if (mounted) setState(() => _loadingHistory = false);
     }
+  }
+
+  /// Ring auto-detected sport sessions (SportPlusType ids) → app sport names.
+  /// Names match WorkoutModel sports so categories/icons/metrics resolve.
+  static String _ringSportName(int t) => switch (t) {
+        1 => 'GPS Running',
+        2 || 9 || 13 => 'Cycling',
+        3 || 8 || 14 => 'Walking',
+        5 => 'Jump Rope',
+        6 => 'Swimming',
+        10 => 'Strength Training',
+        11 => 'Outdoor Sports',
+        _ => 'Running',
+      };
+
+  /// Normalizes one SportPlusEntity into a history-row shape. Returns null
+  /// when the session has no usable start/duration.
+  static Map<String, dynamic>? _ringSportRow(Map<String, dynamic> s) {
+    final type = (s['mSportType'] as num? ?? 0).toInt();
+    var startMs = (s['mStartTime'] as num? ?? 0).toInt();
+    // mStartTime is epoch seconds; tolerate millis just in case.
+    if (startMs > 0 && startMs < 100000000000) startMs *= 1000;
+    final durS = (s['mDuration'] as num? ?? 0).toInt();
+    if (startMs <= 0 || durS <= 0) return null;
+    final start = DateTime.fromMillisecondsSinceEpoch(startMs);
+    final end = start.add(Duration(seconds: durS));
+    return {
+      'id': 'ring-$startMs-$type',
+      'workout_type': _ringSportName(type),
+      'started_at': start.toIso8601String(),
+      'ended_at': end.toIso8601String(),
+      'duration_s': durS,
+      'steps': (s['steps'] as num? ?? 0).toInt(),
+      'calories': (s['mCalories'] as num? ?? 0).toInt(),
+      'distance_m': (s['mDistance'] as num? ?? 0).toDouble(),
+      'avg_hr': (s['mRateAvg'] as num? ?? 0).toInt(),
+      'source': 'ring',
+    };
+  }
+
+  static int _epochSec(String? iso) {
+    final dt = DateTime.tryParse(iso ?? '');
+    if (dt == null) return -1;
+    return dt.millisecondsSinceEpoch ~/ 1000;
+  }
+
+  /// Auto-invoked sport sync: pulls the ring's sport buffer (getSports 0..6),
+  /// merges unseen auto-detected sessions into history with a RING badge, and
+  /// persists them to Supabase so they track across devices. Best-effort and
+  /// silent when the ring is unreachable.
+  Future<void> _pullRingSports() async {
+    try {
+      if (!context.read<BleProvider>().isConnected) return;
+      final raw = await _ble.fetchRingHistory('sport');
+      final decoded = jsonDecode(raw);
+      if (decoded is! List || decoded.isEmpty) return;
+      if (!mounted) return;
+      final ringRows = <Map<String, dynamic>>[];
+      for (final e in decoded) {
+        if (e is! Map<String, dynamic>) continue;
+        final inner = e['data'];
+        final List<dynamic> sessions;
+        if (inner is List) {
+          sessions = inner;
+        } else if (inner is Map<String, dynamic>) {
+          sessions = [inner];
+        } else {
+          continue;
+        }
+        for (final s in sessions) {
+          if (s is! Map<String, dynamic>) continue;
+          final row = _ringSportRow(s);
+          if (row != null) ringRows.add(row);
+        }
+      }
+      if (ringRows.isEmpty || !mounted) return;
+
+      // Dedupe against what's already shown (manual + cloud) by start second —
+      // app-started sessions (TYPE_APP_*) overlap manual entries.
+      final knownStarts = <int>{
+        for (final h in _history) _epochSec(h['started_at'] as String?),
+      };
+      final fresh =
+          ringRows.where((r) => !knownStarts.contains(_epochSec(r['started_at'] as String?))).toList();
+      if (fresh.isEmpty || !mounted) return;
+
+      // Persist unseen sessions so auto-detected sports track in history.
+      final userId = SupabaseService.currentUser?.id;
+      if (userId != null) {
+        for (final r in fresh) {
+          try {
+            final startedAt = DateTime.parse(r['started_at'] as String);
+            await SupabaseService.insertWorkout(
+              userId: userId,
+              type: r['workout_type'] as String,
+              startedAt: startedAt,
+              endedAt: DateTime.parse(r['ended_at'] as String),
+              durationS: (r['duration_s'] as num).toInt(),
+              steps: (r['steps'] as num).toInt(),
+              calories: (r['calories'] as num).toInt(),
+              distanceM: (r['distance_m'] as num).toDouble(),
+              avgHr: (r['avg_hr'] as num).toInt(),
+              avgSpo2: 0,
+              avgBpSbp: 0,
+              avgBpDbp: 0,
+            );
+          } catch (_) {}
+          if (!mounted) return;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        final merged = <String, Map<String, dynamic>>{};
+        for (final item in [..._history, ...fresh]) {
+          final key = item['id']?.toString() ?? item['started_at']?.toString() ?? '';
+          if (key.isNotEmpty) merged[key] = item;
+        }
+        final result = merged.values.toList();
+        result.sort((a, b) {
+          final tA = a['started_at']?.toString() ?? '';
+          final tB = b['started_at']?.toString() ?? '';
+          return tB.compareTo(tA);
+        });
+        _history = result;
+      });
+    } catch (_) {}
   }
 
   static String _dateHeader(DateTime dt) {
@@ -737,7 +874,32 @@ class _HistoryRow extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(label, style: _inter(14, weight: FontWeight.w600)),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(label,
+                                style: _inter(14, weight: FontWeight.w600)),
+                          ),
+                          if (row['source'] == 'ring') ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppTheme.goldBorder,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                    color: AppTheme.gold
+                                        .withValues(alpha: 0.35)),
+                              ),
+                              child: Text('RING',
+                                  style: _inter(9,
+                                      weight: FontWeight.w700,
+                                      color: AppTheme.gold)),
+                            ),
+                          ],
+                        ],
+                      ),
                       if (startedAt.isNotEmpty)
                         Text(_fmtTime(startedAt),
                             style: _inter(11, color: AppTheme.textSec)),

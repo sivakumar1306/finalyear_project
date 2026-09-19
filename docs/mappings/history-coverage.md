@@ -17,7 +17,7 @@ Ring buffer: 7 days (`dayIndex 0..6`, `deviceHealthHistoryMaxDayIndex() == 6`).
 | HRV | `getHrvList` | ✅ `_pullRingHistory` → `d` or `pressureArray` → `upsertHrv` per day | Wired 2026-09-19 |
 | Blood oxygen | `getBloodOxygens` | ✅ `_pullRingHistory` → `array`/`minArray`/`maxArray` (1–100) → `upsertSpo2` per day | Wired 2026-09-19 |
 | Temperature | `getTemperatureList` | ❌ blocked: `IntervalTemperatureEntity{array,values[{value1..3}]}` semantics unverified; `TemperatureEngine` Map-case keys don't match | Needs one live-ring sample — log `getTemperatureList` output once and map it |
-| Sport | `SportPlusHandle` sync | ❌ sync-on-open only; no history screen consumes records | No day-range API wired |
+| Sport | `getSports` | ✅ `_pullRingSports` on page open → normalize `SportPlusEntity` → merge with RING badge → `insertWorkout` for unseen | Wired 2026-09-19 |
 | Breath / ECG / Sugar | n/a (app-side data) | n/a | No ring history; sugar channel is a `"[]"` stub |
 
 ## Standard wiring pattern (all `_pullRingHistory` hooks)

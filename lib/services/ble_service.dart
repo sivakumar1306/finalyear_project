@@ -463,6 +463,29 @@ class BleService {
   Future<String> getSportRecords() async =>
       await _methodChannel.invokeMethod<String>('getSportRecords') ?? '[]';
 
+  // Ring auto-detected sport sessions (SportPlusEntity). Same DayIndexedData
+  // range shape as the other vitals: [{dayIndex|day_index, data:[...]}].
+  Future<String> getTodaySport() async =>
+      await _methodChannel
+          .invokeMethod<String>('getTodaySport')
+          .timeout(const Duration(seconds: 10)) ??
+      '[]';
+
+  Future<String> getSport(int dayIndex) async =>
+      await _methodChannel
+          .invokeMethod<String>('getSport', {'dayIndex': dayIndex})
+          .timeout(const Duration(seconds: 10)) ??
+      '[]';
+
+  Future<String> getSports(int startDay, int count) async =>
+      await _methodChannel
+          .invokeMethod<String>('getSports', {
+            'startDay': startDay,
+            'count': count,
+          })
+          .timeout(const Duration(seconds: 15)) ??
+      '[]';
+
   // ── Full ring history (dayIndex 0..6 buffer) ──────────────────────────
   // One dispatcher for the "view all history from the ring" path. Each vital
   // returns a JSON list of DayIndexedData ({dayIndex|day_index, data}).
@@ -492,7 +515,7 @@ class BleService {
       case 'temperature':
         return getTemperatureList(startDay, count);
       case 'sport':
-        return getSportRecords();
+        return getSports(startDay, count);
       default:
         throw ArgumentError('No ring history for vital: $vital');
     }

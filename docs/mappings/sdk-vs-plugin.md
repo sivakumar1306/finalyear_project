@@ -23,7 +23,7 @@ Legend: ✅ mapped end-to-end · 🔶 wired to UI history backfill · ⚠️ par
 | Blood oxygen | `getTodayBloodOxygen` | `getBloodOxygen` | `getBloodOxygens` | all three | ✅ all + dispatcher | 🔶 `blood_oxygen_screen._pullRingHistory` | ✅ |
 | Temperature | `getTodayTemperature` | `getTemperature` | `getTemperatures` | all three | ✅ all + dispatcher | ❌ blocked (see below) | ⚠️ |
 | Sleep | `getTodaySleep` | `getSleep` | `getSleeps` | `getTodaySleep`/`getSleep`/`getSleepList` | ✅ all + dispatcher | 🔶 `sleep_screen._loadHistory` (pre-existing) | ✅ |
-| Sport | `getTodaySport` | `getSport` | `getSports` | `getSportRecords`/`syncSportRecords` via `SportPlusHandle` (not `getSports`) | ✅ alt path + dispatcher | ❌ no history screen consumes records | ⚠️ |
+| Sport | `getTodaySport` | `getSport` | `getSports` | `getTodaySport`/`getSport`/`getSports` (+ legacy `getSportRecords`/`syncSportRecords` via `SportPlusHandle`) | ✅ all + `fetchRingHistory('sport')` | 🔶 `workouts_screen._pullRingSports` auto-merge | ✅ |
 | Emotion | `getTodayEmotion` | `getEmotion` | `getEmotions` | — | — | — | ❌ no consumer in app |
 | Manual HR | `getTodayManualHeartRate` | `getManualHeartRate` | `getManualHeartRates` | `getTodayManualHeartRate`/`syncManualHeartRate` only | ⚠️ single/range missing | — | ⚠️ |
 | Manual SpO₂ | `getTodayManualBloodOxygen` | `getManualBloodOxygen` | `getManualBloodOxygens` | — | — | — | ❌ |
@@ -45,6 +45,7 @@ All range APIs return `[{"dayIndex": N, "data": {…same shape as single-day…}
 | Blood oxygen | `BloodOxygenEntity` map | `array` + `minArray` + `maxArray`, keep 1–100 |
 | Temperature | `IntervalTemperatureEntity` map | `{array, values[{value1..3}], interval}` — semantics unverified, NOT consumed |
 | Sleep | `SleepDisplay` map | via `SleepEngine.parseSleepData` (pre-existing) |
+| Sport | `SportPlusEntity` map | `{mSportType→name, mStartTime(s), mDuration(s), mDistance(m), mCalories, mRateAvg, steps}` → history row + `insertWorkout`; `TYPE_APP_*` deduped by start second |
 
 ## Manual-measure triggers (mapped ✅)
 
