@@ -63,7 +63,7 @@ Database name (conceptually): `qring_local.db`.
 - `app_incidents` — crash/incident ingest (auth + anon insert policies)  
 - `delete_user_account()` — full user wipe RPC  
 
-Migrations live under `supabase/migrations/`.
+Migrations live under `supabase/migrations/` — a single squashed `00000000000000_init.sql` (34 tables, verified 2026-09-19).
 
 ---
 

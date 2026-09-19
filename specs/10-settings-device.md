@@ -35,11 +35,13 @@ Must surface connection/battery summary consistent with `BleProvider`.
 | Target profile | Daily steps/calories/sleep/distance targets + body profile to ring | Shipped |
 | Health settings | Per-vital monitor toggle + intervals | Shipped |
 | Notification settings | ANCS, DND window, per-app, music control | Shipped |
-| Select notifications | Alert-type picker | **Stub** (local state) |
+| Select notifications | Alert-type picker, persisted (`NotificationPrefs`) and honored by live phone alerts | Partial (ring-side persist open) |
 | Drink / sedentary | See [09](./09-phone-modes-reminders.md) | Shipped |
 | OTA | Pick `.bin`, confirm, progress bar via events | Shipped |
 | Fall detection | See [05](./05-fall-detection-safety.md) | Partial |
-| Health Connect | Android Health Connect bridge (`health` package) | Partial |
+| Health Connect | Android Health Connect bridge (`health` package): 8 types read/write (steps, HR, HRV, SpO2, sleep, BP, temperature, menstruation) | Partial (enabled-subset auth; verify Android 14+ UX on device) |
+| Measurement log | Per-vital History entry + flag-gated settings entry (`AppConfig.includeMeasurementLog`) | Shipped |
+| Sugar & lipids | Ring monitor-state reads + channel toggles (`get/setHealthSettings`) | Shipped (continuous-glucose BLE itself is a `"[]"` stub) |
 | Background protection | OEM battery whitelist guidance | Shipped / OEM-specific |
 | Card settings | Home card layout prefs | Shipped |
 | Goal setting | Goals prefs | Shipped |
@@ -53,7 +55,7 @@ Must surface connection/battery summary consistent with `BleProvider`.
 | SET-10 | User selects firmware `.bin` via file picker. |
 | SET-11 | Confirm destructive/time-consuming update before start. |
 | SET-12 | Show live progress from native DFU state machine. |
-| SET-13 | Cloud catalog table `firmware_updates` (version, URL, notes, mandatory flag) may drive future in-app update prompts. |
+| SET-13 | Cloud catalog table `firmware_updates` (version, URL, notes, mandatory flag) drives the in-app releases list; auto-update prompts remain future. |
 
 ---
 
@@ -76,14 +78,14 @@ Must surface connection/battery summary consistent with `BleProvider`.
 
 ---
 
-## 5. Stub / incomplete (explicit)
+## 5. Stub / incomplete (explicit, verified 2026-09-19)
 
 | Feature | Expected completion |
 |---------|---------------------|
-| Select notifications | Persist choices to prefs/native and honor in alert pipeline |
-| Sugar & lipids | Real metrics or hide entry until ready |
-| Records index | Live subtitles from provider/Supabase |
-| Sport record | Parse SDK fields; optional cloud persist |
+| Select notifications → ring | Persist choices on-ring and honor in ring alert pipeline (phone pipeline already honors them) |
+| Continuous-sugar / ECG BLE | Real SDK calls (`getContinuousSugar` returns `"[]"` stub, `startEcgMeasure` returns `"{}"` stub) |
+| Sport type detail depth | Parse ring per-type trace fields beyond current stub screen |
+| Records index | No such screen exists — remove from scope or spec it as new work |
 
 ---
 

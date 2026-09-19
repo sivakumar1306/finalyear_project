@@ -127,13 +127,13 @@ The motion layer has no continuous IMU (ring SDK streams none; phone sensors run
 | FD-32 | Tapping notification opens Fall Detection settings / relevant UI. |
 | FD-33 | No auto SMS/call in current release unless explicitly product-approved later. |
 
-Future (planned requirements):
+Future (planned requirements — implemented state 2026-09-19 in brackets):
 
 | ID | Requirement |
 |----|-------------|
-| FD-40 | Optional countdown before SMS/call; user can cancel. |
-| FD-41 | Caregiver push via chosen transport (FCM vs Supabase). |
-| FD-42 | SMS/call uses onboarding/settings emergency contacts. |
+| FD-40 | Optional countdown before SMS/call; user can cancel. [**Implemented phone-side:** 30s cancelable countdown (`EmergencySmsSender`), per-contact SENT/DELIVERED/unknown receipts, `getEmergencySmsStatus` snapshot. Cloud failover pending.] |
+| FD-41 | Caregiver push via chosen transport (FCM vs Supabase). [**Partial:** FCM token registration + receive/display (`/companion-alert`) live but dormant without Firebase config; cloud sender never invoked; link-request UI missing. Decision still open.] |
+| FD-42 | SMS/call uses onboarding/settings emergency contacts. [**Implemented:** native Room contacts feed the phone pipeline; auto-call behind explicit opt-in toggle.] |
 
 ---
 

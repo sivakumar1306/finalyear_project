@@ -72,8 +72,8 @@ See `architecture/Overview.md` for diagrams.
 | Device pairing & BLE | [02](./02-device-pairing-ble.md) | Shipped |
 | Vitals monitoring | [03](./03-vitals-monitoring.md) | Shipped (temp partial) |
 | Home & shell | [04](./04-home-dashboard.md) | Shipped |
-| Fall detection & safety | [05](./05-fall-detection-safety.md) | Partial (live but unvalidated prediction) |
-| Workouts | [06](./06-workouts.md) | Shipped |
+| Fall detection & safety | [05](./05-fall-detection-safety.md) | Partial (live but unvalidated prediction; Layer-3 history/peaks wired, cloud backup planned) |
+| Workouts | [06](./06-workouts.md) | Shipped (ring sport auto-merge + phone GPS trace live) |
 | Women’s health | [07](./07-womens-health.md) | Shipped |
 | AI Assist | [08](./08-assist-chat.md) | Partial (backend dependency) |
 | Phone modes & reminders | [09](./09-phone-modes-reminders.md) | Shipped (Android) |
@@ -81,13 +81,15 @@ See `architecture/Overview.md` for diagrams.
 | Data & sync | [11](./11-data-sync-storage.md) | Shipped |
 | Non-functional | [12](./12-non-functional.md) | Mixed |
 
-### Known stub / incomplete surfaces
+### Known stub / incomplete surfaces (verified 2026-09-19)
 
-- Sugar & lipids detail (placeholder UI).
-- Sport record raw dump (minimal parsing).
-- Records index (hardcoded subtitles).
-- Select notifications (local state only).
-- Caregiver push, auto-dial, full-screen fall overlay (planned).
+- Sugar & lipids detail — **implemented**: real ring monitor-state reads + channel toggles via `get/setHealthSettings` (continuous-glucose BLE itself remains a stub returning `"[]"`).
+- Ring sport history — **implemented**: `getSports` 0..6 auto-merge into `user_workouts` with RING badge; per-type detail screen + GPS trace screen exist (depth pending).
+- Select notifications — **partial**: choices persist (`NotificationPrefs`) and gate live phone alerts (`BleProvider`); ring-side persistence still open.
+- Measurement log — **implemented**: per-vital History entry + flag-gated settings entry (`AppConfig.includeMeasurementLog`).
+- OTA cloud catalog — **implemented**: `firmware_updates` releases list in-app; auto-update prompts still future.
+- Caregiver push, cloud SMS backup, full-screen fall overlay (planned — receiving half of push exists: FCM token registration + `/companion-alert` display, dormant without Firebase config).
+- Emergency auto-call — implemented behind an explicit opt-in settings toggle; phone SMS countdown (30s) + cancel + per-contact SENT/DELIVERED receipts live.
 - Release signing keystore (debug signing used for release builds today).
 
 ---

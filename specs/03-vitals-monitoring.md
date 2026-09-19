@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | Shipped (temperature partial; sugar/lipids stub) |
+| **Status** | Shipped (temperature partial; continuous-sugar BLE stub) |
 | **Key code** | `MeasurementLoopManager.kt`, `lib/screens/health/*`, `BleProvider`, Room entities, Supabase tables |
 
 ---
@@ -25,8 +25,9 @@ Continuously collect ring vitals in the background, allow on-demand measurement,
 | Steps / cal / distance | Yes (snapshots) | Via activity | `/steps` | Shipped |
 | Sleep stages + score | On demand from ring | N/A | `/sleep` | Shipped |
 | Temperature | Optional / limited | Partial | `/temperature` | Partial |
-| Sugar / lipids | Settings dump only | No | `/sugar-lipids` | Stub |
-| Sport log (raw) | Ring log | No | `/sport-record` | Stub |
+| Sugar / lipids monitor state | Ring channel state (not glucose values) | Via `get/setHealthSettings` toggles | `/sugar-lipids` | Shipped (real reads; honest empty states) |
+| Continuous sugar BLE | No | No (native returns `"[]"` stub) | — | Stub |
+| Sport log (ring history) | Ring log 0..6 auto-merge | No | `/workouts` (+ `/sport-detail` stub) | Shipped (merge + RING badge) |
 
 ---
 

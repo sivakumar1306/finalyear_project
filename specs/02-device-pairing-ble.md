@@ -95,7 +95,8 @@ The bridge exposes (non-exhaustive) capabilities used by features:
 - Display / health / notification / advanced settings  
 - OTA start + progress events  
 - Camera shutter / gesture-related events  
-- Fall-related configure / simulate / emergency contacts  
+- Fall-related: risk score + event history reads (`getFallRiskScore`, `getFallRiskLog`, `getFallEvents`), monitoring snapshot (`getMotionSnapshot`), configure / simulate / emergency contacts  
+- Push-token plumbing is Dart-side (`PushNotificationService` → `user_push_tokens`); the cloud alert sender is not invoked from the bridge
 
 Full method inventory: `KNOWLEDGE_TRANSFER.md` §6 and `architecture/InterOp.md`.
 

@@ -62,6 +62,8 @@ Metric set is driven by `WorkoutCategory.metrics` in `workout_model.dart`. UI mu
 | WO-06 | Completed sessions appear in history (e.g. 90-day window), grouped by date. |
 | WO-07 | Spotlight cards for most recent sessions on hub. |
 | WO-08 | History load handles offline via `OfflineNotice` pattern. |
+| WO-09 | Ring sport buffer auto-merges on page open (`getSports` 0..6 → `SportPlusEntity` normalize → `insertWorkout` for unseen, RING badge, `TYPE_APP_*` start-second dedupe). |
+| WO-10 | Manual outdoor workouts sample phone GPS (ring has no coordinates) → `user_workouts.locations` jsonb → polyline in `gps_trace_screen`. |
 
 ---
 
@@ -83,6 +85,8 @@ Persist at least:
 - [ ] Kill app mid-workout → reopen → resumes active workout screen.  
 - [ ] Tab switch mid-workout is blocked.  
 - [ ] History lists past sessions when Supabase reachable.
+- [ ] Ring sport buffer merges without duplicates (reopen page twice → single rows).
+- [ ] GPS trace renders a real polyline for an outdoor manual workout.
 
 ---
 
