@@ -97,7 +97,7 @@ Request and justify:
 
 | ID | Requirement |
 |----|-------------|
-| NFR-70 | Automated tests currently minimal; before release add unit tests for fall polarity, adaptive weight Σ=1, and BP/status classifiers. |
+| NFR-70 | Automated suite is 123 tests / 15 files (fall engine V2, adaptive-weight Σ=1, BP staging, Layer-3 motion sources, womens-health, widget cards). Before release, still add: `SupabaseService` map→row mapping, `BleProvider` state transitions, WH clinical-baseline review. |
 | NFR-71 | Manual test matrix: pair, loop vitals, manual measure, workout, fall simulate, offline today, sync after reconnect. |
 | NFR-72 | Release builds must use a production signing keystore (not debug). |
 | NFR-73 | R8/Proguard keep rules for Room/Gson models remain valid. |

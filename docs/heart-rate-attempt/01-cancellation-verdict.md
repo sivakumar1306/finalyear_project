@@ -8,10 +8,11 @@ Date: 2026-09-09 · Branch state: `main@c31b954` + tiered strict/legacy fallback
 
 * Dart `lib/screens/health/heart_rate_screen.dart:_startMeasurement` guarded
   `if (_measuring) return`; `RealTimeCard` set `onTap: measuring ? null : onTap`.
-  Second tap ignored, `await _ble.readHeartRate()` blocked up to 60s, no
+  Second tap ignored, `await _ble.readHeartRate()` blocked up to 30s, no
   `cancelHeartRate` channel, no `dispose` cleanup.
 * Native `BlePlugin.readHeartRate` (then `BlePlugin.kt:981`) only exited via
-  strict success / legacy-at-timeout / `HR_ERR_*` / 60s `TIMEOUT`. The stop entry
+  strict success / legacy-at-timeout / `HR_ERR_*` / 30s `TIMEOUT` (`BlePlugin.kt:1156`
+  `postDelayed(timeoutRunnable, 30_000L)`). The stop entry
   `manualModeHeart(start=false)` existed but the HR screen never called it.
 * Single-slot `MeasurementCoordinator.busyOwner` shared by `"manual"` / `"loop"` /
   `"workout"`. A held slot meant the next tap polled 300ms until the 8s
@@ -21,12 +22,12 @@ Date: 2026-09-09 · Branch state: `main@c31b954` + tiered strict/legacy fallback
   start on the vendor SDK's single shared manual-mode response slot.
 * Disconnect leak: `onDeviceDisconnected` cleared connect state but never removed
   the HR `timeoutRunnable`, released `"manual"`, or sent stop — slot held until
-  the 60s timeout fired.
+  the 30s timeout fired.
 * Storm breaker: 8 failures/60s opens `SdkGuard` for 45s; every invoke then
   returns `SDK_GUARD_OPEN` without touching the sensor.
 
 ## What already worked (partial mitigations)
 
 8s acquire poll + `BUSY`, `NOT_CONNECTED` / `SDK_GUARD` guards, `errCode`
-fail-fast + stop, 60s timeout + stop + release, loop `watchForPreempt` yield to
+fail-fast + stop, 30s timeout + stop + release, loop `watchForPreempt` yield to
 manual, `POST_STOP_SETTLE_MS` 2s before lock release.

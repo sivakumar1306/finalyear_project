@@ -11,7 +11,8 @@
   buffer) is identical across both.
 - QRing declares Health Connect `WRITE_STEPS`, `WRITE_HEART_RATE`,
   `WRITE_SLEEP`, `WRITE_TOTAL_CALORIES_BURNED` — our app additionally
-  syncs SpO₂, HRV, BP, temperature, blood oxygen stages.
+  writes SpO₂, HRV, BP, and temperature (`tryWrite*` in
+  `health_connect_service.dart`).
 - No newer history opcodes were recoverable from the obfuscated dex;
   if a future QRing release documents a larger ring buffer, bump the
   `count` in `fetchRingHistory` and the screens' trend windows together.

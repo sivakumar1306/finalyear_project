@@ -15,7 +15,7 @@ However, the app is **not release-ready**:
 - **A confirmed medical-classification bug**: BP staging uses `||` instead of `&&` — Stage-1/2 labels are wrong for many readings.
 - **The Supabase migration set does not match the code**: ~14 tables the app reads/writes are never created by migrations; only 6 are. Fresh environments 404 on every sync.
 - **`compileSdk 36 < targetSdk 37`** — release build failure/warning; also `ErrorWidget.builder` swallows all UI errors.
-- **The only test is a placeholder.**
+- **The only test is a placeholder.** *(Snapshot 2026-08-06 — stale: suite is 123 tests across 15 files as of 2026-09-19; see 07.1.)*
 
 ---
 
@@ -41,7 +41,7 @@ However, the app is **not release-ready**:
 | 8 | MED | **All UI errors silently swallowed** (`ErrorWidget.builder → SizedBox.shrink`), reported to `app_incidents` table — users see a blank screen; incidents spam production DB from dev/test. | `lib/main.dart:80-107,141-150` |
 | 9 | MED | **No `strings.xml`** — app label `"SUNDR"` hardcoded in manifest; also a hardcoded `READ_CALL_LOG`/`RECORD_AUDIO`-style broad permission list (see 08). | `android/app/src/main/AndroidManifest.xml` |
 | 10 | MED | **Design tokens duplicated per screen** (7 health screens + home each redefine `_kCard`/`_kBorder`/`_kGrid`/gold colors instead of `AppTheme`) — drift risk; `AppTheme` gold/goldLight/base/goldAccent are the same color. | `lib/screens/health/*` · `lib/screens/home/home_screen.dart` · `lib/theme/app_theme.dart` |
-| 11 | MED | **Only test is a placeholder** (7-line smoke test); `flutter test` passes but verifies nothing. | `test/widget_test.dart` |
+| 11 | MED | **Only test is a placeholder** (7-line smoke test); `flutter test` passes but verifies nothing. *(Snapshot 2026-08-06 — stale: 123 tests as of 2026-09-19.)* | `test/widget_test.dart` |
 
 ---
 

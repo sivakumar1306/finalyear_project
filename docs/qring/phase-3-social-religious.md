@@ -1,6 +1,6 @@
 # Phase 3 — Social & Religious (Quran/Qibla, Muslim Goal V2, Friends/Lover, Nutrition)
 
-> **Status:** STARTED `2026-08-27` — doc only, 0% code — 2–3 weeks est. Preserves QRing MENA market while keeping Sundr premium dark (`DESIGN.md`).
+> **Status:** STARTED `2026-08-27` — scaffolding + several real implementations landed since (see table) — 2–3 weeks est. Preserves QRing MENA market while keeping Sundr premium dark (`DESIGN.md`).
 
 ## QRing Reference
 - **Muslim:** `activity_muslim.xml/detail/goal/v2/more`, `fragment_day_muslim.xml/month`, `MuslimRepository` `muslim_detail(device_address,date_str,interval,index_str,counts,unix_time)` `muslim_total`, `worship_time_entity(worship_uuid,date_str,worship_time,is_selected,offset_time)` `quran_entity(content_uuid,title_json,is_collection)`, `customer_praise_entity(praise_count)`, `anla_name_entity(arabic_name,chinese,english)` `QiblaDirection(lastQiblaAngle)` `Adhan` lib `calculateQiblaDirection` (`classes5.dex` `7Lcom/oudmon/ble/.../MuslimReq`, `res/layout/activity_muslim*.xml`).
@@ -33,15 +33,15 @@
 
 | # | Item | Location | Status | Notes |
 |---|------|----------|--------|-------|
-| 1 | `qibla_service.dart` `SensorManager` + `Geolocator` + `adhan2` | `lib/services/qibla_service.dart:1` | ✅ Completed (stub) | Bearing calc done, compass stream stub `yield 0` |
+| 1 | `qibla_service.dart` `Geolocator` + `adhan` | `lib/services/qibla_service.dart` | ✅ Completed | Real `FlutterCompass.events` stream; `Stream.value(0)` is fallback-only, not the path |
 | 2 | `quran_screen.dart` + `assets/quran/quran.json` `quran_entity` bookmark | `lib/screens/quran/quran_screen.dart:1` | ✅ Completed (stub) | GlassCard + placeholder, 117321 bytes `qring_extracted/quran.json` |
 | 3 | `QiblaScreen` compass `CustomPainter` gold `#C9A86E` | `lib/screens/quran/qibla_screen.dart:1` | ✅ Completed (stub) | `GlassCard` `QiblaService.bearing` demo `Riyadh→Kaaba` |
 | 4 | `muslim_goal_v2_screen.dart` offset dialog | `lib/screens/prayer/muslim_goal_v2_screen.dart` | ⬜ Not Started | `layout_dialog_muslim_offset_time` |
-| 5 | `user_quran_bookmarks` + `user_worship_times` Supabase | `supabase/migrations/20260902_quran.sql` | ⬜ Not Started |  |
-| 6 | `user_friends` + `lover_links` (reuse `caregiver_links`) | `supabase/migrations/20260902_social.sql` | ⬜ Not Started |  |
+| 5 | `user_quran_bookmarks` (+ `user_worship_times` still absent) Supabase | `supabase/migrations/00000000000000_init.sql` (`user_quran_bookmarks` present) | 🟡 Partial | `user_worship_times` table was never created |
+| 6 | `user_friends` (+ `lover_links` still absent) | `supabase/migrations/00000000000000_init.sql` (`user_friends` present) | 🟡 Partial | No `lover_links` table; link-request UI not built |
 | 7 | `friends_screen.dart` ranking + `LoverSpace` + `MyQrCode` | `lib/screens/social/friends_screen.dart:1` | ✅ Completed (stub) | `GlassCard` + routes `/friends` |
 | 8 | Nutrition `nutrition_model.dart` + `nutrition_screen.dart` | `lib/models/nutrition_model.dart:1` + `lib/screens/nutrition/nutrition_screen.dart:1` | ✅ Completed (stub) | `MetricChartCard` stub, routes `/nutrition` |
-| 9 | Routes `/quran /qibla /friends /nutrition` | `lib/app.dart:34,60` | ✅ Completed | 28 routes now |
+| 9 | Routes `/quran /qibla /friends /nutrition` | `lib/app.dart` | ✅ Completed | 47 routes in app (was 28 at the time) |
 
 ### Next: scaffold `qibla_service` + `quran_screen` shell (glass) in Phase 3 kickoff.
 

@@ -106,14 +106,18 @@ val connected = BleSdkLifecycle.isConnected()
 val intervalMs = when {
     SdkGuard.isOpen() -> 30_000L
     connected && wasConnected -> 30_000L
-    else -> 8_000L
+    connected -> 8_000L
+    else -> BACKOFF_STEPS_MS[
+        consecutiveDisconnectedTicks.coerceIn(0, BACKOFF_STEPS_MS.lastIndex)
+    ]
 }
 ```
 
 **Logic:**
 - If SDK circuit breaker is open: 30s (prevents storm)
 - If connected and stable (was connected last tick): 30s (healthy)
-- Otherwise: 8s (initial connect, reconnecting)
+- If freshly connected: 8s
+- While disconnected: exponential backoff 8s → 15s → 30s → 60s → 120s (an out-of-range ring no longer costs ~10k GATT attempts/night)
 
 **Impact:**
 - Old: 10,800 wake-ups/day (8s × 10800s/day)

@@ -20,15 +20,12 @@ Silently failed: write succeeded but read returned `null` → UI showed “No sl
 
 ## Fix
 
-### A. `lib/screens/settings/health_connect_screen.dart`
-* `_connect()` → requests **all** `HealthSyncType.values.toSet()` at once:
-  ```dart
-  final allTypes = HealthSyncType.values.toSet();
-  final ok = await _service.requestAuthorization(allTypes);
-  if (ok) { _enabled = allTypes; await _service.saveEnabledTypes(_enabled); }
-  ```
-  Shows `Health Connect connected — all permissions granted.` — granular switches become on/off without new sheet if already granted.
-* `_toggle()` → when enabling a type not yet granted, requests **only that single type** `requestAuthorization({type})`. If denied, reverts toggle and saves. Turning off just refreshes; no sheet.
+### A. `lib/screens/settings/health_connect_screen.dart` (as later revised — current behavior)
+* `_connect()` requests the **enabled subset** (`requestAuthorization(_enabled)`), not all 8 types — the bulk-all-types proposal was narrowed after review.
+* `_toggle()` only saves the set + refreshes grants/today (`saveEnabledTypes` + `_refreshGrantedAndToday`); it does **not** fire a single-type request sheet. If denied, the toggle state is recomputed from the refreshed grants.
+```dart
+final ok = await _service.requestAuthorization(_enabled); // enabled subset
+```
 
 ### B. `lib/services/health_connect_service.dart`
 * `tryWriteSleep`:

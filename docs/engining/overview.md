@@ -43,10 +43,10 @@ lib/services/health_engine/
   temperature_engine.dart             # parseTempReadings
   cycle_engine.dart                   # phaseName + flex ratios
 
-lib/services/history_service.dart     # cache-then-cloud generic (future phase)
-lib/services/measurement_flow.dart    # manual flow (future phase)
+lib/services/history_service.dart     # cache-then-cloud generic (landed)
+lib/services/measurement_flow.dart    # manual flow (landed)
 
-lib/utils/bp_staging.dart             # aliased to HealthEngine after transfer
+lib/utils/bp_staging.dart             # alias to HealthEngine (landed — delegates since transfer)
 ```
 
 ## Docs in this folder
@@ -56,5 +56,5 @@ lib/utils/bp_staging.dart             # aliased to HealthEngine after transfer
 * `date_keys_and_formatters.md`
 * `hourly_aggregator.md`
 * `activity_engine.md`
-* `bp_staging.md` — alias plan
+* `bp_staging.md` — alias record (landed)
 * `migration_plan.md` — phased rollout

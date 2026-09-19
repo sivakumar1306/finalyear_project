@@ -11,7 +11,9 @@
 * `lib/main.dart:45-61` bulk `.request()` includes `Permission.notification:52` but ignores result; `await _bleChannel.invokeMethod('startForegroundService'):57` swallows `FGS_DENIED`.
 * No `WorkManager`/`JobScheduler` (`grep WorkManager → 0`). No `FOREGROUND_SERVICE_SHORT_SERVICE`.
 
-## Implementation
+## Implementation (partially landed — status 2026-09-19)
+
+> Landed: `isIgnoringBatteryOptimizations` / `requestIgnoreBatteryOptimizations` channels + Home battery `GlassCard` (see `BlePlugin.kt`, `home_screen.dart`). **Proposed, not landed:** `ShortSyncService`, `WorkScheduler`/`MeasurementWorker.kt`, `enqueueWorkManagerFallback` — zero hits in `android/` and no `SHORT_SERVICE` in the manifest. The doc below is the proposal.
 
 ### Manifest
 * Add `<uses-permission android:name="android.permission.FOREGROUND_SERVICE_SHORT_SERVICE"/>`.

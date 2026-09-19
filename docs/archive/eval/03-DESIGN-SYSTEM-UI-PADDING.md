@@ -95,4 +95,4 @@ Some screens show "0"/empty when the provider has no data, others render blank s
 | 3.9 Empty-state differences | DEFERRED | Needs a product decision on "no ring data" vs "integration failure" copy per screen; not a mechanical fix. |
 | 3.10 Consistent with DESIGN.md | CONFIRMED GOOD | Metric palette + card radius align with DESIGN.md; no action. |
 
-Verification: `dart analyze lib test` -> "No issues found!" | `flutter test --no-pub` -> 88/88 pass.
+Verification: `dart analyze lib test` -> "No issues found!" | `flutter test` -> 123 pass (was 88/88 on 2026-08-07).

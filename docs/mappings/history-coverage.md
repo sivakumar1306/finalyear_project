@@ -1,6 +1,6 @@
 # Per-vital history coverage (ring → app)
 
-Ring buffer: 7 days (`dayIndex 0..6`, `deviceHealthHistoryMaxDayIndex() == 6`).
+Ring buffer: 7 days (`dayIndex 0..6`, `kRingHistoryMaxDays = 7` in `ble_service.dart`).
 "View all history from the ring" = range fetch `startDay=0, count=7` via
 `BleService.fetchRingHistory(vital)` (`lib/services/ble_service.dart`,
 `kRingHistoryMaxDays = 7`).
@@ -19,8 +19,9 @@ Ring buffer: 7 days (`dayIndex 0..6`, `deviceHealthHistoryMaxDayIndex() == 6`).
 | Temperature | `getTemperatureList` | ❌ blocked: `IntervalTemperatureEntity{array,values[{value1..3}]}` semantics unverified; `TemperatureEngine` Map-case keys don't match | Needs one live-ring sample — log `getTemperatureList` output once and map it |
 | Sport | `getSports` | ✅ `_pullRingSports` on page open → normalize `SportPlusEntity` → merge with RING badge → `insertWorkout` for unseen | mCalories kcal-vs-小卡 auto (≥10000 → ÷1000); wired 2026-09-19 |
 | Workout metrics (manual) | ring `getTodaySteps` deltas | ✅ baseline pre-synced, stale-baseline recovery, `runSteps` counted, sub-1000 kcal floor, `ringUnreachable` pill | `WorkoutService` native keys fixed (`workout_sport/category`, safe double) |
-| GPS trace | phone `geolocator` (ring has no coordinates) | ✅ sampled per 10s tick → `user_workouts.locations` jsonb → real polyline in `gps_trace_screen` | Run `alter table public.user_workouts add column if not exists locations jsonb;` on live DB |
+| GPS trace | phone `geolocator` (ring has no coordinates) | ✅ sampled per 10s tick → `user_workouts.locations` jsonb → real polyline in `gps_trace_screen` | `locations` column already in schema (`00000000000000_init.sql`); no manual migration needed |
 | Breath / ECG / Sugar | n/a (app-side data) | n/a | No ring history; sugar channel is a `"[]"` stub |
+| Falls | n/a (no ring motion API) | n/a | No ring fall history exists — detection is phone-only (`FallMotionDetector` → Room `fall_event`); Flutter Layer 3 reads native events via `getFallEvents`, not the ring |
 
 ## Standard wiring pattern (all `_pullRingHistory` hooks)
 

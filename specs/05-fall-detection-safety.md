@@ -4,7 +4,7 @@
 |-------|-------|
 | **Status** | Partial — Phases 1–3 built; prediction live but **not validated** against real falls |
 | **Key docs** | `FALL_DETECTION_STATUS.md`, `architecture/Health_Analysis.md` |
-| **Key code** | `FallRiskAnalyzer.kt`, `FallMotionDetector.kt`, `FallAlertNotifier.kt`, `FallPredictionNotifier.kt`, `fall_detection_screen.dart`, Flutter `fall_prediction/*` |
+| **Key code** | `FallRiskAnalyzer.kt`, `FallMotionDetector.kt` (incl. `snapshot()`), `FallAlertNotifier.kt`, `FallPredictionNotifier.kt`, `BlePlugin.getMotionSnapshot`, `fall_detection_screen.dart`, Flutter `fall_prediction/*` (`fall_prediction_engine.dart`, `layer3_motion.dart`, `fall_prediction_provider.dart`) |
 
 ---
 
@@ -79,7 +79,27 @@ A separate Dart engine (`FallPredictionEngine`) computes HSI / risk layers for t
 | FD-10 | Document polarity: **HSI = stability (higher better)**; **risk score = higher worse**. |
 | FD-11 | Product UI should prefer clear naming (**Fall Risk Score**), not ambiguous “Fall Confidence Score”. |
 | FD-12 | Adaptive weights must renormalize so Σw = 1. |
-| FD-13 | Known open issues (recovery term polarity, triple-counting history, missing personal baselines) tracked in `something.md` / `something-action-plan.md` — treat as P0/P1 backlog before research claims. |
+| FD-13 | Known open issues (recovery term polarity, triple-counting history, missing personal baselines) tracked in §10 below + `FALL_DETECTION_STATUS.md` — treat as P0/P1 backlog before research claims. |
+
+### Layer 3 motion sourcing (Flutter `Layer3MotionData`)
+
+The motion layer has no continuous IMU (ring SDK streams none; phone sensors run only while armed on HIGH-tier risk). Every field is therefore sourced explicitly — unknown stays `null`, never a healthy constant:
+
+| Field | Source | Rule |
+|-------|--------|------|
+| `fh` + `trailingFalls` | **Primary:** native Room `fall_event` via `getFallEvents(limit: 500)` parsed by `parseNativeFallEvents` (365-day filter, dev-simulated rows excluded). **Secondary:** Supabase `falls` merged in (covers history past the 90-day local purge and other devices). Cache TTL 1h. | Known-zero history → `fh = 0.0`; no source at all → `fh = null` (coverage penalizes honestly). |
+| `acc` / `gyr` | Most recent non-simulated native event's `metadataJson` `peakG`/`peakGyro` via `recentMotionPeak`, only if < 24h old. | Event-driven impact signal, not continuous stability. Stale/absent → `null`. |
+| `gait` | Step-pattern CV proxy from `todayStepsByInterval` (`gaitVariabilityFromStepSlots`): CV over active 15-min slots up to now, ≥6 slots required, CV ≤ 1.0 → 0.0, saturates at 0.5. | Heuristic proxy, not clinical gait. Never dominates MO. Insufficient data → `null`. |
+| `psw` / `ortho` | No source (no sway test, no posture-change timestamps). | Always `null`. |
+| `plnt` | No smart insole on this hardware. | Always `null` (motion weights already zero it). |
+| Monitoring state | `getMotionSnapshot` channel (`FallMotionDetector.snapshot()`: `sensorsActive`, `windowsAnalyzed`, `maxMagnitudeG`, last peaks). | Exposed via `FallPredictionProvider.motionSnapshot` for future UI. **Not scored** — sensors run only in HIGH-tier windows, so the sample is biased. |
+
+| ID | Requirement |
+|----|-------------|
+| FD-14 | Trailing fall history must prefer native `fall_event` over Supabase `falls`; merge both, exclude dev-simulated rows. |
+| FD-15 | `acc`/`gyr` may only come from a < 24h non-simulated event peak; otherwise `null`. |
+| FD-16 | `gait` proxy must be conservative (no penalty at normal variability, capped contribution) and labeled a heuristic in code. |
+| FD-17 | `getMotionSnapshot` output must never feed scoring — monitoring state only. |
 
 ---
 
@@ -150,6 +170,9 @@ Must show:
 - [ ] Corroborated path shows local notification dismissible with “I’m okay”.
 - [ ] Emergency contacts survive app restart.
 - [ ] Simulation tools exercise notification and score path without real fall.
+- [ ] Fall history on the risk screen reflects native `fall_event` rows (simulated rows excluded from scoring).
+- [ ] A < 24h real event's peaks feed Layer 3 `acc`/`gyr`; older/absent history leaves them `null` with coverage penalty, not zero-fill.
+- [ ] `layer3_motion_sources_test.dart` passes (parsing, peak freshness, gait-proxy bounds).
 
 ---
 
@@ -157,13 +180,14 @@ Must show:
 
 1. Multi-hour battery impact of continuous sensors.  
 2. Correlation of logged risk scores vs real/near falls.  
-3. Align Flutter HSI/FRS math with native analyzer semantics and fix polarity bugs.  
+3. Align Flutter HSI/FRS math with native analyzer semantics and fix polarity bugs (Layer-3 sourcing landed per §4; polarity/baseline alignment still open).  
 4. Caregiver push product decision.
+5. Validate the gait CV proxy against real step data (confirm no risk inflation on normal walkers) and the 24h peak-freshness window against real event follow-ups.
 
 ---
 
 ## 11. Related
 
 - `FALL_DETECTION_STATUS.md`  
-- `something.md`, `something-action-plan.md`  
 - `architecture/Health_Analysis.md`  
+- `docs/sms/emergency-alerting-system.md` (alert pipeline status)

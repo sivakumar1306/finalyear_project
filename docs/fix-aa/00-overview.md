@@ -1,7 +1,7 @@
 # fix-aa — Sleep Dual Empty-State Spacing & 7-Day Trend Threshold (2+ days)
 
 > Date: 2026-09-06 | Branch: `main` post-merge `chore/health-connector-migration` | Flutter 3.47.2 / Dart 3.13.2
-> Status: **Implemented** (9 files, `flutter analyze` 17 warnings pre-existing, `flutter test` 113 passed)
+> Status: **Implemented** (9 files, `flutter analyze` 17 warnings pre-existing, `flutter test` 123 passed — was 113 at the time)
 
 ## TL;DR
 
@@ -32,7 +32,7 @@
 ## Verification
 
 * `flutter analyze` — 17 warnings (all pre-existing `unused_import`/`unused_local_variable` in HR/SpO2/HRV + `health_connect_service.dart`), zero errors in changed files.
-* `flutter test` — 113 passed (`engines_utils_test.dart:22` TrendMath, `health_engine_test.dart`, etc.).
+* `flutter test` — 123 passed (was 113 at the time; `engines_utils_test.dart` TrendMath, `health_engine_test.dart`, etc.).
 * Manual: 0 days → `NotEnoughTrendDataCard`, 1 day → still empty, 2 days → `ScrubbableChart` with 5 `AppTheme.div` stubs; BP 1 pair → empty, 2 pairs → chart; sleep empty → two glass cards with 20 px gap (no blur overlap).
 
 ## Decisions Log

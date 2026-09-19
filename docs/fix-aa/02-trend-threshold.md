@@ -89,7 +89,7 @@ Aligns card with code.
 ## Verification
 
 * `flutter analyze` 17 warnings (pre-existing), 0 errors on changed files.
-* `flutter test` 113 passed (including `engines_utils_test.dart:22` TrendMath).
+* `flutter test` 123 passed (was 113 at the time; including `engines_utils_test.dart` TrendMath).
 * Manual matrix (mock `LocalVitalsService.historyAvgSeries`):
 
 | Non-zero days | `hasEnoughTrendData` | UI |

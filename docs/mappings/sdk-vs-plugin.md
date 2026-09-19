@@ -5,8 +5,9 @@ Source of truth, last verified 2026-09-19 from:
 - Plugin: `android/.../BlePlugin.kt` (method-channel cases + `BleOperateManager.getInstance()` calls)
 - Dart: `lib/services/ble_service.dart` (incl. `fetchRingHistory` dispatcher)
 
-Ring history buffer: `deviceHealthHistoryMaxDayIndex() == 6` → dayIndex `0..6`
-(today … 6 days ago). "View all history from the ring" = range fetch `0..6`.
+Ring history buffer: `dayIndex 0..6` (today … 6 days ago), bounded Dart-side by
+`kRingHistoryMaxDays = 7` (`ble_service.dart`).
+"View all history from the ring" = range fetch `0..6`.
 
 Legend: ✅ mapped end-to-end · 🔶 wired to UI history backfill · ⚠️ partial ·
 ❌ SDK-only (no channel/Dart)
@@ -42,7 +43,7 @@ All range APIs return `[{"dayIndex": N, "data": {…same shape as single-day…}
 | Heart rate | `ReadHeartRateRsp` map | `array`, fallback `mHeartRateArray` (signed→unsigned), keep 30–220 |
 | Blood pressure | `List<BlePressure>` | `{time, sbp, dbp}`; `time` s-or-ms auto-normalized by magnitude; keep 70–250 / 40–150 |
 | Pressure | `PressureRsp` map | `pressureArray` bytes (unsigned, drop 0xFF, clamp 0–100) |
-| HRV | `HRVRsp` map | `d`, fallback `pressureArray` (unsigned, drop 0xFF); NOTE: provider `_parseAndSaveHrv` reads only `d`, which raw SDK gson never emits — today-HRV ring path was silently dead, history hook covers both keys |
+| HRV | `HRVRsp` map | `d`, fallback `pressureArray` (unsigned, drop 0xFF); NOTE: the *today* path (`BleProvider._parseAndSaveHrv`) reads only `d`, so it stays empty when raw SDK gson emits only `pressureArray` — the *history* hook (`hrv_screen._pullRingHistory`) covers both keys |
 | Blood oxygen | `BloodOxygenEntity` map | `array` + `minArray` + `maxArray`, keep 1–100 |
 | Temperature | `IntervalTemperatureEntity` map | `{array, values[{value1..3}], interval}` — semantics unverified, NOT consumed |
 | Sleep | `SleepDisplay` map | via `SleepEngine.parseSleepData` (pre-existing) |
@@ -72,8 +73,15 @@ All range APIs return `[{"dayIndex": N, "data": {…same shape as single-day…}
 ## Deliberately unmapped (no app consumer — do not add without a feature)
 
 - Emotion family, RRI family, Manual-SpO₂ family, 3-point-temp family,
-  `getSports` range (sport uses the `SportPlusHandle` sync path),
   `ManualHR` single/range, `oneClickMeasurement`, `startOneKey`/`endOneKey`
   direct channels, `classicBluetooth*` / RTK-SPP APIs.
 - Temperature history backfill is blocked, not unmapped: needs one live-ring
   `getTemperatureList` sample to pin `array` vs `values[]` semantics.
+
+## Fall / motion (no SDK surface — phone-only by design)
+
+No continuous accelerometer/gyroscope API exists in the shipped SDK, so there
+is nothing to map here. Fall detection is phone-side: `FallMotionDetector`
+(50 Hz phone accel/gyro while armed) → Room `fall_event` → Dart via
+`getFallEvents`; monitoring state via `getMotionSnapshot`. Do not add
+ring-IMU channels without a new SDK that streams them.

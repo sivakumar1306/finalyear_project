@@ -1,18 +1,18 @@
 # 07 — Testing, CI & Release Readiness
 
-## 7.1 Test coverage — essentially zero — [HIGH]
+## 7.1 Test coverage — was essentially zero at eval time (2026-08-06); 123 tests as of 2026-09-19 — [MED]
 
-- Only test file: `test/widget_test.dart` (7 lines) — "Placeholder — full app requires BLE hardware". It does nothing.
-- `flutter test --no-pub` passes instantly (verified).
-- `flutter analyze --no-pub` → "No issues found (5.2s)" (verified) — static analysis is clean but catches only compile-level issues; none of the logic bugs in 01.
+- ~~Only test file: `test/widget_test.dart` (7 lines)~~ — stale: `test/` now holds 15 files / 123 tests, including `fall_prediction_test.dart` (engine V2 healthy-metrics), `adaptive_weight_engine_test.dart` (weight renormalization), `layer3_motion_sources_test.dart` (native fall-event parsing, 24h peak freshness, gait-proxy bounds), `bp_staging_test.dart`, and widget tests (`widget_test.dart` now asserts real cards, incl. the removed StatCard affordance).
+- `flutter test` passes (verified 2026-09-19: all 123).
+- `flutter analyze` → "No issues found" (verified) — static analysis is clean but catches only compile-level issues; none of the logic bugs in 01.
 
-**Priority test list (all pure-Dart, testable without hardware):**
-1. BP staging classifier (01.1) — currently wrong; extract to a pure function and test boundaries (139/89 vs 140/90 vs 139/95 vs 180/120).
-2. Fall-prediction reasoning chain (weights/classification).
-3. Womens-health prediction thresholds.
-4. `SupabaseService` map→row mapping (mock client).
-5. Dart `LocalVitalsService` round-trip.
-6. `BleProvider` state transitions (channel events → provider state).
+**Priority test list (all pure-Dart, testable without hardware)** — status 2026-09-19:
+1. BP staging classifier (01.1) — ✅ done (`bp_staging_test.dart`; classifier now delegates to `HealthEngine`).
+2. Fall-prediction reasoning chain (weights/classification) — ✅ done (`fall_prediction_test.dart`, `adaptive_weight_engine_test.dart`, `layer3_motion_sources_test.dart`).
+3. Womens-health prediction thresholds — ✅ done (`womens_health_prediction_test.dart`).
+4. `SupabaseService` map→row mapping (mock client) — open.
+5. Dart `LocalVitalsService` round-trip — ✅ done (`local_vitals_service_test.dart`).
+6. `BleProvider` state transitions (channel events → provider state) — open.
 
 ## 7.2 No golden/visual tests — [MED]
 

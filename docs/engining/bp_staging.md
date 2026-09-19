@@ -1,11 +1,11 @@
-# BP Staging — Alias Plan
+# BP Staging — Alias Record
 
-> After all logic transferred, keep `lib/utils/bp_staging.dart` as alias to `HealthEngine` (per requirement).
+> `lib/utils/bp_staging.dart` is an alias to `HealthEngine` (transfer landed).
 
-## Current Duplicate
+## Former duplicate (resolved)
 
-* `bp_staging.dart:40` `classifyBp(sbp,dbp) <120/80 normal <130/80 elevated <140/90 stage1 else stage2` hard-coded.
-* `health_engine.dart:176` `assessBloodPressure` same thresholds via `HealthConfig.intThreshold('bp',...)` remote-tunable.
+* `bp_staging.dart` `classifyBp(sbp,dbp)` was hard-coded (`<120/80 normal <130/80 elevated <140/90 stage1 else stage2`).
+* `health_engine.dart` `assessBloodPressure` holds the same thresholds via `HealthConfig.intThreshold('bp',...)` remote-tunable — now the single truth; `classifyBp` delegates to it.
 
 ## Alias Implementation
 

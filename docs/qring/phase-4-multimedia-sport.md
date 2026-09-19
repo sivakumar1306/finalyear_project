@@ -29,18 +29,18 @@
 - `lib/screens/music/music_album_screen.dart` list `MusicRepository` albums.
 
 ### 4.4 GPS Trace
-- `lib/screens/workouts/gps_trace_screen.dart` `gps_detail` polyline via `google_maps_flutter` (already dep? check `pubspec`), store `gps_detail` to `user_workouts.locations`.
+- `lib/screens/workouts/gps_trace_screen.dart` polyline from phone `geolocator` (ring has no coordinates; `google_maps_flutter` is **not** a dependency — custom polyline), store to `user_workouts.locations` (column already in schema).
 
 ### Completion Table (2026-08-27 14:00)
 
 | # | Item | Location | Status | Notes |
 |---|------|----------|--------|-------|
 | 1 | `workout_model` 12 categories 130+ sports | `lib/models/workout_model.dart:338` | ✅ Completed | Already covers QRing 20 mapped |
-| 2 | `workouts_screen` hub 1050 + `active_workout:412` | `lib/screens/workouts/workouts_screen.dart` | ✅ Completed |  |
-| 3 | `sport_type_detail_screen.dart` per-type `ReadDetailSportDataReq` | `lib/screens/workouts/sport_type_detail_screen.dart` | ⬜ Not Started | `SportPlusHandle` import `BlePlugin:99` exists |
+| 2 | `workouts_screen` hub + `active_workout` | `lib/screens/workouts/workouts_screen.dart` (1219 lines) | ✅ Completed |  |
+| 3 | `sport_type_detail_screen.dart` per-type detail | `lib/screens/workouts/sport_type_detail_screen.dart` | ✅ Completed (stub) | File exists; ring per-type trace depth pending |
 | 4 | `watchface_store_screen.dart` `WatchMarketFragment` | `lib/screens/watchface/watchface_store_screen.dart:1` | ✅ Completed (stub) | `GlassCard` + route `/watchface`, reuse `FileHandle` OTA |
-| 5 | `album_screen.dart` / `ebook_screen.dart` / `music_album_screen.dart` | `lib/screens/album/*` | ⬜ Not Started | `scanMediaFile` passthrough exists |
-| 6 | `gps_trace_screen.dart` polyline `gps_detail` | `lib/screens/workouts/gps_trace_screen.dart` | ⬜ Not Started | Check `google_maps_flutter` dep |
+| 5 | `album_screen.dart` / `ebook_screen.dart` / `music_album_screen.dart` | `lib/screens/album/*` | ✅ Completed (stub) | Files exist; `scanMediaFile` passthrough exists |
+| 6 | `gps_trace_screen.dart` polyline | `lib/screens/workouts/gps_trace_screen.dart` | ✅ Completed (stub) | Phone-GPS polyline, no `google_maps_flutter` dep |
 
 ### Next: scaffold `sport_type_detail_screen` shell then `watchface_store`.
 

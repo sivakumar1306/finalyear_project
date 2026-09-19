@@ -19,7 +19,7 @@
 - `lib/models/breath_model.dart` `BreathMethod(Category, Method, audioId, inhale/hold/exhale cycle)` + `BreathRecord` same as QRing `breath_training_record`
 - `lib/models/ecg_model.dart` `EcgSample(avgHeart, dataList<List<int>>, type, unixTime)`
 - `lib/models/blood_sugar_model.dart` `SugarReading(timestamp,minSugar,maxSugar,hour)`
-- `supabase/migrations/20260831_detailed_health.sql` tables:
+- `supabase/migrations/00000000000000_init.sql` tables (squashed migration — the dated per-phase files below were consolidated):
   ```sql
   user_ecg (user_id,date,avg_heart, data_list jsonb, unix_time, primary key user_id,date)
   user_breath_sessions (user_id,started_at,method_id,average_hr, subjective_feeling, primary key user_id,started_at)
@@ -54,13 +54,13 @@
 | 1 | `breath_model.dart` `BreathMethod` catalog 4 methods + `BreathSession` | `lib/models/breath_model.dart:1` | ✅ Completed |  |
 | 2 | `ecg_model.dart` `EcgSample` | `lib/models/ecg_model.dart:1` | ✅ Completed |  |
 | 3 | `blood_sugar_model.dart` `BloodSugarReading` | `lib/models/blood_sugar_model.dart:1` | ✅ Completed |  |
-| 4 | Migration `user_ecg/breath_sessions/blood_sugar` + RLS + `delete_user_account` | `supabase/migrations/20260901000000_phase2_detailed_health.sql:1` | ✅ Completed |  |
+| 4 | Migration `user_ecg/breath_sessions/blood_sugar` + RLS + `delete_user_account` | `supabase/migrations/00000000000000_init.sql` (tables `user_ecg`, `user_breath_sessions`, `user_blood_sugar` present) | ✅ Completed | |
 | 5 | `breath_screen.dart` glass + `MetricChartCard` + `BreathMethod` chip + `Timer` + Supabase save | `lib/screens/health/breath_screen.dart:1` | ✅ Completed | `flutter analyze` No issues |
 | 6 | `ecg_screen.dart` `+HealthConnect` | `lib/screens/health/ecg_screen.dart:1` | ✅ Completed | Mock 120 pts `Random` |
 | 7 | `blood_sugar_screen.dart` `+HealthConnect` `DateScrollRow` 24h min/max | `lib/screens/health/blood_sugar_screen.dart:1` | ✅ Completed | `MetricBarPainter maxY15` |
-| 8 | Routes `/breath /ecg /blood-sugar` | `lib/app.dart:28,84` | ✅ Completed | 24 routes |
-| 9 | `BleService` stubs `getContinuousSugar/startEcgMeasure` | `lib/services/ble_service.dart:663` | ✅ Completed |  |
-| 10 | `BlePlugin` dispatch `getContinuousSugar/startEcgMeasure` | `BlePlugin.kt:449` | ✅ Completed |  |
+| 8 | Routes `/breath /ecg /blood-sugar` | `lib/app.dart` | ✅ Completed | 47 routes in app (was 24 at the time) |
+| 9 | `BleService` bridges `getContinuousSugar/startEcgMeasure` | `lib/services/ble_service.dart` | 🟡 Stub — channel exists, native returns canned `"[]"` / `"{}"` (see row 12) |  |
+| 10 | `BlePlugin` dispatch `getContinuousSugar/startEcgMeasure` | `BlePlugin.kt` | 🟡 Stub — hardcoded `result.success("[]")` / `result.success("{}")`, no SDK call |  |
 | 11 | `SupabaseService` wrappers `getEcgHistory/getBreathHistory/getSugarHistory` | `lib/services/supabase_service.dart:905` | ✅ Completed |  |
 | 12 | Native `EcgReq` + `LargeDataHandler.syncBloodSugar` real BLE | `BlePlugin.kt` | ⬜ Not Started | Needs ring `supportEcg` flag test |
 | 13 | `ReadingRepository` `insertEcg/insertSugar` + `QRingDatabase` dao | `data/` | ⬜ Not Started |  |

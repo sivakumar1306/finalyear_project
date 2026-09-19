@@ -4,6 +4,11 @@
 >
 > Status legend: ✅ fixed · 📋 addressed/documentary · ⏸️ deferred by decision · ❌ still open
 > Status as of **2026-08-07**.
+>
+> Note (2026-09-19): the dated migration files named below (`20260706…`,
+> `20260806…_missing_tables`, `20260807…`) were later squashed into a single
+> `supabase/migrations/00000000000000_init.sql` (34 tables). File names below
+> are historical; table coverage is unchanged.
 
 ## 5.1 Migration coverage — CRITICAL GAP — ✅ fixed
 

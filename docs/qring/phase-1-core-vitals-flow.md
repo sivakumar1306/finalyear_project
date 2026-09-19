@@ -47,7 +47,7 @@
 ## Data Flow (after)
 ```
 Ring interval blob (QRing) ──LargeDataHandler(22s)──► BlePlugin syncInterval*Detail ──insert*At──► Room ──safeRefreshDailySummary──► daily_vital_summary
-Phone poll (MeasurementLoopManager 60s/90s) ──manualMode*──► same path (source=auto_cycle)
+Phone poll (MeasurementLoopManager adaptive FAST 180s / SLOW 900s) ──manualMode*──► same path (source=auto_cycle)
 Manual tap (readHeartRate/manualMode) ──insert*──► same path (source=manual) ──getTodaySummary──► Provider latest+avg ──watch rebuild──► Home/Detail hero=latest (isStale pill if latest==0)
 SupabaseSyncManager 6h ──unsyncedBatch──► user_*_readings + recompute daily user_hr/spo2/hrv avg
 ```
@@ -57,7 +57,7 @@ SupabaseSyncManager 6h ──unsyncedBatch──► user_*_readings + recompute 
 | # | Item | Location | Status | Verified |
 |---|------|----------|--------|----------|
 | 1 | HR `latestHr` + `isLatestHrStale` + `updateHrLatest` | `lib/providers/ble_provider.dart:44,188,273,1081` | ✅ Completed | `flutter analyze` No issues |
-| 2 | SpO₂ `latestSpo2` | `ble_provider:53,188,1147` | ✅ Completed | 80 tests |
+| 2 | SpO₂ `latestSpo2` | `ble_provider:53,188,1147` | ✅ Completed | 123 tests (was 80 at completion) |
 | 3 | HRV `latestHrv` + `todayMin/MaxHrv` | `ble_provider:68,188,1379` | ✅ Completed |  |
 | 4 | `Health Connect` HRV push | `ble_provider:545,579` `tryWriteHrv` | ✅ Completed |  |
 | 5 | `insertHeartRateAt/Spo2At/HrvAt/TemperatureAt` | `ReadingRepository.kt:67-151` | ✅ Completed |  |
@@ -76,6 +76,6 @@ SupabaseSyncManager 6h ──unsyncedBatch──► user_*_readings + recompute 
 
 ## Acceptance
 - `flutter analyze --no-pub` → No issues (`39.7s`)
-- `flutter test` → 80 passed
+- `flutter test` → 123 passed (was 80 at completion 2026-08-26)
 - `gradle :app:compileDebugKotlin` → BUILD SUCCESSFUL
 - Hero shows `latest` (e.g., `65`) while `AVG` pill stays `87` → not frozen; interval backlog after 2h disconnected → `12` backfilled points hourly chart populates.

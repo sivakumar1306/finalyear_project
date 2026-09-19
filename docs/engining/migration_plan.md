@@ -14,7 +14,7 @@
 * Replace `State` method with engine call, keep `setState` + `IncidentService` catch in widget.
 * Delete old method + import engine.
 * Update callers that constructed `GoalTargets(10000...)` fallback to `DateKeys`/`GoalPrefs.defaults`.
-* `dart analyze`, `flutter test` (add engine tests, keep 96 existing).
+* `dart analyze`, `flutter test` (add engine tests, suite now 123).
 
 ## Rollback
 

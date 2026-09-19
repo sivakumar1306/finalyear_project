@@ -56,9 +56,9 @@ Reachable from the UI; users see an empty placeholder screen plus a JSON dump in
 
 `lib/services/womens_health_prediction_service.dart` — cycle/temperature thresholds on the 0–100 normalized scale (e.g., `temp > 55.0`). Confirm against clinical baselines or mark as simulation.
 
-## 2.8 Test suite — single placeholder — [HIGH]
+## 2.8 Test suite — was single placeholder at eval time (2026-08-06); 123 tests as of 2026-09-19 — ✅ superseded
 
-`test/widget_test.dart` — 7 lines: "Placeholder — full app requires BLE hardware". Only test in the repo. `flutter test` passes but verifies nothing. (See 07.)
+~~`test/widget_test.dart` — 7 lines: "Placeholder — full app requires BLE hardware". Only test in the repo. `flutter test` passes but verifies nothing. (See 07.)~~ Stale: `test/` holds 15 files / 123 tests (see 07.1).
 
 ## 2.9 `user_emergency_contacts` has no migration — [HIGH]
 
@@ -93,11 +93,11 @@ Reachable from the UI; users see an empty placeholder screen plus a JSON dump in
 | 2.5 Prayer -> workouts table | FIXED (in 01 pass) | supabase/migrations/20260806000000_missing_tables.sql creates the workouts table; prayer history ordering fixed. |
 | 2.6 Fall-prediction AI label | ALREADY HONEST | Explainable dashboard already renders 'Risk Reasoning'; the deterministic engine is disclosed. Settings -> 'AI Analysis' is the AI voice assistant (a real assistant product feature), not a medical claim - left as-is. |
 | 2.7 Womens-health thresholds | DISCLOSED | Added footnote on the AWHE card: 'Estimates from ring vitals plus cycle rules - informational only, not a medical diagnosis.' |
-| 2.8 Test suite | IMPLEMENTED | test/widget_test.dart replacement with real widget tests (StatusBadge connected/disconnected, DataCard label/value/unit/icon, StatCard label/value/unit + know-more callback). Full suite: 88 tests pass. |
+| 2.8 Test suite | IMPLEMENTED | Widget + engine tests (StatusBadge/DataCard/StatCard, fall prediction, adaptive weights, BP staging, layer-3 motion sources). Full suite: 123 tests pass (was 88 on 2026-08-07). |
 | 2.9 user_emergency_contacts migration | FIXED (in 01) | Table created in supabase/migrations/20260806000000_missing_tables.sql. |
 | 2.10 Health-connect | ON DEVICE VERIFY | No code change; confirm Android 14+ permission UX on a device. |
 
-## Verification (2026-08-07)
+## Verification (2026-08-07; suite count refreshed 2026-09-19)
 - flutter analyze --no-pub  ->  "No issues found!"
-- flutter test --no-pub  ->  88 tests pass
+- flutter test --no-pub  ->  123 tests pass (was 88 on 2026-08-07)
 - gradlew :app:compileDebugKotlin  ->  BUILD SUCCESSFUL

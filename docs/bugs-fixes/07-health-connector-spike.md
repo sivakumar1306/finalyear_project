@@ -1,14 +1,14 @@
 # 07 — Health Connector Spike (health 13.3.2 → health_connector 3.10.0)
 
-> Spike added 2026-09-02: `health_connector: ^3.10.0` (+ `health_connector_core 3.9.3`) via `flutter pub get`. **Not yet switched** — `health: ^13.3.2` still serves data until port is verified.
+> Spike evaluated 2026-09-02, **reverted / never merged**: `pubspec.yaml` still has `health: ^13.3.2` only (zero `health_connector` hits in `pubspec.yaml`/`pubspec.lock`; `health_connect_service.dart` still `import 'package:health/health.dart'` + `Health()`), and `android/app/build.gradle.kts` has no `compileSdkExtension`. The analysis below is kept for reference.
 
 ## Why spike?
 * `health 13.3.2` is latest stable (2 weeks old) but still `android/build.gradle:25 kotlin-android` → `flutter build` fails if `android.builtInKotlin=true` (AGP 9). `health_connector 3.10.0` changelog: `Support built-in Kotlin` + `health_connector_hc_android` built-in, `compileSdkExtension 19` for Health Connect 1.2.0-alpha03.
 * Keeping `health` blocks `builtInKotlin=true` for entire app. Spike evaluates port cost vs waiting.
 
-## What was done
-* `pubspec.yaml:26` added `health_connector: ^3.10.0` (kept `health: ^13.3.2` for fallback) — `flutter pub get` → 5 new deps, build still `√ Built 66.8MB` with health.
-* `android/app/build.gradle.kts:3` added `compileSdkExtension = 19` (required for health_connector 3.9.0 / Health Connect 1.2.0-alpha03) — already compatible with Kotlin 2.4.10 (health_connector requires Kotlin 2.1, we have 2.4.10).
+## What was evaluated (reverted — see header)
+* ~~`pubspec.yaml:26` added `health_connector: ^3.10.0` (kept `health: ^13.3.2` for fallback) — `flutter pub get` → 5 new deps, build still `√ Built 66.8MB` with health.~~ Never merged; no trace in `pubspec.*`.
+* ~~`android/app/build.gradle.kts:3` added `compileSdkExtension = 19` (required for health_connector 3.9.0 / Health Connect 1.2.0-alpha03)~~ — not present in the file.
 * **Bulk permission + sleep sync already fixed via `health`** (`health_connect_service.dart:417`, `health_connect_screen.dart:62`):
   - `_connect()` now `requestAuthorization(HealthSyncType.values.toSet())` — one sheet for all 8 types.
   - `_toggle()` now `requestAuthorization({type})` granular, reverts if denied.

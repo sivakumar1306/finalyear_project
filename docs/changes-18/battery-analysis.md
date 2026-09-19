@@ -106,7 +106,8 @@ NORMALCY_CONFIRM_CYCLES = 2       // Consecutive normal cycles before slowing
 
 **Approach:**
 - When connected and stable (`connected && wasConnected`), poll interval increases from 8s → 30s
-- Only polls at 8s during initial connect or reconnection attempts
+- Freshly connected: 8s; circuit breaker open (`SdkGuard.isOpen()`): 30s
+- While disconnected: exponential backoff 8s → 15s → 30s → 60s → 120s
 - Reduces CPU wake-ups by ~75% when idle
 
 **Files modified:**
@@ -132,7 +133,7 @@ NORMALCY_CONFIRM_CYCLES = 2       // Consecutive normal cycles before slowing
 
 ## Verification
 
-- `flutter analyze` passes clean (No issues found)
+- `flutter analyze` passes (later runs surfaced 17 pre-existing warnings in unrelated files — zero errors in changed files)
 - All changes are backward-compatible
 - No API changes or breaking changes
 

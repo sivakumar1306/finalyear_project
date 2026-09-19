@@ -53,7 +53,9 @@ Database name (conceptually): `qring_local.db`.
 - `user_sleep`  
 - `user_cycles`, `user_symptoms`  
 - `user_emergency_contacts`  
-- Fall-related tables as deployed (`fall_risk_log`, `fall_event` — local and/or cloud)
+- Fall tables — split topology (see fall spec §4):
+  - `fall_risk_log`, `fall_event` — **local Room only**, purged after 90 days (`RETENTION_RAW_DAYS`). Never synced to cloud. Read by Flutter via `getFallRiskScore` / `getFallEvents` / `getMotionSnapshot`.
+  - `falls` — **Supabase only** (365-day trailing history source). Nothing on the native side writes it today; the Flutter Layer-3 model merges native `fall_event` (primary) with `falls` (secondary) at score time.
 
 ### Platform
 

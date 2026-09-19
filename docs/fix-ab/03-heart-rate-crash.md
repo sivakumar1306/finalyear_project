@@ -10,7 +10,7 @@
 ## Ranked Causes
 
 * **H1 BUSY→TIMEOUT:** `MeasurementLoopManager:52 OWNER="loop"` + `POST_STOP_SETTLE 2s:51` + `PREEMPT 200ms:57` vs `BlePlugin:828 MANUAL_ACQUIRE_TIMEOUT` (was 4000, now 8000). Loop holds lock for median agreement `measureHeartRate:229` (2 consecutive `abs≤12`, lower-median). Manual tap sets `manualRequestPending`, `watchForPreempt:217` yields but release delayed 2s → deadline expires → `BUSY:837` → retry → 8 fails → `SdkGuard.open 45s`.
-* **H2 Double-reply:** `BlePlugin:994 postDelayed 60s TIMEOUT` not cancelled on `onDeviceDisconnected:673` → `result.success(null):980` then `result.error(TIMEOUT)` → `IllegalStateException: Reply already submitted` → process death, `CrashStore:77`. Fixed via stored `timeoutRunnable` + `removeCallbacks` on success paths.
+* **H2 Double-reply:** `BlePlugin:1156 postDelayed 30s TIMEOUT` not cancelled on disconnect → `result.success(null)` then `result.error(TIMEOUT)` → `IllegalStateException: Reply already submitted` → process death, `CrashStore`. Fixed via stored `timeoutRunnable` + `removeCallbacks` on success paths.
 * **H3 Ignored errCode:** ring error frames counted as "no data" until timeout. Now fail-fast `HR_ERR_<code>` with "keep ring snug" message.
 * **H4 No list fallback:** streaming miss = total failure. Now `syncManualHeartRate` large-data fallback (QRing parity) before surfacing failure.
 
@@ -24,4 +24,4 @@
 ## Verification
 
 * `logcat -s MeasurementLoop:D BlePlugin:D | grep -E "BUSY|TIMEOUT|Reply already|candidate=|errCode"`, `sqlite3 ... "select vital,status from measurement_attempt ..."`, `app_incidents source='heart_rate_screen'`.
-* `flutter test` 113 passed after change.
+* `flutter test` 123 passed after change (was 113 at the time).

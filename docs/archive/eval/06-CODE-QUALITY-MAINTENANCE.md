@@ -60,6 +60,6 @@ Design tokens drift uncaught (03.1) — golden tests would catch per-screen toke
 
 Dart `local_vitals_service.dart` (sqflite) vs native Room (`qring_local.db`). Two local stores for the same vitals — must confirm authority per metric to avoid divergence.
 
-## 6.14 Test file is a placeholder — [HIGH] (see 07.1)
+## 6.14 Test file was a placeholder at eval time (see 07.1) — ✅ superseded
 
-`test/widget_test.dart` — "Placeholder — full app requires BLE hardware". The only test in the repo.
+~~`test/widget_test.dart` — "Placeholder — full app requires BLE hardware". The only test in the repo.~~ Stale (2026-08-06): suite is 123 tests / 15 files as of 2026-09-19.

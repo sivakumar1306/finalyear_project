@@ -16,8 +16,9 @@ Implemented adaptive measurement system and performance fixes to significantly r
 
 ### 2. BleConnectionService Poll Interval (BleConnectionService.kt)
 
-- **When connected and stable**: Poll interval increases from 8s → 30s
-- **Only polls at 8s**: During initial connect or reconnection attempts
+- **When connected and stable** (`connected && wasConnected`): poll interval increases from 8s → 30s
+- **Freshly connected**: 8s; **circuit breaker open**: 30s
+- **While disconnected**: exponential backoff 8s → 15s → 30s → 60s → 120s (`BACKOFF_STEPS_MS`) so an out-of-range ring doesn't cost ~10k GATT attempts/night
 - Reduces CPU wake-ups by ~75% when idle
 
 ### 3. WorkoutProvider Leak Fix (workout_provider.dart)
@@ -49,7 +50,7 @@ Implemented adaptive measurement system and performance fixes to significantly r
 
 ## Testing
 
-- `flutter analyze` passes clean
+- `flutter analyze` passes (later runs surfaced 17 pre-existing warnings in unrelated files — zero errors in changed files)
 - All changes backward-compatible
 - No breaking API changes
 

@@ -23,7 +23,7 @@ Both flavors coexist per requirement. Example:
 
 ```dart
 // Pure — test
-final score = SleepEngine.calcScorePure(total: 25200, deep: 5040, rem: 3780, st: 1000, et: 29800);
+final score = SleepEngine.calcScore(25200, 5040, 3780, 1000, 29800);
 // Service — UI
 final score = HealthEngine.instance.calcSleepScore(total: total, deep: deep, rem: rem, st: st, et: et);
 ```

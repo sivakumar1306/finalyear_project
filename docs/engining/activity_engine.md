@@ -3,7 +3,7 @@
 ## ActivityEngine `lib/services/health_engine/activity_engine.dart`
 
 * Pure: `parseIntervalJson(String json) -> DaySnapshot` handling obfuscated `d/f/e/g` vs `timeIndex/walkSteps/calorie/distance`, `totalCalRaw>=1000?~/1000:>0?1:0` (`steps_screen:231-288`), `normalizeCalories(raw,steps)` `raw>=500&&steps<4000?~/1000` (`supabase 344`), `distributeSteps(curSteps, nowSlot)` `activeSlotsCount=(nowSlot-28).clamp(1,96)` `stepsPerSlot=curSteps/activeSlotsCount` (`steps_screen:169`), `toHourlyInt/Dbl(slots)` `sublist(h*4).fold` (`803-811`).
-* Service: `calcScoreWithGoals` already in `HealthEngine` but pure core moves here; service wrapper `HealthEngine.calcActivityScoreWithGoals` will delegate.
+* Service: scoring lives in `HealthEngine.calcActivityScoreWithGoals`; `ActivityEngine` holds only the pure parse/normalize core (`parseIntervalJson`, `normalizeCalories`, `distributeSteps`). Earlier drafts described a `calcScoreWithGoals` move into this file — that never happened; direction is UI → `HealthEngine`, which owns scoring.
 
 ## TemperatureEngine `temperature_engine.dart`
 
