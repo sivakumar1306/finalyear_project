@@ -975,8 +975,9 @@ class _HrvScreenState extends State<HrvScreen> {
     );
   }
 
-  void _openMeasurementLog() {
-    final entries = _buildLogEntries();
+  Future<void> _openMeasurementLog() async {
+    final entries = await _buildLogEntries();
+    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -990,28 +991,61 @@ class _HrvScreenState extends State<HrvScreen> {
     );
   }
 
-  List<MeasurementEntry> _buildLogEntries() {
+  Future<List<MeasurementEntry>> _buildLogEntries() async {
     final entries = <MeasurementEntry>[];
-    for (int i = 0; i < _chartValues.length; i++) {
-      if (_chartValues[i] <= 0) continue;
-      final minutes = i * 30;
-      final dt = DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day,
-        minutes ~/ 60,
-        minutes % 60,
+    try {
+      final dayStart = DateKeys.dayStartMs(_selectedDate);
+      final dayEnd = DateKeys.dayEndMs(_selectedDate);
+      final readingsJson = await _ble.getReadings(
+        'hrv',
+        fromMs: dayStart,
+        toMs: dayEnd,
+        limit: 1000,
       );
-      final v = _chartValues[i];
-      final assessment = HealthEngine.instance.assessHrv(v);
-      entries.add(MeasurementEntry(
-        time: dt,
-        value: '$v',
-        unit: 'ms',
-        label: assessment.label,
-        color: assessment.color,
-        icon: Icons.monitor_heart_rounded,
-      ));
+      final decoded = jsonDecode(readingsJson);
+      if (decoded is List && decoded.isNotEmpty) {
+        for (final item in decoded.reversed) {
+          if (item is! Map) continue;
+          final m = Map<String, dynamic>.from(item);
+          final v = (m['valueMs'] as num?)?.toInt() ?? 0;
+          final ms = (m['measuredAt'] as num?)?.toInt() ?? 0;
+          if (v <= 0 || ms <= 0) continue;
+          final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+          final assessment = HealthEngine.instance.assessHrv(v);
+          entries.add(MeasurementEntry(
+            time: dt,
+            value: '$v',
+            unit: 'ms',
+            label: assessment.label,
+            color: assessment.color,
+            icon: Icons.monitor_heart_rounded,
+          ));
+        }
+      }
+    } catch (_) {}
+
+    if (entries.isEmpty) {
+      for (int i = 0; i < _chartValues.length; i++) {
+        if (_chartValues[i] <= 0) continue;
+        final minutes = i * 30;
+        final dt = DateTime(
+          _selectedDate.year,
+          _selectedDate.month,
+          _selectedDate.day,
+          minutes ~/ 60,
+          minutes % 60,
+        );
+        final v = _chartValues[i];
+        final assessment = HealthEngine.instance.assessHrv(v);
+        entries.add(MeasurementEntry(
+          time: dt,
+          value: '$v',
+          unit: 'ms',
+          label: assessment.label,
+          color: assessment.color,
+          icon: Icons.monitor_heart_rounded,
+        ));
+      }
     }
     return entries;
   }

@@ -688,22 +688,58 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
     );
   }
 
-  void _openMeasurementLog() {
+  Future<void> _openMeasurementLog() async {
     final entries = <MeasurementEntry>[];
-    final len = _chartSbp.length < _chartDbp.length ? _chartSbp.length : _chartDbp.length;
-    for (int i = 0; i < len; i++) {
-      if (_chartSbp[i] <= 0 && _chartDbp[i] <= 0) continue;
-      final minutes = i * 30;
-      final dt = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, minutes ~/ 60, minutes % 60);
-      final sbp = _chartSbp[i];
-      final dbp = _chartDbp[i];
-      final assessment = HealthEngine.instance.assessBloodPressure(sbp, dbp);
-      entries.add(MeasurementEntry(
-        time: dt, value: '$sbp/$dbp', unit: 'mmHg',
-        label: assessment.label, color: assessment.color,
-        icon: Icons.speed_rounded,
-      ));
+    try {
+      final dayStart = DateKeys.dayStartMs(_selectedDate);
+      final dayEnd = DateKeys.dayEndMs(_selectedDate);
+      final readingsJson = await _ble.getReadings(
+        'blood_pressure',
+        fromMs: dayStart,
+        toMs: dayEnd,
+        limit: 1000,
+      );
+      final decoded = jsonDecode(readingsJson);
+      if (decoded is List && decoded.isNotEmpty) {
+        for (final item in decoded.reversed) {
+          if (item is! Map) continue;
+          final m = Map<String, dynamic>.from(item);
+          final sbp = (m['systolic'] as num? ?? m['valueSbp'] as num? ?? 0).toInt();
+          final dbp = (m['diastolic'] as num? ?? m['valueDbp'] as num? ?? 0).toInt();
+          final ms = (m['measuredAt'] as num?)?.toInt() ?? 0;
+          if (sbp <= 0 || dbp <= 0 || ms <= 0) continue;
+          final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+          final assessment = HealthEngine.instance.assessBloodPressure(sbp, dbp);
+          entries.add(MeasurementEntry(
+            time: dt,
+            value: '$sbp/$dbp',
+            unit: 'mmHg',
+            label: assessment.label,
+            color: assessment.color,
+            icon: Icons.speed_rounded,
+          ));
+        }
+      }
+    } catch (_) {}
+
+    if (entries.isEmpty) {
+      final len = _chartSbp.length < _chartDbp.length ? _chartSbp.length : _chartDbp.length;
+      for (int i = 0; i < len; i++) {
+        if (_chartSbp[i] <= 0 && _chartDbp[i] <= 0) continue;
+        final minutes = i * 30;
+        final dt = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, minutes ~/ 60, minutes % 60);
+        final sbp = _chartSbp[i];
+        final dbp = _chartDbp[i];
+        final assessment = HealthEngine.instance.assessBloodPressure(sbp, dbp);
+        entries.add(MeasurementEntry(
+          time: dt, value: '$sbp/$dbp', unit: 'mmHg',
+          label: assessment.label, color: assessment.color,
+          icon: Icons.speed_rounded,
+        ));
+      }
     }
+
+    if (!mounted) return;
     Navigator.push(context, MaterialPageRoute(
       builder: (_) => MeasurementLogScreen(
         title: 'Blood Pressure Readings', date: _selectedDate,
