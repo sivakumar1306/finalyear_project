@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/formatters.dart';
 
 enum UnitSystem { metric, us }
 
@@ -47,9 +48,9 @@ class UnitPrefs {
 
   static String formatWeightKg(double kg, UnitSystem system) {
     if (system == UnitSystem.us) {
-      return '${kgToLbs(kg).toStringAsFixed(1)} lbs';
+      return '${kgToLbs(kg).fixed2()} lbs';
     }
-    return '${kg.toStringAsFixed(1)} kg';
+    return '${kg.fixed2()} kg';
   }
 
   static String formatHeightCm(num cm, UnitSystem system) {
@@ -62,8 +63,8 @@ class UnitPrefs {
 
   static String formatTempC(double c, TempUnit unit) {
     if (unit == TempUnit.fahrenheit) {
-      return '${celsiusToFahrenheit(c).toStringAsFixed(1)}°F';
+      return '${celsiusToFahrenheit(c).fixed2()}°F';
     }
-    return '${c.toStringAsFixed(1)}°C';
+    return '${c.fixed2()}°C';
   }
 }

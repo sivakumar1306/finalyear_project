@@ -5,48 +5,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/ring_names.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/glass_pill.dart';
-
-// ── Alphahuman ring detection ─────────────────────────────────────────────────
-// Widened from a narrow allowlist of just 'R08_'/'R02_' (which only matched the
-// two specific ring models this app had been tested with) to the full set of
-// device name prefixes actually used across this manufacturer's ring/band
-// lineup (confirmed against the QRing SDK's own BleScannerHelper prefix list),
-// so any genuine ring shows up here — not just the ones we happened to test
-// with — while still filtering out unrelated nearby Bluetooth devices
-// (headphones, phones, etc.) that a fully unfiltered scan would otherwise show.
-const _kAlphahumanPrefixes = [
-  'R',
-  'Q_',
-  'q_',
-  'O_',
-  'o_',
-  'QC',
-  'qc',
-  'R3L',
-  'Wa',
-  'T80',
-  'T90',
-  'T91',
-  'T93',
-  'T95',
-  'TW68',
-  'S9',
-  'C60',
-  'C66',
-  'C67',
-  'C68',
-  'C80',
-  'C86',
-  'C88',
-  'C96',
-  'wxb_w4',
-];
-
-bool _isAlphahumanRing(String name) => _kAlphahumanPrefixes.any(
-  (p) => name.toUpperCase().startsWith(p.toUpperCase()),
-);
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
@@ -169,7 +130,7 @@ class _RingScanSheetState extends State<_RingScanSheet>
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
     final rings = ble.scannedDevices
-        .where((d) => _isAlphahumanRing(d.name))
+        .where((d) => isRingDeviceName(d.name))
         .toList();
     final screenH = MediaQuery.of(context).size.height;
 
@@ -237,7 +198,9 @@ class _RingScanSheetState extends State<_RingScanSheet>
                           pulseAnim: _pulseAnim,
                           isScanning: ble.isScanning,
                           onRetry: _startScan,
-                          lastDeviceName: ble.deviceName,
+                          lastDeviceName: isRingDeviceName(ble.deviceName)
+                              ? ble.deviceName
+                              : '',
                           connectingLast: _connectingLast,
                           onConnectLast: _connectLast,
                         ),
@@ -505,6 +468,8 @@ class _RingTile extends StatelessWidget {
               children: [
                 Text(
                   device.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -515,16 +480,28 @@ class _RingTile extends StatelessWidget {
                 Row(
                   children: [
                     Icon(
-                      Icons.signal_cellular_alt,
+                      device.live
+                          ? Icons.signal_cellular_alt
+                          : Icons.history_rounded,
                       size: 11,
-                      color: _rssiColor(device.rssi),
+                      color: device.live
+                          ? _rssiColor(device.rssi)
+                          : Colors.white38,
                     ),
                     const SizedBox(width: 3),
-                    Text(
-                      '${device.rssi} dBm',
-                      style: AppTypography.inter(
-                        fontSize: 11,
-                        color: _rssiColor(device.rssi),
+                    Flexible(
+                      child: Text(
+                        device.live
+                            ? '${device.rssi} dBm'
+                            : 'Previously paired',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.inter(
+                          fontSize: 11,
+                          color: device.live
+                              ? _rssiColor(device.rssi)
+                              : Colors.white38,
+                        ),
                       ),
                     ),
                   ],

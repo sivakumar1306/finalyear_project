@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
+import '../../utils/ring_names.dart';
 import '../../services/incident_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
@@ -120,7 +121,7 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
-    final hasDevice = ble.deviceName.isNotEmpty;
+    final trustedName = isRingDeviceName(ble.deviceName) ? ble.deviceName : '';
     final batteryPct = ble.battery >= 0 ? ble.battery : 0;
 
     return Scaffold(
@@ -411,15 +412,17 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                   children: [
                     _DetailRow(
                       label: 'Device Name',
-                      value: hasDevice ? ble.deviceName : 'Not Paired',
+                      value: trustedName.isNotEmpty
+                          ? trustedName
+                          : (ble.isConnected ? 'Ring' : 'Not Paired'),
                       isFirst: true,
                     ),
                     _DetailRow(
                       label: 'MAC Address',
-                      value: ble.deviceAddress.isNotEmpty
+                      value: trustedName.isNotEmpty && ble.deviceAddress.isNotEmpty
                           ? ble.deviceAddress
                           : '—',
-                      onCopy: ble.deviceAddress.isNotEmpty
+                      onCopy: trustedName.isNotEmpty && ble.deviceAddress.isNotEmpty
                           ? () {
                               Clipboard.setData(
                                 ClipboardData(text: ble.deviceAddress),

@@ -22,6 +22,7 @@ import '../../widgets/glass_pill.dart';
 import 'womens_health_notifications_screen.dart';
 import '../../services/local_notification_service.dart';
 import 'log_period_screen.dart';
+import '../../utils/formatters.dart';
 
 // ── Design tokens (glass card system per DESIGN.md) ────────────────────────
 
@@ -1042,14 +1043,26 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
           const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(status, style: _inter(16, weight: FontWeight.w600)),
-              Text(
-                hasData
-                    ? '${deltaC >= 0 ? '+' : ''}${deltaC.toStringAsFixed(1)}°C / ${deltaF >= 0 ? '+' : ''}${deltaF.toStringAsFixed(1)}°F v/s Baseline'
-                    : '--',
-                style: _inter(12, color: AppTheme.textSec),
+              Flexible(
+                child: Text(
+                  status,
+                  style: _inter(16, weight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  hasData
+                      ? '${deltaC >= 0 ? '+' : ''}${deltaC.fixed2()}°C / ${deltaF >= 0 ? '+' : ''}${deltaF.fixed2()}°F'
+                      : '--',
+                  style: _inter(12, color: AppTheme.textSec),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                ),
               ),
             ],
           ),
@@ -1074,13 +1087,19 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 ),
                 const SizedBox(height: 4),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('-1.0°C', style: _inter(10, color: AppTheme.textSec)),
-                    Text(
-                      'Baseline (${baseline.toStringAsFixed(1)}°C / ${((baseline * 9 / 5) + 32).toStringAsFixed(1)}°F)',
-                      style: _inter(10, color: AppTheme.textSec),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Baseline (${baseline.fixed2()}°C / ${((baseline * 9 / 5) + 32).fixed2()}°F)',
+                        style: _inter(10, color: AppTheme.textSec),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
                     ),
+                    const SizedBox(width: 6),
                     Text('+1.0°C', style: _inter(10, color: AppTheme.textSec)),
                   ],
                 ),

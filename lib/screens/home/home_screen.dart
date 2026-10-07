@@ -20,6 +20,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/footer_spacer.dart';
 import '../../widgets/glass_card.dart';
 import '../../utils/formatters.dart';
+import '../../utils/ring_names.dart';
 import '../../widgets/glass_icon_button.dart';
 import '../../widgets/glass_pill.dart';
 import '../settings/about_screen.dart';
@@ -514,7 +515,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         final distLabel = dist <= 0
             ? HealthEngine.instance.activityLabel(score)
             : dist >= 1000
-            ? '${(dist / 1000).toStringAsFixed(1)} km'
+            ? '${(dist / 1000).fixed2()} km'
             : '${dist.round()} m';
         return MiniCard(
           label: 'Activity',
@@ -600,7 +601,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return MiniCard(
           label: 'Temp',
           value: ble.latestTempC > 0
-              ? '${ble.latestTempC.toStringAsFixed(1)}°'
+              ? '${ble.latestTempC.fixed2()}°'
               : '--',
           color: AppTheme.tempColor,
           icon: Icons.device_thermostat,
@@ -1144,10 +1145,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ),
               const SizedBox(width: 12),
-              if (ble.deviceAddress.isEmpty)
-                _buildPairRingPill(context)
+              if (ble.isConnected ||
+                  (ble.deviceAddress.isNotEmpty &&
+                      isRingDeviceName(ble.deviceName)))
+                DevicePill(ble: ble)
               else
-                DevicePill(ble: ble),
+                _buildPairRingPill(context),
             ],
           ),
         ],

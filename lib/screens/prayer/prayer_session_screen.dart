@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import 'prayer_history_screen.dart';
 import 'prayer_summary_screen.dart';
 import '../../widgets/app_typography.dart';
+import '../../utils/formatters.dart';
 
 /// Live Prayer Session Tracker Screen featuring a magnificent Gold Orbiting Flow-State Orb,
 /// centered digital timer & serenity status badge, and a bottom floating button that opens
@@ -594,7 +595,7 @@ class _VitalsDrawerSheet extends StatelessWidget {
                       ),
                       _VitalCard(
                         title: '6. Skin Temp',
-                        value: ble.latestTempC > 0 ? '${ble.latestTempC.toStringAsFixed(1)} °C' : '--',
+                        value: ble.latestTempC > 0 ? '${ble.latestTempC.fixed2()} °C' : '--',
                         icon: Icons.thermostat_rounded,
                         color: Colors.deepOrangeAccent,
                       ),

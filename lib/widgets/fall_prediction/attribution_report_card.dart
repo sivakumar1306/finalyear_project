@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/fall_prediction/engine_outputs.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/formatters.dart';
 
 class AttributionReportCard extends StatelessWidget {
   final ExplainabilityPayload payload;
@@ -92,7 +93,7 @@ class AttributionReportCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          frs24Value.toStringAsFixed(1),
+                          frs24Value.fixed2(),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 56,

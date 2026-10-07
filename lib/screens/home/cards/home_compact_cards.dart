@@ -7,6 +7,7 @@ import '../../../services/unit_prefs.dart';
 import '../../../services/health_engine/cycle_engine.dart';
 import '../../../services/health_engine/health_engine.dart';
 import '../../../theme/app_theme.dart';
+import '../../../utils/formatters.dart';
 import '../../../widgets/app_typography.dart';
 import 'home_card_shared.dart';
 import 'home_insight_cards.dart';
@@ -412,13 +413,19 @@ class TemperatureCardState extends State<TemperatureCard> {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(
-                hasData ? _dispTemp.toStringAsFixed(1) : '--',
-                style: AppTypography.inter(
-                  fontSize: 34,
-                  fontWeight: FontWeight.w200,
-                  color: Colors.white.withValues(alpha: 0.98),
-                  letterSpacing: -0.005,
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    hasData ? _dispTemp.fixed2() : '--',
+                    style: AppTypography.inter(
+                      fontSize: 34,
+                      fontWeight: FontWeight.w200,
+                      color: Colors.white.withValues(alpha: 0.98),
+                      letterSpacing: -0.005,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 3),

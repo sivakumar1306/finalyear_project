@@ -13,6 +13,7 @@ import 'find_device_screen.dart';
 import 'health_connect_screen.dart';
 import 'ring_camera_screen.dart';
 import '../main_shell.dart';
+import '../../utils/ring_names.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/glass_back_button.dart';
 
@@ -186,7 +187,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
     final connected = ble.isConnected;
-    final hasDevice = ble.deviceName.isNotEmpty;
+    final trustedName = isRingDeviceName(ble.deviceName) ? ble.deviceName : '';
+    final hasDevice = connected || trustedName.isNotEmpty;
     // "Andrea's Ring" instead of the raw device name up top — the raw name (e.g.
     // R02_B406) still shows underneath, just demoted to secondary/muted text.
     final ringTitle = !hasDevice
@@ -251,6 +253,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             fontSize: 12,
                           ),
                         ),
+                        if (trustedName.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            trustedName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.inter(
+                              color: AppTheme.textSec,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                         if (firmware.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           Text(

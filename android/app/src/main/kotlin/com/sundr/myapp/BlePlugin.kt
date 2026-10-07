@@ -168,6 +168,19 @@ class BlePlugin(private val context: Context) {
     private var _isConnected = false
     private var pendingConnectResult: MethodChannel.Result? = null
     private var deviceAddress: String? = null
+    // Address the user just asked to connect. Kept separate from [deviceAddress]
+    // so a tap on some other bonded device cannot relabel the live ring.
+    private var requestedAddress: String? = null
+    private var linkAddress: String? = null
+    private var linkMismatch = false
+    // While a user-initiated connect is in flight, BleConnectionService must not
+    // race in and open the previously saved address (often a stale headset).
+    @Volatile var manualConnectInProgress: Boolean = false
+        private set
+    private var suppressDisconnectResultUntil = 0L
+    // Unbinds we initiated ourselves. Their disconnect callbacks must not be
+    // reported as the user-selected device dropping offline.
+    private var quietDisconnects = 0
     private var pendingBondFallback: Runnable? = null
     private var pendingBindConfirmation: Runnable? = null
     private val bindConfirmed = AtomicBoolean(false)
@@ -190,9 +203,40 @@ class BlePlugin(private val context: Context) {
     private var cameraModeActive = false
 
     private val connectTimeoutRunnable = Runnable {
+        manualConnectInProgress = false
         val r = pendingConnectResult
         pendingConnectResult = null
         r?.let { mainHandler.post { it.error("TIMEOUT", "Connection timed out", null) } }
+    }
+
+    fun isManualConnectActive(): Boolean = manualConnectInProgress
+
+    /** Address we are pairing. Bond events for any other device are ignored. */
+    fun pairingAddress(): String? = requestedAddress ?: linkAddress ?: deviceAddress
+
+    private fun deliverConnectResult(ok: Boolean, address: String) {
+        val r = pendingConnectResult ?: return
+        pendingConnectResult = null
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
+        manualConnectInProgress = false
+        mainHandler.post {
+            r.success(mapOf("ok" to ok, "address" to address))
+        }
+    }
+
+    private fun publishScan(
+        name: String,
+        address: String,
+        rssi: Int,
+        live: Boolean,
+        filterName: String,
+    ) {
+        if (address.isEmpty() || !RingDeviceFilter.isRingName(name)) return
+        if (filterName.isNotEmpty() && !name.contains(filterName, ignoreCase = true)) return
+        sendEvent(
+            "scanResult",
+            mapOf("name" to name, "address" to address, "rssi" to rssi, "live" to live),
+        )
     }
 
     val eventStreamHandler = object : EventChannel.StreamHandler {
@@ -626,18 +670,16 @@ class BlePlugin(private val context: Context) {
         try {
             val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE)
                     as? android.bluetooth.BluetoothManager
+            // Only a bonded *ring* is listed. Dumping every bonded device showed
+            // a long-gone headset as if it were nearby and connectable.
             btManager?.adapter?.bondedDevices?.forEach { device ->
                 val name = try { device.name ?: "" } catch (_: SecurityException) { "" }
-                if (filterName.isEmpty() || name.contains(filterName, ignoreCase = true)) {
-                    sendEvent("scanResult", mapOf("name" to name, "address" to device.address, "rssi" to -80))
-                }
+                publishScan(name, device.address, -80, live = false, filterName)
             }
             btManager?.getConnectedDevices(android.bluetooth.BluetoothProfile.GATT)
                 ?.forEach { device ->
                     val name = try { device.name ?: "" } catch (_: SecurityException) { "" }
-                    if (filterName.isEmpty() || name.contains(filterName, ignoreCase = true)) {
-                        sendEvent("scanResult", mapOf("name" to name, "address" to device.address, "rssi" to -60))
-                    }
+                    publishScan(name, device.address, -50, live = true, filterName)
                 }
         } catch (_: Exception) {}
 
@@ -652,9 +694,7 @@ class BlePlugin(private val context: Context) {
                 override fun onLeScan(device: BluetoothDevice?, rssi: Int, scanRecord: ByteArray?) {
                     val address = device?.address ?: return
                     val name = try { device.name ?: "" } catch (e: SecurityException) { "" }
-                    if (filterName.isEmpty() || name.contains(filterName, ignoreCase = true)) {
-                        sendEvent("scanResult", mapOf("name" to name, "address" to address, "rssi" to rssi))
-                    }
+                    publishScan(name, address, rssi, live = true, filterName)
                 }
                 override fun onScanFailed(errorCode: Int) {
                     sendEvent("scanError", mapOf("errorCode" to errorCode))
@@ -679,27 +719,58 @@ class BlePlugin(private val context: Context) {
         val address = call.argument<String>("address") ?: run {
             result.error("INVALID_ARG", "address required", null); return
         }
-        deviceAddress = address
         try {
             BleScannerHelper.getInstance().stopScan(context)
         } catch (_: Exception) {
         }
 
-        if (com.sundr.myapp.sdk.BleSdkLifecycle.isConnected()) {
-            _isConnected = true
-            mainHandler.post { result.success(true) }
+        val current = linkAddress ?: deviceAddress
+        val alreadyThisDevice = _isConnected &&
+            com.sundr.myapp.sdk.BleSdkLifecycle.isConnected() &&
+            current != null &&
+            current.equals(address, ignoreCase = true)
+        if (alreadyThisDevice) {
+            mainHandler.post { result.success(mapOf("ok" to true, "address" to address)) }
             return
+        }
+
+        // Drop a different live link before opening the address the user picked.
+        // Returning success here used to leave the ring connected while the UI
+        // saved the tapped headset as the paired device.
+        manualConnectInProgress = true
+        requestedAddress = address
+        linkAddress = null
+        linkMismatch = false
+        deviceAddress = address
+        if (com.sundr.myapp.sdk.BleSdkLifecycle.isConnected() || _isConnected) {
+            suppressDisconnectResultUntil = System.currentTimeMillis() + 1_500L
+            quietDisconnects++
+            try {
+                com.sundr.myapp.sdk.BleSdkLifecycle.unBindDevice()
+            } catch (_: Exception) {
+            }
+            _isConnected = false
+            sendEvent("connectionState", mapOf("connected" to false, "address" to ""))
         }
 
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         pendingConnectResult = result
         mainHandler.postDelayed(connectTimeoutRunnable, CONNECT_TIMEOUT_MS)
-        com.sundr.myapp.sdk.BleSdkLifecycle.connectDirectly(address)
+        try {
+            com.sundr.myapp.sdk.BleSdkLifecycle.connectDirectly(address)
+        } catch (e: Exception) {
+            Log.e(TAG, "connectDirectly failed", e)
+            deliverConnectResult(false, address)
+        }
     }
 
     private fun disconnect(result: MethodChannel.Result) {
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         pendingConnectResult = null
+        manualConnectInProgress = false
+        suppressDisconnectResultUntil = 0L
+        requestedAddress = null
+        quietDisconnects++
         abortActiveManualHr("DISCONNECTED", "Ring disconnected during heart rate measurement")
         com.sundr.myapp.sdk.BleSdkLifecycle.unBindDevice()
         _isConnected = false
@@ -712,29 +783,64 @@ class BlePlugin(private val context: Context) {
     // ─────────────────────────────────────────────────────────────────
 
     fun onServiceDiscovered() {
-        mainHandler.removeCallbacks(connectTimeoutRunnable)
-        _isConnected = true
-        sendEvent("connectionState", mapOf("connected" to true))
-        MeasurementLoopManager.onRingConnected()
+        val expected = requestedAddress
+        val actual = linkAddress
+        if (linkMismatch || (expected != null && actual != null && !expected.equals(actual, ignoreCase = true))) {
+            Log.w(TAG, "Connected $actual but the user asked for $expected — not adopting it")
+            _isConnected = false
+            deviceAddress = null
+            requestedAddress = null
+            linkMismatch = false
+            deliverConnectResult(false, actual ?: "")
+            try {
+                com.sundr.myapp.sdk.BleSdkLifecycle.disconnect()
+            } catch (_: Exception) {
+            }
+            sendEvent("connectionState", mapOf("connected" to false, "address" to (actual ?: "")))
+            return
+        }
 
-        val result = pendingConnectResult
-        pendingConnectResult = null
-        result?.let { r -> mainHandler.post { r.success(true) } }
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
+        quietDisconnects = 0
+        _isConnected = true
+        val address = deviceAddress ?: actual ?: ""
+        sendEvent("connectionState", mapOf("connected" to true, "address" to address))
+        MeasurementLoopManager.onRingConnected()
+        deliverConnectResult(true, address)
 
         mainHandler.postDelayed({ readDeviceCapabilityAndPairIfNeeded() }, INIT_COMMAND_DELAY_MS)
     }
 
     fun onDeviceDisconnected() {
-        mainHandler.removeCallbacks(connectTimeoutRunnable)
-        pendingConnectResult = null
+        if (quietDisconnects > 0) {
+            quietDisconnects--
+            return
+        }
+        val switching = System.currentTimeMillis() < suppressDisconnectResultUntil &&
+            pendingConnectResult != null
+        if (!switching) {
+            mainHandler.removeCallbacks(connectTimeoutRunnable)
+            manualConnectInProgress = false
+            val r = pendingConnectResult
+            pendingConnectResult = null
+            if (r != null) {
+                mainHandler.post { r.success(mapOf("ok" to false, "address" to "")) }
+            }
+            MeasurementLoopManager.onRingDisconnected()
+        }
         abortActiveManualHr("DISCONNECTED", "Ring disconnected during heart rate measurement")
         _isConnected = false
-        sendEvent("connectionState", mapOf("connected" to false))
-        MeasurementLoopManager.onRingDisconnected()
+        linkAddress = null
+        sendEvent("connectionState", mapOf("connected" to false, "address" to ""))
     }
 
     fun onDeviceAddressKnown(address: String) {
-        deviceAddress = address
+        linkAddress = address
+        val expected = requestedAddress
+        linkMismatch = expected != null && !expected.equals(address, ignoreCase = true)
+        if (!linkMismatch) {
+            deviceAddress = address
+        }
     }
 
     fun onBondFailed() {

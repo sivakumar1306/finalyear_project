@@ -43,8 +43,20 @@ class BleService {
 
   // ── Connection ─────────────────────────────────────────────────────
   Future<bool> connect(String address) async {
-    final result = await _invoke<bool>('connect', {'address': address});
-    return result ?? false;
+    final result = await _invoke<dynamic>('connect', {'address': address});
+    if (result is bool) return result;
+    if (result is Map) {
+      final ok = result['ok'] == true;
+      final got = '${result['address'] ?? ''}'.trim();
+      if (!ok) return false;
+      // Success for a different device used to be reported as a connect to
+      // whatever the user tapped. Refuse that so the saved identity stays honest.
+      if (got.isNotEmpty && got.toUpperCase() != address.toUpperCase()) {
+        return false;
+      }
+      return true;
+    }
+    return false;
   }
 
   Future<void> disconnect() => _invoke('disconnect');

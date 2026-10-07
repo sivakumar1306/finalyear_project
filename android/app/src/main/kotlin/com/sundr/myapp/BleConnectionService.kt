@@ -129,7 +129,12 @@ class BleConnectionService : Service() {
                 }
                 wasConnected = connected
 
-                if (!connected && !isConnecting && loggedIn && !SdkGuard.isOpen()) {
+                val manualConnect = try {
+                    BlePlugin.instance?.isManualConnectActive() == true
+                } catch (_: Exception) {
+                    false
+                }
+                if (!connected && !isConnecting && loggedIn && !SdkGuard.isOpen() && !manualConnect) {
                     val address = savedAddress
                     if (!address.isNullOrEmpty()) {
                         isConnecting = true

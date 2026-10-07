@@ -611,7 +611,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
       final v = _chartValues[i];
       final assessment = HealthEngine.instance.assessTemperature(v);
       entries.add(MeasurementEntry(
-        time: dt, value: v.toStringAsFixed(1), unit: '°C',
+        time: dt, value: v.fixed2(), unit: '°C',
         label: assessment.label, color: assessment.color,
         icon: Icons.thermostat_rounded,
       ));
@@ -639,20 +639,20 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
     final tempValue = _measuring
         ? '···'
         : _manualTemp > 0
-        ? _disp(_manualTemp).toStringAsFixed(1)
+        ? _disp(_manualTemp).fixed2()
         : _displayAvg > 0
-        ? _disp(_displayAvg).toStringAsFixed(1)
+        ? _disp(_displayAvg).fixed2()
         : '--';
 
     final hasChartData = _chartValues.any((v) => v > 0);
     final hasData = hasChartData || _displayAvg > 0 || _manualTemp > 0;
 
     final dailyRangeLabel = hasData
-        ? '${_disp(_displayMin).toStringAsFixed(1)} - ${_disp(_displayMax).toStringAsFixed(1)}'
+        ? '${_disp(_displayMin).fixed2()} - ${_disp(_displayMax).fixed2()}'
         : '-- --';
 
     final trendRangeLabel = _trendMin > 0 && _trendMax > 0
-        ? '${_disp(_trendMin).toStringAsFixed(1)} - ${_disp(_trendMax).toStringAsFixed(1)} $_unitLabel'
+        ? '${_disp(_trendMin).fixed2()} - ${_disp(_trendMax).fixed2()} $_unitLabel'
         : '-- -- $_unitLabel';
 
     return RepaintBoundary(
@@ -764,7 +764,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                   xLabels: const ['12am', '6am', '12pm', '6pm', ''],
                   loading: _loading || _loadingDay,
                   loadingAccent: AppTheme.tempColor,
-                  valueLabelBuilder: (i, v) => '${_hourLabel(i)} • ${_disp(v.toDouble()).toStringAsFixed(1)}$_unitLabel',
+                  valueLabelBuilder: (i, v) => '${_hourLabel(i)} • ${_disp(v.toDouble()).fixed2()}$_unitLabel',
                 ),
                 if (_dayOffline && !_isToday) ...[
                   const SizedBox(height: 8),
@@ -781,7 +781,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                       child: MetricStatCard(
                         label: 'AVERAGE',
                         value: _displayAvg > 0
-                            ? _disp(_displayAvg).toStringAsFixed(1)
+                            ? _disp(_displayAvg).fixed2()
                             : '--',
                         unit: _displayAvg > 0 ? _unitLabel : '--',
                       ),
@@ -791,7 +791,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                       child: MetricStatCard(
                         label: 'MINIMUM',
                         value: _displayMin > 0
-                            ? _disp(_displayMin).toStringAsFixed(1)
+                            ? _disp(_displayMin).fixed2()
                             : '--',
                         unit: _displayMin > 0 ? _unitLabel : '--',
                       ),
@@ -801,7 +801,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                       child: MetricStatCard(
                         label: 'MAXIMUM',
                         value: _displayMax > 0
-                            ? _disp(_displayMax).toStringAsFixed(1)
+                            ? _disp(_displayMax).fixed2()
                             : '--',
                         unit: _displayMax > 0 ? _unitLabel : '--',
                       ),
@@ -901,7 +901,7 @@ class _RealTimeTempCard extends StatelessWidget {
     final tempText = measuring
         ? '···'
         : latestTemp > 0
-        ? latestTemp.toStringAsFixed(1)
+        ? latestTemp.fixed2()
         : '--';
 
     return ClipRRect(

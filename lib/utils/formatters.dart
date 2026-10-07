@@ -62,9 +62,28 @@ abstract class Formatters {
     return 'Good Night,';
   }
 
+  /// At most [places] fractional digits. Trailing zeros are dropped so a whole
+  /// number stays short in a tight card (`70` rather than `70.00`) while a raw
+  /// value such as `36.6666667` cannot blow out the row.
+  static String fixed(num value, {int places = 2}) {
+    final digits = places < 0 ? 0 : places;
+    var text = value.toStringAsFixed(digits);
+    if (text.contains('.')) {
+      text = text.replaceFirst(RegExp(r'0+$'), '');
+      text = text.replaceFirst(RegExp(r'\.$'), '');
+    }
+    if (text == '-0') return '0';
+    return text;
+  }
+
   static String dateLabel(DateTime now) {
     const d = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
     const m = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
     return '${d[now.weekday - 1]} · ${now.day.toString().padLeft(2, '0')} ${m[now.month - 1]}';
   }
+}
+
+extension MetricNumber on num {
+  /// At most two fractional digits, with trailing zeros removed.
+  String fixed2() => Formatters.fixed(this);
 }

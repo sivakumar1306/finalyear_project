@@ -7,6 +7,7 @@ import '../../../services/incident_service.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/womens_health_prediction_service.dart';
 import '../../../theme/app_theme.dart';
+import '../../../utils/formatters.dart';
 import '../../../widgets/app_typography.dart';
 import 'home_card_shared.dart';
 import 'home_insight_cards.dart';
@@ -1037,7 +1038,7 @@ class ActivityScoreCard extends StatelessWidget {
   String get _distanceLabel {
     if (distanceM <= 0) return 'No distance';
     if (distanceM >= 1000) {
-      return '${(distanceM / 1000).toStringAsFixed(1)} km';
+      return '${(distanceM / 1000).fixed2()} km';
     }
     return '${distanceM.round()} m';
   }

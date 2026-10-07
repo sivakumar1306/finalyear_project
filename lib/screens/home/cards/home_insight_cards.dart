@@ -1,6 +1,7 @@
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import '../../../providers/ble_provider.dart';
+import '../../../utils/ring_names.dart';
 import '../../../services/chat_api_service.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/app_typography.dart';
@@ -464,6 +465,10 @@ class DevicePill extends StatelessWidget {
     final connected = ble.isConnected;
     final reconnecting = ble.isReconnecting;
     final battery = ble.battery;
+    final ringName = isRingDeviceName(ble.deviceName) ? ble.deviceName : '';
+    final label = connected
+        ? (ringName.isNotEmpty ? ringName : 'Ring')
+        : 'Offline';
 
     return GestureDetector(
       onTap: () => showRingScanSheet(context),
@@ -497,6 +502,20 @@ class DevicePill extends StatelessWidget {
                       : Colors.white.withValues(alpha: 0.2),
                 ),
               ),
+            const SizedBox(width: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 96),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: inter(
+                  11,
+                  weight: FontWeight.w600,
+                  color: connected ? Colors.white : Colors.white38,
+                ),
+              ),
+            ),
             if (battery >= 0) ...[
               const SizedBox(width: 6),
               Icon(

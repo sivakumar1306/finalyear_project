@@ -29,8 +29,8 @@ void main() {
 
   group('UnitPrefs formatting', () {
     test('formatWeightKg metric and us', () {
-      expect(UnitPrefs.formatWeightKg(70, UnitSystem.metric), '70.0 kg');
-      expect(UnitPrefs.formatWeightKg(70, UnitSystem.us), '154.3 lbs');
+      expect(UnitPrefs.formatWeightKg(70, UnitSystem.metric), '70 kg');
+      expect(UnitPrefs.formatWeightKg(70, UnitSystem.us), '154.32 lbs');
     });
 
     test('formatHeightCm metric and us', () {
@@ -42,7 +42,8 @@ void main() {
 
     test('formatTempC', () {
       expect(UnitPrefs.formatTempC(36.5, TempUnit.celsius), '36.5°C');
-      expect(UnitPrefs.formatTempC(0, TempUnit.fahrenheit), '32.0°F');
+      expect(UnitPrefs.formatTempC(0, TempUnit.fahrenheit), '32°F');
+      expect(UnitPrefs.formatTempC(36.6666667, TempUnit.celsius), '36.67°C');
     });
   });
 

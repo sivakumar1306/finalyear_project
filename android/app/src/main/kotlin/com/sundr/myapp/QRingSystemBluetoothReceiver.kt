@@ -34,8 +34,18 @@ class QRingSystemBluetoothReceiver : BroadcastReceiver() {
             }
             Log.d(TAG, "bondStateChanged: device=${device?.address} $prevBondState -> $stateName")
 
+            // Bond traffic for a headset (or any device other than the ring we
+            // are pairing) must not tear down the ring's GATT connection.
+            val address = device?.address
+            val target = try { BlePlugin.instance?.pairingAddress() } catch (_: Exception) { null }
+            if (address.isNullOrEmpty() || target.isNullOrEmpty() ||
+                !target.equals(address, ignoreCase = true)
+            ) {
+                Log.d(TAG, "Ignoring bond change for $address (pairing target is $target)")
+                return@run
+            }
+
             if (bondState == BluetoothDevice.BOND_BONDED && prevBondState != BluetoothDevice.BOND_BONDED) {
-                val address = device?.address ?: return@run
                 Log.d(TAG, "Bond completed — cycling GATT connection")
                 handler.postDelayed({
                     SdkGuard.run("systemBt.cycleDisconnect") {

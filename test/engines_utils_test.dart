@@ -38,6 +38,12 @@ void main() {
       expect(Formatters.hourLabel(12), '12pm');
       expect(Formatters.hourLabel(13), '1pm');
     });
+    test('fixed caps fractional digits at 2', () {
+      expect(Formatters.fixed(36.6666667), '36.67');
+      expect(Formatters.fixed(70), '70');
+      expect(Formatters.fixed(1.2), '1.2');
+      expect(Formatters.fixed(-0.001), '0');
+    });
   });
 
   group('HourlyAggregator', () {

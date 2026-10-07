@@ -254,7 +254,7 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Connection error. Check if backend is running.';
+        _errorMessage = 'The assistant is unavailable right now. Please try again.';
         _isLoading = false;
       });
     }
