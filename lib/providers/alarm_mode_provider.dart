@@ -37,7 +37,7 @@ enum PhoneModeResult { applied, needsDndAccess, unsupported }
 class AlarmModeProvider extends ChangeNotifier {
   static const _channel = MethodChannel(AppConfig.phoneModeChannel);
 
-  PhoneMode _mode = PhoneMode.focus;
+  PhoneMode _mode = PhoneMode.base;
   PhoneMode get mode => _mode;
 
   Future<bool> get isDndAccessGranted async {

@@ -6,6 +6,7 @@ import '../../providers/ble_provider.dart';
 import '../../models/fall_prediction/engine_outputs.dart';
 import '../../theme/app_theme.dart';
 import '../app_typography.dart';
+import '../../utils/formatters.dart';
 
 class FallRiskScoreCard extends StatelessWidget {
   final VoidCallback? onTapRiskDetails;
@@ -135,7 +136,7 @@ class FallRiskScoreCard extends StatelessWidget {
                       onTap: onTapTemperature,
                       child: _MiniCard(
                         title: 'Temperature',
-                        value: bleProvider.latestTempC > 0 ? bleProvider.latestTempC.toStringAsFixed(1) : '--',
+                        value: bleProvider.latestTempC > 0 ? bleProvider.latestTempC.fixed2() : '--',
                         unit: '°C',
                         valueColor: AppTheme.tempColor,
                         subtitle: bleProvider.latestTempC <= 0 ? 'No data' : (bleProvider.latestTempC < 36.0 ? 'Low' : (bleProvider.latestTempC <= 37.2 ? 'Normal' : 'Elevated')),

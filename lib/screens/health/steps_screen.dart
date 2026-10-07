@@ -18,6 +18,7 @@ import '../../services/goal_prefs.dart';
 import '../../services/health_engine/activity_engine.dart';
 import '../../services/health_engine/health_engine.dart';
 import '../../utils/date_keys.dart';
+import '../../utils/formatters.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/date_scroll_row.dart';
 import '../../theme/app_theme.dart';
@@ -1328,7 +1329,7 @@ class _BarPainter extends CustomPainter {
     if (val == val.toInt().toDouble()) {
       return val.toInt().toString();
     }
-    return val.toStringAsFixed(1);
+    return val.fixed2();
   }
 
   @override

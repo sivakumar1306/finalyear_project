@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ble_service.dart';
+import '../utils/ring_names.dart';
 import '../services/goal_prefs.dart';
 import '../services/health_connect_service.dart';
 import '../services/health_engine/health_engine.dart';
@@ -17,10 +18,15 @@ class ScannedDevice {
   final String name;
   final String address;
   final int rssi;
+
+  /// False when this row is only a previously bonded ring that is not
+  /// advertising right now. The UI must not present that as a live signal.
+  final bool live;
   ScannedDevice({
     required this.name,
     required this.address,
     required this.rssi,
+    this.live = true,
   });
 }
 
@@ -419,15 +425,27 @@ void _listenEvents() {
               : <String, dynamic>{};
           switch (type) {
             case 'connectionState':
-              _isConnected = data['connected'] as bool? ?? false;
-              if (_isConnected) {
-                if (_deviceAddress.isEmpty && _pendingDeviceAddress != null) {
+              final reported = (data['address'] as String? ?? '').trim();
+              final connected = data['connected'] as bool? ?? false;
+              final pendingAddr = _pendingDeviceAddress;
+              final pendingName = _pendingDeviceName ?? '';
+              final addressOk = pendingAddr == null ||
+                  pendingAddr.isEmpty ||
+                  reported.isEmpty ||
+                  reported.toUpperCase() == pendingAddr.toUpperCase();
+              final nameOk = pendingName.isEmpty || isRingDeviceName(pendingName);
+              if (connected && addressOk && nameOk) {
+                _isConnected = true;
+                if (_deviceAddress.isEmpty &&
+                    pendingAddr != null &&
+                    pendingAddr.isNotEmpty &&
+                    pendingName.isNotEmpty) {
                   // Native connected successfully after our own connect() call had
                   // already timed out and given up (see connect()'s doc comment) — the
                   // connection is real, we just never recorded which device it was.
                   // Persist it now so Home's deviceAddress-gated UI reflects reality.
-                  _deviceName = _pendingDeviceName ?? _deviceName;
-                  _deviceAddress = _pendingDeviceAddress!;
+                  _deviceName = pendingName;
+                  _deviceAddress = pendingAddr;
                   SharedPreferences.getInstance().then((prefs) {
                     prefs.setString('device_name', _deviceName);
                     prefs.setString('device_address', _deviceAddress);
@@ -436,6 +454,11 @@ void _listenEvents() {
                 _bindReadyCompleter = Completer<void>();
                 _onConnected(delay: _connectDelaySeconds);
               } else {
+                _isConnected = false;
+                if (!addressOk || !nameOk) {
+                  _pendingDeviceName = null;
+                  _pendingDeviceAddress = null;
+                }
                 // Retain last known battery level on temporary connection drops
               }
               notifyListeners();
@@ -451,12 +474,23 @@ void _listenEvents() {
                 name: data['name'] as String? ?? '',
                 address: data['address'] as String? ?? '',
                 rssi: (data['rssi'] as num?)?.toInt() ?? -100,
+                live: data['live'] as bool? ?? true,
               );
+              if (dev.address.isEmpty || !isRingDeviceName(dev.name)) break;
               final idx = _scannedDevices.indexWhere(
                 (d) => d.address == dev.address,
               );
               if (idx >= 0) {
-                _scannedDevices[idx] = dev;
+                final prev = _scannedDevices[idx];
+                final live = prev.live || dev.live;
+                _scannedDevices[idx] = ScannedDevice(
+                  name: dev.name.isNotEmpty ? dev.name : prev.name,
+                  address: dev.address,
+                  rssi: dev.live
+                      ? dev.rssi
+                      : (prev.live ? prev.rssi : dev.rssi),
+                  live: live,
+                );
               } else {
                 _scannedDevices.add(dev);
               }
@@ -1570,6 +1604,16 @@ Future<void> _loadSavedDevice() async {
     _deviceName = prefs.getString('device_name') ?? '';
     _deviceAddress = prefs.getString('device_address') ?? '';
     _battery = prefs.getInt('last_battery') ?? -1;
+    // A headset saved by an earlier build must not stay as the "connected
+    // ring", and must not be the address the background service keeps opening.
+    if (_deviceName.isNotEmpty && !isRingDeviceName(_deviceName)) {
+      _deviceName = '';
+      _deviceAddress = '';
+      _battery = -1;
+      await prefs.remove('device_name');
+      await prefs.remove('device_address');
+      await prefs.remove('last_battery');
+    }
     notifyListeners();
     if (_deviceAddress.isNotEmpty) {
       _isConnected = await _ble.isConnected();
@@ -2260,6 +2304,10 @@ Future<bool> findDevice({bool enable = true}) async {
   }
 
   Future<bool> connect(ScannedDevice device) async {
+    if (!isRingDeviceName(device.name)) {
+      debugPrint('[BleProvider] refused non-ring ${device.name}');
+      return false;
+    }
     try {
       // Cancel any in-progress sync so stale SDK callbacks don't collide with
       // the new ring's data, then disconnect before connecting to the new ring.
@@ -2284,12 +2332,16 @@ Future<bool> findDevice({bool enable = true}) async {
         // which fires when the ring is fully ready (green light). Calling it here
         // (on raw GATT connect) is too early and causes sync to hang.
         notifyListeners();
+        return true;
       }
-      // On timeout/failure here, _pendingDeviceName/_pendingDeviceAddress are
-      // deliberately left set — see the field's doc comment and the
-      // 'connectionState' handler in _listenEvents().
-      return ok;
+      // Explicit rejection (the link that opened was a different device).
+      // Do not let a later event persist this selection.
+      _pendingDeviceName = null;
+      _pendingDeviceAddress = null;
+      return false;
     } catch (e) {
+      // Timeout: leave _pendingDeviceName/_pendingDeviceAddress set so a late
+      // connectionState can still persist a real ring. See the field comment.
       debugPrint('[BleProvider] connect() failed: $e');
       return false;
     }
@@ -2299,7 +2351,7 @@ Future<bool> findDevice({bool enable = true}) async {
   /// scan result. Useful when the ring is bonded but not advertising (e.g.
   /// after being used by another app).
   Future<bool> connectLastDevice() async {
-    if (_deviceAddress.isEmpty) return false;
+    if (_deviceAddress.isEmpty || !isRingDeviceName(_deviceName)) return false;
     try {
       final ok = await _ble.connect(_deviceAddress);
       if (ok) {

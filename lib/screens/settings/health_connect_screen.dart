@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/glass_pill.dart';
+import '../../utils/formatters.dart';
 
 /// Health Connect — connects Google Health Connect to the app.
 ///
@@ -535,7 +536,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
         return (t?.bpSystolic != null ? '${t!.bpSystolic}/${t.bpDiastolic}' : '--', 'mmHg');
       case HealthSyncType.temperature:
         return (
-          t?.avgTemperatureC != null ? t!.avgTemperatureC!.toStringAsFixed(1) : '--',
+          t?.avgTemperatureC != null ? t!.avgTemperatureC!.fixed2() : '--',
           '°C',
         );
       case HealthSyncType.menstruation:

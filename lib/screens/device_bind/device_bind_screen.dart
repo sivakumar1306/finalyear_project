@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
+import '../../utils/ring_names.dart';
 import '../../widgets/glass_pill.dart';
 
 class DeviceBindScreen extends StatefulWidget {
@@ -80,6 +81,9 @@ class _DeviceBindScreenState extends State<DeviceBindScreen> {
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
+    final rings = ble.scannedDevices
+        .where((d) => isRingDeviceName(d.name))
+        .toList();
     return Scaffold(
       appBar: AppBar(title: const Text('Scan & Bind Device')),
       body: Column(
@@ -142,7 +146,7 @@ class _DeviceBindScreenState extends State<DeviceBindScreen> {
             ),
           if (ble.isScanning) const LinearProgressIndicator(),
           Expanded(
-            child: ble.scannedDevices.isEmpty
+            child: rings.isEmpty
                 ? Align(
                     alignment: const Alignment(0, -0.1),
                     child: Column(
@@ -175,11 +179,14 @@ class _DeviceBindScreenState extends State<DeviceBindScreen> {
                     ),
                   )
                 : ListView.separated(
-                    itemCount: ble.scannedDevices.length,
+                    itemCount: rings.length,
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, i) {
-                      final dev = ble.scannedDevices[i];
+                      final dev = rings[i];
                       final isConnecting = _connectingAddress == dev.address;
+                      final already = ble.isConnected &&
+                          ble.deviceAddress.toUpperCase() ==
+                              dev.address.toUpperCase();
                       return ListTile(
                         leading: Container(
                           width: 44,
@@ -190,22 +197,25 @@ class _DeviceBindScreenState extends State<DeviceBindScreen> {
                           ),
                           child: Icon(Icons.watch, color: Colors.blue.shade700),
                         ),
-                        title: Text(dev.name.isNotEmpty ? dev.name : 'Unknown Device'),
+                        title: Text(
+                          dev.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(dev.address, style: const TextStyle(fontSize: 12)),
-                            Row(
-                              children: [
-                                Icon(Icons.signal_cellular_alt,
-                                    size: 12, color: _rssiColor(dev.rssi)),
-                                const SizedBox(width: 2),
-                                Text(
-                                  '${dev.rssi} dBm',
-                                  style: TextStyle(
-                                      fontSize: 11, color: _rssiColor(dev.rssi)),
-                                ),
-                              ],
+                            Text(
+                              dev.live
+                                  ? '${dev.rssi} dBm'
+                                  : 'Previously paired — not nearby',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: dev.live
+                                    ? _rssiColor(dev.rssi)
+                                    : Colors.grey,
+                              ),
                             ),
                           ],
                         ),
@@ -214,6 +224,14 @@ class _DeviceBindScreenState extends State<DeviceBindScreen> {
                                 width: 24,
                                 height: 24,
                                 child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : already
+                            ? const Text(
+                                'Connected',
+                                style: TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               )
                             : ElevatedButton(
                                 onPressed: () => _connect(dev),

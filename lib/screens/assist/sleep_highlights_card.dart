@@ -28,8 +28,10 @@ class SleepHighlightsCard extends StatelessWidget {
     final int awake = (data['time_awake_min'] as num? ?? 0).toInt();
     final int light = (data['light_sleep_min'] as num? ?? 0).toInt();
     final int deep = (data['deep_sleep_min'] as num? ?? 0).toInt();
-    
-    int totalMinutes = awake + light + deep;
+    final bool hasRem = data.containsKey('rem_sleep_min');
+    final int rem = hasRem ? (data['rem_sleep_min'] as num? ?? 0).toInt() : 0;
+
+    int totalMinutes = awake + light + deep + rem;
     if (totalMinutes == 0) totalMinutes = 1;
 
     // RepaintBoundary caches the blurred layer so scrolling the chat list
@@ -83,6 +85,15 @@ class SleepHighlightsCard extends StatelessWidget {
                           mins: awake,
                           totalMins: totalMinutes,
                         ),
+                        if (hasRem) ...[
+                          _buildDivider(),
+                          _buildRow(
+                            color: AppTheme.bpColor,
+                            label: 'REM Sleep',
+                            mins: rem,
+                            totalMins: totalMinutes,
+                          ),
+                        ],
                         _buildDivider(),
                         _buildRow(
                           color: AppTheme.sleepLight,

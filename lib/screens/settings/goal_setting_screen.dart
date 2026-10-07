@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/glass_header.dart';
 import '../../widgets/glass_icon_button.dart';
 import '../../widgets/app_typography.dart';
+import '../../utils/formatters.dart';
 
 /// Goal setting screen — Figma spec.
 ///
@@ -144,7 +145,7 @@ class _GoalSettingScreenState extends State<GoalSettingScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             final displayValue = isDecimalTenths
-                ? (value / 10).toStringAsFixed(1)
+                ? (value / 10).fixed2()
                 : '$value';
             return Dialog(
               backgroundColor: AppTheme.surfaceDeep,
@@ -324,7 +325,7 @@ class _GoalSettingScreenState extends State<GoalSettingScreen> {
                   icon: Icons.directions_run_rounded,
                   iconColor: AppTheme.stepsColor,
                   label: 'Distance',
-                  value: '${t.distanceKm.toStringAsFixed(1)} km',
+                  value: '${t.distanceKm.fixed2()} km',
                   showDivider: true,
                   onTap: _editDistance,
                 ),

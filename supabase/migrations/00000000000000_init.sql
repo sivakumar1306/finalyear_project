@@ -212,6 +212,28 @@ create table if not exists public.user_symptoms (
   unique (user_id, logged_date)
 );
 
+-- ── Assist chat history (written by the MedXAI API, not the app client) ──
+
+create table if not exists public.conversations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  title text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists conversations_user_created_idx
+  on public.conversations (user_id, created_at desc);
+
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  role text not null,
+  content text not null,
+  card jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists messages_conversation_created_idx
+  on public.messages (conversation_id, created_at);
+
 -- ── Emergency contacts (cloud mirror of the native Room table) ───────────
 
 create table if not exists public.user_emergency_contacts (
@@ -569,6 +591,8 @@ alter table public.user_nutrition_logs enable row level security;
 alter table public.user_watchface enable row level security;
 alter table public.health_engine_config enable row level security;
 alter table public.falls enable row level security;
+alter table public.conversations enable row level security;
+alter table public.messages enable row level security;
 
 -- Owner policies (one DO block per table group keeps re-runs safe).
 
@@ -588,7 +612,7 @@ begin
     'user_emergency_contacts','workouts','user_hr_readings','user_spo2_readings',
     'user_hrv_readings','user_steps_snapshots','user_ecg','user_breath_sessions',
     'user_blood_sugar','user_quran_bookmarks','user_friends','user_nutrition_logs',
-    'user_watchface','falls','user_push_tokens'
+    'user_watchface','falls','user_push_tokens','conversations'
   ]
   loop
     if not exists (
@@ -601,6 +625,29 @@ begin
       );
     end if;
   end loop;
+end $$;
+
+do $$ begin
+  if to_regclass('public.messages') is not null
+     and not exists (
+       select 1 from pg_policy
+       where polrelid = 'public.messages'::regclass and polname = 'messages_own'
+     ) then
+    create policy messages_own on public.messages
+      for all to authenticated
+      using (
+        exists (
+          select 1 from public.conversations c
+          where c.id = conversation_id and c.user_id = auth.uid()
+        )
+      )
+      with check (
+        exists (
+          select 1 from public.conversations c
+          where c.id = conversation_id and c.user_id = auth.uid()
+        )
+      );
+  end if;
 end $$;
 
 -- Policy names differ from the <table>_owner convention for these tables,
@@ -736,6 +783,8 @@ grant select, insert, update, delete on public.user_nutrition_logs to authentica
 grant select, insert, update, delete on public.user_watchface to authenticated;
 grant select, insert, update, delete on public.falls to authenticated;
 grant select on public.derived_user_cycles to authenticated;
+grant select, insert, update, delete on public.conversations to authenticated;
+grant select, insert, update, delete on public.messages to authenticated;
 
 -- ── Functions ────────────────────────────────────────────────────────────
 
@@ -785,6 +834,15 @@ begin
     raise exception 'Not authenticated';
   end if;
 
+  -- messages has no user_id; remove them before the conversation rows.
+  if to_regclass('public.messages') is not null
+     and to_regclass('public.conversations') is not null then
+    execute format(
+      'delete from public.messages where conversation_id in (select id from public.conversations where user_id = %L)',
+      current_user_id
+    );
+  end if;
+
   foreach t in array array[
     'user_profiles','user_bp','user_stress','user_temp',
     'user_workouts','user_sleep','user_cycles','user_symptoms',
@@ -793,7 +851,7 @@ begin
     'user_steps_snapshots','workouts','user_push_tokens',
     'user_blood_sugar','user_breath_sessions','user_ecg',
     'user_quran_bookmarks','user_friends','user_nutrition_logs',
-    'user_watchface','falls'
+    'user_watchface','falls','conversations'
   ]
   loop
     if to_regclass(format('public.%I', t)) is not null then
