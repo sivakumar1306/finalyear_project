@@ -670,20 +670,55 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
     );
   }
 
-  void _openMeasurementLog() {
+  Future<void> _openMeasurementLog() async {
     final entries = <MeasurementEntry>[];
-    for (int i = 0; i < _chartValues.length; i++) {
-      if (_chartValues[i] <= 0) continue;
-      final minutes = i * 30;
-      final dt = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, minutes ~/ 60, minutes % 60);
-      final v = _chartValues[i];
-      final assessment = HealthEngine.instance.assessSpo2(v);
-      entries.add(MeasurementEntry(
-        time: dt, value: '$v', unit: '%',
-        label: assessment.label, color: assessment.color,
-        icon: Icons.bloodtype_rounded,
-      ));
+    try {
+      final dayStart = DateKeys.dayStartMs(_selectedDate);
+      final dayEnd = DateKeys.dayEndMs(_selectedDate);
+      final readingsJson = await _ble.getReadings(
+        'spo2',
+        fromMs: dayStart,
+        toMs: dayEnd,
+        limit: 1000,
+      );
+      final decoded = jsonDecode(readingsJson);
+      if (decoded is List && decoded.isNotEmpty) {
+        for (final item in decoded.reversed) {
+          if (item is! Map) continue;
+          final m = Map<String, dynamic>.from(item);
+          final v = (m['valuePct'] as num?)?.toInt() ?? 0;
+          final ms = (m['measuredAt'] as num?)?.toInt() ?? 0;
+          if (v <= 0 || ms <= 0) continue;
+          final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+          final assessment = HealthEngine.instance.assessSpo2(v);
+          entries.add(MeasurementEntry(
+            time: dt,
+            value: '$v',
+            unit: '%',
+            label: assessment.label,
+            color: assessment.color,
+            icon: Icons.bloodtype_rounded,
+          ));
+        }
+      }
+    } catch (_) {}
+
+    if (entries.isEmpty) {
+      for (int i = 0; i < _chartValues.length; i++) {
+        if (_chartValues[i] <= 0) continue;
+        final minutes = i * 30;
+        final dt = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, minutes ~/ 60, minutes % 60);
+        final v = _chartValues[i];
+        final assessment = HealthEngine.instance.assessSpo2(v);
+        entries.add(MeasurementEntry(
+          time: dt, value: '$v', unit: '%',
+          label: assessment.label, color: assessment.color,
+          icon: Icons.bloodtype_rounded,
+        ));
+      }
     }
+
+    if (!mounted) return;
     Navigator.push(context, MaterialPageRoute(
       builder: (_) => MeasurementLogScreen(
         title: 'Blood Oxygen Readings', date: _selectedDate,
