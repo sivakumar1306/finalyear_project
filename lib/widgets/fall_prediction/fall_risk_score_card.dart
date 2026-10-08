@@ -72,13 +72,17 @@ class FallRiskScoreCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'FALL RISK SCORE',
-                  style: AppTypography.inter(
-                    color: AppTheme.gold,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
+                Flexible(
+                  child: Text(
+                    'FALL RISK SCORE',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.inter(
+                      color: AppTheme.gold,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2,
+                    ),
                   ),
                 ),
                 if (onTapRiskDetails != null)
@@ -215,12 +219,16 @@ class _MiniCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: AppTypography.inter(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.inter(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               if (showChevron)
@@ -237,32 +245,39 @@ class _MiniCard extends StatelessWidget {
           const SizedBox(height: 16),
           if (trailing != null) Align(alignment: Alignment.centerRight, child: trailing),
           const Spacer(),
-          RichText(
-            text: TextSpan(
-              children: [
-                TextSpan(
-                  text: value,
-                  style: AppTypography.inter(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w300,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: RichText(
+              maxLines: 1,
+              text: TextSpan(
+                children: [
+                  TextSpan(
+                    text: value,
+                    style: AppTypography.inter(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w300,
+                    ),
                   ),
-                ),
-                TextSpan(
-                  text: ' $unit',
-                  style: AppTypography.inter(
-                    color: AppTheme.textSec,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                  TextSpan(
+                    text: ' $unit',
+                    style: AppTypography.inter(
+                      color: AppTheme.textSec,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 8),
             Text(
               subtitle!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: AppTypography.inter(
                 color: subtitleColor ?? valueColor,
                 fontSize: 12,

@@ -527,22 +527,31 @@ class _VitalsDrawerSheet extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  '13 Live Sensor Metrics',
-                  style: AppTypography.inter(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    '13 Live Sensor Metrics',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.inter(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                Text(
-                  ble.isConnected ? 'Ring Connected' : 'Simulated Data',
-                  style: AppTypography.inter(
-                    color: ble.isConnected ? AppTheme.gold : AppTheme.textSec,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    ble.isConnected ? 'Ring Connected' : 'Simulated Data',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: AppTypography.inter(
+                      color: ble.isConnected ? AppTheme.gold : AppTheme.textSec,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -561,7 +570,7 @@ class _VitalsDrawerSheet extends StatelessWidget {
                     physics: const NeverScrollableScrollPhysics(),
                     mainAxisSpacing: 10,
                     crossAxisSpacing: 10,
-                    childAspectRatio: 1.7,
+                    childAspectRatio: 1.4,
                     children: [
                       _VitalCard(
                         title: '1. Heart Rate',
@@ -693,12 +702,15 @@ class _VitalCard extends StatelessWidget {
               children: [
                 Text(
                   title,
+                  maxLines: 1,
                   style: AppTypography.inter(color: AppTheme.textSec, fontSize: 10),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.inter(
                     color: Colors.white,
                     fontSize: 13,

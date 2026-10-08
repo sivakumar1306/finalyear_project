@@ -388,12 +388,16 @@ class FallEventBanner extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Dialing emergency contact ...',
-                  style: inter(13, color: Colors.white.withValues(alpha: 0.85)),
+                Expanded(
+                  child: Text(
+                    'Dialing emergency contact ...',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: inter(13, color: Colors.white.withValues(alpha: 0.85)),
+                  ),
                 ),
+                const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: onCancel,
                   style: ElevatedButton.styleFrom(

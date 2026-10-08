@@ -679,15 +679,18 @@ class _StepsScreenState extends State<StepsScreen> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Text(
-                            'Workout and Sports',
-                            style: _t(
-                              14,
-                              w: FontWeight.w500,
-                              c: Colors.white.withValues(alpha: 0.95),
+                          Expanded(
+                            child: Text(
+                              'Workout and Sports',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _t(
+                                14,
+                                w: FontWeight.w500,
+                                c: Colors.white.withValues(alpha: 0.95),
+                              ),
                             ),
                           ),
-                          const Spacer(),
                           Icon(
                             Icons.chevron_right_rounded,
                             color: Colors.white.withValues(alpha: 0.35),
@@ -887,7 +890,7 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(10, 14, 10, 14),
       decoration: _glass(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -899,19 +902,23 @@ class _StatCard extends StatelessWidget {
               w: FontWeight.w500,
               c: Colors.white.withValues(alpha: 0.4),
             ),
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 12),
-          Text(
-            value,
-            style: _t(
-              18,
-              w: FontWeight.w600,
-              c: Colors.white.withValues(alpha: 0.95),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: _t(
+                18,
+                w: FontWeight.w600,
+                c: Colors.white.withValues(alpha: 0.95),
+              ),
+              maxLines: 1,
+              softWrap: false,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -1007,24 +1014,33 @@ class _ChartCardState extends State<_ChartCard> {
         children: [
           // Header
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                widget.title.toUpperCase(),
-                style: _t(
-                  11,
-                  w: FontWeight.w700,
-                  c: Colors.white.withValues(alpha: 0.9),
-                  ls: 0.8,
+              Expanded(
+                child: Text(
+                  widget.title.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _t(
+                    11,
+                    w: FontWeight.w700,
+                    c: Colors.white.withValues(alpha: 0.9),
+                    ls: 0.8,
+                  ),
                 ),
               ),
-              Text(
-                widget.summary.toUpperCase(),
-                style: _t(
-                  11,
-                  w: FontWeight.w700,
-                  c: Colors.white.withValues(alpha: 0.9),
-                  ls: 0.8,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  widget.summary.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: _t(
+                    11,
+                    w: FontWeight.w700,
+                    c: Colors.white.withValues(alpha: 0.9),
+                    ls: 0.8,
+                  ),
                 ),
               ),
             ],
@@ -1130,14 +1146,18 @@ class _XAxisRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final toShow = labels.length <= 10 ? labels : _sparse(labels);
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: toShow
           .map(
-            (l) => Text(
-              l,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.35),
-                fontSize: 9,
+            (l) => Expanded(
+              child: Text(
+                l,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.35),
+                  fontSize: 9,
+                ),
               ),
             ),
           )

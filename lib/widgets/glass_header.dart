@@ -22,16 +22,20 @@ class GlassHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           GlassBackButton(onTap: onBack),
-          Text(
-            title,
-            style: AppTypography.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              letterSpacing: -0.005,
-              color: Colors.white.withValues(alpha: 0.88),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: AppTypography.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                letterSpacing: -0.005,
+                color: Colors.white.withValues(alpha: 0.88),
+              ),
             ),
           ),
           trailing ?? const SizedBox(width: 36),

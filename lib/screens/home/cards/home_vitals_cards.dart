@@ -170,15 +170,18 @@ class FigmaExpandedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // `height` is the design minimum. Content that needs more room grows
+    // the card instead of painting past the bottom edge.
     return HomeGlassCard(
       orbColor: orbColor,
-      height: height,
       orbAlpha: 0.25,
       orbSize: 220,
       borderColor: _kFigmaBorder,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       onTap: onTap,
-      child: Column(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: (height - 28).clamp(0, double.infinity).toDouble()),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -210,7 +213,13 @@ class FigmaExpandedCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              value,
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: value,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -236,6 +245,7 @@ class FigmaExpandedCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ],
+        ),
       ),
     );
   }
@@ -452,7 +462,7 @@ class MiniCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return HomeGlassCard(
       orbColor: color,
-      height: expanded ? 195 : 130,
+      height: expanded ? 195 : null,
       orbAlpha: 0.25,
       orbSize: 180,
       padding: const EdgeInsets.all(12),
@@ -486,6 +496,8 @@ class MiniCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: inter(
               10,
               weight: FontWeight.w500,
@@ -493,8 +505,23 @@ class MiniCard extends StatelessWidget {
             ),
           ),
           if (value != null) ...[
-            Text(value!, style: inter(20, weight: FontWeight.w600)),
-            if (sub != null) Text(sub!, style: inter(10, color: AppTheme.textSec)),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value!,
+                maxLines: 1,
+                softWrap: false,
+                style: inter(20, weight: FontWeight.w600),
+              ),
+            ),
+            if (sub != null)
+              Text(
+                sub!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: inter(10, color: AppTheme.textSec),
+              ),
           ],
           if (expanded) const Spacer(),
         ],
@@ -681,7 +708,7 @@ class HomeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return HomeGlassCard(
       orbColor: orbColor,
-      height: expanded ? 240 : 160,
+      height: expanded ? 240 : null,
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -730,12 +757,16 @@ class HomeCard extends StatelessWidget {
                     ),
                     if (unit.isNotEmpty) ...[
                       const SizedBox(width: 3),
-                      Text(
-                        unit,
-                        style: inter(
-                          11,
-                          weight: FontWeight.w500,
-                          color: Colors.white.withValues(alpha: 0.5),
+                      Flexible(
+                        child: Text(
+                          unit,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: inter(
+                            11,
+                            weight: FontWeight.w500,
+                            color: Colors.white.withValues(alpha: 0.5),
+                          ),
                         ),
                       ),
                     ],

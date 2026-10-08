@@ -17,7 +17,7 @@ import 'services/supabase_service.dart';
 import 'services/incident_service.dart';
 import 'services/ble_service.dart';
 import 'services/push_notification_service.dart';
-import 'services/health_engine/health_engine.dart';
+import 'services/health_engine/health_config.dart';
 import 'config.dart';
 import 'app.dart';
 import 'theme/app_theme.dart';
@@ -74,12 +74,24 @@ Future<void> _requestPermissionsAndStartService() async {
   }
 }
 
+/// Sets the native login flag only when a session is actually present.
+/// A null currentUser during restore must not clear a flag that was true.
 Future<void> _syncLoggedInFlag() async {
   try {
+    if (!SupabaseService.isLoggedIn) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('user_logged_in', SupabaseService.isLoggedIn);
+    await prefs.setBool('user_logged_in', true);
   } catch (e) {
     debugPrint('_syncLoggedInFlag: $e');
+  }
+}
+
+Future<void> _clearLoggedInFlag() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('user_logged_in', false);
+  } catch (e) {
+    debugPrint('_clearLoggedInFlag: $e');
   }
 }
 
@@ -95,6 +107,8 @@ Future<void> _configureNativeSync() async {
     });
     await _bleChannel.invokeMethod('setMasterLoopEnabled', {'enabled': true});
     await _bleChannel.invokeMethod('setSyncEnabled', {'enabled': true});
+    // Uploader returns immediately and no-ops until the network is validated.
+    await _bleChannel.invokeMethod('forceSyncNow');
   } catch (e) {
     debugPrint('_configureNativeSync: $e');
   }
@@ -175,10 +189,14 @@ void main() async {
         );
       };
 
+      // Thresholds from disk, then the first frame. The remote config and the
+      // native uploader continue after the UI is up.
+      await HealthConfig.loadCached();
       try {
-        await Future.wait([SupabaseService.initialize(), _syncLoggedInFlag()]);
-        await HealthEngine.instance.init();
-        await _configureNativeSync();
+        await SupabaseService.initialize();
+        unawaited(HealthConfig.load());
+        unawaited(_configureNativeSync());
+        unawaited(_syncLoggedInFlag());
         // FCM companion alerts (Part 3) — dormant until Firebase constants are
         // configured in AppConfig; never blocks startup.
         unawaited(PushNotificationService.instance.initialize());
@@ -190,8 +208,12 @@ void main() async {
 
       _authSub?.cancel();
       try {
-        _authSub = SupabaseService.client.auth.onAuthStateChange.listen((_) {
-          unawaited(_syncLoggedInFlag());
+        _authSub = SupabaseService.client.auth.onAuthStateChange.listen((state) {
+          if (state.event.name == 'signedOut') {
+            unawaited(_clearLoggedInFlag());
+          } else {
+            unawaited(_syncLoggedInFlag());
+          }
           unawaited(_configureNativeSync());
         });
       } catch (e) {

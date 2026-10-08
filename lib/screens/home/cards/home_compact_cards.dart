@@ -212,30 +212,38 @@ class CompactWomensHealthCardState extends State<CompactWomensHealthCard> {
       orbOnRight: true,
       expanded: widget.expanded,
       onTap: widget.onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            _cycleDay > 0 ? 'Day $_cycleDay' : 'Day --',
-            style: AppTypography.inter(
-              fontSize: 34,
-              fontWeight: FontWeight.w200,
-              color: Colors.white.withValues(alpha: 0.98),
-              letterSpacing: -0.005,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _cycleDay > 0 ? 'Day $_cycleDay' : 'Day --',
+              maxLines: 1,
+              softWrap: false,
+              style: AppTypography.inter(
+                fontSize: 34,
+                fontWeight: FontWeight.w200,
+                color: Colors.white.withValues(alpha: 0.98),
+                letterSpacing: -0.005,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _phaseName,
-            style: inter(
-              12,
-              weight: FontWeight.w500,
-              color: const Color(0xFFE8867F),
-              letterSpacing: -0.005,
+            const SizedBox(height: 4),
+            Text(
+              _phaseName,
+              maxLines: 1,
+              softWrap: false,
+              style: inter(
+                12,
+                weight: FontWeight.w500,
+                color: const Color(0xFFE8867F),
+                letterSpacing: -0.005,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -289,44 +297,55 @@ class CompactBloodPressureCard extends StatelessWidget {
       orbColor: AppTheme.bpColor.withValues(alpha: 0.45),
       expanded: expanded,
       onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                hasData ? '$sbp' : '--',
-                style: AppTypography.inter(
-                  fontSize: 34,
-                  fontWeight: FontWeight.w200,
-                  color: Colors.white.withValues(alpha: 0.98),
-                  letterSpacing: -0.005,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  hasData ? '$sbp' : '--',
+                  maxLines: 1,
+                  softWrap: false,
+                  style: AppTypography.inter(
+                    fontSize: 34,
+                    fontWeight: FontWeight.w200,
+                    color: Colors.white.withValues(alpha: 0.98),
+                    letterSpacing: -0.005,
+                  ),
                 ),
-              ),
-              Text(
-                hasData ? '/$dbp' : '/--',
-                style: AppTypography.inter(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w300,
-                  color: Colors.white.withValues(alpha: 0.6),
+                Text(
+                  hasData ? '/$dbp' : '/--',
+                  maxLines: 1,
+                  softWrap: false,
+                  style: AppTypography.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w300,
+                    color: Colors.white.withValues(alpha: 0.6),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            HealthEngine.instance.assessBloodPressure(sbp, dbp).label,
-            style: inter(
-              12,
-              weight: FontWeight.w500,
-              color: HealthEngine.instance.assessBloodPressure(sbp, dbp).color,
-              letterSpacing: -0.005,
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              HealthEngine.instance.assessBloodPressure(sbp, dbp).label,
+              maxLines: 1,
+              softWrap: false,
+              style: inter(
+                12,
+                weight: FontWeight.w500,
+                color: HealthEngine.instance.assessBloodPressure(sbp, dbp).color,
+                letterSpacing: -0.005,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -405,51 +424,56 @@ class TemperatureCardState extends State<TemperatureCard> {
           Color(0x59000000), // black touch fading in at the bottom-left
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    hasData ? _dispTemp.fixed2() : '--',
-                    style: AppTypography.inter(
-                      fontSize: 34,
-                      fontWeight: FontWeight.w200,
-                      color: Colors.white.withValues(alpha: 0.98),
-                      letterSpacing: -0.005,
-                    ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  hasData ? _dispTemp.fixed2() : '--',
+                  maxLines: 1,
+                  softWrap: false,
+                  style: AppTypography.inter(
+                    fontSize: 34,
+                    fontWeight: FontWeight.w200,
+                    color: Colors.white.withValues(alpha: 0.98),
+                    letterSpacing: -0.005,
                   ),
                 ),
-              ),
-              const SizedBox(width: 3),
-              Text(
-                _unitLabel,
-                style: AppTypography.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w300,
-                  color: Colors.white.withValues(alpha: 0.6),
+                const SizedBox(width: 3),
+                Text(
+                  _unitLabel,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: AppTypography.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w300,
+                    color: Colors.white.withValues(alpha: 0.6),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            HealthEngine.instance.assessTemperature(widget.tempC).label == '--' ? 'No data' : HealthEngine.instance.assessTemperature(widget.tempC).label, // status thresholds stay in Celsius (the canonical unit)
-            style: inter(
-              12,
-              weight: FontWeight.w500,
-              color: hasData ? AppTheme.tempColor : AppTheme.textSec,
-              letterSpacing: -0.005,
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              HealthEngine.instance.assessTemperature(widget.tempC).label == '--' ? 'No data' : HealthEngine.instance.assessTemperature(widget.tempC).label, // status thresholds stay in Celsius (the canonical unit)
+              maxLines: 1,
+              softWrap: false,
+              style: inter(
+                12,
+                weight: FontWeight.w500,
+                color: hasData ? AppTheme.tempColor : AppTheme.textSec,
+                letterSpacing: -0.005,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

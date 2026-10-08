@@ -386,9 +386,10 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
 
                   const SizedBox(height: 24),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildSectionHeader('LIVE GESTURE STREAM & TESTER'),
+                      Expanded(
+                        child: _buildSectionHeader('LIVE GESTURE STREAM & TESTER'),
+                      ),
                       if (_gestureLog.isNotEmpty)
                         TextButton(
                           onPressed: () => setState(() => _gestureLog.clear()),
@@ -445,6 +446,8 @@ class _GestureSettingsScreenState extends State<GestureSettingsScreen> {
   Widget _buildSectionHeader(String text) {
     return Text(
       text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
       style: AppTypography.inter(
         color: AppTheme.textSec,
         fontSize: 12,

@@ -11,6 +11,7 @@ import '../services/health_engine/health_engine.dart';
 import '../services/health_engine/sleep_engine.dart';
 import '../services/health_engine/models.dart';
 import '../services/incident_service.dart';
+import '../utils/date_keys.dart';
 import '../services/notification_prefs.dart';
 import '../services/supabase_service.dart';
 
@@ -101,6 +102,7 @@ class BleProvider extends ChangeNotifier {
   int _syncGen = 0; // incremented to cancel a stale in-progress sync
   // Battery: debounce the ~100s BLE burst on connect flaps.
   DateTime? _lastSyncAllAt;
+  Timer? _cloudUploadTimer;
 
   // Delay (seconds) before issuing SDK commands after a connection event.
   int _connectDelaySeconds = 1;
@@ -382,12 +384,9 @@ class BleProvider extends ChangeNotifier {
     // HR/SpO2/Stress/BP/Steps are now continuously acquired by the native background
     // loop and stored in local Room — read from there first, only falling back to
     // Supabase if local is empty (e.g. very first run before the loop has produced data).
+    // Paint from Room first. Cloud fill and the upload run after that, off the
+    // first frame.
     _loadTodayVitalsFromLocal();
-    // HRV/Temperature are now also produced by the native measurement loop; these
-    // Supabase reads only cover data recorded before the loop started collecting them.
-    _loadTodayHrvFromSupabase();
-    _loadTodaySleepFromSupabase();
-    _loadTodayTempFromSupabase();
     syncEmergencyContactsFromCloud().then((_) => _syncContactsToCloud());
     loadLowBatteryPromptSetting();
   }
@@ -397,12 +396,10 @@ class BleProvider extends ChangeNotifier {
       _authSub = SupabaseService.client.auth.onAuthStateChange.listen((event) {
         final user = event.session?.user;
         if (user != null) {
-          // Auth restored after cold-start race (ctor ran before SplashScreen restored session)
-          // Re-pull vitals now that Supabase fallbacks can actually query.
+          // Session arrived after the first local paint. Fill any gaps from
+          // the cloud without blocking what is already on screen, then upload.
           _loadTodayVitalsFromLocal();
-          _loadTodayHrvFromSupabase();
-          _loadTodaySleepFromSupabase();
-          _loadTodayTempFromSupabase();
+          scheduleCloudUpload();
         }
       });
     } catch (e, st) {
@@ -1168,30 +1165,82 @@ Future<void> _loadTodayVitalsFromLocal() async {
     _beginNotifyBatch();
     try {
       await Future.wait([
-        _refreshHrFromLocal().then(
-          (ok) => ok ? null : _loadTodayHrFromSupabase(),
-        ),
-        _refreshSpo2FromLocal().then(
-          (ok) => ok ? null : _loadTodaySpo2FromSupabase(),
-        ),
-        _refreshStressFromLocal().then(
-          (ok) => ok ? null : _loadTodayStressFromSupabase(),
-        ),
-        _refreshBpFromLocal().then(
-          (ok) => ok ? null : _loadTodayBpFromSupabase(),
-        ),
-        _refreshStepsFromLocal().then(
-          (ok) => ok ? null : _loadTodayFromSupabase(),
-        ),
-        _refreshTempFromLocal().then(
-          (ok) => ok ? null : _loadTodayTempFromSupabase(),
-        ),
-        _refreshHrvFromLocal().then(
-          (ok) => ok ? null : _loadTodayHrvFromSupabase(),
-        ),
+        _refreshHrFromLocal(),
+        _refreshSpo2FromLocal(),
+        _refreshStressFromLocal(),
+        _refreshBpFromLocal(),
+        _refreshStepsFromLocal(),
+        _refreshTempFromLocal(),
+        _refreshHrvFromLocal(),
+        _refreshSleepFromLocal(),
       ]);
     } finally {
       _endNotifyBatch();
+    }
+    unawaited(_backfillTodayFromCloud());
+  }
+
+  /// Cloud is a fill-in for metrics the phone does not have yet. It runs after
+  /// the local paint, and a slow or missing network leaves the local values up.
+  Future<void> _backfillTodayFromCloud() async {
+    try {
+      if (_todayAvgHr <= 0) await _loadTodayHrFromSupabase();
+      if (_todayAvgSpo2 <= 0) await _loadTodaySpo2FromSupabase();
+      if (_latestStressValue <= 0 && _todayAvgStress <= 0) {
+        await _loadTodayStressFromSupabase();
+      }
+      if (_latestBpSbp <= 0) await _loadTodayBpFromSupabase();
+      if (_todaySteps <= 0) await _loadTodayFromSupabase();
+      if (_latestTempC <= 0) await _loadTodayTempFromSupabase();
+      if (_todayAvgHrv <= 0) await _loadTodayHrvFromSupabase();
+      if (_todaySleepDuration <= 0) await _loadTodaySleepFromSupabase();
+    } catch (e, st) {
+      _recordError(e, st);
+    }
+  }
+
+  /// Ask the native uploader to push unsynced Room rows if the network is
+  /// validated. Debounced so a burst of saves does not start a burst of posts.
+  void scheduleCloudUpload() {
+    _cloudUploadTimer?.cancel();
+    _cloudUploadTimer = Timer(const Duration(seconds: 2), () {
+      unawaited(_ble.forceSyncNow());
+    });
+  }
+
+  Future<bool> _refreshSleepFromLocal() async {
+    try {
+      final raw = await _ble.getLocalSleep(DateKeys.fmt(DateTime.now()));
+      if (raw.isEmpty || raw == '{}') return false;
+      final row = jsonDecode(raw);
+      if (row is! Map) return false;
+      final payload = row['payloadJson'];
+      if (payload is String && payload.length > 2) {
+        try {
+          final parsed = SleepEngine.parseSleepData(payload);
+          if (parsed.hasData) {
+            _todaySleepDuration = parsed.total;
+            _todaySleepScore = parsed.score;
+            _todaySleepDeepSecs = parsed.deep;
+            _todaySleepLightSecs = parsed.light;
+            _todaySleepRemSecs = parsed.rem;
+            notifyListeners();
+            return true;
+          }
+        } catch (_) {}
+      }
+      final total = (row['totalDuration'] as num?)?.toInt() ?? 0;
+      if (total <= 0) return false;
+      _todaySleepDuration = total;
+      _todaySleepScore = (row['sleepScore'] as num?)?.toInt() ?? 0;
+      _todaySleepDeepSecs = (row['deepDuration'] as num?)?.toInt() ?? 0;
+      _todaySleepLightSecs = (row['lightDuration'] as num?)?.toInt() ?? 0;
+      _todaySleepRemSecs = (row['remDuration'] as num?)?.toInt() ?? 0;
+      notifyListeners();
+      return true;
+    } catch (e, st) {
+      _recordError(e, st);
+      return false;
     }
   }
 
@@ -1730,35 +1779,33 @@ Future<void> syncAllFromRing() async {
 
     _isSyncing = true;
     _syncProgress = 0.0;
-    _syncStep = 'HRV';
+    _syncStep = 'Sleep';
     notifyListeners();
 
     const kTimeout = Duration(seconds: 8);
 
     try {
-      // 1. HRV (0% → 33%)
+      // Sleep first. The large-data packet is what new firmware actually
+      // stores; the older getTodaySleep command often comes back empty and
+      // used to answer before the real night arrived.
       try {
-        final json = await _ble.getTodayHrv().timeout(kTimeout);
-        _parseAndSaveHrv(json);
+        final json = await _ble.syncSleep(dayIndex: 0);
+        _parseAndSaveSleep(json);
+        if (_todaySleepDuration <= 0) {
+          final legacy = await _ble.getTodaySleep().timeout(kTimeout);
+          _parseAndSaveSleep(legacy);
+        }
       } catch (e, st) {
         _recordError(e, st);
       }
       if (!alive()) return;
       _syncProgress = 0.33;
-      _syncStep = 'Sleep';
+      _syncStep = 'HRV';
       notifyListeners();
 
-      // 2. Sleep (33% → 66%)
       try {
-        final json1 = await _ble.getTodaySleep().timeout(kTimeout);
-        _parseAndSaveSleep(json1);
-      } catch (e, st) {
-        _recordError(e, st);
-      }
-      if (!alive()) return;
-      try {
-        final json2 = await _ble.syncSleep().timeout(const Duration(seconds: 15));
-        _parseAndSaveSleep(json2);
+        final json = await _ble.getTodayHrv().timeout(kTimeout);
+        _parseAndSaveHrv(json);
       } catch (e, st) {
         _recordError(e, st);
       }
@@ -1821,8 +1868,6 @@ Future<void> syncAllFromRing() async {
       _syncProgress = 1.0;
       notifyListeners();
 
-      // Brief pause so user sees 100% before overlay hides
-      await Future.delayed(const Duration(milliseconds: 700));
     } finally {
       if (alive()) {
         _isSyncing = false;
@@ -1865,7 +1910,7 @@ void _parseAndSaveHrv(String jsonStr) {
       _todaySleepLightSecs = res.light;
       _todaySleepRemSecs = res.rem;
       notifyListeners();
-      _saveSleepToDb(res.total, res.deep, res.light, res.rem, res.awake, res.score, res.st, res.et);
+      _saveSleepToDb(res);
       // Two-way sync: push last night's sleep into Health Connect.
       unawaited(_pushSleepToHealthConnect(res.st, res.et, res.deep, res.light, res.rem, res.awake));
     } catch (e, st) {
@@ -1975,33 +2020,25 @@ void _parseAndSaveHrv(String jsonStr) {
     }
   }
 
-  Future<void> _saveSleepToDb(
-    int total,
-    int deep,
-    int light,
-    int rem,
-    int awake,
-    int score,
-    int st,
-    int et,
-  ) async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
+  Future<void> _saveSleepToDb(SleepParseResult res) async {
+    if (!res.hasData || res.total <= 0) return;
     try {
-      await SupabaseService.upsertSleep(
-        userId: user.id,
-        date: DateTime.now(),
-        totalDuration: total,
-        deepDuration: deep,
-        lightDuration: light,
-        remDuration: rem,
-        awakeDuration: awake,
-        sleepScore: score,
-        sleepTime: st,
-        wakeTime: et,
+      await _ble.saveLocalSleep(
+        dateStr: DateKeys.fmt(DateTime.now()),
+        totalDuration: res.total,
+        deepDuration: res.deep,
+        lightDuration: res.light,
+        remDuration: res.rem,
+        awakeDuration: res.awake,
+        sleepScore: res.score,
+        sleepTime: res.st,
+        wakeTime: res.et,
+        payloadJson: SleepEngine.canonicalJson(res),
+        source: 'ring',
       );
-    } catch (e, st) {
-      _recordError(e, st);
+      scheduleCloudUpload();
+    } catch (e, stack) {
+      _recordError(e, stack);
     }
   }
 
@@ -2163,12 +2200,46 @@ Future<void> _loadTodayFromSupabase() async {
         DateTime.now(),
       );
       if (data != null) {
-        _todaySleepDuration = (data['total_duration'] as num? ?? 0).toInt();
-        _todaySleepScore = (data['sleep_score'] as num? ?? 0).toInt();
-        _todaySleepDeepSecs = (data['deep_duration'] as num? ?? 0).toInt();
-        _todaySleepLightSecs = (data['light_duration'] as num? ?? 0).toInt();
-        _todaySleepRemSecs = (data['rem_duration'] as num? ?? 0).toInt();
+        final total = (data['total_duration'] as num? ?? 0).toInt();
+        final score = (data['sleep_score'] as num? ?? 0).toInt();
+        final deep = (data['deep_duration'] as num? ?? 0).toInt();
+        final light = (data['light_duration'] as num? ?? 0).toInt();
+        final rem = (data['rem_duration'] as num? ?? 0).toInt();
+        final awake = (data['awake_duration'] as num? ?? 0).toInt();
+        final st = (data['sleep_time'] as num? ?? 0).toInt();
+        final et = (data['wake_time'] as num? ?? 0).toInt();
+        if (total <= 0) return;
+        _todaySleepDuration = total;
+        _todaySleepScore = score;
+        _todaySleepDeepSecs = deep;
+        _todaySleepLightSecs = light;
+        _todaySleepRemSecs = rem;
         notifyListeners();
+        final parsed = SleepParseResult(
+          total: total,
+          deep: deep,
+          light: light,
+          rem: rem,
+          awake: awake,
+          st: st,
+          et: et,
+          score: score,
+          segments: const [],
+          hasData: true,
+        );
+        unawaited(_ble.saveLocalSleep(
+          dateStr: DateKeys.fmt(DateTime.now()),
+          totalDuration: total,
+          deepDuration: deep,
+          lightDuration: light,
+          remDuration: rem,
+          awakeDuration: awake,
+          sleepScore: score,
+          sleepTime: st,
+          wakeTime: et,
+          payloadJson: SleepEngine.canonicalJson(parsed),
+          source: 'cloud_cache',
+        ));
       }
     } catch (e, st) {
       _recordError(e, st);

@@ -41,6 +41,8 @@ class MetricStatCard extends StatelessWidget {
         children: [
           Text(
             label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: AppTypography.inter(
               fontSize: 10,
               fontWeight: FontWeight.w600,
@@ -79,6 +81,8 @@ class MetricStatCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               caption!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: AppTypography.inter(
                 fontSize: 11,
                 color: captionColor ?? AppTheme.textTertiary,

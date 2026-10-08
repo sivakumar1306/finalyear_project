@@ -236,20 +236,27 @@ class PredictionCol extends StatelessWidget {
       children: [
         Text(
           label,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: _inter(10.5,
               weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.45)),
         ),
         const SizedBox(height: 6),
-        RichText(
-          text: TextSpan(children: [
-            TextSpan(
-                text: value,
-                style: _inter(20, weight: FontWeight.w600, color: Colors.white)),
-            if (valueSuffix.isNotEmpty)
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: RichText(
+            maxLines: 1,
+            text: TextSpan(children: [
               TextSpan(
-                  text: valueSuffix,
-                  style: _inter(12, color: Colors.white.withValues(alpha: 0.6))),
-          ]),
+                  text: value,
+                  style: _inter(20, weight: FontWeight.w600, color: Colors.white)),
+              if (valueSuffix.isNotEmpty)
+                TextSpan(
+                    text: valueSuffix,
+                    style: _inter(12, color: Colors.white.withValues(alpha: 0.6))),
+            ]),
+          ),
         ),
         const SizedBox(height: 4),
         Text(

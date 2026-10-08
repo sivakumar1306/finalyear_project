@@ -82,6 +82,8 @@ class KeyChangeCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: AppTypography.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -89,13 +91,19 @@ class KeyChangeCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Text(
-                      delta,
-                      style: AppTypography.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: -0.005,
-                        color: accentColor.withValues(alpha: 0.93),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        delta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                        style: AppTypography.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: -0.005,
+                          color: accentColor.withValues(alpha: 0.93),
+                        ),
                       ),
                     ),
                   ],

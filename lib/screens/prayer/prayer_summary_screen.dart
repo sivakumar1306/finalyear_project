@@ -173,7 +173,7 @@ class _PrayerSummaryScreenState extends State<PrayerSummaryScreen> {
               physics: const NeverScrollableScrollPhysics(),
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
-              childAspectRatio: 1.6,
+              childAspectRatio: 1.35,
               children: [
                 _SummaryTile(
                   icon: Icons.timer_rounded,
@@ -286,6 +286,8 @@ class _SummaryTile extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: AppTypography.inter(
               color: Colors.white,
               fontSize: 16,

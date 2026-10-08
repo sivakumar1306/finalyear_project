@@ -61,23 +61,32 @@ class MetricChartCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                headerLabel,
-                style: AppTypography.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textTertiary,
-                  letterSpacing: 0.6,
+              Expanded(
+                child: Text(
+                  headerLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textTertiary,
+                    letterSpacing: 0.6,
+                  ),
                 ),
               ),
-              Text(
-                rangeLabel,
-                style: AppTypography.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: AppTheme.iconMuted,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  rangeLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: AppTypography.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.iconMuted,
+                  ),
                 ),
               ),
             ],
@@ -99,11 +108,17 @@ class MetricChartCard extends StatelessWidget {
                             for (final label in yLabels!)
                               Padding(
                                 padding: const EdgeInsets.only(right: 6),
-                                child: Text(
-                                  label,
-                                  style: AppTypography.inter(
-                                    fontSize: 10,
-                                    color: AppTheme.textTertiary,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerRight,
+                                  child: Text(
+                                    label,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    style: AppTypography.inter(
+                                      fontSize: 10,
+                                      color: AppTheme.textTertiary,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -144,6 +159,8 @@ class MetricChartCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.center,
                               style: AppTypography.inter(
                                 fontSize: 10,
@@ -157,11 +174,16 @@ class MetricChartCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         for (final label in xLabels!)
-                          Text(
-                            label,
-                            style: AppTypography.inter(
-                              fontSize: 10,
-                              color: AppTheme.textTertiary,
+                          Expanded(
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: AppTypography.inter(
+                                fontSize: 10,
+                                color: AppTheme.textTertiary,
+                              ),
                             ),
                           ),
                       ],

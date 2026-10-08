@@ -231,10 +231,11 @@ class _PrayerHistoryScreenState extends State<PrayerHistoryScreen> {
                       ),
                       child: Column(
                         children: [
-                          Row(
-                            children: [
+                          Wrap(
+                            spacing: 20,
+                            runSpacing: 6,
+                            children: const [
                               _ChartLegend(label: 'Calmness %', color: AppTheme.gold),
-                              const SizedBox(width: 20),
                               _ChartLegend(label: 'Avg Heart Rate', color: Colors.redAccent),
                             ],
                           ),
@@ -416,17 +417,24 @@ class _SummaryStatCard extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 20),
           const SizedBox(height: 10),
-          Text(
-            value,
-            style: AppTypography.inter(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              softWrap: false,
+              style: AppTypography.inter(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(height: 2),
           Text(
             title,
+            maxLines: 2,
             style: AppTypography.inter(
               color: AppTheme.textSec,
               fontSize: 10,
@@ -448,6 +456,7 @@ class _ChartLegend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 8,
@@ -457,6 +466,8 @@ class _ChartLegend extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: AppTypography.inter(color: AppTheme.textSec, fontSize: 11),
         ),
       ],

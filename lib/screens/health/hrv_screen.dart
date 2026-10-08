@@ -892,8 +892,9 @@ class _HrvScreenState extends State<HrvScreen> {
                     barCount: _trendValues.length,
                     loading: _loadingTrend,
                     loadingAccent: AppTheme.hrvColor,
-                    footer: const Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    footer: const Wrap(
+                      spacing: 10,
+                      runSpacing: 6,
                       children: [
                         LegendDot(color: AppTheme.danger, label: 'Very Low'),
                         LegendDot(color: AppTheme.stressColor, label: 'Low'),

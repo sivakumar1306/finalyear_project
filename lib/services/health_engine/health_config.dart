@@ -310,6 +310,28 @@ class HealthConfig {
 
   static Map<String, dynamic> get current => _current;
 
+  /// Prefs only. Await this before [runApp] so the first frame has thresholds
+  /// without a network round trip.
+  static Future<void> loadCached() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = prefs.getString(_prefsKey);
+      if (jsonStr != null && jsonStr.isNotEmpty) {
+        final cached = jsonDecode(jsonStr);
+        if (cached is Map && cached.isNotEmpty) {
+          _current = _deepMerge(
+            jsonDecode(jsonEncode(kDefaultConfig)) as Map<String, dynamic>,
+            Map<String, dynamic>.from(cached),
+          );
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint('[HealthConfig] prefs cache read failed: $e');
+    }
+    _current = jsonDecode(jsonEncode(kDefaultConfig)) as Map<String, dynamic>;
+  }
+
   /// Call once at app start (before runApp) + on pull-to-refresh / resume.
   static Future<void> load() async {
     // 1) Try Supabase first.
@@ -379,31 +401,8 @@ class HealthConfig {
       }
     }
 
-    // 2) Offline fallback: SharedPreferences cache.
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonStr = prefs.getString(_prefsKey);
-      if (jsonStr != null && jsonStr.isNotEmpty) {
-        final cached = jsonDecode(jsonStr);
-        if (cached is Map<String, dynamic> && cached.isNotEmpty) {
-          _current = _deepMerge(
-              jsonDecode(jsonEncode(kDefaultConfig)) as Map<String, dynamic>,
-              cached);
-          return;
-        }
-        if (cached is Map && cached.isNotEmpty) {
-          _current = _deepMerge(
-              jsonDecode(jsonEncode(kDefaultConfig)) as Map<String, dynamic>,
-              Map<String, dynamic>.from(cached));
-          return;
-        }
-      }
-    } catch (e) {
-      debugPrint('[HealthConfig] prefs cache read failed: $e');
-    }
-
-    // 3) Bundled default stays as-is.
-    _current = jsonDecode(jsonEncode(kDefaultConfig)) as Map<String, dynamic>;
+    // 2) Offline fallback: SharedPreferences cache, then bundled defaults.
+    await loadCached();
   }
 
   static Future<void> refresh() async {

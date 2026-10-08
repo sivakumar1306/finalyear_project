@@ -879,8 +879,9 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
                   xLabels: _trendXLabels(),
                   loading: _loadingTrend,
                   loadingAccent: AppTheme.tempColor,
-                  footer: const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  footer: const Wrap(
+                    spacing: 10,
+                    runSpacing: 6,
                     children: [
                       LegendDot(color: AppTheme.spo2Color, label: 'Low'),
                       LegendDot(color: AppTheme.success, label: 'Normal'),
@@ -953,13 +954,18 @@ class _RealTimeTempCard extends StatelessWidget {
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Real Time Temperature',
-                style: _inter(14, weight: FontWeight.w500),
+              Flexible(
+                child: Text(
+                  'Real Time Temperature',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _inter(14, weight: FontWeight.w500),
+                ),
               ),
+              const SizedBox(width: 8),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [

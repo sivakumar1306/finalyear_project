@@ -49,7 +49,12 @@ class _ActivityDescriptionScreenState extends State<ActivityDescriptionScreen> {
         elevation: 0,
         centerTitle: true,
         leading: const GlassBackButton(),
-        title: Text('Activity Description', style: _t(17, w: FontWeight.w600)),
+        title: Text(
+          'Activity Description',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: _t(17, w: FontWeight.w600),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
@@ -77,12 +82,12 @@ class _ActivityDescriptionScreenState extends State<ActivityDescriptionScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: const [
                       _WeightChip(label: 'Steps', pct: '60 pts'),
-                      SizedBox(width: 8),
                       _WeightChip(label: 'Calories', pct: '25 pts'),
-                      SizedBox(width: 8),
                       _WeightChip(label: 'Distance', pct: '15 pts'),
                     ],
                   ),
@@ -197,6 +202,8 @@ class _WeightChip extends StatelessWidget {
       ),
       child: Text(
         '$label · $pct',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: _t(
           11.5,
           w: FontWeight.w500,
@@ -267,16 +274,12 @@ class _ScoreRangeLegend extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              Text(
-                '${row.label} ',
-                style: _t(11.5, c: Colors.white.withValues(alpha: 0.7)),
-              ),
-              Text(
-                row.range,
-                style: _t(
-                  11.5,
-                  w: FontWeight.w500,
-                  c: Colors.white.withValues(alpha: 0.4),
+              Flexible(
+                child: Text(
+                  '${row.label} ${row.range}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _t(11.5, c: Colors.white.withValues(alpha: 0.7)),
                 ),
               ),
             ],

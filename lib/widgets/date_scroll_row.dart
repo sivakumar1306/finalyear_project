@@ -105,8 +105,9 @@ class _DateScrollRowState extends State<DateScrollRow> {
 
     final dates = _datesFor(widget.selectedDate);
 
+    final textScale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.4).toDouble();
     return SizedBox(
-      height: 58,
+      height: 58 * textScale,
       child: ListView.builder(
         controller: _scrollController,
         scrollDirection: Axis.horizontal,

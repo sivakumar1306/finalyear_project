@@ -496,15 +496,24 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 ),
                 const SizedBox(height: 16),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Period History',
-                      style: _inter(18, weight: FontWeight.w700),
+                    Expanded(
+                      child: Text(
+                        'Period History',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _inter(18, weight: FontWeight.w700),
+                      ),
                     ),
-                    Text(
-                      'Swipe to delete',
-                      style: _inter(12, color: AppTheme.textSec),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Swipe to delete',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                        style: _inter(12, color: AppTheme.textSec),
+                      ),
                     ),
                   ],
                 ),
@@ -859,11 +868,14 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
       child: _glassCard(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'View Cycle Statistics',
-              style: _inter(16, weight: FontWeight.w400, color: Colors.white),
+            Expanded(
+              child: Text(
+                'View Cycle Statistics',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _inter(16, weight: FontWeight.w400, color: Colors.white),
+              ),
             ),
             const Icon(
               Icons.chevron_right_rounded,
@@ -1176,9 +1188,16 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
           const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(status, style: _inter(16, weight: FontWeight.w600)),
+              Flexible(
+                child: Text(
+                  status,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _inter(16, weight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: 8),
               Text(durationLabel, style: _inter(15, weight: FontWeight.w500)),
             ],
           ),
@@ -1355,16 +1374,32 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
                 ),
                 const SizedBox(height: 4),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('0 (Low)', style: _inter(10, color: AppTheme.textSec)),
-                    Text(
-                      '50 (Med)',
-                      style: _inter(10, color: AppTheme.textSec),
+                    Expanded(
+                      child: Text(
+                        '0 (Low)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _inter(10, color: AppTheme.textSec),
+                      ),
                     ),
-                    Text(
-                      '100 (High)',
-                      style: _inter(10, color: AppTheme.textSec),
+                    Expanded(
+                      child: Text(
+                        '50 (Med)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: _inter(10, color: AppTheme.textSec),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '100 (High)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                        style: _inter(10, color: AppTheme.textSec),
+                      ),
                     ),
                   ],
                 ),

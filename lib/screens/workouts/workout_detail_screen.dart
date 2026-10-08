@@ -200,43 +200,54 @@ class WorkoutDetailScreen extends StatelessWidget {
                       child: Column(
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.goldBorder,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(icon,
-                                        color: AppTheme.gold, size: 14),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      category?.label ?? 'Workout',
-                                      style: _inter(11,
-                                          weight: FontWeight.w600,
-                                          color: AppTheme.gold),
-                                    ),
-                                  ],
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.goldBorder,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(icon,
+                                          color: AppTheme.gold, size: 14),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          category?.label ?? 'Workout',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: _inter(11,
+                                              weight: FontWeight.w600,
+                                              color: AppTheme.gold),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: hrZoneColor.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                      color: hrZoneColor.withValues(alpha: 0.4)),
-                                ),
-                                child: Text(
-                                  hrZoneLabel,
-                                  style: _inter(10,
-                                      weight: FontWeight.w600,
-                                      color: hrZoneColor),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: hrZoneColor.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                        color: hrZoneColor.withValues(alpha: 0.4)),
+                                  ),
+                                  child: Text(
+                                    hrZoneLabel,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: _inter(10,
+                                        weight: FontWeight.w600,
+                                        color: hrZoneColor),
+                                  ),
                                 ),
                               ),
                             ],
@@ -279,7 +290,7 @@ class WorkoutDetailScreen extends StatelessWidget {
                       physics: const NeverScrollableScrollPhysics(),
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
-                      childAspectRatio: 1.25,
+                      childAspectRatio: 1.05,
                       children: [
                         _MetricTile(
                           title: 'HEART RATE',
@@ -597,19 +608,24 @@ class _MetricTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(
-                value,
-                style: TextStyle(
-                  color: value == '—' ? AppTheme.textSec : Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+              Flexible(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: value == '—' ? AppTheme.textSec : Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
               const SizedBox(width: 4),
-              Expanded(
+              Flexible(
                 child: Text(
                   unit,
+                  maxLines: 1,
                   style: _inter(9.5, color: AppTheme.textSec),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -619,6 +635,7 @@ class _MetricTile extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             subtitle,
+            maxLines: 1,
             style: _inter(10, color: AppTheme.textSec),
             overflow: TextOverflow.ellipsis,
           ),
@@ -675,10 +692,16 @@ class _HrZoneBar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('ZONE DISTRIBUTION',
-                  style: _inter(10, weight: FontWeight.w600, color: AppTheme.textSec)),
+              Expanded(
+                child: Text(
+                  'ZONE DISTRIBUTION',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _inter(10, weight: FontWeight.w600, color: AppTheme.textSec),
+                ),
+              ),
+              const SizedBox(width: 8),
               Text('Avg $avgHr bpm',
                   style: _inter(11, weight: FontWeight.w700, color: AppTheme.gold)),
             ],
@@ -706,8 +729,9 @@ class _HrZoneBar extends StatelessWidget {
           const SizedBox(height: 14),
 
           // Legend
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 10,
+            runSpacing: 6,
             children: [
               _ZoneLegendItem(color: AppTheme.spo2Color, label: 'Warmup', pct: '${(warmupRatio * 100).round()}%'),
               _ZoneLegendItem(color: AppTheme.success, label: 'Fat Burn', pct: '${(fatBurnRatio * 100).round()}%'),
@@ -731,6 +755,7 @@ class _ZoneLegendItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 5),

@@ -112,7 +112,7 @@ class _WatchfaceStoreScreenState extends State<WatchfaceStoreScreen> {
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.85),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.72),
             itemCount: _faces.length,
             itemBuilder: (ctx, i) {
               final f = _faces[i];
@@ -122,7 +122,7 @@ class _WatchfaceStoreScreenState extends State<WatchfaceStoreScreen> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(height: 80, decoration: BoxDecoration(color: Color(f['color'] as int).withValues(alpha: 0.18), borderRadius: BorderRadius.circular(12), border: Border.all(color: Color(f['color'] as int).withValues(alpha: 0.25))), child: Center(child: Icon(Icons.watch, color: Color(f['color'] as int), size: 36))),
                   const SizedBox(height: 8),
-                  Text(f['name'] as String, style: _inter(13, weight: FontWeight.w600)),
+                  Text(f['name'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: _inter(13, weight: FontWeight.w600)),
                   const SizedBox(height: 4),
                   if (isDownloading)
                     LinearProgressIndicator(value: _progress > 0 ? _progress : null, color: AppTheme.gold, backgroundColor: Colors.white.withValues(alpha: 0.08))

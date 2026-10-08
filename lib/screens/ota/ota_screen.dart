@@ -340,16 +340,20 @@ class _OtaScreenState extends State<OtaScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          _isDownloading ? 'Downloading firmware' : 'Updating firmware',
-                          style: AppTypography.inter(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                        Expanded(
+                          child: Text(
+                            _isDownloading ? 'Downloading firmware' : 'Updating firmware',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.inter(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Text(
                           _isDownloading ? '$_downloadProgress%' : '$_flashProgress%',
                           style: AppTypography.inter(

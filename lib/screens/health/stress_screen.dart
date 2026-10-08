@@ -862,8 +862,9 @@ class _StressScreenState extends State<StressScreen> {
                   barCount: _trendValues.length,
                   loading: _loadingTrend,
                   loadingAccent: AppTheme.stressColor,
-                  footer: const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  footer: const Wrap(
+                    spacing: 10,
+                    runSpacing: 6,
                     children: [
                       LegendDot(color: AppTheme.success, label: 'Relaxed'),
                       LegendDot(color: AppTheme.amber, label: 'Normal'),
@@ -927,13 +928,18 @@ class _StressMeasurementCard extends StatelessWidget {
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Real Time Stress',
-                style: _inter(14, weight: FontWeight.w500),
+              Flexible(
+                child: Text(
+                  'Real Time Stress',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _inter(14, weight: FontWeight.w500),
+                ),
               ),
+              const SizedBox(width: 8),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [

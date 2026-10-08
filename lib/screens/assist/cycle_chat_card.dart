@@ -69,13 +69,17 @@ class CycleChatCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'CYCLE & MENSTRUAL HEALTH',
-                        style: AppTypography.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.8,
-                          color: AppTheme.white60,
+                      Expanded(
+                        child: Text(
+                          'CYCLE & MENSTRUAL HEALTH',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.8,
+                            color: AppTheme.white60,
+                          ),
                         ),
                       ),
                     ],
@@ -83,51 +87,63 @@ class CycleChatCard extends StatelessWidget {
                   const SizedBox(height: 12),
 
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Day $currentDay',
-                            style: AppTypography.inter(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.white96,
+                      Flexible(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Day $currentDay',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.inter(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.white96,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            phase,
-                            style: AppTypography.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: accentColor,
+                            const SizedBox(height: 2),
+                            Text(
+                              phase,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: accentColor,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            'In $daysUntilNext days',
-                            style: AppTypography.inter(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.white92,
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'In $daysUntilNext days',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.end,
+                              style: AppTypography.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.white92,
+                              ),
                             ),
-                          ),
-                          Text(
-                            'Next Period',
-                            style: AppTypography.inter(
-                              fontSize: 10.5,
-                              color: AppTheme.white40,
+                            Text(
+                              'Next Period',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.inter(
+                                fontSize: 10.5,
+                                color: AppTheme.white40,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -163,20 +179,10 @@ class CycleChatCard extends StatelessWidget {
                   const SizedBox(height: 12),
 
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _StatBadge(
-                        label: 'Start Date',
-                        value: periodStart,
-                      ),
-                      _StatBadge(
-                        label: 'Cycle Length',
-                        value: '${cycleLength}d',
-                      ),
-                      _StatBadge(
-                        label: 'Period Length',
-                        value: '${periodLength}d',
-                      ),
+                      Expanded(child: _StatBadge(label: 'Start Date', value: periodStart)),
+                      Expanded(child: _StatBadge(label: 'Cycle Length', value: '${cycleLength}d')),
+                      Expanded(child: _StatBadge(label: 'Period Length', value: '${periodLength}d')),
                     ],
                   ),
                 ],
@@ -205,6 +211,8 @@ class _StatBadge extends StatelessWidget {
       children: [
         Text(
           label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: AppTypography.inter(
             fontSize: 9.5,
             color: AppTheme.white40,
@@ -213,6 +221,8 @@ class _StatBadge extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: AppTypography.inter(
             fontSize: 11.5,
             fontWeight: FontWeight.w500,

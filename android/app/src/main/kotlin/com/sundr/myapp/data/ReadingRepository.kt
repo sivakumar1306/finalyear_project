@@ -302,6 +302,7 @@ class ReadingRepository private constructor(context: Context) {
     suspend fun unsyncedHrv(limit: Int) = withContext(Dispatchers.IO) { db.hrvDao().unsyncedBatch(limit) }
     suspend fun unsyncedTemperature(limit: Int) = withContext(Dispatchers.IO) { db.temperatureDao().unsyncedBatch(limit) }
     suspend fun unsyncedSteps(limit: Int) = withContext(Dispatchers.IO) { db.stepsSnapshotDao().unsyncedBatch(limit) }
+    suspend fun unsyncedSleep(limit: Int) = withContext(Dispatchers.IO) { db.sleepNightDao().unsyncedBatch(limit) }
 
     suspend fun markHeartRateSynced(ids: List<Long>, at: Long) =
         withContext(Dispatchers.IO) { db.heartRateDao().markSynced(ids, at) }
@@ -320,6 +321,9 @@ class ReadingRepository private constructor(context: Context) {
 
     suspend fun markTemperatureSynced(ids: List<Long>, at: Long) =
         withContext(Dispatchers.IO) { db.temperatureDao().markSynced(ids, at) }
+
+    suspend fun markSleepSynced(dates: List<String>, at: Long) =
+        withContext(Dispatchers.IO) { if (dates.isNotEmpty()) db.sleepNightDao().markSynced(dates, at) }
 
     suspend fun markStepsSynced(ids: List<Long>, at: Long) =
         withContext(Dispatchers.IO) { db.stepsSnapshotDao().markSynced(ids, at) }
@@ -735,6 +739,73 @@ class ReadingRepository private constructor(context: Context) {
 
     private fun dateStrOf(dayStartMs: Long): String =
         Instant.ofEpochMilli(dayStartMs).atZone(zone).toLocalDate().format(dateFmt)
+
+    suspend fun sleepForDate(dateStr: String): SleepNightEntity? = withContext(Dispatchers.IO) {
+        db.sleepNightDao().forDate(dateStr)
+    }
+
+    suspend fun sleepBetween(from: String, to: String): List<SleepNightEntity> = withContext(Dispatchers.IO) {
+        db.sleepNightDao().between(from, to)
+    }
+
+    /**
+     * Upsert one night. Ring data wins over a cloud mirror. Unchanged rows keep
+     * their syncedAt so a reopen does not re-upload the same night.
+     */
+    suspend fun saveSleepNight(
+        dateStr: String,
+        dayIndex: Int,
+        total: Int,
+        deep: Int,
+        light: Int,
+        rem: Int,
+        awake: Int,
+        score: Int,
+        sleepTime: Int,
+        wakeTime: Int,
+        payloadJson: String,
+        source: String,
+    ) = withContext(Dispatchers.IO) {
+        if (dateStr.isBlank() || total <= 0) return@withContext
+        val existing = db.sleepNightDao().forDate(dateStr)
+        if (source == "cloud_cache" && existing?.source == "ring" && existing.totalDuration > 0) {
+            return@withContext
+        }
+        val storedScore = if (score > 0) score else (existing?.sleepScore ?: 0)
+        val storedPayload = if (payloadJson.length > 2) payloadJson else (existing?.payloadJson ?: "{}")
+        val changedForSync = existing == null ||
+            existing.totalDuration != total ||
+            existing.deepDuration != deep ||
+            existing.lightDuration != light ||
+            existing.remDuration != rem ||
+            existing.awakeDuration != awake ||
+            existing.sleepTime != sleepTime ||
+            existing.wakeTime != wakeTime ||
+            (storedScore > 0 && existing.sleepScore != storedScore)
+        val syncedAt = when {
+            source == "cloud_cache" -> System.currentTimeMillis()
+            !changedForSync -> existing.syncedAt
+            else -> null
+        }
+        db.sleepNightDao().upsert(
+            SleepNightEntity(
+                dateStr = dateStr,
+                dayIndex = dayIndex,
+                totalDuration = total,
+                deepDuration = deep,
+                lightDuration = light,
+                remDuration = rem,
+                awakeDuration = awake,
+                sleepScore = storedScore,
+                sleepTime = sleepTime,
+                wakeTime = wakeTime,
+                payloadJson = storedPayload,
+                source = if (source == "cloud_cache" && existing?.source == "ring") "ring" else source,
+                syncedAt = syncedAt,
+                updatedAt = System.currentTimeMillis(),
+            )
+        )
+    }
 
     suspend fun clearMockData() = withContext(Dispatchers.IO) {
         val wdb = db.openHelper.writableDatabase

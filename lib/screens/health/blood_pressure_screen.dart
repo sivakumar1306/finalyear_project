@@ -1134,13 +1134,18 @@ class _RealTimeBPCard extends StatelessWidget {
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Real Time Blood Pressure',
-                style: _inter(14, weight: FontWeight.w500),
+              Flexible(
+                child: Text(
+                  'Real Time Blood Pressure',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _inter(14, weight: FontWeight.w500),
+                ),
               ),
+              const SizedBox(width: 8),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [

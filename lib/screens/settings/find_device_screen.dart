@@ -341,30 +341,30 @@ class _FindDeviceScreenState extends State<FindDeviceScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            Icon(
-                              batteryPct > 20
-                                  ? Icons.battery_std_rounded
-                                  : Icons.battery_alert_rounded,
-                              color: batteryPct > 20
-                                  ? AppTheme.gold
-                                  : Colors.redAccent,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Battery Level',
-                              style: AppTypography.inter(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                        Icon(
+                          batteryPct > 20
+                              ? Icons.battery_std_rounded
+                              : Icons.battery_alert_rounded,
+                          color: batteryPct > 20
+                              ? AppTheme.gold
+                              : Colors.redAccent,
+                          size: 22,
                         ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Battery Level',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.inter(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         Text(
                           ble.battery >= 0 ? '$batteryPct%' : 'Checking...',
                           style: AppTypography.inter(

@@ -413,7 +413,7 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
-            childAspectRatio: 1.35,
+            childAspectRatio: 1.15,
             children: [
               for (final type in HealthSyncType.values)
                 if (shown.contains(type)) _buildTodayTile(type),
@@ -497,11 +497,15 @@ class _HealthConnectScreenState extends State<HealthConnectScreen> {
                     ),
                     if (unit.isNotEmpty) ...[
                       const SizedBox(width: 6),
-                      Text(
-                        unit,
-                        style: AppTypography.inter(
-                          fontSize: 12,
-                          color: AppTheme.textSec,
+                      Flexible(
+                        child: Text(
+                          unit,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.inter(
+                            fontSize: 12,
+                            color: AppTheme.textSec,
+                          ),
                         ),
                       ),
                     ],

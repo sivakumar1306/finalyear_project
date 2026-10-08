@@ -208,6 +208,7 @@ class _PillGenderCard extends StatelessWidget {
         ),
         child: Text(
           label,
+          maxLines: 1,
           style: TextStyle(
             color: active ? kGold : Colors.white,
             fontSize: 14,

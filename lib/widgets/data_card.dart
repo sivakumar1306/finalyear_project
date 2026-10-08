@@ -42,22 +42,34 @@ class DataCard extends StatelessWidget {
                     Icon(icon, size: 18, color: c),
                     const SizedBox(width: 6),
                   ],
-                  Text(label, style: AppTypography.inter(fontSize: 13, color: AppTheme.textTertiary)),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.inter(fontSize: 13, color: AppTheme.textTertiary),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(value, style: AppTypography.inter(fontSize: 28, fontWeight: FontWeight.w600, color: c)),
-                  if (unit != null) ...[
-                    const SizedBox(width: 4),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(unit!, style: AppTypography.inter(fontSize: 14, color: AppTheme.textTertiary)),
-                    ),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(value, style: AppTypography.inter(fontSize: 28, fontWeight: FontWeight.w600, color: c)),
+                    if (unit != null) ...[
+                      const SizedBox(width: 4),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(unit!, style: AppTypography.inter(fontSize: 14, color: AppTheme.textTertiary)),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ],
           ),

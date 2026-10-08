@@ -97,56 +97,76 @@ class _Header extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppTheme.goldBorder,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.circle,
-                      color: workout.ringUnreachable
-                          ? AppTheme.textSec
-                          : AppTheme.danger,
-                      size: 8,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        color: AppTheme.gold,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.goldBorder,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.circle,
+                        color: workout.ringUnreachable
+                            ? AppTheme.textSec
+                            : AppTheme.danger,
+                        size: 8,
                       ),
-                    ),
-                    if (workout.ringUnreachable) ...[
                       const SizedBox(width: 6),
-                      const Text(
-                        '• Reconnecting…',
-                        style: TextStyle(
-                          color: AppTheme.textSec,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppTheme.gold,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
+                      if (workout.ringUnreachable) ...[
+                        const SizedBox(width: 6),
+                        const Flexible(
+                          child: Text(
+                            '• Reconnecting…',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppTheme.textSec,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            _formatElapsed(workout.elapsedSeconds),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 56,
-              fontWeight: FontWeight.w200,
-              letterSpacing: 4,
-              fontFeatures: [FontFeature.tabularFigures()],
+          SizedBox(
+            width: double.infinity,
+            height: 72 *
+                MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.4),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                _formatElapsed(workout.elapsedSeconds),
+                maxLines: 1,
+                softWrap: false,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 56,
+                  fontWeight: FontWeight.w200,
+                  letterSpacing: 4,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
             ),
           ),
           const Text(
@@ -289,6 +309,8 @@ class _MetricCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: value == '—' ? AppTheme.textSec : Colors.white,
               fontSize: 22,
@@ -299,6 +321,8 @@ class _MetricCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: AppTheme.textSec, fontSize: 10),
           ),
         ],
@@ -437,15 +461,27 @@ class _SummaryRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: AppTheme.textSec, fontSize: 14)),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppTheme.textSec, fontSize: 14),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

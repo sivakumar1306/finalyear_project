@@ -271,16 +271,20 @@ class FaqScreen extends StatelessWidget {
                     color: Colors.black.withValues(alpha: 0.25),
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const GlassBackButton(),
-                      Text(
-                        "FAQ's",
-                        style: AppTypography.inter(
-                          color: Colors.white.withValues(alpha: 0.88),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: -0.005,
+                      Expanded(
+                        child: Text(
+                          "FAQ's",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: AppTypography.inter(
+                            color: Colors.white.withValues(alpha: 0.88),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: -0.005,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 36, height: 36),

@@ -287,7 +287,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
       widgets.add(
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: _HistoryRow(row: row),
+          child: WorkoutHistoryTile(row: row),
         ),
       );
     }
@@ -324,14 +324,24 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                             children: [
                               const GlassBackButton(),
                               const SizedBox(width: 14),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Workouts',
-                                      style: _inter(28, weight: FontWeight.w700)),
-                                  Text('Track your fitness journey',
-                                      style: _inter(13, color: AppTheme.textSec)),
-                                ],
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Workouts',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: _inter(28, weight: FontWeight.w700),
+                                    ),
+                                    Text(
+                                      'Track your fitness journey',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: _inter(13, color: AppTheme.textSec),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
@@ -359,17 +369,28 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                         children: [
                           Row(
                             children: [
-                              Text(
-                                'START WORKOUT',
-                                style: _inter(11,
-                                    weight: FontWeight.w700,
-                                    color: AppTheme.textSec,
-                                    letterSpacing: 1.4),
+                              Flexible(
+                                child: Text(
+                                  'START WORKOUT',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: _inter(11,
+                                      weight: FontWeight.w700,
+                                      color: AppTheme.textSec,
+                                      letterSpacing: 1.4),
+                                ),
                               ),
                               if (workout.isWorkoutActive) ...[
-                                const Spacer(),
-                                Text('finish active first',
-                                    style: _inter(11, color: _kSec)),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    'finish active first',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.end,
+                                    style: _inter(11, color: _kSec),
+                                  ),
+                                ),
                               ],
                             ],
                           ),
@@ -380,7 +401,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                             physics: const NeverScrollableScrollPhysics(),
                             crossAxisSpacing: 10,
                             mainAxisSpacing: 10,
-                            childAspectRatio: 0.80,
+                            childAspectRatio: 0.68,
                             children: WorkoutCategory.values.map((cat) {
                               return _CategoryGridItem(
                                 category: cat,
@@ -408,14 +429,17 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            "TODAY'S WORKOUTS",
-                            style: _inter(11,
-                                weight: FontWeight.w700,
-                                color: AppTheme.textSec,
-                                letterSpacing: 1.4),
+                          Flexible(
+                            child: Text(
+                              "TODAY'S WORKOUTS",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _inter(11,
+                                  weight: FontWeight.w700,
+                                  color: AppTheme.textSec,
+                                  letterSpacing: 1.4),
+                            ),
                           ),
                           if (_history.isNotEmpty)
                             Container(
@@ -461,14 +485,14 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                     // Horizontal spotlight cards — 3 most recent
                     SliverToBoxAdapter(
                       child: SizedBox(
-                        height: 164,
+                        height: WorkoutSpotlightCard.heightFor(context),
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
                           padding:
                               const EdgeInsets.symmetric(horizontal: 16),
                           itemCount: min(_history.length, 3),
                           itemBuilder: (_, i) =>
-                              _SpotlightCard(row: _history[i]),
+                              WorkoutSpotlightCard(row: _history[i]),
                         ),
                       ),
                     ),
@@ -606,14 +630,16 @@ class _CategoryGridItem extends StatelessWidget {
                 child: Icon(category.icon, color: AppTheme.gold, size: 20),
               ),
               const SizedBox(height: 7),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                child: Text(
-                  category.label,
-                  style: _inter(9.5, weight: FontWeight.w500),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  child: Text(
+                    category.label,
+                    style: _inter(9.5, weight: FontWeight.w500),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ],
@@ -660,9 +686,16 @@ class _CategoryGridItem extends StatelessWidget {
 
 // ── Spotlight Card ────────────────────────────────────────────────────────────
 
-class _SpotlightCard extends StatelessWidget {
+class WorkoutSpotlightCard extends StatelessWidget {
   final Map<String, dynamic> row;
-  const _SpotlightCard({required this.row});
+  const WorkoutSpotlightCard({super.key, required this.row});
+
+  /// Tall enough for a two-line name such as "Strength Training", the date,
+  /// the duration, and one stats line, including larger system text.
+  static double heightFor(BuildContext context) {
+    final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6);
+    return 200 + 110 * (scale - 1);
+  }
 
   static String _fmtDuration(int seconds) {
     final h = seconds ~/ 3600;
@@ -705,12 +738,35 @@ class _SpotlightCard extends StatelessWidget {
         ? '${type[0].toUpperCase()}${type.substring(1)}'
         : 'Workout';
 
+    final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6);
+    final stats = <(IconData, Color, String)>[];
+    if (avgHr > 0) {
+      stats.add((Icons.monitor_heart_rounded, AppTheme.hrColor, '$avgHr'));
+    }
+    if (calories > 0) {
+      stats.add((
+        Icons.local_fire_department_rounded,
+        AppTheme.warmOrange,
+        '$calories',
+      ));
+    }
+    if (distanceM > 0) {
+      stats.add((
+        Icons.straighten_rounded,
+        AppTheme.success,
+        distanceM >= 1000
+            ? '${(distanceM / 1000).toStringAsFixed(1)}k'
+            : '${distanceM.toStringAsFixed(0)}m',
+      ));
+    }
+
     return GestureDetector(
       onTap: () => _showWorkoutDetailSheet(context, row),
       child: Container(
-        width: 152,
+        width: 168,
+        height: heightFor(context),
         margin: const EdgeInsets.only(right: 10),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: AppTheme.card,
           borderRadius: BorderRadius.circular(16),
@@ -719,7 +775,6 @@ class _SpotlightCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Icon
             Container(
               width: 36,
               height: 36,
@@ -729,15 +784,13 @@ class _SpotlightCard extends StatelessWidget {
               ),
               child: Icon(icon, color: AppTheme.gold, size: 18),
             ),
-            const SizedBox(height: 10),
-            // Name
+            const SizedBox(height: 8),
             Text(
               label,
               style: _inter(12, weight: FontWeight.w600),
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            // Date
             Text(
               startedAt.isNotEmpty ? _fmtDate(startedAt) : '',
               style: _inter(9.5, color: AppTheme.textSec),
@@ -745,47 +798,38 @@ class _SpotlightCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             const Spacer(),
-            // Duration — prominent
             Text(
               _fmtDuration(durationS),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: _inter(22, weight: FontWeight.w700, color: AppTheme.gold),
             ),
-            const SizedBox(height: 6),
-            // Mini stats row
-            Row(
-              children: [
-                if (avgHr > 0) ...[
-                  Icon(Icons.monitor_heart_rounded,
-                      color: AppTheme.hrColor, size: 11),
-                  const SizedBox(width: 2),
-                  Text('$avgHr',
-                      style: _inter(10,
-                          weight: FontWeight.w600, color: AppTheme.textSec)),
-                  const SizedBox(width: 6),
-                ],
-                if (calories > 0) ...[
-                  const Icon(Icons.local_fire_department_rounded,
-                      color: AppTheme.warmOrange, size: 11),
-                  const SizedBox(width: 2),
-                  Text('$calories',
-                      style: _inter(10,
-                          weight: FontWeight.w600, color: AppTheme.textSec)),
-                  const SizedBox(width: 6),
-                ],
-                if (distanceM > 0) ...[
-                  Icon(Icons.straighten_rounded,
-                      color: AppTheme.success, size: 11),
-                  const SizedBox(width: 2),
-                  Text(
-                    distanceM >= 1000
-                        ? '${(distanceM / 1000).toStringAsFixed(1)}k'
-                        : '${distanceM.toStringAsFixed(0)}m',
-                    style: _inter(10,
-                        weight: FontWeight.w600, color: AppTheme.textSec),
+            if (stats.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity,
+                height: 16 * scale,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < stats.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 6),
+                        Icon(stats[i].$1, color: stats[i].$2, size: 11),
+                        const SizedBox(width: 2),
+                        Text(
+                          stats[i].$3,
+                          style: _inter(10,
+                              weight: FontWeight.w600, color: AppTheme.textSec),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-              ],
-            ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -795,9 +839,9 @@ class _SpotlightCard extends StatelessWidget {
 
 // ── History Row (grouped list) ────────────────────────────────────────────────
 
-class _HistoryRow extends StatelessWidget {
+class WorkoutHistoryTile extends StatelessWidget {
   final Map<String, dynamic> row;
-  const _HistoryRow({required this.row});
+  const WorkoutHistoryTile({super.key, required this.row});
 
   static String _fmtDuration(int seconds) {
     final h = seconds ~/ 3600;
@@ -891,8 +935,12 @@ class _HistoryRow extends StatelessWidget {
                       Row(
                         children: [
                           Flexible(
-                            child: Text(label,
-                                style: _inter(14, weight: FontWeight.w600)),
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _inter(14, weight: FontWeight.w600),
+                            ),
                           ),
                           if (row['source'] == 'ring') ...[
                             const SizedBox(width: 6),
@@ -915,13 +963,19 @@ class _HistoryRow extends StatelessWidget {
                         ],
                       ),
                       if (startedAt.isNotEmpty)
-                        Text(_fmtTime(startedAt),
-                            style: _inter(11, color: AppTheme.textSec)),
+                        Text(
+                          _fmtTime(startedAt),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _inter(11, color: AppTheme.textSec),
+                        ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   _fmtDuration(durationS),
+                  maxLines: 1,
                   style: _inter(14,
                       weight: FontWeight.w700, color: AppTheme.gold),
                 ),
@@ -1090,6 +1144,8 @@ class _SportPickerSheet extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   title: Text(
                     sport,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style:
                         const TextStyle(color: Colors.white, fontSize: 15),
                   ),
@@ -1192,6 +1248,8 @@ class _PreStartSheetState extends State<_PreStartSheet> {
                   children: [
                     Text(
                       widget.sport,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 20,
@@ -1200,6 +1258,8 @@ class _PreStartSheetState extends State<_PreStartSheet> {
                     ),
                     Text(
                       widget.category.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                           color: AppTheme.textSec, fontSize: 13),
                     ),

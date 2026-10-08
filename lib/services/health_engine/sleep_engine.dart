@@ -164,7 +164,9 @@ class SleepEngine {
       rawList = d['list'];
       rawList ??= d['data'];
     }
-    if (total <= 0 && st > 0 && rawList != null) {
+    // New-protocol nights sometimes carry the timeline only in `list` and leave
+    // st at 0. Build the totals from those segments instead of dropping the night.
+    if (total <= 0 && rawList != null) {
       final segsTmp = parseSegments(rawList, st, et);
       if (segsTmp.isNotEmpty) {
         int calcTotal = 0, calcDeep = 0, calcLight = 0, calcRem = 0, calcAwake = 0;
@@ -188,6 +190,14 @@ class SleepEngine {
           }
         }
         if (calcTotal > 0) {
+          if (st <= 0) {
+            final first = segsTmp.first['start']!;
+            if (first > 1000000000) st = first;
+          }
+          if (et <= 0) {
+            final last = segsTmp.last['end']!;
+            if (last > 1000000000) et = last;
+          }
           if (total <= 0) total = calcTotal;
           if (deep == 0) deep = calcDeep;
           if (light == 0) light = calcLight;
@@ -209,6 +219,26 @@ class SleepEngine {
     return SleepParseResult(
       total: total, deep: deep, light: light, rem: rem, awake: awake,
       st: st, et: et, score: score, segments: segs, hasData: true);
+  }
+
+  /// JSON that [parseSleepData] can read back from the local database.
+  static String canonicalJson(SleepParseResult r) {
+    return jsonEncode({
+      'totalSleepDuration': r.total,
+      'deepDuration': r.deep,
+      'lightDuration': r.light,
+      'remDuration': r.rem,
+      'awakeDuration': r.awake,
+      'sleepTime': r.st,
+      'wakeTime': r.et,
+      'list': r.segments
+          .map((s) => {
+                'sleepStart': s['start'],
+                'sleepEnd': s['end'],
+                'type': s['type'],
+              })
+          .toList(),
+    });
   }
 
   static List<Map<String, int>> syntheticSegs({

@@ -542,15 +542,18 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   Widget _sectionHeader(String title, {bool showEdit = true, VoidCallback? onEditTap}) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          title,
-          style: AppTypography.inter(
-            color: AppTheme.textSec,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 1.5,
+        Flexible(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.inter(
+              color: AppTheme.textSec,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.5,
+            ),
           ),
         ),
         if (showEdit)

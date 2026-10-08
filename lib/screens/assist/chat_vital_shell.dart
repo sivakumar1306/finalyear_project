@@ -57,6 +57,8 @@ class ChatVitalCardShell extends StatelessWidget {
                     children: [
                       Text(
                         title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: AppTypography.inter(
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
@@ -198,18 +200,21 @@ class MiniBarChart extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: labels
-              .map(
-                (l) => Text(
+          children: [
+            for (final l in labels)
+              Expanded(
+                child: Text(
                   l,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                   style: AppTypography.inter(
                     fontSize: 9,
                     color: AppTheme.white40,
                   ),
                 ),
-              )
-              .toList(),
+              ),
+          ],
         ),
       ],
     );
@@ -311,18 +316,21 @@ class DualMiniBarChart extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: labels
-              .map(
-                (l) => Text(
+          children: [
+            for (final l in labels)
+              Expanded(
+                child: Text(
                   l,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                   style: AppTypography.inter(
                     fontSize: 9,
                     color: AppTheme.white40,
                   ),
                 ),
-              )
-              .toList(),
+              ),
+          ],
         ),
       ],
     );

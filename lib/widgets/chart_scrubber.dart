@@ -284,53 +284,69 @@ class _ScrubbableChartState extends State<ScrubbableChart> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    widget.headerLabel,
-                    style: AppTypography.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textTertiary,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-              Row(
-                children: [
-                  Text(
-                    widget.rangeLabel,
-                    style: AppTypography.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: AppTheme.iconMuted,
-                    ),
-                  ),
-                  if (hasScrubber && selectedValue > 0) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: widget.accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: widget.accent.withValues(alpha: 0.22)),
+                  Expanded(
+                    child: Text(
+                      widget.headerLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textTertiary,
+                        letterSpacing: 0.6,
                       ),
-                      child: Text(
-                        widget.valueLabelBuilder?.call(_selectedIndex, selectedValue) ??
-                            (xLabelForSelected != null
-                                ? '$xLabelForSelected • $selectedValue'
-                                : '$selectedValue'),
-                        style: AppTypography.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: widget.accent,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            widget.rangeLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: AppTypography.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.iconMuted,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (hasScrubber && selectedValue > 0) ...[
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: widget.accent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: widget.accent.withValues(alpha: 0.22)),
+                              ),
+                              child: Text(
+                                widget.valueLabelBuilder?.call(_selectedIndex, selectedValue) ??
+                                    (xLabelForSelected != null
+                                        ? '$xLabelForSelected • $selectedValue'
+                                        : '$selectedValue'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.inter(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: widget.accent,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
+                  ),
                 ],
               ),
-            ],
-          ),
           const SizedBox(height: 10),
           SizedBox(
             height: widget.height,
@@ -355,11 +371,17 @@ class _ScrubbableChartState extends State<ScrubbableChart> {
                                 for (final label in widget.yLabels!)
                                   Padding(
                                     padding: const EdgeInsets.only(right: 6),
-                                    child: Text(
-                                      label,
-                                      style: AppTypography.inter(
-                                        fontSize: 10,
-                                        color: AppTheme.textTertiary,
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerRight,
+                                      child: Text(
+                                        label,
+                                        maxLines: 1,
+                                        softWrap: false,
+                                        style: AppTypography.inter(
+                                          fontSize: 10,
+                                          color: AppTheme.textTertiary,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -387,6 +409,8 @@ class _ScrubbableChartState extends State<ScrubbableChart> {
                           Expanded(
                             child: Text(
                               label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.center,
                               style: AppTypography.inter(
                                 fontSize: 10,
@@ -400,11 +424,16 @@ class _ScrubbableChartState extends State<ScrubbableChart> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         for (final label in widget.xLabels!)
-                          Text(
-                            label,
-                            style: AppTypography.inter(
-                              fontSize: 10,
-                              color: AppTheme.textTertiary,
+                          Expanded(
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: AppTypography.inter(
+                                fontSize: 10,
+                                color: AppTheme.textTertiary,
+                              ),
                             ),
                           ),
                       ],
@@ -704,50 +733,63 @@ class _ScrubbableBPChartState extends State<ScrubbableBPChart> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                widget.headerLabel,
-                style: AppTypography.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textTertiary,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              Row(
                 children: [
-                  Text(
-                    widget.rangeLabel,
-                    style: AppTypography.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: AppTheme.iconMuted,
+                  Expanded(
+                    child: Text(
+                      widget.headerLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textTertiary,
+                        letterSpacing: 0.6,
+                      ),
                     ),
                   ),
-                  if (hasScrubber && selSbp > 0 && selDbp > 0) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: widget.accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: widget.accent.withValues(alpha: 0.22)),
-                      ),
-                      child: Text(
-                        '$selSbp/$selDbp',
-                        style: AppTypography.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: widget.accent,
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            widget.rangeLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: AppTypography.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.iconMuted,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (hasScrubber && selSbp > 0 && selDbp > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: widget.accent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: widget.accent.withValues(alpha: 0.22)),
+                            ),
+                            child: Text(
+                              '$selSbp/$selDbp',
+                              maxLines: 1,
+                              style: AppTypography.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: widget.accent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
+                  ),
                 ],
               ),
-            ],
-          ),
           const SizedBox(height: 10),
           SizedBox(
             height: widget.height,
@@ -767,8 +809,16 @@ class _ScrubbableBPChartState extends State<ScrubbableBPChart> {
                                 for (final l in widget.yLabels!)
                                   Padding(
                                     padding: const EdgeInsets.only(right: 6),
-                                    child: Text(l,
-                                        style: AppTypography.inter(fontSize: 10, color: AppTheme.textTertiary)),
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerRight,
+                                      child: Text(
+                                        l,
+                                        maxLines: 1,
+                                        softWrap: false,
+                                        style: AppTypography.inter(fontSize: 10, color: AppTheme.textTertiary),
+                                      ),
+                                    ),
                                   ),
                               ],
                             ),
@@ -787,16 +837,28 @@ class _ScrubbableBPChartState extends State<ScrubbableBPChart> {
                       children: [
                         for (final l in widget.xLabels!)
                           Expanded(
-                              child: Text(l,
-                                  textAlign: TextAlign.center,
-                                  style: AppTypography.inter(fontSize: 10, color: AppTheme.textSec))),
+                              child: Text(
+                                l,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: AppTypography.inter(fontSize: 10, color: AppTheme.textSec),
+                              )),
                       ],
                     )
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         for (final l in widget.xLabels!)
-                          Text(l, style: AppTypography.inter(fontSize: 10, color: AppTheme.textTertiary)),
+                          Expanded(
+                            child: Text(
+                              l,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: AppTypography.inter(fontSize: 10, color: AppTheme.textTertiary),
+                            ),
+                          ),
                       ],
                     ),
             ),

@@ -94,6 +94,12 @@ object SupabaseSyncManager {
     // configureSync) since there's nothing to push to otherwise.
     fun forceSyncNow(): Boolean {
         if (!started || !::repository.isInitialized || !SupabaseConfig.isConfigured) return false
+        // Validated internet only. A wifi association with no route must not
+        // start a burst of posts, and this call must return immediately.
+        if (!isNetworkAvailable()) {
+            Log.d(TAG, "forceSyncNow: skipped — network not validated")
+            return false
+        }
         repository.ioScope.launch { runPushCycle() }
         return true
     }
@@ -165,7 +171,17 @@ object SupabaseSyncManager {
     }
 
     private suspend fun runPushCycle() {
+        if (!isNetworkAvailable()) {
+            Log.d(TAG, "runPushCycle: skipped — network not validated")
+            return
+        }
         prefs.edit().putLong(KEY_LAST_ATTEMPT, System.currentTimeMillis()).apply()
+        // Sleep is its own daily table. A failure here must not block the other vitals.
+        try {
+            pushSleep()
+        } catch (e: Exception) {
+            Log.e(TAG, "sleep push failed", e)
+        }
         val allOk = listOf(
             pushHeartRate(), pushSpo2(), pushHrv(), pushSteps(),
             pushBloodPressure(), pushStress(), pushTemperature()
@@ -326,6 +342,31 @@ object SupabaseSyncManager {
         }) { "${it["measured_at"]}" }
         val ok = postJsonWithRetry("user_temp", "user_id,measured_at", gson.toJson(payload))
         if (ok) repository.markTemperatureSynced(rows.map { it.id }, System.currentTimeMillis())
+        return ok
+    }
+
+    private suspend fun pushSleep(): Boolean {
+        val userId = SupabaseConfig.userId ?: return false
+        val rows = repository.unsyncedSleep(BATCH_LIMIT)
+        if (rows.isEmpty()) return true
+        val nowIso = isoTimestamp(System.currentTimeMillis())
+        val payload = rows.map { r ->
+            mapOf(
+                "user_id" to userId,
+                "date" to r.dateStr,
+                "total_duration" to r.totalDuration,
+                "deep_duration" to r.deepDuration,
+                "light_duration" to r.lightDuration,
+                "rem_duration" to r.remDuration,
+                "awake_duration" to r.awakeDuration,
+                "sleep_score" to r.sleepScore,
+                "sleep_time" to r.sleepTime,
+                "wake_time" to r.wakeTime,
+                "synced_at" to nowIso,
+            )
+        }
+        val ok = postJsonWithRetry("user_sleep", "user_id,date", gson.toJson(payload))
+        if (ok) repository.markSleepSynced(rows.map { it.dateStr }, System.currentTimeMillis())
         return ok
     }
 

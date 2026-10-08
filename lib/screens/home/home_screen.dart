@@ -12,7 +12,9 @@ import '../../services/ble_service.dart';
 import '../settings/fall_detection_widgets.dart';
 import '../../providers/home_card_provider.dart';
 import '../../providers/fall_prediction/fall_prediction_provider.dart';
+import '../../models/onboarding_data.dart';
 import '../../services/supabase_service.dart';
+import '../onboarding/onboarding_name_screen.dart';
 import '../../services/goal_prefs.dart';
 import '../../services/health_engine/health_config.dart';
 import '../../services/health_engine/health_engine.dart';
@@ -61,20 +63,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ble = context.read<BleProvider>();
       ble.checkConnection();
-      ble.refreshVitalsFromLocal();
+      _syncAfterLocal(ble);
       // Any pending fall prediction (notification tap OR direct app open after a
       // prediction fired) — native side persists until the user dismisses the banner.
       ble.checkPendingFallPrediction();
       // Auto-SMS countdown may already be running (fall while app was backgrounded).
       ble.refreshEmergencySmsStatus();
-      ble.syncTodayStepsFromRing();
       // Refresh remote HealthEngine thresholds/literature + reload goal-aware activity denoms.
       HealthEngine.instance.refreshConfig();
       _loadGoals();
       _checkBatteryOpt();
     });
+    _loadCachedName();
     _loadUserProfile();
     _loadGoals();
+  }
+
+  /// Paint Room first. Ring pull and the Supabase upload start only after that
+  /// future returns, and neither is awaited by the frame.
+  void _syncAfterLocal(BleProvider ble) {
+    ble.refreshVitalsFromLocal().whenComplete(() {
+      if (!mounted) return;
+      ble.scheduleCloudUpload();
+      ble.syncTodayStepsFromRing();
+    });
   }
 
   Future<void> _loadGoals() async {
@@ -117,8 +129,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final ble = context.read<BleProvider>();
       ble.checkPendingFallPrediction();
       ble.refreshEmergencySmsStatus();
-      ble.syncTodayStepsFromRing();
-      ble.refreshVitalsFromLocal();
+      _syncAfterLocal(ble);
       HealthEngine.instance.refreshConfig();
       _loadGoals();
     }
@@ -157,28 +168,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return g != 'male' && g != 'm';
   }
 
+  Future<void> _loadCachedName() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final fullName = prefs.getString('cached_full_name') ?? '';
+      if (!mounted || fullName.trim().isEmpty) return;
+      setState(() => _firstName = fullName.trim().split(' ').first);
+    } catch (_) {}
+  }
+
   Future<void> _loadUserProfile() async {
     try {
       final user = SupabaseService.currentUser;
-      if (user != null) {
-        final profile = await SupabaseService.getProfile(user.id);
-        if (mounted && profile != null) {
-          final fullName = profile['full_name'] as String? ?? '';
-          setState(() {
-            _firstName = fullName.split(' ').first;
-            _gender = profile['gender'] as String? ?? '';
-          });
-          if (mounted) {
-            context.read<HomeCardProvider>().ensureWomensHealthVisible(
-              _isFemale,
-            );
-          }
-          if (kDebugMode) {
-            debugPrint('DEBUG profile loaded: gender=$_gender');
-          }
-        }
+      if (user == null) return;
+      final profile = await SupabaseService.getProfile(user.id);
+      if (!mounted) return;
+      final fullName = (profile?['full_name'] as String? ?? '').trim();
+      // A successful lookup with no profile, or a profile with no name, means
+      // onboarding was never finished. A thrown lookup stays on Home.
+      if (profile == null || fullName.isEmpty) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OnboardingNameScreen(data: OnboardingData()),
+          ),
+        );
+        return;
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('cached_full_name', fullName);
+      if (!mounted) return;
+      setState(() {
+        _firstName = fullName.split(' ').first;
+        _gender = profile['gender'] as String? ?? '';
+      });
+      context.read<HomeCardProvider>().ensureWomensHealthVisible(_isFemale);
+      if (kDebugMode) {
+        debugPrint('DEBUG profile loaded: gender=$_gender');
       }
     } catch (e, stackTrace) {
+      // Offline or a failed lookup stays on Home. The cached name remains.
       debugPrint('Error loading user profile: $e\n$stackTrace');
     }
   }
@@ -751,8 +780,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onRefresh: () async {
         await ble.checkConnection();
         await ble.refreshVitalsFromLocal();
-        await ble.syncTodayStepsFromRing();
-        await _loadUserProfile();
+        ble.scheduleCloudUpload();
+        unawaited(ble.syncTodayStepsFromRing());
+        unawaited(_loadUserProfile());
         await _snippetKey.currentState?.reload(force: true);
       },
       child: CustomScrollView(

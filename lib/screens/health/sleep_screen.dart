@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
+import '../../services/local_vitals_service.dart';
 import '../../services/health_connect_service.dart';
 import '../../services/health_engine/health_engine.dart';
 import '../../services/health_engine/models.dart';
@@ -108,7 +109,6 @@ class _SleepScreenState extends State<SleepScreen> {
       if (!mounted) return;
 
       _init();
-      _loadHistory();
     });
   }
 
@@ -116,31 +116,30 @@ class _SleepScreenState extends State<SleepScreen> {
 
   Future<void> _init() async {
     if (!mounted) return;
-    try {
-      final today = DateTime.now();
-      final isToday =
-          _selectedDate.year == today.year &&
-          _selectedDate.month == today.month &&
-          _selectedDate.day == today.day;
-      bool connected = false;
-      try {
-        connected = context.read<BleProvider>().isConnected;
-      } catch (_) {}
-      // Cache first: Supabase data renders immediately. The ring refresh
-      // below runs in the background — previously _fetchFromRing() blocked
-      // the whole page on up to ~60s of sequential BLE calls whenever the
-      // (stale) connected flag was true but the ring wasn't responding.
-      await _loadDayFromDb(skipRing: true);
-      await _loadVitals();
-      if (mounted) setState(() => _loading = false);
-      if (isToday && connected) {
-        unawaited(_fetchFromRing().whenComplete(() {
-          if (mounted) setState(() => _loading = false);
-        }));
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+    final date = _selectedDate;
+    // Local night first, so the page is filled before the ring or the network.
+    final hadLocal = await _applyLocalSleep(date);
+    if (!mounted || !_sameDay(date, _selectedDate)) return;
+    setState(() => _loading = false);
+    unawaited(_loadVitals(date));
+    unawaited(() async {
+      await _loadHistory();
+      if (!mounted || !_sameDay(date, _selectedDate)) return;
+      await _refreshFromRing(date);
+      if (!mounted || !_sameDay(date, _selectedDate)) return;
+      if (!hadLocal && _totalDuration <= 0) await _fillFromCloud(date);
+      await _syncMissingHistory();
+    }());
+  }
+
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  int _dayIndexFor(DateTime date) {
+    final today = DateTime.now();
+    final sel = DateTime(date.year, date.month, date.day);
+    final todayDay = DateTime(today.year, today.month, today.day);
+    return todayDay.difference(sel).inDays;
   }
 
   // ── Date selection ────────────────────────────────────────────────────────────
@@ -210,82 +209,38 @@ class _SleepScreenState extends State<SleepScreen> {
     );
   }
 
-  Future<void> _fetchFromRing() async {
-    // Try primary: getTodaySleep (daily summary)
+  Future<void> _refreshFromRing(DateTime date) async {
+    bool connected = false;
     try {
-      final data = await _ble.getTodaySleep();
-      if (data.isNotEmpty && data != '{}') {
-        final d = jsonDecode(data) as Map<String, dynamic>;
-        final hasOld = (d['totalSleepDuration'] as num? ?? 0).toInt() > 0;
-        final hasNew = d.containsKey('st') && (d['st'] as num? ?? 0).toInt() > 0;
-        if (hasOld || hasNew) {
-          _parseSleepData(data);
-          return;
-        }
-      }
-    } catch (e, st) {
-      _reportSleepBle(e, st, 'getTodaySleep failed, trying syncSleep fallback');
-    }
-    // Fallback 1: large-data sync (handles both SleepDisplay and SleepNewProto)
+      connected = context.read<BleProvider>().isConnected;
+    } catch (_) {}
+    if (!connected) return;
+    final daysDiff = _dayIndexFor(date);
+    if (daysDiff < 0 || daysDiff > 6) return;
     try {
-      final data = await _ble.syncSleep();
-      if (data.isNotEmpty && data != '{}' && data != '[]') {
-        // syncSleep may return either format; try parsing directly
-        // If it's a list wrapper, check first element
-        try {
-          final d = jsonDecode(data);
-          if (d is Map<String, dynamic> && (d.containsKey('totalSleepDuration') || d.containsKey('st'))) {
-            _parseSleepData(data);
-            return;
-          }
-        } catch (_) {}
-        // Some firmware returns empty list for syncSleep when no new data - try getSleep
-      }
+      final data = await _ble.syncSleep(dayIndex: daysDiff);
+      if (!mounted || !_sameDay(date, _selectedDate)) return;
+      if (_parseSleepData(data, date: date)) return;
     } catch (e, st) {
-      _reportSleepBle(e, st, 'syncSleep fallback failed');
+      _reportSleepBle(e, st, 'syncSleep($daysDiff) failed');
     }
-    // Fallback 2: getSleep for today (dayIndex 0) - explicit per-day fetch
     try {
-      final data = await _ble.getSleep(0);
-      if (data.isNotEmpty && data != '{}') {
-        _parseSleepData(data);
-        return;
-      }
+      final data = await _ble.getSleep(daysDiff);
+      if (!mounted || !_sameDay(date, _selectedDate)) return;
+      if (_parseSleepData(data, date: date)) return;
     } catch (e, st) {
-      _reportSleepBle(e, st, 'getSleep(0) fallback failed');
+      _reportSleepBle(e, st, 'getSleep($daysDiff) fallback failed');
     }
-    await _loadDayFromDb();
   }
 
-  void _parseSleepData(String jsonStr, {DateTime? date}) {
+  bool _parseSleepData(String jsonStr, {DateTime? date}) {
+    if (jsonStr.isEmpty || jsonStr == '{}' || jsonStr == '[]') return false;
     try {
       final result = SleepEngine.parseSleepData(jsonStr);
-      if (!result.hasData) {
-        _loadDayFromDb();
-        return;
-      }
-      final total = result.total;
-      final deep = result.deep;
-      final light = result.light;
-      final rem = result.rem;
-      final awake = result.awake;
-      final st = result.st;
-      final et = result.et;
-      final segs = result.segments;
-      final score = result.score;
-      if (!mounted) return;
-      setState(() {
-        _totalDuration = total;
-        _deepDuration = deep;
-        _lightDuration = light;
-        _remDuration = rem;
-        _awakeDuration = awake;
-        _sleepTime = st;
-        _wakeTime = et;
-        _sleepScore = score;
-        _segments = segs;
-      });
-      _saveToDb(total, deep, light, rem, awake, score, st, et, date: date ?? _selectedDate);
+      if (!result.hasData) return false;
+      _applyParsed(result);
+      unawaited(_saveLocal(result, date ?? _selectedDate));
+      return true;
     } catch (e, st) {
       IncidentService.reportUnhandled(
         source: 'sleep_screen',
@@ -294,301 +249,319 @@ class _SleepScreenState extends State<SleepScreen> {
         customMessage: '_parseSleepData failed',
         extraInfo: {'raw': jsonStr.substring(0, jsonStr.length.clamp(0, 500))},
       );
-      _loadDayFromDb();
+      return false;
     }
   }
 
-  List<Map<String, int>> _parseSegments(dynamic rawList, [int st = 0, int et = 0]) {
-    return SleepEngine.parseSegments(rawList, st, et);
+  void _applyParsed(SleepParseResult result) {
+    if (!mounted) return;
+    setState(() {
+      _totalDuration = result.total;
+      _deepDuration = result.deep;
+      _lightDuration = result.light;
+      _remDuration = result.rem;
+      _awakeDuration = result.awake;
+      _sleepTime = result.st;
+      _wakeTime = result.et;
+      _sleepScore = result.score;
+      _segments = result.segments;
+      _loading = false;
+    });
   }
 
-  // ── DB ───────────────────────────────────────────────────────────────────────
+  // ── Local DB, then cloud fill ────────────────────────────────────────────────
 
-  Future<void> _loadDayFromDb({bool skipRing = false}) async {
-    // Try ring first for recent dates when connected (mirrors QRing's historical fetch)
-    // QRing stores ~7 days on-device; Supabase is fallback/cache for offline.
-    // skipRing=true renders the cache immediately (page open); the caller is
-    // expected to trigger the ring refresh separately in the background.
-    if (!skipRing) {
-      try {
-        bool isConnected = false;
-        try {
-          isConnected = context.read<BleProvider>().isConnected;
-        } catch (_) {}
-      final today = DateTime.now();
-      final selDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
-      final todayDay = DateTime(today.year, today.month, today.day);
-      final daysDiff = todayDay.difference(selDay).inDays;
-      if (isConnected && daysDiff >= 0 && daysDiff < 7) {
-        try {
-          final ringData = await _ble.getSleep(daysDiff);
-          if (ringData.isNotEmpty && ringData != '{}' && ringData != '[]') {
-            final d = jsonDecode(ringData) as Map<String, dynamic>;
-            final hasOld = (d['totalSleepDuration'] as num? ?? 0).toInt() > 0;
-            final hasNew = d.containsKey('st') && (d['st'] as num? ?? 0).toInt() > 0;
-            if (hasOld || hasNew) {
-              // Directly parse without recursing to DB on failure
-              // Reuse _parseSleepData but guard against fallback loop by checking
-              // if parse will succeed - we already know has data, so just parse
-              _parseSleepData(ringData, date: _selectedDate);
-              return;
-            }
-          }
-        } catch (e, st) {
-          _reportSleepBle(e, st, 'getSleep($daysDiff) fallback failed');
-        }
-        // Also try getSleepList as broader fallback (QRing sync path)
-        try {
-          final listData = await _ble.getSleepList(daysDiff, 1);
-          if (listData.isNotEmpty && listData != '[]' && listData != '{}') {
-            final decoded = jsonDecode(listData);
-            if (decoded is List && decoded.isNotEmpty) {
-              final first = decoded.first as Map<String, dynamic>;
-              // getSleepList returns DayIndexedData with 'data' field containing sleep JSON
-              final inner = first['data'] as Map<String, dynamic>?;
-              if (inner != null && (inner['totalSleepDuration'] != null || inner['st'] != null)) {
-                _parseSleepData(jsonEncode(inner), date: _selectedDate);
-                return;
-              }
-            }
-          }
-        } catch (e, st) {
-          _reportSleepBle(e, st, 'getSleepList fallback failed');
+
+  Future<bool> _applyLocalSleep(DateTime date) async {
+    try {
+      final raw = await _ble.getLocalSleep(DateKeys.fmt(date));
+      if (raw.isEmpty || raw == '{}') return false;
+      final row = jsonDecode(raw);
+      if (row is! Map) return false;
+      final payload = row['payloadJson'];
+      if (payload is String && payload.length > 2) {
+        final parsed = SleepEngine.parseSleepData(payload);
+        if (parsed.hasData && mounted && _sameDay(date, _selectedDate)) {
+          _applyParsed(parsed);
+          return true;
         }
       }
-    } catch (_) {}
+      final total = (row['totalDuration'] as num?)?.toInt() ?? 0;
+      if (total <= 0 || !mounted || !_sameDay(date, _selectedDate)) return false;
+      _applyParsed(SleepParseResult(
+        total: total,
+        deep: (row['deepDuration'] as num?)?.toInt() ?? 0,
+        light: (row['lightDuration'] as num?)?.toInt() ?? 0,
+        rem: (row['remDuration'] as num?)?.toInt() ?? 0,
+        awake: (row['awakeDuration'] as num?)?.toInt() ?? 0,
+        st: (row['sleepTime'] as num?)?.toInt() ?? 0,
+        et: (row['wakeTime'] as num?)?.toInt() ?? 0,
+        score: (row['sleepScore'] as num?)?.toInt() ?? 0,
+        segments: const [],
+        hasData: true,
+      ));
+      return true;
+    } catch (e) {
+      debugPrint('[sleep_screen] local read failed: $e');
+      return false;
     }
+  }
 
+  Future<void> _fillFromCloud(DateTime date) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
-    if (!mounted) return;
-    setState(() => _dbOffline = false);
     try {
-      final row = await SupabaseService.getSleepForDate(user.id, _selectedDate);
-      if (!mounted) return;
-      if (row == null) {
-        if (!mounted) return;
-        setState(() {
-          _totalDuration = 0;
-          _deepDuration = 0;
-          _lightDuration = 0;
-          _remDuration = 0;
-          _awakeDuration = 0;
-          _sleepTime = 0;
-          _wakeTime = 0;
-          _sleepScore = 0;
-          _segments = [];
-        });
-        return;
-      }
-      if (!mounted) return;
-      setState(() {
-        _totalDuration = (row['total_duration'] as num? ?? 0).toInt();
-        _deepDuration = (row['deep_duration'] as num? ?? 0).toInt();
-        _lightDuration = (row['light_duration'] as num? ?? 0).toInt();
-        _remDuration = (row['rem_duration'] as num? ?? 0).toInt();
-        _awakeDuration = (row['awake_duration'] as num? ?? 0).toInt();
-        _sleepTime = (row['sleep_time'] as num? ?? 0).toInt();
-        _wakeTime = (row['wake_time'] as num? ?? 0).toInt();
-        _sleepScore = (row['sleep_score'] as num? ?? 0).toInt();
-        _segments = [];
-      });
+      final row = await SupabaseService.getSleepForDate(user.id, date)
+          .timeout(const Duration(seconds: 6));
+      if (!mounted || !_sameDay(date, _selectedDate)) return;
+      if (row == null) return;
+      final total = (row['total_duration'] as num? ?? 0).toInt();
+      if (total <= 0) return;
+      final parsed = SleepParseResult(
+        total: total,
+        deep: (row['deep_duration'] as num? ?? 0).toInt(),
+        light: (row['light_duration'] as num? ?? 0).toInt(),
+        rem: (row['rem_duration'] as num? ?? 0).toInt(),
+        awake: (row['awake_duration'] as num? ?? 0).toInt(),
+        st: (row['sleep_time'] as num? ?? 0).toInt(),
+        et: (row['wake_time'] as num? ?? 0).toInt(),
+        score: (row['sleep_score'] as num? ?? 0).toInt(),
+        segments: const [],
+        hasData: true,
+      );
+      _applyParsed(parsed);
+      await _saveLocal(parsed, date, source: 'cloud_cache');
     } catch (e) {
       if (mounted && isNetworkError(e)) setState(() => _dbOffline = true);
     }
   }
 
-  Future<void> _loadVitals() async {
+  Future<void> _loadVitals(DateTime date) async {
+    try {
+      final local = LocalVitalsService(ble: _ble);
+      final results = await Future.wait([
+        local.getDaySummary('heart_rate', date),
+        local.getDaySummary('spo2', date),
+        local.getDaySummary('hrv', date),
+      ]);
+      if (!mounted || !_sameDay(date, _selectedDate)) return;
+      final hr = (results[0]['avg'] as num?)?.round() ?? 0;
+      final spo2 = (results[1]['avg'] as num?)?.round() ?? 0;
+      final hrv = (results[2]['avg'] as num?)?.round() ?? 0;
+      if (hr > 0 || spo2 > 0 || hrv > 0) {
+        setState(() {
+          _avgHr = hr;
+          _avgSpo2 = spo2;
+          _avgHrv = hrv;
+        });
+        return;
+      }
+    } catch (_) {}
     final user = SupabaseService.currentUser;
     if (user == null) return;
     try {
       final results = await Future.wait([
-        SupabaseService.getHrForDate(user.id, _selectedDate),
-        SupabaseService.getSpo2ForDate(user.id, _selectedDate),
-        SupabaseService.getHrvForDate(user.id, _selectedDate),
-      ]);
-      if (!mounted) return;
-      final hrRow = results[0];
-      final spo2Row = results[1];
-      final hrvRow = results[2];
+        SupabaseService.getHrForDate(user.id, date),
+        SupabaseService.getSpo2ForDate(user.id, date),
+        SupabaseService.getHrvForDate(user.id, date),
+      ]).timeout(const Duration(seconds: 6));
+      if (!mounted || !_sameDay(date, _selectedDate)) return;
       setState(() {
-        _avgHr = (hrRow?['avg_hr'] as num? ?? 0).toInt();
-        _avgSpo2 = (spo2Row?['avg_spo2'] as num? ?? 0).toInt();
-        _avgHrv = (hrvRow?['avg_hrv'] as num? ?? 0).toInt();
+        _avgHr = (results[0]?['avg_hr'] as num? ?? 0).toInt();
+        _avgSpo2 = (results[1]?['avg_spo2'] as num? ?? 0).toInt();
+        _avgHrv = (results[2]?['avg_hrv'] as num? ?? 0).toInt();
       });
-    } catch (e, st) {
-      IncidentService.reportUnhandled(
-        source: 'sleep_screen',
-        error: e,
-        stackTrace: st,
-        customMessage: 'load last night avg failed',
-      );
-    }
-  }
-
-  Future<void> _loadHistory() async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
-    final now = DateTime.now();
-    final from = now.subtract(const Duration(days: 6));
-    // Try ring first when connected (mirrors QRing's historical sync)
-    try {
-      bool isConnected = false;
-      try {
-        isConnected = context.read<BleProvider>().isConnected;
-      } catch (_) {}
-      if (isConnected) {
-        try {
-          final ringJson = await _ble.getSleepList(0, 7);
-          if (ringJson.isNotEmpty && ringJson != '[]' && ringJson != '{}') {
-            final decoded = jsonDecode(ringJson);
-            if (decoded is List && decoded.isNotEmpty) {
-              final List<Map<String, dynamic>> ringRows = [];
-              for (final entry in decoded) {
-                final m = entry as Map<String, dynamic>;
-                final dayIdx = (m['dayIndex'] as num? ?? m['day_index'] as num? ?? -1).toInt();
-                final data = m['data'] as Map<String, dynamic>?;
-                if (data == null) continue;
-                // Support both old (totalSleepDuration) and new (st/et + list d/t) formats
-                int total = (data['totalSleepDuration'] as num? ?? 0).toInt();
-                int st = (data['sleepTime'] as num? ?? data['st'] as num? ?? 0).toInt();
-                int et = (data['wakeTime'] as num? ?? data['et'] as num? ?? 0).toInt();
-                if (total <= 0 && st > 0 && data['list'] != null) {
-                  // New proto: compute from segments
-                  final segs = _parseSegments(data['list'], st, et);
-                  int calcTotal = 0;
-                  for (final s in segs) {
-                    calcTotal += s['end']! - s['start']!;
-                  }
-                  if (calcTotal > 0) total = calcTotal;
-                }
-                if (total <= 0) continue;
-                final d = now.subtract(Duration(days: dayIdx));
-                final dateStr = DateKeys.fmt(d);
-                final deep = (data['deepDuration'] as num? ?? 0).toInt();
-                final light = (data['lightDuration'] as num? ?? 0).toInt();
-                final rem = (data['remDuration'] as num? ?? 0).toInt();
-                final score = (total > 0 && deep >= 0 && rem >= 0) ? HealthEngine.instance.calcSleepScore(total: total, deep: deep, rem: rem, st: st, et: et) : 0;
-                ringRows.add({
-                  'date': dateStr,
-                  'total_duration': total,
-                  'deep_duration': deep,
-                  'light_duration': light,
-                  'rem_duration': rem,
-                  'sleep_score': score,
-                });
-                // Cache to Supabase for offline use (best-effort)
-                try {
-                  await SupabaseService.upsertSleep(
-                    userId: user.id,
-                    date: DateTime(d.year, d.month, d.day),
-                    totalDuration: total,
-                    deepDuration: deep,
-                    lightDuration: light,
-                    remDuration: rem,
-                    awakeDuration: (data['awakeDuration'] as num? ?? 0).toInt(),
-                    sleepScore: score,
-                    sleepTime: st,
-                    wakeTime: et,
-                  );
-                } catch (e, st) {
-                  IncidentService.reportUnhandled(source: 'sleep_screen', error: e, stackTrace: st, customMessage: 'Sleep upsert to Supabase failed');
-                }
-              }
-              if (ringRows.isNotEmpty) {
-                // Merge ring rows with existing Supabase rows, preferring ring for recent days
-                try {
-                  final supaRows = await SupabaseService.getSleepHistory(
-                    userId: user.id,
-                    from: DateTime(from.year, from.month, from.day),
-                    to: DateTime(now.year, now.month, now.day),
-                  );
-                  final byDate = {for (final r in supaRows) r['date'] as String: r};
-                  for (final r in ringRows) {
-                    byDate[r['date'] as String] = r;
-                  }
-                  final merged = byDate.values.toList()
-                    ..sort((a, b) => (a['date'] as String).compareTo(b['date'] as String));
-                  if (!mounted) return;
-                  setState(() => _historyRows = merged);
-                  return;
-                } catch (_) {
-                  if (!mounted) return;
-                  setState(() => _historyRows = ringRows);
-                  return;
-                }
-              }
-            }
-          }
-        } catch (e, st) {
-          _reportSleepBle(e, st, 'getSleepList history fallback failed');
-        }
-      }
-    } catch (_) {}
-    try {
-      final rows = await SupabaseService.getSleepHistory(
-        userId: user.id,
-        from: DateTime(from.year, from.month, from.day),
-        to: DateTime(now.year, now.month, now.day),
-      );
-      if (!mounted) return;
-      setState(() => _historyRows = rows);
     } catch (e) {
       if (mounted && isNetworkError(e)) setState(() => _dbOffline = true);
     }
   }
 
-  Future<void> _saveToDb(
-    int total,
-    int deep,
-    int light,
-    int rem,
-    int awake,
-    int score,
-    int st,
-    int et, {
-    DateTime? date,
-  }) async {
+  Future<void> _loadHistory() async {
+    final now = DateTime.now();
+    final from = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+    final to = DateTime(now.year, now.month, now.day);
+    try {
+      final raw = await _ble.getLocalSleepHistory(
+        from: DateKeys.fmt(from),
+        to: DateKeys.fmt(to),
+      );
+      final decoded = jsonDecode(raw);
+      if (decoded is List && mounted) {
+        final rows = decoded.whereType<Map>().map((row) {
+          return <String, dynamic>{
+            'date': row['dateStr'],
+            'total_duration': row['totalDuration'],
+            'deep_duration': row['deepDuration'],
+            'light_duration': row['lightDuration'],
+            'rem_duration': row['remDuration'],
+            'sleep_score': row['sleepScore'],
+          };
+        }).where((r) => ((r['total_duration'] as num?) ?? 0) > 0).toList();
+        if (rows.isNotEmpty) setState(() => _historyRows = rows);
+      }
+    } catch (e) {
+      debugPrint('[sleep_screen] local history failed: $e');
+    }
+    unawaited(_mergeCloudHistory(from, to));
+  }
+
+  Future<void> _syncMissingHistory() async {
+    bool connected = false;
+    try {
+      connected = context.read<BleProvider>().isConnected;
+    } catch (_) {}
+    if (!connected) return;
+    final now = DateTime.now();
+    final have = <String>{
+      for (final r in _historyRows)
+        if (r['date'] is String) r['date'] as String,
+    };
+    for (var i = 0; i <= 6; i++) {
+      if (!mounted) return;
+      final day = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
+      final key = DateKeys.fmt(day);
+      if (i != 0 && have.contains(key)) continue;
+      if (i == 0 && _sameDay(day, _selectedDate) && _totalDuration > 0) {
+        have.add(key);
+        continue;
+      }
+      try {
+        final data = await _ble.syncSleep(dayIndex: i);
+        final parsed = SleepEngine.parseSleepData(data);
+        if (!parsed.hasData) continue;
+        await _saveLocal(parsed, day);
+        have.add(key);
+        if (mounted && _sameDay(day, _selectedDate)) _applyParsed(parsed);
+      } catch (e, st) {
+        _reportSleepBle(e, st, 'history syncSleep($i) failed');
+      }
+    }
+    if (!mounted) return;
+    await _reloadLocalHistory();
+  }
+
+  Future<void> _reloadLocalHistory() async {
+    final now = DateTime.now();
+    final from = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+    final to = DateTime(now.year, now.month, now.day);
+    try {
+      final raw = await _ble.getLocalSleepHistory(
+        from: DateKeys.fmt(from),
+        to: DateKeys.fmt(to),
+      );
+      final decoded = jsonDecode(raw);
+      if (decoded is! List || !mounted) return;
+      final rows = decoded.whereType<Map>().map((row) {
+        return <String, dynamic>{
+          'date': row['dateStr'],
+          'total_duration': row['totalDuration'],
+          'deep_duration': row['deepDuration'],
+          'light_duration': row['lightDuration'],
+          'rem_duration': row['remDuration'],
+          'sleep_score': row['sleepScore'],
+        };
+      }).where((r) => ((r['total_duration'] as num?) ?? 0) > 0).toList();
+      if (rows.isEmpty) return;
+      setState(() => _historyRows = rows);
+    } catch (e) {
+      debugPrint('[sleep_screen] local history reload failed: $e');
+    }
+  }
+
+  Future<void> _mergeCloudHistory(DateTime from, DateTime to) async {
     final user = SupabaseService.currentUser;
     if (user == null) return;
     try {
-      await SupabaseService.upsertSleep(
+      final rows = await SupabaseService.getSleepHistory(
         userId: user.id,
-        date: date ?? DateTime.now(),
-        totalDuration: total,
-        deepDuration: deep,
-        lightDuration: light,
-        remDuration: rem,
-        awakeDuration: awake,
-        sleepScore: score,
-        sleepTime: st,
-        wakeTime: et,
-      );
-      if (mounted) context.read<BleProvider>().updateSleepData(total, score);
-      // Two-way sync: push last night's sleep into Health Connect.
-      if (st > 0) {
-        unawaited(
-          HealthConnectService.instance.tryWriteSleep(
-            sleepTime: DateTime.fromMillisecondsSinceEpoch(st * 1000),
-            wakeTime: DateTime.fromMillisecondsSinceEpoch(
-              (et > 0 ? et : st + 3600) * 1000,
-            ),
-            lightMinutes: light ~/ 60,
-            deepMinutes: deep ~/ 60,
-            remMinutes: rem ~/ 60,
-            awakeMinutes: awake ~/ 60,
-          ),
+        from: from,
+        to: to,
+      ).timeout(const Duration(seconds: 6));
+      if (!mounted || rows.isEmpty) return;
+      final byDate = <String, Map<String, dynamic>>{
+        for (final r in _historyRows)
+          if (r['date'] is String) r['date'] as String: Map<String, dynamic>.from(r),
+      };
+      for (final r in rows) {
+        final key = r['date'] as String?;
+        if (key == null) continue;
+        final existingTotal = (byDate[key]?['total_duration'] as num?)?.toInt() ?? 0;
+        final cloudTotal = (r['total_duration'] as num?)?.toInt() ?? 0;
+        if (existingTotal > 0 || cloudTotal <= 0) continue;
+        byDate[key] = r;
+        final parsed = SleepParseResult(
+          total: cloudTotal,
+          deep: (r['deep_duration'] as num? ?? 0).toInt(),
+          light: (r['light_duration'] as num? ?? 0).toInt(),
+          rem: (r['rem_duration'] as num? ?? 0).toInt(),
+          awake: (r['awake_duration'] as num? ?? 0).toInt(),
+          st: (r['sleep_time'] as num? ?? 0).toInt(),
+          et: (r['wake_time'] as num? ?? 0).toInt(),
+          score: (r['sleep_score'] as num? ?? 0).toInt(),
+          segments: const [],
+          hasData: true,
         );
+        unawaited(_saveLocal(parsed, DateTime.parse('${key}T12:00:00'), source: 'cloud_cache'));
       }
-    } catch (e, st) {
-      IncidentService.reportUnhandled(
-        source: 'sleep_screen',
-        error: e,
-        stackTrace: st,
-        customMessage: '_saveToDb failed',
+      final merged = byDate.values.toList()
+        ..sort((a, b) => (a['date'] as String).compareTo(b['date'] as String));
+      if (!mounted) return;
+      setState(() => _historyRows = merged);
+    } catch (e) {
+      if (mounted && isNetworkError(e)) setState(() => _dbOffline = true);
+    }
+  }
+
+  Future<void> _saveLocal(
+    SleepParseResult result,
+    DateTime date, {
+    String source = 'ring',
+  }) async {
+    if (!result.hasData || result.total <= 0) return;
+    final today = DateTime.now();
+    final dayIndex = DateTime(today.year, today.month, today.day)
+        .difference(DateTime(date.year, date.month, date.day))
+        .inDays;
+    BleProvider? provider;
+    try {
+      provider = context.read<BleProvider>();
+    } catch (_) {}
+    await _ble.saveLocalSleep(
+      dateStr: DateKeys.fmt(date),
+      dayIndex: dayIndex < 0 ? 0 : dayIndex,
+      totalDuration: result.total,
+      deepDuration: result.deep,
+      lightDuration: result.light,
+      remDuration: result.rem,
+      awakeDuration: result.awake,
+      sleepScore: result.score,
+      sleepTime: result.st,
+      wakeTime: result.et,
+      payloadJson: SleepEngine.canonicalJson(result),
+      source: source,
+    );
+    if (provider != null) {
+      if (mounted && _sameDay(date, DateTime.now())) {
+        provider.updateSleepData(result.total, result.score);
+      }
+      provider.scheduleCloudUpload();
+    }
+    if (source == 'ring' && result.st > 0) {
+      unawaited(
+        HealthConnectService.instance.tryWriteSleep(
+          sleepTime: DateTime.fromMillisecondsSinceEpoch(result.st * 1000),
+          wakeTime: DateTime.fromMillisecondsSinceEpoch(
+            (result.et > 0 ? result.et : result.st + 3600) * 1000,
+          ),
+          lightMinutes: result.light ~/ 60,
+          deepMinutes: result.deep ~/ 60,
+          remMinutes: result.rem ~/ 60,
+          awakeMinutes: result.awake ~/ 60,
+        ),
       );
     }
   }
+
 
   // ── Computed helpers ─────────────────────────────────────────────────────────
 
@@ -762,9 +735,10 @@ class _SleepScreenState extends State<SleepScreen> {
                         ),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: const [
+                const Wrap(
+                  spacing: 12,
+                  runSpacing: 6,
+                  children: [
                     LegendDot(color: AppTheme.amber, label: 'Awake'),
                     LegendDot(color: AppTheme.bpColor, label: 'REM'),
                     LegendDot(color: AppTheme.softBlue, label: 'Light'),
@@ -1025,9 +999,16 @@ class _StageRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(label, style: _inter(13, weight: FontWeight.w500)),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _inter(13, weight: FontWeight.w500),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Text(value, style: _inter(12, color: AppTheme.textSec)),
               ],
             ),
@@ -1056,9 +1037,16 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      Text(label, style: _inter(13, color: AppTheme.textSec)),
+      Expanded(
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: _inter(13, color: AppTheme.textSec),
+        ),
+      ),
+      const SizedBox(width: 8),
       Text(value, style: _inter(13, weight: FontWeight.w600)),
     ],
   );

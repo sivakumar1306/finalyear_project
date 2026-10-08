@@ -189,15 +189,21 @@ class SleepHighlightsCard extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         SizedBox(
-          width: 45,
+          width: 52,
           child: Align(
             alignment: Alignment.centerRight,
-            child: Text(
-              _formatMinutes(mins),
-              style: AppTypography.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w400,
-                color: AppTheme.white45, // rgba(255,255,255,0.45)
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                _formatMinutes(mins),
+                maxLines: 1,
+                softWrap: false,
+                style: AppTypography.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w400,
+                  color: AppTheme.white45, // rgba(255,255,255,0.45)
+                ),
               ),
             ),
           ),

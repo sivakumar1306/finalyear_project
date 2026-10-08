@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -20,10 +22,11 @@ import androidx.room.RoomDatabase
         FallEventEntity::class,
         EmergencyContactEntity::class,
         PhoneModeSessionEntity::class,
-        DailyVitalSummaryEntity::class
+        DailyVitalSummaryEntity::class,
+        SleepNightEntity::class
     ],
-    // v8: measurement_attempt per-vital audit for Measurement Log screen
-    version = 8,
+    // v9: sleep_night — local sleep cache so the sleep screen paints before the ring or network.
+    version = 9,
     exportSchema = false
 )
 abstract class QRingDatabase : RoomDatabase() {
@@ -41,8 +44,39 @@ abstract class QRingDatabase : RoomDatabase() {
     abstract fun emergencyContactDao(): EmergencyContactDao
     abstract fun phoneModeSessionDao(): PhoneModeSessionDao
     abstract fun dailyVitalSummaryDao(): DailyVitalSummaryDao
+    abstract fun sleepNightDao(): SleepNightDao
 
     companion object {
+        // Additive table only. Existing vitals stay. Destructive fallback remains
+        // for installs older than v8, which never had a migration path.
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `sleep_night` (
+                        `dateStr` TEXT NOT NULL,
+                        `dayIndex` INTEGER NOT NULL,
+                        `totalDuration` INTEGER NOT NULL,
+                        `deepDuration` INTEGER NOT NULL,
+                        `lightDuration` INTEGER NOT NULL,
+                        `remDuration` INTEGER NOT NULL,
+                        `awakeDuration` INTEGER NOT NULL,
+                        `sleepScore` INTEGER NOT NULL,
+                        `sleepTime` INTEGER NOT NULL,
+                        `wakeTime` INTEGER NOT NULL,
+                        `payloadJson` TEXT NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `syncedAt` INTEGER,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`dateStr`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_sleep_night_syncedAt` ON `sleep_night` (`syncedAt`)"
+                )
+            }
+        }
         @Volatile private var INSTANCE: QRingDatabase? = null
 
         fun getInstance(context: Context): QRingDatabase =
@@ -52,9 +86,8 @@ abstract class QRingDatabase : RoomDatabase() {
                     QRingDatabase::class.java,
                     "qring_local.db"
                 )
-                    // No migrations exist yet anywhere in this DB — app is still pre-release,
-                    // so a destructive rebuild on schema bump is an accepted tradeoff over
-                    // writing a migration for a single additive table.
+                    // v8 → v9 keeps existing vitals. Older installs still rebuild (no earlier migrations).
+                    .addMigrations(MIGRATION_8_9)
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build().also { INSTANCE = it }
             }

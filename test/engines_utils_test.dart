@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sundr/utils/date_keys.dart';
 import 'package:sundr/utils/formatters.dart';
@@ -89,6 +91,42 @@ void main() {
     test('efficiency', () {
       expect(SleepEngine.efficiency(3600, 1000, 8200), greaterThan(0));
       expect(SleepEngine.efficiency(0, 0, 0), 0);
+    });
+    test('parseSleepData keeps a timestamp night when st is 0', () {
+      final raw = jsonEncode({
+        'st': 0,
+        'et': 0,
+        'list': [
+          {'d': 1700000000, 't': 0},
+          {'d': 1700001800, 't': 1},
+          {'d': 1700003600, 't': 3},
+        ],
+      });
+      final parsed = SleepEngine.parseSleepData(raw);
+      expect(parsed.hasData, isTrue);
+      expect(parsed.total, 5400);
+      expect(parsed.deep, 1800);
+      expect(parsed.light, 1800);
+      expect(parsed.rem, 1800);
+      expect(parsed.st, 1700000000);
+      expect(parsed.et, 1700005400);
+    });
+    test('parseSleepData keeps minute durations when st is 0', () {
+      final raw = jsonEncode({
+        'st': 0,
+        'list': [
+          {'d': 30, 't': 0},
+          {'d': 20, 't': 1},
+          {'d': 10, 't': 3},
+        ],
+      });
+      final parsed = SleepEngine.parseSleepData(raw);
+      expect(parsed.hasData, isTrue);
+      expect(parsed.total, 3600);
+      expect(parsed.deep, 1800);
+      expect(parsed.light, 1200);
+      expect(parsed.rem, 600);
+      expect(parsed.segments, isNotEmpty);
     });
   });
 

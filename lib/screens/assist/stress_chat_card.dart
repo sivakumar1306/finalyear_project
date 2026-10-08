@@ -47,8 +47,10 @@ class StressChatCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          const Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            alignment: WrapAlignment.spaceBetween,
             children: [
               _LegendDot(color: AppTheme.success, label: 'Relaxed'),
               _LegendDot(color: AppTheme.amber, label: 'Normal'),
@@ -95,18 +97,21 @@ class _ColoredMiniBarChart extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: labels
-              .map(
-                (l) => Text(
+          children: [
+            for (final l in labels)
+              Expanded(
+                child: Text(
                   l,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                   style: AppTypography.inter(
                     fontSize: 9,
                     color: AppTheme.white40,
                   ),
                 ),
-              )
-              .toList(),
+              ),
+          ],
         ),
       ],
     );
