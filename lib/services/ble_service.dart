@@ -339,11 +339,78 @@ class BleService {
           .timeout(const Duration(seconds: 12)) ??
       '[]';
 
-  Future<String> syncSleep() async =>
+  /// Large-data sleep sync. [dayIndex] 0 is last night. The native side waits
+  /// for the real night inside the packet (up to ~18s) instead of returning
+  /// the first empty callback.
+  Future<String> syncSleep({int dayIndex = 0}) async =>
       await _methodChannel
-          .invokeMethod<String>('syncSleep')
-          .timeout(const Duration(seconds: 15)) ??
-      '[]';
+          .invokeMethod<String>('syncSleep', {'dayIndex': dayIndex})
+          .timeout(const Duration(seconds: 22)) ??
+      '{}';
+
+  Future<bool> saveLocalSleep({
+    required String dateStr,
+    required int totalDuration,
+    required int deepDuration,
+    required int lightDuration,
+    required int remDuration,
+    required int awakeDuration,
+    required int sleepScore,
+    int sleepTime = 0,
+    int wakeTime = 0,
+    int dayIndex = 0,
+    String payloadJson = '{}',
+    String source = 'ring',
+  }) async {
+    try {
+      return await _methodChannel.invokeMethod<bool>('saveLocalSleep', {
+            'dateStr': dateStr,
+            'totalDuration': totalDuration,
+            'deepDuration': deepDuration,
+            'lightDuration': lightDuration,
+            'remDuration': remDuration,
+            'awakeDuration': awakeDuration,
+            'sleepScore': sleepScore,
+            'sleepTime': sleepTime,
+            'wakeTime': wakeTime,
+            'dayIndex': dayIndex,
+            'payloadJson': payloadJson,
+            'source': source,
+          }) ??
+          false;
+    } catch (e) {
+      debugPrint('saveLocalSleep: $e');
+      return false;
+    }
+  }
+
+  Future<String> getLocalSleep(String dateStr) async {
+    try {
+      return await _methodChannel.invokeMethod<String>('getLocalSleep', {
+            'dateStr': dateStr,
+          }) ??
+          '{}';
+    } catch (e) {
+      debugPrint('getLocalSleep: $e');
+      return '{}';
+    }
+  }
+
+  Future<String> getLocalSleepHistory({
+    required String from,
+    required String to,
+  }) async {
+    try {
+      return await _methodChannel.invokeMethod<String>('getLocalSleepHistory', {
+            'from': from,
+            'to': to,
+          }) ??
+          '[]';
+    } catch (e) {
+      debugPrint('getLocalSleepHistory: $e');
+      return '[]';
+    }
+  }
 
   // ── HRV ────────────────────────────────────────────────────────────
   Future<String> getTodayHrv() async =>

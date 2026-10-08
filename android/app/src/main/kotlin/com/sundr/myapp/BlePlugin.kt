@@ -379,7 +379,10 @@ class BlePlugin(private val context: Context) {
             "getTodaySleep"              -> getTodaySleep(result)
             "getSleep"                   -> getSleep(call, result)
             "getSleepList"               -> getSleepList(call, result)
-            "syncSleep"                  -> syncSleep(result)
+            "syncSleep"                  -> syncSleep(call, result)
+            "saveLocalSleep"             -> saveLocalSleep(call, result)
+            "getLocalSleep"              -> getLocalSleep(call, result)
+            "getLocalSleepHistory"       -> getLocalSleepHistory(call, result)
             "getTodayHrv"                -> getTodayHrv(result)
             "getHrv"                     -> getHrv(call, result)
             "getHrvList"                 -> getHrvList(call, result)
@@ -1977,6 +1980,7 @@ class BlePlugin(private val context: Context) {
             "wakeTime"           to data.wakeTime,
             "wakingCount"        to data.wakingCount,
             "fallSleepMin"       to data.fallSleepMin,
+            "dayIndex"           to data.dayIndex,
             "list"               to segments
         )
     }
@@ -2040,11 +2044,13 @@ class BlePlugin(private val context: Context) {
     private fun getSleep(call: MethodCall, result: MethodChannel.Result) {
         val dayIndex = call.argument<Int>("dayIndex") ?: 0
         acquireReadSlot("getSleep dayIndex=$dayIndex", result) {
+            val done = AtomicBoolean(false)
             try {
                 BleOperateManager.getInstance().getSleep(
                     dayIndex,
                     object : BleOperateManager.HealthDataCallback<SleepDisplay> {
                         override fun onSuccess(data: SleepDisplay?) {
+                            if (!done.compareAndSet(false, true)) return
                             releaseReadSlot()
                             if (data == null) {
                                 mainHandler.post { result.success("{}") }
@@ -2058,15 +2064,25 @@ class BlePlugin(private val context: Context) {
                             }
                         }
                         override fun onError(code: Int, message: String?) {
+                            if (!done.compareAndSet(false, true)) return
                             releaseReadSlot()
                             mainHandler.post { result.error("CMD_FAILED", message ?: "code=$code", null) }
                         }
                     }
                 )
             } catch (e: Exception) {
-                releaseReadSlot()
-                mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    mainHandler.post { result.error("SDK_EXCEPTION", e.message, null) }
+                    return@acquireReadSlot
+                }
             }
+            mainHandler.postDelayed({
+                if (done.compareAndSet(false, true)) {
+                    releaseReadSlot()
+                    result.error("TIMEOUT", "Sleep data fetch timed out", null)
+                }
+            }, 12_000L)
         }
     }
 
@@ -2080,7 +2096,13 @@ class BlePlugin(private val context: Context) {
                     object : BleOperateManager.HealthDataCallback<List<BleOperateManager.DayIndexedData<SleepDisplay>>> {
                         override fun onSuccess(data: List<BleOperateManager.DayIndexedData<SleepDisplay>>?) {
                             releaseReadSlot()
-                            mainHandler.post { result.success(gson.toJson(data ?: emptyList<BleOperateManager.DayIndexedData<SleepDisplay>>())) }
+                            val mapped = (data ?: emptyList()).map { item ->
+                                mapOf(
+                                    "dayIndex" to item.dayIndex,
+                                    "data" to (item.data?.let { sleepDisplayToMap(it) } ?: emptyMap<String, Any?>())
+                                )
+                            }
+                            mainHandler.post { result.success(gson.toJson(mapped)) }
                         }
                         override fun onError(code: Int, message: String?) {
                             releaseReadSlot()
@@ -2095,40 +2117,193 @@ class BlePlugin(private val context: Context) {
         }
     }
 
-    private fun syncSleep(result: MethodChannel.Result) {
-        Log.d(TAG, "sdk> syncSleep")
-        val done = AtomicBoolean(false)
-        var timeoutRunnable: Runnable? = null
+    private fun syncSleep(call: MethodCall, result: MethodChannel.Result) {
+        // daysBack: 0 is last night (shown as today). The SDK walks every night in
+        // the packet and invokes the callback once per day. The first callback is
+        // often an empty shell or a nap — answering on that first callback dropped
+        // the real night. Collect them, keep the best, then answer.
+        val requestedDay = call.argument<Int>("dayIndex") ?: 0
+        if (!com.sundr.myapp.sdk.BleSdkLifecycle.isConnected()) {
+            result.error("NOT_CONNECTED", "Ring not connected", null)
+            return
+        }
+        try {
+            LargeDataHandler.getInstance().initEnable()
+        } catch (e: Exception) {
+            Log.w(TAG, "syncSleep initEnable: ${e.message}")
+        }
+        Log.d(TAG, "sdk> syncSleep dayIndex=$requestedDay")
 
-        fun respond(json: String) {
-            if (done.compareAndSet(false, true)) {
-                timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-                mainHandler.post { result.success(json) }
+        val done = AtomicBoolean(false)
+        val lock = Any()
+        val byDay = LinkedHashMap<Int, Map<String, Any?>>()
+        var timeoutRunnable: Runnable? = null
+        var flushRunnable: Runnable? = null
+
+        fun usefulness(map: Map<String, Any?>): Int {
+            val total = (map["totalSleepDuration"] as? Number)?.toInt() ?: 0
+            if (total > 0) return total
+            // New firmware can send the stage list with sleepTime still 0.
+            // That night is real; Dart reconstructs the totals from the list.
+            val list = map["list"] as? List<*>
+            if (!list.isNullOrEmpty()) return 1
+            val st = (map["sleepTime"] as? Number)?.toInt()
+                ?: (map["st"] as? Number)?.toInt()
+                ?: 0
+            return if (st > 0) 1 else 0
+        }
+
+        fun finish() {
+            if (!done.compareAndSet(false, true)) return
+            timeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+            flushRunnable?.let { mainHandler.removeCallbacks(it) }
+            val snapshot = synchronized(lock) { byDay.toMap() }
+            val chosen = snapshot[requestedDay]
+            val json = if (chosen != null && usefulness(chosen) > 0) gson.toJson(chosen) else "{}"
+            if (snapshot.isNotEmpty()) {
+                repo().ioScope.launch {
+                    for ((idx, map) in snapshot) {
+                        try {
+                            repo().saveSleepNight(
+                                dateStr = java.time.LocalDate.now().minusDays(idx.toLong()).toString(),
+                                dayIndex = idx,
+                                total = (map["totalSleepDuration"] as? Number)?.toInt() ?: 0,
+                                deep = (map["deepDuration"] as? Number)?.toInt() ?: 0,
+                                light = (map["lightDuration"] as? Number)?.toInt() ?: 0,
+                                rem = (map["remDuration"] as? Number)?.toInt() ?: 0,
+                                awake = (map["awakeDuration"] as? Number)?.toInt() ?: 0,
+                                score = 0,
+                                sleepTime = (map["sleepTime"] as? Number)?.toInt() ?: 0,
+                                wakeTime = (map["wakeTime"] as? Number)?.toInt() ?: 0,
+                                payloadJson = gson.toJson(map),
+                                source = "ring",
+                            )
+                        } catch (e: Exception) {
+                            Log.e(TAG, "save sleep night failed", e)
+                        }
+                    }
+                }
             }
+            mainHandler.post { result.success(json) }
+        }
+
+        fun scheduleFlush() {
+            val hasRequested = synchronized(lock) { byDay.containsKey(requestedDay) }
+            // Keep listening until the requested night shows up. Other days in the
+            // same packet are saved when we finish, but must not end the call early.
+            if (!hasRequested) return
+            val pending = flushRunnable
+            if (pending != null) mainHandler.removeCallbacks(pending)
+            val next = Runnable { finish() }
+            flushRunnable = next
+            mainHandler.postDelayed(next, 1200L)
         }
 
         LargeDataHandler.getInstance().syncSleepList(
-            0,
+            requestedDay,
             object : ILargeDataSleepResponse {
                 override fun sleepData(p0: SleepDisplay?) {
-                    if (p0 != null) {
-                        respond(gson.toJson(sleepDisplayToMap(p0)))
+                    if (p0 == null || done.get()) return
+                    val mapped = sleepDisplayToMap(p0).toMutableMap()
+                    val idx = p0.dayIndex
+                    mapped["dayIndex"] = idx
+                    if (usefulness(mapped) <= 0) return
+                    synchronized(lock) {
+                        val prev = byDay[idx]
+                        if (prev == null || usefulness(mapped) >= usefulness(prev)) {
+                            byDay[idx] = mapped
+                        }
                     }
+                    scheduleFlush()
                 }
             },
             object : ILargeDataLaunchSleepResponse {
                 override fun sleepData(p0: SleepNewProtoResp?) {
-                    if (p0 != null) {
-                        respond(gson.toJson(sleepNewProtoToMap(p0)))
-                    }
+                    // Lunch/nap packet. The night itself is converted to SleepDisplay
+                    // and delivered on ILargeDataSleepResponse. Ignore this so a nap
+                    // cannot replace the night.
                 }
             }
         )
 
-        timeoutRunnable = Runnable {
-            respond("{}")
+        timeoutRunnable = Runnable { finish() }
+        // SDK queues this behind other large-data work with a 30s budget.
+        // Answer sooner once a real night arrives (scheduleFlush). This cap
+        // only covers a ring that never calls back.
+        mainHandler.postDelayed(timeoutRunnable!!, 18_000L)
+    }
+
+    private fun saveLocalSleep(call: MethodCall, result: MethodChannel.Result) {
+        val dateStr = call.argument<String>("dateStr")
+        if (dateStr.isNullOrBlank()) {
+            result.error("BAD_ARGS", "dateStr is required", null)
+            return
         }
-        mainHandler.postDelayed(timeoutRunnable!!, 10_000L)
+        val total = call.argument<Int>("totalDuration") ?: 0
+        val deep = call.argument<Int>("deepDuration") ?: 0
+        val light = call.argument<Int>("lightDuration") ?: 0
+        val rem = call.argument<Int>("remDuration") ?: 0
+        val awake = call.argument<Int>("awakeDuration") ?: 0
+        val score = call.argument<Int>("sleepScore") ?: 0
+        val sleepTime = call.argument<Int>("sleepTime") ?: 0
+        val wakeTime = call.argument<Int>("wakeTime") ?: 0
+        val dayIndex = call.argument<Int>("dayIndex") ?: 0
+        val payload = call.argument<String>("payloadJson") ?: "{}"
+        val source = call.argument<String>("source") ?: "ring"
+        repo().ioScope.launch {
+            try {
+                repo().saveSleepNight(
+                    dateStr = dateStr,
+                    dayIndex = dayIndex,
+                    total = total,
+                    deep = deep,
+                    light = light,
+                    rem = rem,
+                    awake = awake,
+                    score = score,
+                    sleepTime = sleepTime,
+                    wakeTime = wakeTime,
+                    payloadJson = payload,
+                    source = source,
+                )
+                mainHandler.post { result.success(true) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("SAVE_FAILED", e.message, null) }
+            }
+        }
+    }
+
+    private fun getLocalSleep(call: MethodCall, result: MethodChannel.Result) {
+        val dateStr = call.argument<String>("dateStr")
+        if (dateStr.isNullOrBlank()) {
+            result.error("BAD_ARGS", "dateStr is required", null)
+            return
+        }
+        repo().ioScope.launch {
+            try {
+                val row = repo().sleepForDate(dateStr)
+                mainHandler.post { result.success(if (row == null) "{}" else gson.toJson(row)) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+            }
+        }
+    }
+
+    private fun getLocalSleepHistory(call: MethodCall, result: MethodChannel.Result) {
+        val from = call.argument<String>("from")
+        val to = call.argument<String>("to")
+        if (from.isNullOrBlank() || to.isNullOrBlank()) {
+            result.error("BAD_ARGS", "from and to are required", null)
+            return
+        }
+        repo().ioScope.launch {
+            try {
+                val rows = repo().sleepBetween(from, to)
+                mainHandler.post { result.success(gson.toJson(rows)) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────

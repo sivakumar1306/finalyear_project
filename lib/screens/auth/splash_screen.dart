@@ -2,10 +2,8 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/supabase_service.dart';
-import '../../models/onboarding_data.dart';
-import '../onboarding/onboarding_name_screen.dart';
 import 'sign_up_screen.dart';
 import 'login_screen.dart';
 import '../../theme/app_theme.dart';
@@ -18,102 +16,48 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  static const _minSplashDuration = Duration(milliseconds: 600);
-
   bool _checking = true;
 
-  StreamSubscription<AuthState>? _restoreSub;
-  Timer? _restoreTimer;
+  StreamSubscription? _restoreSub;
 
   @override
   void initState() {
     super.initState();
-    _checkSession();
+    _open();
   }
 
   @override
   void dispose() {
     _restoreSub?.cancel();
-    _restoreTimer?.cancel();
     super.dispose();
   }
 
-  /// Keeps the splash visible for at least a short beat so it doesn't flash,
-  /// while the profile fetch (the real work) runs concurrently.
-  Future<void> _holdSplash(DateTime started) async {
-    final elapsed = DateTime.now().difference(started);
-    if (elapsed < _minSplashDuration) {
-      await Future.delayed(_minSplashDuration - elapsed);
-    }
-  }
-
-  Future<void> _checkSession() async {
-    final started = DateTime.now();
-    final sessionUser = await _resolveUser();
-    if (sessionUser != null) {
-      await _routeLoggedInUser(sessionUser, started);
-    } else {
-      await _holdSplash(started);
-      if (!mounted) return;
-      setState(() => _checking = false);
-    }
-  }
-
-  /// Returns the signed-in user, waiting briefly for the persisted session to
-  /// be restored by supabase-flutter (restore is asynchronous — without this,
-  /// a cold start that reads `currentUser` a few milliseconds too early lands
-  /// the user on the login screen even though the session was stored).
-  Future<User?> _resolveUser() async {
-    final current = SupabaseService.currentUser;
-    if (current != null) return current;
-
-    final completer = Completer<User?>();
-    _restoreSub?.cancel();
-    _restoreTimer?.cancel();
-    _restoreSub = SupabaseService.client.auth.onAuthStateChange.listen(
-      (state) {
-        final user = state.session?.user;
-        if (user != null && !completer.isCompleted) completer.complete(user);
-      },
-    );
-    _restoreTimer = Timer(const Duration(milliseconds: 2000), () {
-      if (!completer.isCompleted) {
-        completer.complete(SupabaseService.currentUser);
-      }
-    });
-    final user = await completer.future;
-    _restoreTimer?.cancel();
-    if (!completer.isCompleted) completer.complete(user);
-    return user;
-  }
-
-  Future<void> _routeLoggedInUser(User user, DateTime started) async {
+  /// Route from the local login flag or an already-restored session. Profile
+  /// lookup happens on Home, so a cold start does not wait on the network.
+  Future<void> _open() async {
+    var flagged = false;
     try {
-      final profile = await SupabaseService.getProfile(
-        user.id,
-      ).timeout(const Duration(seconds: 8));
-      await _holdSplash(started);
-      if (!mounted) return;
-      final hasProfile =
-          profile != null && (profile['full_name'] as String? ?? '').isNotEmpty;
-      if (hasProfile) {
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => OnboardingNameScreen(data: OnboardingData()),
-          ),
-        );
-      }
-    } catch (_) {
-      // Profile lookup failed (offline, table unavailable, timeout…). The user
-      // still has a valid session — go home instead of bouncing them back to
-      // the login screen. `/home` tolerates the offline / missing-profile case.
-      await _holdSplash(started);
-      if (!mounted) return;
+      final prefs = await SharedPreferences.getInstance();
+      flagged = prefs.getBool('user_logged_in') ?? false;
+    } catch (_) {}
+    if (!mounted) return;
+    var hasUser = false;
+    try {
+      hasUser = SupabaseService.currentUser != null;
+    } catch (_) {}
+    if (flagged || hasUser) {
       Navigator.pushReplacementNamed(context, '/home');
+      return;
     }
+    setState(() => _checking = false);
+    try {
+      _restoreSub = SupabaseService.client.auth.onAuthStateChange.listen((state) {
+        if (!mounted || state.session?.user == null) return;
+        _restoreSub?.cancel();
+        _restoreSub = null;
+        Navigator.pushReplacementNamed(context, '/home');
+      });
+    } catch (_) {}
   }
 
   Widget _buildLogo({double iconSize = 34, double fontSize = 28}) {

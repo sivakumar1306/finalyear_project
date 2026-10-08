@@ -342,6 +342,27 @@ interface DailyVitalSummaryDao {
     suspend fun purgeOldLocal(cutoffMs: Long): Int
 }
 
+@Dao
+interface SleepNightDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: SleepNightEntity)
+
+    @Query("SELECT * FROM sleep_night WHERE dateStr = :dateStr LIMIT 1")
+    suspend fun forDate(dateStr: String): SleepNightEntity?
+
+    @Query("SELECT * FROM sleep_night WHERE dateStr >= :from AND dateStr <= :to ORDER BY dateStr ASC")
+    suspend fun between(from: String, to: String): List<SleepNightEntity>
+
+    @Query(
+        "SELECT * FROM sleep_night WHERE syncedAt IS NULL AND source != 'cloud_cache' " +
+            "ORDER BY dateStr ASC LIMIT :limit"
+    )
+    suspend fun unsyncedBatch(limit: Int): List<SleepNightEntity>
+
+    @Query("UPDATE sleep_night SET syncedAt = :syncedAt WHERE dateStr IN (:dates)")
+    suspend fun markSynced(dates: List<String>, syncedAt: Long)
+}
+
 
 
 

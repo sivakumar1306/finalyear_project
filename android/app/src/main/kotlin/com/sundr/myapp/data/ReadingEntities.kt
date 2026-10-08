@@ -214,3 +214,24 @@ data class DailyVitalSummaryEntity(
     @SerializedName("origin") val origin: String = "local",
     @SerializedName("updatedAt") val updatedAt: Long = System.currentTimeMillis()
 )
+
+// One row per wake-up date. Written from the ring first, then uploaded to
+// user_sleep. source is "ring" or "cloud_cache". syncedAt stays null until the
+// background uploader confirms the row is on Supabase.
+@Entity(tableName = "sleep_night", indices = [Index("syncedAt")])
+data class SleepNightEntity(
+    @PrimaryKey @SerializedName("dateStr") val dateStr: String,
+    @SerializedName("dayIndex") val dayIndex: Int = 0,
+    @SerializedName("totalDuration") val totalDuration: Int = 0,
+    @SerializedName("deepDuration") val deepDuration: Int = 0,
+    @SerializedName("lightDuration") val lightDuration: Int = 0,
+    @SerializedName("remDuration") val remDuration: Int = 0,
+    @SerializedName("awakeDuration") val awakeDuration: Int = 0,
+    @SerializedName("sleepScore") val sleepScore: Int = 0,
+    @SerializedName("sleepTime") val sleepTime: Int = 0,
+    @SerializedName("wakeTime") val wakeTime: Int = 0,
+    @SerializedName("payloadJson") val payloadJson: String = "{}",
+    @SerializedName("source") val source: String = "ring",
+    @SerializedName("syncedAt") val syncedAt: Long? = null,
+    @SerializedName("updatedAt") val updatedAt: Long = System.currentTimeMillis()
+)
