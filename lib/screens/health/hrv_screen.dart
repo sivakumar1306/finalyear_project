@@ -637,7 +637,7 @@ class _HrvScreenState extends State<HrvScreen> {
       items: [
         GlassMenuItem(
           label: 'Share',
-          onTap: () => shareScreenshot(_screenshotKey, text: 'My HRV — SUNDR'),
+          onTap: () => shareScreenshot(_screenshotKey, text: 'My HRV — Vital Monitoring'),
         ),
         GlassMenuItem(
           label: 'Note',

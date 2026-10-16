@@ -53,29 +53,17 @@ object FallAlertNotifier {
             else -> "your vitals"
         }
         val pct = (confidence * 100).toInt()
-        val countdown = EmergencySmsSender.COUNTDOWN_SECONDS
-        val autoCall = EmergencyAutoCaller.isEnabled(context)
-        val callLine = if (autoCall) {
-            " Calling your emergency contact now."
-        } else {
-            ""
-        }
-
-        val smsMessage = EmergencySmsSender.getMessageForReason("fall")
         val body: String
         val bigText: String
         val actionLabel: String
         if (simulated) {
-            body = "Demo only — no SMS or call was triggered."
-            bigText = "Simulated fall detection corroborated by $sourceLabel. This is a demo — no SMS was scheduled and no call " +
-                "was placed.\n\nSMS would say: \"$smsMessage\""
+            body = "Demo only — simulated fall detection."
+            bigText = "Simulated fall detection corroborated by $sourceLabel ($pct% confidence). This is a demo."
             actionLabel = "Dismiss"
         } else {
-            body = "SMS in ${countdown}s: \"$smsMessage\""
+            body = "Open the app if you need help."
             bigText = "A sudden motion consistent with a fall was detected, corroborated by " +
-                "$sourceLabel.$callLine SMS will be sent to all " +
-                "emergency contacts in $countdown seconds:\n\n\"$smsMessage\"\n\nIf you're okay, tap I'm okay " +
-                "to cancel the SMS."
+                "$sourceLabel ($pct% confidence). If you're okay, tap I'm okay."
             actionLabel = "I'm okay"
         }
 

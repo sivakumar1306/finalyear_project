@@ -1,5 +1,5 @@
-name: sundr
-description: "SUNDR Smart Ring Flutter App"
+name: vital_monitoring
+description: "Vital Monitoring Smart Ring Flutter App"
 publish_to: 'none'
 version: 1.1.13+15
 
@@ -15,18 +15,10 @@ dependencies:
   path_provider: ^2.1.5
   intl: ^0.20.0
   supabase_flutter: ^2.16.0
-  url_launcher: ^6.3.1
   http: ^1.6.0
-  firebase_core: ^4.14.0
-  firebase_messaging: ^16.6.0
   speech_to_text: ^7.1.0
   share_plus: ^13.3.0
-  camera: ^0.12.0+2
   health: ^13.3.2
-  package_info_plus: ^10.2.1
-  geolocator: ^14.0.3
-  flutter_compass: ^0.8.1
-  adhan: ^2.0.0+1
   flutter_local_notifications: ^22.3.0
   timezone: ^0.11.1
   flutter_markdown: ^0.7.7+1
@@ -41,16 +33,6 @@ flutter:
   uses-material-design: true
   assets:
     - ring.webp
-    - sundr_logo.png
-    - ring_bluetooth_indicator.webp
-    - charging_port_cotton_swab.webp
-    - charging_port_toothpick.webp
-    - charging_port_detergent.webp
-    - charging_indicator_states.webp
-    - sleep_stages_chart.webp
-    - ring_wearing_direction.webp
-    - sundr_welcome.webp
-    - assets/quran/quran.json
   # Typography uses the platform system font (no bundled fonts).
 
 flutter_launcher_icons:

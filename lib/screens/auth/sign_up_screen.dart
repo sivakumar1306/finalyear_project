@@ -151,14 +151,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 8),
-                    Center(
-                      child: Image.asset(
-                        'sundr_logo.png',
-                        width: 72,
-                        height: 72,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
                     const Text(
                       'Create an account',
                       style: TextStyle(
@@ -169,7 +161,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Create a SUNDR account.',
+                      'Create a Vital Monitoring account.',
                       style: TextStyle(color: Colors.white54, fontSize: 14),
                     ),
                     const SizedBox(height: 40),

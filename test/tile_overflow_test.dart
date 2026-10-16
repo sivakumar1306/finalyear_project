@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sundr/screens/assist/cycle_chat_card.dart';
-import 'package:sundr/screens/assist/key_change_card.dart';
-import 'package:sundr/screens/health/womens_health_widgets.dart';
-import 'package:sundr/screens/home/cards/home_insight_cards.dart';
-import 'package:sundr/screens/home/cards/home_vitals_cards.dart';
-import 'package:sundr/theme/app_theme.dart';
-import 'package:sundr/widgets/glass_header.dart';
-import 'package:sundr/widgets/chart_scrubber.dart';
-import 'package:sundr/widgets/date_scroll_row.dart';
-import 'package:sundr/widgets/legend_dot.dart';
-import 'package:sundr/widgets/metric_chart_card.dart';
-import 'package:sundr/widgets/metric_stat_card.dart';
-import 'package:sundr/widgets/real_time_card.dart';
+import 'package:vital_monitoring/screens/assist/cycle_chat_card.dart';
+import 'package:vital_monitoring/screens/assist/key_change_card.dart';
+import 'package:vital_monitoring/screens/health/womens_health_widgets.dart';
+import 'package:vital_monitoring/screens/home/cards/home_insight_cards.dart';
+import 'package:vital_monitoring/screens/home/cards/home_vitals_cards.dart';
+import 'package:vital_monitoring/theme/app_theme.dart';
+import 'package:vital_monitoring/widgets/glass_header.dart';
+import 'package:vital_monitoring/widgets/chart_scrubber.dart';
+import 'package:vital_monitoring/widgets/date_scroll_row.dart';
+import 'package:vital_monitoring/widgets/legend_dot.dart';
+import 'package:vital_monitoring/widgets/metric_chart_card.dart';
+import 'package:vital_monitoring/widgets/metric_stat_card.dart';
+import 'package:vital_monitoring/widgets/real_time_card.dart';
 
 /// Lays a tile out at a phone width and a text scale, and fails if Flutter
 /// reports a RenderFlex overflow.
@@ -154,7 +154,7 @@ void main() {
     );
   });
 
-  testWidgets('home activity and metric tiles fit', (tester) async {
+  testWidgets('home metric tiles fit', (tester) async {
     await _expectFits(
       tester,
       FigmaExpandedCard(
@@ -189,16 +189,6 @@ void main() {
                   orbColor: AppTheme.spo2Color,
                   sparkData: const [0.2, 0.5, 0.4, 0.8],
                   connected: true,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: MiniCard(
-                  label: "Women's Health",
-                  value: 'Day 14 • Ovulation',
-                  sub: '85% AWHE Confidence',
-                  color: AppTheme.womenColor,
-                  icon: Icons.woman,
                 ),
               ),
             ],

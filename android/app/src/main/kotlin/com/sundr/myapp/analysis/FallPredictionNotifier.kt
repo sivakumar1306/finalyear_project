@@ -52,18 +52,16 @@ object FallPredictionNotifier {
             )
         }
 
-        val countdown = EmergencySmsSender.COUNTDOWN_SECONDS
-        val smsMessage = EmergencySmsSender.getMessageForReason("prediction")
         val bodyText = if (simulated) {
-            "Simulated prediction corroborates high fall risk. This is a demo — no SMS was scheduled.\n\nSMS would say: \"$smsMessage\""
+            "Simulated prediction corroborates high fall risk. This is a demo."
         } else {
-            "SMS will be sent to all emergency contacts in $countdown seconds unless you cancel:\n\n\"$smsMessage\""
+            "$message Take a seat and rest until you feel steady."
         }
 
-        val cancelSmsIntent = PendingIntent.getBroadcast(
+        val dismissIntent = PendingIntent.getBroadcast(
             context,
             2,
-            Intent(context, EmergencySmsCancelReceiver::class.java),
+            Intent(context, FallAlertDismissReceiver::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
@@ -77,13 +75,13 @@ object FallPredictionNotifier {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(launchIntent(0))
-            .addAction(0, if (simulated) "Dismiss" else "Cancel SMS", cancelSmsIntent)
+            .addAction(0, if (simulated) "Dismiss" else "I'm okay", dismissIntent)
             .addAction(0, "Open app", launchIntent(1))
             .build()
 
         var skipStandard = false
         if (!simulated) {
-            skipStandard = SafetyLiveUpdate.showPrediction(context, countdown)
+            skipStandard = SafetyLiveUpdate.showPrediction(context)
         }
         if (!skipStandard) {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)

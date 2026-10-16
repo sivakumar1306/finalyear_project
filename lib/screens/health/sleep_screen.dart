@@ -592,7 +592,7 @@ class _SleepScreenState extends State<SleepScreen> {
         GlassMenuItem(
           label: 'Share',
           onTap: () =>
-              shareScreenshot(_screenshotKey, text: 'My Sleep — SUNDR'),
+              shareScreenshot(_screenshotKey, text: 'My Sleep — Vital Monitoring'),
         ),
         GlassMenuItem(
           label: 'Note',

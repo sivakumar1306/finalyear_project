@@ -1,13 +1,13 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sundr/utils/date_keys.dart';
-import 'package:sundr/utils/formatters.dart';
-import 'package:sundr/utils/hourly_aggregator.dart';
-import 'package:sundr/utils/trend_math.dart';
-import 'package:sundr/utils/scrub_helper.dart';
-import 'package:sundr/services/health_engine/sleep_engine.dart';
-import 'package:sundr/services/health_engine/cycle_engine.dart';
+import 'package:vital_monitoring/utils/date_keys.dart';
+import 'package:vital_monitoring/utils/formatters.dart';
+import 'package:vital_monitoring/utils/hourly_aggregator.dart';
+import 'package:vital_monitoring/utils/trend_math.dart';
+import 'package:vital_monitoring/utils/scrub_helper.dart';
+import 'package:vital_monitoring/services/health_engine/sleep_engine.dart';
+import 'package:vital_monitoring/services/health_engine/cycle_engine.dart';
 
 void main() {
   group('DateKeys', () {

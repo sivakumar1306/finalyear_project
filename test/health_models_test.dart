@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sundr/models/health_data.dart';
-import 'package:sundr/models/womens_health_models.dart';
+import 'package:vital_monitoring/models/health_data.dart';
+import 'package:vital_monitoring/models/womens_health_models.dart';
 
 void main() {
   group('HrSummary', () {

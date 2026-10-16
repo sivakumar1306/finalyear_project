@@ -152,14 +152,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 8),
-                      Center(
-                        child: Image.asset(
-                          'sundr_logo.png',
-                          width: 72,
-                          height: 72,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
                       const Text(
                         'Welcome back',
                         style: TextStyle(
@@ -170,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Log in to your SUNDR account.',
+                        'Log in to your Vital Monitoring account.',
                         style: TextStyle(color: Colors.white54, fontSize: 14),
                       ),
                       const SizedBox(height: 40),

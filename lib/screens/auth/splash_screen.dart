@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -60,33 +59,27 @@ class _SplashScreenState extends State<SplashScreen> {
     } catch (_) {}
   }
 
-  Widget _buildLogo({double iconSize = 34, double fontSize = 28}) {
-    return Row(
+  Widget _buildLogo() {
+    return const Column(
       mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset(
-          'sundr_logo.png',
-          width: iconSize,
-          height: iconSize,
-          color: const Color(0xFFC7A56A),
-          errorBuilder: (context, error, stackTrace) => SizedBox(
-            width: iconSize,
-            height: iconSize,
-            child: CustomPaint(
-              painter: const _SundrStarburstPainter(color: Color(0xFFC7A56A)),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        const Text(
-          'SUNDR',
+        Text(
+          'VITAL',
           style: TextStyle(
             color: Color(0xFFC7A56A),
             fontSize: 28,
             fontWeight: FontWeight.w700,
             letterSpacing: 5.5,
+          ),
+        ),
+        SizedBox(height: 6),
+        Text(
+          'MONITORING',
+          style: TextStyle(
+            color: Color(0xFFC7A56A),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 4.0,
           ),
         ),
       ],
@@ -100,7 +93,7 @@ class _SplashScreenState extends State<SplashScreen> {
       body: SafeArea(
             child: _checking
                 ? Center(
-                    child: _buildLogo(iconSize: 34, fontSize: 28),
+                    child: _buildLogo(),
                   )
                 : Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -108,7 +101,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       children: [
                         const Spacer(),
                         Center(
-                          child: _buildLogo(iconSize: 34, fontSize: 28),
+                          child: _buildLogo(),
                         ),
                         const Spacer(),
                         _GlassButton(
@@ -141,54 +134,6 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
     );
   }
-}
-
-class _SundrStarburstPainter extends CustomPainter {
-  final Color color;
-  const _SundrStarburstPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.075
-      ..strokeCap = StrokeCap.round;
-
-    final center = Offset(size.width / 2, size.height / 2);
-    final r = size.width / 2;
-
-    for (int i = 0; i < 4; i++) {
-      final angle = (i * 90) * (pi / 180);
-      final dx = cos(angle);
-      final dy = sin(angle);
-
-      canvas.drawLine(
-        center,
-        Offset(center.dx + dx * r * 0.95, center.dy + dy * r * 0.95),
-        paint,
-      );
-
-      final tip = Offset(center.dx + dx * r * 0.95, center.dy + dy * r * 0.95);
-      final wing1 = angle + 135 * (pi / 180);
-      final wing2 = angle - 135 * (pi / 180);
-      final wingLen = r * 0.38;
-
-      canvas.drawLine(
-        tip,
-        Offset(tip.dx + cos(wing1) * wingLen, tip.dy + sin(wing1) * wingLen),
-        paint,
-      );
-      canvas.drawLine(
-        tip,
-        Offset(tip.dx + cos(wing2) * wingLen, tip.dy + sin(wing2) * wingLen),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _GlassButton extends StatelessWidget {

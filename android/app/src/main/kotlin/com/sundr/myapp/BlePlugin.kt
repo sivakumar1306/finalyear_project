@@ -106,8 +106,6 @@ import com.oudmon.ble.base.communication.sport.SportPlusHandle
 import com.oudmon.ble.base.scan.BleScannerHelper
 import com.oudmon.ble.base.scan.ScanRecord
 import com.oudmon.ble.base.scan.ScanWrapperCallback
-import com.sundr.myapp.analysis.EmergencyAutoCaller
-import com.sundr.myapp.analysis.EmergencySmsSender
 import com.sundr.myapp.analysis.FallAlertNotifier
 import com.sundr.myapp.analysis.FallMotionDetector
 import com.sundr.myapp.analysis.FallPredictionNotifier
@@ -128,11 +126,8 @@ import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.time.LocalDate
 import java.time.ZoneId
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationManagerCompat
 
 class BlePlugin(private val context: Context) {
@@ -536,20 +531,10 @@ class BlePlugin(private val context: Context) {
             "getPhoneModeSessions"       -> getPhoneModeSessions(call, result)
             "simulateFallEvent"          -> simulateFallEvent(result)
             "postHealthAlert"            -> postHealthAlert(call, result)
-            "getEmergencyContacts"       -> getEmergencyContacts(result)
-            "addEmergencyContact"        -> addEmergencyContact(call, result)
-            "updateEmergencyContact"     -> updateEmergencyContact(call, result)
-            "deleteEmergencyContact"     -> deleteEmergencyContact(call, result)
             "simulateFallRiskTrigger"    -> simulateFallRiskTrigger(result)
             "simulateFallPrediction"     -> simulateFallPrediction(result)
             "consumeFallPredictionFlag"  -> consumeFallPredictionFlag(result)
             "clearFallPredictionFlag"    -> clearFallPredictionFlag(result)
-            "getEmergencySmsStatus"      -> getEmergencySmsStatus(result)
-            "cancelEmergencySms"         -> cancelEmergencySms(result)
-            "sendEmergencySms"           -> sendEmergencySms(call, result)
-            "getAutoCallOnFallEnabled"   -> getAutoCallOnFallEnabled(result)
-            "setAutoCallOnFallEnabled"   -> setAutoCallOnFallEnabled(call, result)
-            "placeEmergencyCall"         -> placeEmergencyCall(call, result)
             "insertHeartRate"            -> insertHeartRate(call, result)
             "insertSpo2"                 -> insertSpo2(call, result)
             "insertHrv"                  -> insertHrv(call, result)
@@ -3958,15 +3943,11 @@ class BlePlugin(private val context: Context) {
                 val skipStandard = SafetyLiveUpdate.showFall(
                     context,
                     (confidence * 100).toInt(),
-                    EmergencySmsSender.COUNTDOWN_SECONDS,
-                    EmergencyAutoCaller.isEnabled(context),
                     simulated = false,
                 )
                 if (!skipStandard) {
                     FallAlertNotifier.notifyFall(context, confidence, source, simulated = false)
                 }
-                EmergencySmsSender.schedule(context, reason = "fall")
-                EmergencyAutoCaller.placeIfEnabled(context)
                 mainHandler.post { result.success(true) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SIMULATE_FAILED", e.message, null) }
@@ -4021,26 +4002,6 @@ class BlePlugin(private val context: Context) {
         }
     }
 
-    private fun getEmergencySmsStatus(result: MethodChannel.Result) {
-        result.success(gson.toJson(EmergencySmsSender.status(context)))
-    }
-
-    private fun getAutoCallOnFallEnabled(result: MethodChannel.Result) {
-        result.success(gson.toJson(EmergencyAutoCaller.status(context)))
-    }
-
-    private fun setAutoCallOnFallEnabled(call: MethodCall, result: MethodChannel.Result) {
-        val enabled = call.argument<Boolean>("enabled") ?: false
-        EmergencyAutoCaller.setEnabled(context, enabled)
-        result.success(gson.toJson(EmergencyAutoCaller.status(context)))
-    }
-
-    private fun cancelEmergencySms(result: MethodChannel.Result) {
-        EmergencySmsSender.cancel(context)
-        FallPredictionNotifier.clearPending(context)
-        result.success(true)
-    }
-
     /**
      * Full logout wipe, called from Dart's SupabaseService.logoutAndClearLocalData().
      * Stops every background loop, drops the Room database (vitals, fall events,
@@ -4057,7 +4018,6 @@ class BlePlugin(private val context: Context) {
             SupabaseSyncManager.stop()
             WorkoutService.stop(app)
             FallMotionDetector.stop()
-            EmergencySmsSender.cancel(app)
             FallPredictionNotifier.clearPending(app)
             SafetyLiveUpdate.clear(app)
             try { BleOperateManager.getInstance().disconnect() } catch (_: Exception) {}
@@ -4091,41 +4051,6 @@ class BlePlugin(private val context: Context) {
         }
     }
 
-    private fun sendEmergencySms(call: MethodCall, result: MethodChannel.Result) {
-        val message = call.argument<String>("message")
-            ?: EmergencySmsSender.getMessageForReason("manual")
-        repo().ioScope.launch {
-            val status = try {
-                EmergencySmsSender.sendNow(context, message)
-            } catch (e: Exception) {
-                mainHandler.post { result.error("SMS_FAILED", e.message, null) }
-                return@launch
-            }
-            mainHandler.post { result.success(gson.toJson(status)) }
-        }
-    }
-
-    private fun placeEmergencyCall(call: MethodCall, result: MethodChannel.Result) {
-        val phone = call.argument<String>("phone")
-        if (phone.isNullOrBlank()) {
-            result.error("NO_PHONE", "No phone number provided", null)
-            return
-        }
-        val ok = EmergencyAutoCaller.placeCall(context, phone)
-        if (ok) {
-            result.success(true)
-        } else {
-            val hasPermission = ContextCompat.checkSelfPermission(
-                context, Manifest.permission.CALL_PHONE
-            ) == PackageManager.PERMISSION_GRANTED
-            if (!hasPermission) {
-                result.error("NO_PERMISSION", "CALL_PHONE permission not granted", null)
-            } else {
-                result.error("CALL_FAILED", "Could not place call", null)
-            }
-        }
-    }
-
     private fun consumeFallPredictionFlag(result: MethodChannel.Result) {
         FallPredictionNotifier.restorePending(context)
         val pending = MainActivity.pendingFallPrediction
@@ -4139,65 +4064,6 @@ class BlePlugin(private val context: Context) {
     private fun clearFallPredictionFlag(result: MethodChannel.Result) {
         FallPredictionNotifier.clearPending(context)
         result.success(true)
-    }
-
-    private fun getEmergencyContacts(result: MethodChannel.Result) {
-        repo().ioScope.launch {
-            val json = try {
-                gson.toJson(repo().allEmergencyContacts())
-            } catch (e: Exception) {
-                mainHandler.post { result.error("QUERY_FAILED", e.message, null) }
-                return@launch
-            }
-            mainHandler.post { result.success(json) }
-        }
-    }
-
-    private fun updateEmergencyContact(call: MethodCall, result: MethodChannel.Result) {
-        val id = (call.argument<Number>("id") ?: run {
-            result.error("INVALID_ARG", "id required", null); return
-        }).toLong()
-        val name = call.argument<String>("name") ?: run {
-            result.error("INVALID_ARG", "name required", null); return
-        }
-        val phone = call.argument<String>("phone") ?: ""
-        repo().ioScope.launch {
-            try {
-                repo().updateEmergencyContact(id, name, phone)
-                mainHandler.post { result.success(true) }
-            } catch (e: Exception) {
-                mainHandler.post { result.error("UPDATE_FAILED", e.message, null) }
-            }
-        }
-    }
-
-    private fun addEmergencyContact(call: MethodCall, result: MethodChannel.Result) {
-        val name = call.argument<String>("name") ?: run {
-            result.error("INVALID_ARG", "name required", null); return
-        }
-        val phone = call.argument<String>("phone") ?: ""
-        repo().ioScope.launch {
-            try {
-                repo().insertEmergencyContact(name, phone)
-                mainHandler.post { result.success(true) }
-            } catch (e: Exception) {
-                mainHandler.post { result.error("INSERT_FAILED", e.message, null) }
-            }
-        }
-    }
-
-    private fun deleteEmergencyContact(call: MethodCall, result: MethodChannel.Result) {
-        val id = (call.argument<Number>("id") ?: run {
-            result.error("INVALID_ARG", "id required", null); return
-        }).toLong()
-        repo().ioScope.launch {
-            try {
-                repo().deleteEmergencyContact(id)
-                mainHandler.post { result.success(true) }
-            } catch (e: Exception) {
-                mainHandler.post { result.error("DELETE_FAILED", e.message, null) }
-            }
-        }
     }
 
     private fun getStepsToday(result: MethodChannel.Result) {

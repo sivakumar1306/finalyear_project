@@ -562,7 +562,7 @@ class _StressScreenState extends State<StressScreen> {
         GlassMenuItem(
           label: 'Share',
           onTap: () =>
-              shareScreenshot(_screenshotKey, text: 'My Stress — SUNDR'),
+              shareScreenshot(_screenshotKey, text: 'My Stress — Vital Monitoring'),
         ),
         GlassMenuItem(
           label: 'Note',

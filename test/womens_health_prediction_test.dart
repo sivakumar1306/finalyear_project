@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sundr/models/womens_health_models.dart';
-import 'package:sundr/services/womens_health_prediction_service.dart';
+import 'package:vital_monitoring/models/womens_health_models.dart';
+import 'package:vital_monitoring/services/womens_health_prediction_service.dart';
 
 void main() {
   final service = WomenHealthPredictionService();

@@ -16,9 +16,8 @@ import com.sundr.myapp.R
  * Android 16 "Live Updates" (promoted ongoing notification) mirror for the safety pipeline.
  *
  * The *detection algorithm* ([FallMotionDetector]) is the trigger: on a corroborated fall it
- * pins this promoted notification to the lock screen / status bar, [EmergencySmsSender] ticks
- * the SMS countdown on it every second, and it is dismissed via "I'm okay", "Cancel SMS", or
- * a swipe. The prediction and anomaly paths ([FallPredictionNotifier], [AlertNotifier]) post
+ * pins this promoted notification to the lock screen / status bar, and it is dismissed via
+ * "I'm okay" or a swipe. The prediction and anomaly paths ([FallPredictionNotifier], [AlertNotifier]) post
  * the same surface with their own payloads.
  *
  * Requires targetSdk 36 + POST_PROMOTED_NOTIFICATIONS. Silently no-ops when the device
@@ -28,13 +27,11 @@ object SafetyLiveUpdate {
     private const val CHANNEL_ID = "qring_safety_live"
     const val NOTIFICATION_ID = 2010
 
-    fun showPrediction(context: Context, countdownSeconds: Int): Boolean {
-        val smsMessage = EmergencySmsSender.getMessageForReason("prediction")
+    fun showPrediction(context: Context): Boolean {
         return show(
             context = context,
             title = "You might fall soon...",
-            text = "Fall risk is elevated. SMS will be sent to your emergency contacts in " +
-                "$countdownSeconds seconds unless you cancel:\n\n\"$smsMessage\"",
+            text = "Fall risk is elevated. Take a seat and rest until you feel steady.",
             shortText = "Fall risk",
             okAction = true,
         )
@@ -43,19 +40,15 @@ object SafetyLiveUpdate {
     fun showFall(
         context: Context,
         confidencePct: Int,
-        countdownSeconds: Int,
-        autoCall: Boolean,
         simulated: Boolean = false,
     ): Boolean {
-        val callLine = if (autoCall) " Calling your emergency contact now." else ""
-        val smsMessage = EmergencySmsSender.getMessageForReason("fall")
         return show(
             context = context,
             title = if (simulated) "SIMULATION — possible fall" else "Possible fall detected",
             text = if (simulated) {
-                "Demo only — no SMS or call was triggered. SMS would say: \"$smsMessage\""
+                "Demo only — simulated fall ($confidencePct% confidence)."
             } else {
-                "SMS in ${countdownSeconds}s: \"$smsMessage\" $callLine"
+                "Fall detected ($confidencePct% confidence). Tap I'm okay if you are fine."
             },
             shortText = if (simulated) "Fall demo" else "Fall detected",
             okAction = true,
@@ -69,44 +62,6 @@ object SafetyLiveUpdate {
             text = message,
             shortText = "Vitals alert",
             okAction = false,
-        )
-    }
-
-    /** Tick the SMS countdown on the live update — called every second by [EmergencySmsSender]. */
-    fun updateCountdown(
-        context: Context,
-        reason: String,
-        remainingSeconds: Int,
-        totalSeconds: Int = EmergencySmsSender.COUNTDOWN_SECONDS,
-    ): Boolean {
-        val title = when (reason) {
-            "fall" -> "Possible fall detected"
-            "prediction" -> "Fall prediction"
-            else -> "Emergency alert"
-        }
-        val pct = ((remainingSeconds.toFloat() / totalSeconds.coerceAtLeast(1)) * 100).toInt().coerceIn(0, 100)
-        return show(
-            context = context,
-            title = title,
-            text = "SMS to emergency contacts in $remainingSeconds s — tap I'm okay to cancel.",
-            shortText = "SMS in ${remainingSeconds}s",
-            okAction = true,
-            progress = pct,
-        )
-    }
-
-    /** Flip the live update to the SMS result once the countdown has fired. */
-    fun showSent(context: Context, sentCount: Int): Boolean {
-        return show(
-            context = context,
-            title = if (sentCount > 0) "Emergency SMS sent" else "Emergency SMS failed",
-            text = if (sentCount > 0) {
-                "Alerted $sentCount emergency contact${if (sentCount == 1) "" else "s"}."
-            } else {
-                "Could not send SMS — open the app for details."
-            },
-            shortText = if (sentCount > 0) "SMS sent" else "SMS failed",
-            okAction = true,
         )
     }
 

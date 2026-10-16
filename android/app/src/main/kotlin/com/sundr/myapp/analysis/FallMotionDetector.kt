@@ -325,22 +325,14 @@ object FallMotionDetector : SensorEventListener {
             if (corroborated) {
                 appContext?.let {
                     // Android 16 promoted live update — the algorithm itself pins the
-                    // emergency to the lock screen / status-bar chip for the duration.
-                    // EmergencySmsSender ticks the countdown on it every second.
+                    // alert to the lock screen / status-bar chip.
                     val skipStandard = SafetyLiveUpdate.showFall(
                         it,
                         (confidence * 100).toInt(),
-                        EmergencySmsSender.COUNTDOWN_SECONDS,
-                        EmergencyAutoCaller.isEnabled(it),
                     )
                     if (!skipStandard) {
                         FallAlertNotifier.notifyFall(it, confidence, source)
                     }
-                    // Auto-SMS to all emergency contacts after a cancelable countdown.
-                    EmergencySmsSender.schedule(it, reason = "fall")
-                    // Immediate phone call to primary emergency contact — only if the
-                    // settings toggle is on (fall *detection* only, not prediction).
-                    EmergencyAutoCaller.placeIfEnabled(it)
                 }
             }
         }

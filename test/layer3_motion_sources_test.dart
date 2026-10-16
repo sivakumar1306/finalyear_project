@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sundr/services/fall_prediction/layer3_motion.dart';
+import 'package:vital_monitoring/services/fall_prediction/layer3_motion.dart';
 
 void main() {
   Map<String, dynamic> nativeRow({

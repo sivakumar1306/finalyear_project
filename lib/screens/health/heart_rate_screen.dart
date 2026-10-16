@@ -761,7 +761,7 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
         GlassMenuItem(
           label: 'Share',
           onTap: () =>
-              shareScreenshot(_screenshotKey, text: 'My Heart Rate — SUNDR'),
+              shareScreenshot(_screenshotKey, text: 'My Heart Rate — Vital Monitoring'),
         ),
         GlassMenuItem(
           label: 'Note',
