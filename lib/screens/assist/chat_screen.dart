@@ -702,10 +702,7 @@ class _ChatScreenState extends State<ChatScreen> {
           onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
         );
       case 'steps_trend':
-        return StepsChatCard(
-          data: data,
-          onTap: () => Navigator.pushNamed(context, '/steps'),
-        );
+        return StepsChatCard(data: data);
       case 'temperature_trend':
         return TemperatureChatCard(
           data: data,

@@ -93,22 +93,6 @@ class SupabaseService {
     }
   }
 
-  static Future<void> deleteAccount(String password) async {
-    final user = currentUser;
-    if (user == null || user.email == null) {
-      throw Exception('Not authenticated');
-    }
-    
-    // Verify password by attempting to sign in
-    await signIn(user.email!, password);
-    
-    // Call the RPC to delete the account and all associated data
-    await client.rpc('delete_user_account');
-    
-    // Clear local state
-    await logoutAndClearLocalData();
-  }
-
   static Future<Map<String, dynamic>?> getProfile(String userId) async {
     return client.from('user_profiles').select().eq('id', userId).maybeSingle();
   }
@@ -756,56 +740,6 @@ class SupabaseService {
   // so a contact edited/deleted locally can be found and updated/removed here
   // too, rather than accumulating duplicates.
 
-  static Future<void> upsertEmergencyContact({
-    required String userId,
-    required int localId,
-    required String name,
-    required String phone,
-  }) async {
-    final existing = await client
-        .from('user_emergency_contacts')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('local_id', localId)
-        .maybeSingle();
-
-    if (existing != null) {
-      await client.from('user_emergency_contacts').update({
-        'name': name,
-        'phone': phone,
-      }).eq('id', existing['id']);
-    } else {
-      await client.from('user_emergency_contacts').insert({
-        'user_id': userId,
-        'local_id': localId,
-        'name': name,
-        'phone': phone,
-      });
-    }
-  }
-
-  static Future<void> deleteEmergencyContactByLocalId({
-    required String userId,
-    required int localId,
-  }) async {
-    await client
-        .from('user_emergency_contacts')
-        .delete()
-        .eq('user_id', userId)
-        .eq('local_id', localId);
-  }
-
-  static Future<List<Map<String, dynamic>>> getEmergencyContactsCloud(
-    String userId,
-  ) async {
-    final data = await client
-        .from('user_emergency_contacts')
-        .select()
-        .eq('user_id', userId)
-        .order('created_at', ascending: true);
-    return List<Map<String, dynamic>>.from(data);
-  }
-
   // ── Typed convenience wrappers ──────────────────────────────────────────────
 
   static Future<UserProfile?> getProfileTyped(String userId) async {
@@ -896,15 +830,6 @@ class SupabaseService {
     return rows.map((m) => TempReading.fromMap(m)).toList();
   }
 
-  static Future<List<WorkoutRecord>> getWorkoutHistoryTyped({
-    required String userId,
-    required DateTime from,
-    required DateTime to,
-  }) async {
-    final rows = await getWorkoutHistory(userId: userId, from: from, to: to);
-    return rows.map((m) => WorkoutRecord.fromMap(m)).toList();
-  }
-
   static Future<List<CycleRecord>> getCyclesTyped(String userId) async {
     final rows = await getCycles(userId);
     return rows.map((m) => CycleRecord.fromMap(m)).toList();
@@ -913,22 +838,6 @@ class SupabaseService {
   static Future<SymptomRecord?> getSymptomsForDateTyped(String userId, DateTime date) async {
     final m = await getSymptomsForDate(userId, date);
     return m != null ? SymptomRecord.fromMap(m) : null;
-  }
-
-  // ── Phase 2 Detailed Health (ECG/Breath/Sugar) typed wrappers ──
-  static Future<List<Map<String, dynamic>>> getEcgHistory({required String userId, required DateTime from, required DateTime to}) async {
-    final data = await client.from('user_ecg').select().eq('user_id', userId).gte('measured_at', from.toUtc().toIso8601String()).lte('measured_at', to.toUtc().toIso8601String()).order('measured_at');
-    return List<Map<String, dynamic>>.from(data);
-  }
-
-  static Future<List<Map<String, dynamic>>> getBreathHistory({required String userId, required DateTime from, required DateTime to}) async {
-    final data = await client.from('user_breath_sessions').select().eq('user_id', userId).gte('started_at', from.toUtc().toIso8601String()).lte('started_at', to.toUtc().toIso8601String()).order('started_at');
-    return List<Map<String, dynamic>>.from(data);
-  }
-
-  static Future<List<Map<String, dynamic>>> getSugarHistory({required String userId, required DateTime from, required DateTime to}) async {
-    final data = await client.from('user_blood_sugar').select().eq('user_id', userId).gte('measured_at', from.toUtc().toIso8601String()).lte('measured_at', to.toUtc().toIso8601String()).order('measured_at');
-    return List<Map<String, dynamic>>.from(data);
   }
 
   // ── Firmware OTA Updates ──────────────────────────────────────────

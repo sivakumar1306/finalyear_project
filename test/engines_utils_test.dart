@@ -7,10 +7,7 @@ import 'package:sundr/utils/hourly_aggregator.dart';
 import 'package:sundr/utils/trend_math.dart';
 import 'package:sundr/utils/scrub_helper.dart';
 import 'package:sundr/services/health_engine/sleep_engine.dart';
-import 'package:sundr/services/health_engine/activity_engine.dart';
 import 'package:sundr/services/health_engine/cycle_engine.dart';
-import 'package:sundr/services/history_service.dart';
-import 'package:sundr/services/measurement_flow.dart';
 
 void main() {
   group('DateKeys', () {
@@ -130,43 +127,12 @@ void main() {
     });
   });
 
-  group('ActivityEngine', () {
-    test('normalizeCalories', () {
-      expect(ActivityEngine.normalizeCalories(2142, 500), 2);
-      expect(ActivityEngine.normalizeCalories(0, 0), 0);
-    });
-  });
-
   group('CycleEngine', () {
     test('phaseName', () {
       expect(CycleEngine.phaseName(3, 5, 28), 'Menstruation');
       expect(CycleEngine.phaseName(10, 5, 28), 'Follicular');
       expect(CycleEngine.phaseName(15, 5, 28), 'Ovulating');
       expect(CycleEngine.phaseName(25, 5, 28), 'Luteal');
-    });
-  });
-
-  group('HistoryService', () {
-    test('last7IntSeries', () {
-      final now = DateTime.now();
-      final key =
-          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-      final rows = [
-        {'date': key, 'avg_hr': 72}
-      ];
-      final series = HistoryService.last7IntSeries(rows, 'avg_hr', now: now);
-      expect(series.length, 7);
-      expect(series.last, 72);
-    });
-  });
-
-  group('MeasurementFlow', () {
-    test('isValidHr', () {
-      expect(MeasurementFlow.isValidHr(70), true);
-      expect(MeasurementFlow.isValidHr(10), false);
-    });
-    test('extractInt tries keys', () {
-      expect(MeasurementFlow.extractInt({'a': 0, 'b': 5}, ['a', 'b']), 5);
     });
   });
 }

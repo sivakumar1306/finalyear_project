@@ -25,7 +25,7 @@ class _OnboardingGenderScreenState extends State<OnboardingGenderScreen> {
   Widget build(BuildContext context) {
     return OnboardingShell(
       step: 3,
-      totalSteps: 6,
+      totalSteps: 5,
       data: widget.data,
       canContinue: _selected.isNotEmpty,
       onContinue: () {

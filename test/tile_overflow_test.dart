@@ -3,23 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sundr/screens/assist/cycle_chat_card.dart';
 import 'package:sundr/screens/assist/key_change_card.dart';
-import 'package:sundr/screens/health/activity_description_screen.dart';
 import 'package:sundr/screens/health/womens_health_widgets.dart';
 import 'package:sundr/screens/home/cards/home_insight_cards.dart';
 import 'package:sundr/screens/home/cards/home_vitals_cards.dart';
-import 'package:sundr/screens/home/side_panel.dart';
-import 'package:sundr/screens/workouts/workouts_screen.dart';
 import 'package:sundr/theme/app_theme.dart';
 import 'package:sundr/widgets/glass_header.dart';
-import 'package:sundr/widgets/chart_card.dart';
 import 'package:sundr/widgets/chart_scrubber.dart';
-import 'package:sundr/widgets/data_card.dart';
 import 'package:sundr/widgets/date_scroll_row.dart';
 import 'package:sundr/widgets/legend_dot.dart';
 import 'package:sundr/widgets/metric_chart_card.dart';
 import 'package:sundr/widgets/metric_stat_card.dart';
 import 'package:sundr/widgets/real_time_card.dart';
-import 'package:sundr/widgets/stat_card.dart';
 
 /// Lays a tile out at a phone width and a text scale, and fails if Flutter
 /// reports a RenderFlex overflow.
@@ -52,16 +46,6 @@ Future<void> _expectFits(
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
-  });
-
-  testWidgets('activity description chips fit a narrow phone', (tester) async {
-    await _expectFits(tester, const ActivityDescriptionScreen(), width: 320);
-    await _expectFits(
-      tester,
-      const ActivityDescriptionScreen(),
-      width: 360,
-      scale: 1.3,
-    );
   });
 
   testWidgets('date strip fits at a larger text scale', (tester) async {
@@ -111,18 +95,7 @@ void main() {
     await _expectFits(tester, row(360), width: 360, scale: 1.3);
   });
 
-  testWidgets('stat, data and realtime cards fit a narrow width', (tester) async {
-    await _expectFits(
-      tester,
-      const StatCard(label: 'TOTAL MILEAGE', value: '12.34', unit: 'kilometers'),
-      width: 110,
-    );
-    await _expectFits(
-      tester,
-      const DataCard(label: 'Blood pressure reading', value: '128/82', unit: 'mmHg'),
-      width: 160,
-      scale: 1.3,
-    );
+  testWidgets('realtime card fits a narrow width', (tester) async {
     await _expectFits(
       tester,
       const RealTimeCard(
@@ -178,20 +151,6 @@ void main() {
       ),
       width: 320,
       scale: 1.3,
-    );
-    await _expectFits(
-      tester,
-      ChartCard(
-        headerLabel: 'HEART RATE',
-        rangeLabel: 'min 52 · max 148 bpm',
-        values: const [60, 70, 80],
-        xLabels: const ['12am', '6am', '12pm', '6pm', '12am'],
-        yLabels: const ['160', '120', '80', '40'],
-        loading: false,
-        barColor: AppTheme.hrColor,
-        createPainter: (_) => _EmptyPainter(),
-      ),
-      width: 320,
     );
   });
 
@@ -294,13 +253,13 @@ void main() {
     );
     await _expectFits(
       tester,
-      SidePanelItem(label: 'Goal Setting', onTap: () {}),
-      width: 200,
-      scale: 1.4,
-    );
-    await _expectFits(
-      tester,
-      FallEventBanner(countdown: 30, onCardTap: () {}, onCancel: () {}),
+      FallPredictionBanner(
+        tier: 'high',
+        message: 'Your heart rate rose while you seemed inactive.',
+        onCardTap: () {},
+        onPrimaryAction: () {},
+        onIgnore: () {},
+      ),
       width: 320,
       scale: 1.3,
     );
@@ -332,44 +291,4 @@ void main() {
       scale: 1.3,
     );
   });
-
-  testWidgets('strength training workout pads fit a narrow phone', (tester) async {
-    const row = {
-      'workout_type': 'Strength Training',
-      'started_at': '2026-10-09T18:42:00',
-      'duration_s': 3725,
-      'calories': 480,
-      'avg_hr': 142,
-      'steps': 1860,
-      'distance_m': 2400,
-      'source': 'ring',
-    };
-    await _expectFits(
-      tester,
-      const WorkoutSpotlightCard(row: row),
-      width: 200,
-      scale: 1,
-    );
-    await _expectFits(
-      tester,
-      const WorkoutSpotlightCard(row: row),
-      width: 200,
-      scale: 1.3,
-      height: 420,
-    );
-    await _expectFits(
-      tester,
-      const WorkoutHistoryTile(row: row),
-      width: 320,
-      scale: 1.3,
-    );
-  });
-}
-
-class _EmptyPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {}
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

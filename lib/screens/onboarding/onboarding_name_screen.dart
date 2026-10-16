@@ -51,17 +51,17 @@ class _OnboardingNameScreenState extends State<OnboardingNameScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: widget.data.isEditMode,
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         _goBackToSplash();
       },
       child: OnboardingShell(
         step: 1,
-        totalSteps: 6,
+        totalSteps: 5,
         data: widget.data,
         canContinue: true,
-        onBack: widget.data.isEditMode ? () => Navigator.pop(context) : _goBackToSplash,
+        onBack: _goBackToSplash,
         onContinue: () {
         widget.data.name = _ctrl.text.trim();
         Navigator.push(

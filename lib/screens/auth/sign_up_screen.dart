@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../services/supabase_service.dart';
 import '../../models/onboarding_data.dart';
 import '../onboarding/onboarding_name_screen.dart';
-import '../settings/faq_screen.dart';
 import 'login_screen.dart';
 import 'splash_screen.dart';
 import '../../widgets/glass_back_button.dart';
@@ -140,14 +139,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         builder: (_) => const SplashScreen(),
                       ),
                       (_) => false,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.help_outline, color: Colors.white54),
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const FaqScreen()),
                     ),
                   ),
                 ],

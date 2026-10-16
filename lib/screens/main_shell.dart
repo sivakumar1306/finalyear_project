@@ -4,23 +4,21 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/main_tab_provider.dart';
-import '../providers/workout_provider.dart';
 import 'home/home_screen.dart';
-import 'settings/profile_edit_screen.dart';
-import 'workouts/active_workout_screen.dart';
+import 'fall_prediction/fall_prediction_screen.dart';
 import 'assist/chat_screen.dart';
 import '../widgets/app_typography.dart';
 
 
 // ── Apple-style transitions ───────────────────────────────────────────────────
 //
-// Home ↔ Profile: horizontal slide with easeOutCubic (iOS tab-like).
+// Home ↔ Fall Prediction: horizontal slide with easeOutCubic (iOS tab-like).
 // AI Assist: fade + slight lift/scale present (iOS fullScreenCover feel).
 
 const _kTabAnimDuration = Duration(milliseconds: 380);
 const _kTabAnimCurve = Curves.easeOutCubic;
 
-/// Shared route used by the bottom-nav FAB and Settings → AI Analysis.
+/// Shared route used by the bottom-nav FAB.
 /// iOS fullScreenCover-style: fade + slight lift + scale spring-in.
 Route<void> buildAiAssistRoute({String? initialPrompt}) {
   return PageRouteBuilder<void>(
@@ -73,16 +71,6 @@ class _MainShellState extends State<MainShell> {
     super.initState();
     final initialTab = context.read<MainTabProvider>().tab;
     _pageController = PageController(initialPage: _pageForTab(initialTab));
-
-    context.read<WorkoutProvider>().initialized.then((_) {
-      if (!mounted) return;
-      final workout = context.read<WorkoutProvider>();
-      if (workout.isWorkoutActive) {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const ActiveWorkoutScreen()));
-      }
-    });
   }
 
   @override
@@ -104,7 +92,7 @@ class _MainShellState extends State<MainShell> {
   }
 
   /// Syncs PageView when something outside the shell changes the tab
-  /// (e.g. profile edit → Profile).
+  /// (e.g. a banner → Fall Prediction).
   void _onTabProviderChanged() {
     if (!mounted || !_pageController.hasClients || _animatingFromTap) return;
     final target = _pageForTab(_tabProvider!.tab);
@@ -118,11 +106,6 @@ class _MainShellState extends State<MainShell> {
   }
 
   void _onTabTap(int index) {
-    final workout = context.read<WorkoutProvider>();
-    if (workout.isWorkoutActive) {
-      _showWorkoutLockSheet();
-      return;
-    }
     final targetPage = _pageForTab(index);
     final currentPage =
         _pageController.hasClients
@@ -150,86 +133,8 @@ class _MainShellState extends State<MainShell> {
   // AI Assist is pushed as its own full-screen route so the bottom nav
   // disappears while chat is open and returns on pop.
   void _openAiAssist() {
-    final workout = context.read<WorkoutProvider>();
-    if (workout.isWorkoutActive) {
-      _showWorkoutLockSheet();
-      return;
-    }
     HapticFeedback.lightImpact();
     Navigator.of(context).push(buildAiAssistRoute());
-  }
-
-  void _showWorkoutLockSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.div,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Icon(
-              Icons.directions_run_rounded,
-              color: AppTheme.gold,
-              size: 40,
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'Workout in Progress',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Finish your workout to access other features.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.textSec, fontSize: 14),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.gold,
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const ActiveWorkoutScreen(),
-                    ),
-                  );
-                },
-                child: const Text(
-                  'Go to Workout',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   @override
@@ -258,7 +163,7 @@ class _MainShellState extends State<MainShell> {
           children: [
             const _KeepAlivePage(child: HomeScreen()),
             _LazyKeepAlivePage(
-              builder: (_) => const ProfileEditScreen(showBackButton: false),
+              builder: (_) => const FallPredictionScreen(showBackButton: false),
             ),
           ],
         ),
@@ -381,8 +286,8 @@ class _BottomNav extends StatelessWidget {
                           _NavFab(onTap: onAssistTap),
                           const SizedBox(width: 24),
                           _NavTab(
-                            icon: Icons.person_outline_rounded,
-                            label: 'Profile',
+                            icon: Icons.health_and_safety_outlined,
+                            label: 'Fall Risk',
                             active: selected == 2,
                             onTap: () => onTap(2),
                           ),

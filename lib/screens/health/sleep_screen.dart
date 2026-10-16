@@ -17,7 +17,6 @@ import '../../theme/app_theme.dart';
 import '../../widgets/glass_menu.dart';
 import '../../widgets/offline_notice.dart';
 import '../../widgets/screenshot_share.dart';
-import '../settings/goal_setting_screen.dart';
 import 'vital_note_screen.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/glass_card.dart';
@@ -594,13 +593,6 @@ class _SleepScreenState extends State<SleepScreen> {
           label: 'Share',
           onTap: () =>
               shareScreenshot(_screenshotKey, text: 'My Sleep — SUNDR'),
-        ),
-        GlassMenuItem(
-          label: 'Goal setting',
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const GoalSettingScreen()),
-          ),
         ),
         GlassMenuItem(
           label: 'Note',

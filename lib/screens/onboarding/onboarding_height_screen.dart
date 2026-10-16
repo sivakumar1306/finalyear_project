@@ -69,7 +69,7 @@ class _OnboardingHeightScreenState extends State<OnboardingHeightScreen> {
   Widget build(BuildContext context) {
     return OnboardingShell(
       step: 4,
-      totalSteps: 6,
+      totalSteps: 5,
       data: widget.data,
       onContinue: () {
         widget.data.heightCm = _height;

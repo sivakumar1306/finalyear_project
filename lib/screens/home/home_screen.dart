@@ -4,36 +4,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../providers/ble_provider.dart';
 import '../../services/ble_service.dart';
-import '../settings/fall_detection_widgets.dart';
-import '../../providers/home_card_provider.dart';
 import '../../providers/fall_prediction/fall_prediction_provider.dart';
 import '../../models/onboarding_data.dart';
 import '../../services/supabase_service.dart';
 import '../onboarding/onboarding_name_screen.dart';
-import '../../services/goal_prefs.dart';
-import '../../services/health_engine/health_config.dart';
 import '../../services/health_engine/health_engine.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/footer_spacer.dart';
 import '../../widgets/glass_card.dart';
 import '../../utils/formatters.dart';
 import '../../utils/ring_names.dart';
-import '../../widgets/glass_icon_button.dart';
 import '../../widgets/glass_pill.dart';
-import '../settings/about_screen.dart';
-import '../settings/fall_detection_screen.dart';
-import '../settings/goal_setting_screen.dart';
-import '../settings/settings_screen.dart';
-import 'card_settings_screen.dart';
+import '../fall_prediction/fall_prediction_screen.dart';
 import 'home_card_id.dart';
 import 'ring_scan_sheet.dart';
-import 'side_panel.dart';
-import 'cards/home_alarm_card.dart';
 import 'cards/home_card_shared.dart';
 import 'cards/home_compact_cards.dart';
 import 'cards/home_insight_cards.dart';
@@ -51,7 +38,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       GlobalKey<HomeAiInsightSnippetState>();
   String _firstName = '';
   String _gender = '';
-  GoalTargets? _goals;
   bool _showBatteryCard = false;
   bool? _lastConnected;
   // Battery: debounce the resume storm (5 MethodChannels + Health + config).
@@ -67,16 +53,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Any pending fall prediction (notification tap OR direct app open after a
       // prediction fired) — native side persists until the user dismisses the banner.
       ble.checkPendingFallPrediction();
-      // Auto-SMS countdown may already be running (fall while app was backgrounded).
-      ble.refreshEmergencySmsStatus();
-      // Refresh remote HealthEngine thresholds/literature + reload goal-aware activity denoms.
       HealthEngine.instance.refreshConfig();
-      _loadGoals();
       _checkBatteryOpt();
     });
     _loadCachedName();
     _loadUserProfile();
-    _loadGoals();
   }
 
   /// Paint Room first. Ring pull and the Supabase upload start only after that
@@ -87,11 +68,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ble.scheduleCloudUpload();
       ble.syncTodayStepsFromRing();
     });
-  }
-
-  Future<void> _loadGoals() async {
-    final g = await GoalPrefs.load();
-    if (mounted) setState(() => _goals = g);
   }
 
   Future<void> _checkBatteryOpt() async {
@@ -128,10 +104,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _lastResumeRefreshAt = now;
       final ble = context.read<BleProvider>();
       ble.checkPendingFallPrediction();
-      ble.refreshEmergencySmsStatus();
       _syncAfterLocal(ble);
       HealthEngine.instance.refreshConfig();
-      _loadGoals();
     }
   }
 
@@ -202,7 +176,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _firstName = fullName.split(' ').first;
         _gender = profile['gender'] as String? ?? '';
       });
-      context.read<HomeCardProvider>().ensureWomensHealthVisible(_isFemale);
       if (kDebugMode) {
         debugPrint('DEBUG profile loaded: gender=$_gender');
       }
@@ -219,40 +192,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context.read<BleProvider>().refreshVitalsFromLocal();
     } catch (_) {}
     await _loadUserProfile();
-    await _loadGoals();
     if (!mounted) return;
     setState(() {});
-  }
-
-  Future<void> _openCardSettings() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const CardSettingsScreen()),
-    );
-    if (mounted) _loadGoals();
   }
 
   String get _greeting => Formatters.greetingForHour(DateTime.now().hour);
 
   String get _dateLabel => Formatters.dateLabel(DateTime.now());
-
-  // Goal-aware: was hardcoded 8000/250/5000 — now uses GoalPrefs via engine.
-  int _computeActivityScore(int steps, double distanceM, int calories) {
-    if (_goals != null) {
-      return HealthEngine.instance.calcActivityScoreWithGoals(
-        steps: steps, distanceM: distanceM, calories: calories, goals: _goals!);
-    }
-    // Fallback sync path when goals not yet loaded — use config denoms.
-    final fallback = GoalTargets(
-      steps: HealthConfig.intThreshold('activity', 'stepsDenom', 10000),
-      calories: HealthConfig.intThreshold('activity', 'caloriesDenom', 1000),
-      distanceKm: HealthConfig.doubleThreshold('activity', 'distanceDenomM', 5000) / 1000.0,
-      sleepStartMin: GoalPrefs.defaultSleepStartMin,
-      sleepEndMin: GoalPrefs.defaultSleepEndMin,
-    );
-    return HealthEngine.instance.calcActivityScoreWithGoals(
-        steps: steps, distanceM: distanceM, calories: calories, goals: fallback);
-  }
 
   static String _sleepDurationLabel(int seconds) => Formatters.sleepDuration(seconds);
 
@@ -260,27 +206,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// 1.5× the standard card height.
   Widget _buildCard(HomeCardId id, BleProvider ble, {bool expanded = false}) {
     switch (id) {
-      case HomeCardId.alarms:
-        return AlarmCard(expanded: expanded);
-      case HomeCardId.activity:
-        final hasActivityData =
-            ble.isConnected ||
-            ble.todaySteps > 0 ||
-            ble.todayCalories > 0 ||
-            ble.todayDistanceM > 0;
-        return ActivityScoreCard(
-          score: _computeActivityScore(
-            ble.todaySteps,
-            ble.todayDistanceM,
-            ble.todayCalories,
-          ),
-          hasData: hasActivityData,
-          steps: ble.todaySteps,
-          calories: ble.todayCalories,
-          distanceM: ble.todayDistanceM,
-          expanded: expanded,
-          onTap: () => _navigateTo('/steps'),
-        );
       case HomeCardId.stress:
         return StressCard(
           value: ble.latestStressValue,
@@ -519,146 +444,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Compact-mode variant of [_buildCard].
-  Widget _buildCompactCard(
-    HomeCardId id,
-    BleProvider ble, {
-    bool expanded = false,
-  }) {
-    switch (id) {
-      case HomeCardId.alarms:
-        return MiniCard(
-          label: 'Alarms',
-          color: AppTheme.sleepColor,
-          icon: Icons.notifications_outlined,
-          expanded: expanded,
-          onTap: () => _navigateTo('/alarms-notifications'),
-        );
-      case HomeCardId.activity:
-        final score = _computeActivityScore(
-          ble.todaySteps,
-          ble.todayDistanceM,
-          ble.todayCalories,
-        );
-        final dist = ble.todayDistanceM;
-        final distLabel = dist <= 0
-            ? HealthEngine.instance.activityLabel(score)
-            : dist >= 1000
-            ? '${(dist / 1000).fixed2()} km'
-            : '${dist.round()} m';
-        return MiniCard(
-          label: 'Activity',
-          value: '$score',
-          sub: distLabel,
-          color: AppTheme.focus,
-          icon: Icons.directions_walk,
-          expanded: expanded,
-          onTap: () => _navigateTo('/steps'),
-        );
-      case HomeCardId.stress:
-        return MiniCard(
-          label: 'Stress',
-          value: ble.latestStressValue > 0 ? '${ble.latestStressValue}' : '--',
-          sub: (HealthEngine.instance.assessStress(ble.latestStressValue).label == '--' ? 'No data' : HealthEngine.instance.assessStress(ble.latestStressValue).label),
-          color: AppTheme.stressColor,
-          icon: Icons.water_drop,
-          expanded: expanded,
-          onTap: () => _navigateTo('/stress'),
-        );
-      case HomeCardId.womensHealth:
-        return WomensHealthMiniCard(
-          ble: ble,
-          expanded: expanded,
-          onTap: () => _navigateTo('/womens-health'),
-        );
-      case HomeCardId.sleep:
-        return MiniCard(
-          label: 'Sleep',
-          value: _sleepDurationLabel(ble.todaySleepDuration),
-          sub: ble.todaySleepDuration > 0
-              ? HealthEngine.instance.assessSleep(ble.todaySleepScore).label
-              : '',
-          color: AppTheme.sleepColor,
-          icon: Icons.bedtime,
-          expanded: expanded,
-          onTap: () => _navigateTo('/sleep'),
-        );
-      case HomeCardId.hrv:
-        final latestHrvMini = ble.latestHrv > 0 ? ble.latestHrv : ble.todayAvgHrv;
-        return MiniCard(
-          label: 'HRV',
-          value: latestHrvMini > 0 ? '$latestHrvMini' : '--',
-          sub: latestHrvMini > 0 ? 'ms' : '',
-          color: AppTheme.gold,
-          icon: Icons.favorite_border,
-          expanded: expanded,
-          onTap: () => _navigateTo('/hrv'),
-        );
-      case HomeCardId.bloodOxygen:
-        final latestSpo2Mini = ble.latestSpo2 > 0 ? ble.latestSpo2 : ble.todayAvgSpo2;
-        return MiniCard(
-          label: 'SpO₂',
-          value: latestSpo2Mini > 0 ? '$latestSpo2Mini' : '--',
-          sub: latestSpo2Mini > 0 ? '%' : '',
-          color: AppTheme.spo2Color,
-          icon: Icons.air,
-          expanded: expanded,
-          onTap: () => _navigateTo('/blood-oxygen'),
-        );
-      case HomeCardId.heartRate:
-        final latestMini = ble.latestHr > 0 ? ble.latestHr : ble.todayAvgHr;
-        return MiniCard(
-          label: 'Heart Rate',
-          value: latestMini > 0 ? '$latestMini' : '--',
-          sub: latestMini > 0 ? 'bpm' : '',
-          color: AppTheme.hrColor,
-          icon: Icons.favorite,
-          expanded: expanded,
-          onTap: () => _navigateTo('/heart-rate'),
-        );
-      case HomeCardId.bloodPressure:
-        final hasBp = ble.latestBpSbp > 0 && ble.latestBpDbp > 0;
-        return MiniCard(
-          label: 'Blood Pressure',
-          value: hasBp ? '${ble.latestBpSbp}/${ble.latestBpDbp}' : '--',
-          color: AppTheme.bpColor,
-          icon: Icons.speed,
-          expanded: expanded,
-          onTap: () => _navigateTo('/blood-pressure'),
-        );
-      case HomeCardId.temperature:
-        return MiniCard(
-          label: 'Temp',
-          value: ble.latestTempC > 0
-              ? '${ble.latestTempC.fixed2()}°'
-              : '--',
-          color: AppTheme.tempColor,
-          icon: Icons.device_thermostat,
-          expanded: expanded,
-          onTap: () => _navigateTo('/temperature'),
-        );
-    }
-  }
-
-  /// Packs the visible cards into full-width rows: expanded cards take a row
-  /// on their own; normal cards pair up two per row.  A normal card whose
-  /// partner is expanded (or missing) stretches full width — matching the
-  /// single-card blocks of the original layout.
+  /// Packs the cards into full-width rows, two per row. A trailing card
+  /// without a partner stretches full width.
   List<Widget> _packCardRows(
     BleProvider ble,
-    List<HomeCardId> ids, {
-    required bool compact,
-    required Set<HomeCardId> expandedCards,
-  }) {
-    Widget build(HomeCardId id, {bool expanded = false}) => compact
-        ? _buildCompactCard(id, ble, expanded: expanded)
-        : _buildCard(id, ble, expanded: expanded);
+    List<HomeCardId> ids,
+  ) {
+    Widget build(HomeCardId id) => _buildCard(id, ble);
 
-    // IntrinsicHeight bounds the auto-height cards (AlarmCard,
-    // ActivityScoreCard) which use Spacer in their columns — without it the
-    // Row's unbounded height from the sliver makes those flex children throw
-    // a RenderFlex layout error and abort every frame. It also keeps paired
-    // cards equal height so they grow together with content / text scale.
+    // IntrinsicHeight keeps paired cards equal height so they grow together
+    // with content / text scale.
     Widget row(List<Widget> children) => IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -669,13 +464,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final rows = <Widget>[];
     for (int i = 0; i < ids.length;) {
       final id = ids[i];
-      if (expandedCards.contains(id)) {
-        rows.add(row([Expanded(child: build(id, expanded: true))]));
-        i += 1;
-        continue;
-      }
       final next = i + 1 < ids.length ? ids[i + 1] : null;
-      if (next != null && !expandedCards.contains(next)) {
+      if (next != null) {
         rows.add(
           row([
             Expanded(child: build(id)),
@@ -694,16 +484,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildCardList(
     BleProvider ble,
-    List<HomeCardId> visibleCardIds, {
-    required bool compact,
-    required Set<HomeCardId> expandedCards,
-  }) {
-    final rows = _packCardRows(
-      ble,
-      visibleCardIds,
-      compact: compact,
-      expandedCards: expandedCards,
-    );
+    List<HomeCardId> visibleCardIds,
+  ) {
+    final rows = _packCardRows(ble, visibleCardIds);
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (context, index) {
@@ -724,38 +507,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
-    final homeCards = context.watch<HomeCardProvider>();
-    final cardOrder = homeCards.order;
-    final hiddenCards = homeCards.hiddenCards;
-    final expandedCards = homeCards.expandedCards;
-    final compactMode = homeCards.compactMode;
-
-    // Cards eligible to appear at all (independent of the user's show/hide
-    // choice) — the Edit Cards page lists all of them, so a hidden card can
-    // still be found and switched back on.
-    final editableCardIds = cardOrder.where((id) {
-      if (id == HomeCardId.womensHealth && !_isFemale) return false;
-      return true;
-    }).toList();
-
-    // What's actually rendered day-to-day — editable cards minus anything
-    // the user hid.
-    var visibleCardIds = editableCardIds
-        .where((id) => !hiddenCards.contains(id))
-        .toList();
-
-    // Auto-unhide Heart Rate if it was hidden but now has data (common feature should not stay hidden)
-    final hasHrData = ble.todayAvgHr > 0 || ble.latestHr > 0;
-    final hrHidden = hiddenCards.contains(HomeCardId.heartRate);
-    if (hrHidden && hasHrData) {
-      visibleCardIds = [...visibleCardIds, HomeCardId.heartRate];
-      // Persist unhide once per frame — don't overwrite other hidden choices.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && hiddenCards.contains(HomeCardId.heartRate)) {
-          context.read<HomeCardProvider>().toggleVisibility(HomeCardId.heartRate);
-        }
-      });
-    }
+    final visibleCardIds = [
+      HomeCardId.heartRate,
+      HomeCardId.bloodOxygen,
+      HomeCardId.hrv,
+      HomeCardId.stress,
+      HomeCardId.bloodPressure,
+      HomeCardId.temperature,
+      HomeCardId.sleep,
+      if (_isFemale) HomeCardId.womensHealth,
+    ];
 
     // Device-connect feedback: false → true fires the glass pill toast
     // (all connects: manual + auto-reconnect).
@@ -813,113 +574,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                if (ble.showFallPredictionBanner || ble.emergencySmsActive) ...[
-                  if (ble.emergencySmsActive && ble.emergencySmsReason == 'fall')
-                    FallEventBanner(
-                      countdown: ble.emergencySmsSecondsRemaining,
-                      onCardTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const FallDetectionScreen(initialHighAlert: true),
+                if (ble.showFallPredictionBanner) ...[
+                  FallPredictionBanner(
+                    tier: ble.fallPredictionTier,
+                    message: ble.fallPredictionMessage.isNotEmpty
+                        ? ble.fallPredictionMessage
+                        : 'A fall-related alert is active.',
+                    onCardTap: _openFallPrediction,
+                    onPrimaryAction: _openFallPrediction,
+                    onIgnore: () async {
+                      final response = await showDialog<String>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          backgroundColor: AppTheme.card,
+                          title: Text('Are you okay?', style: inter(18, weight: FontWeight.w600)),
+                          content: Text(
+                            'Please confirm that you feel steady and do not need help.',
+                            style: inter(14, color: Colors.white.withValues(alpha: 0.8)),
                           ),
-                        );
-                      },
-                      onCancel: () async {
-                        final response = await showDialog<String>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            backgroundColor: AppTheme.card,
-                            title: Text('Are you okay?', style: inter(18, weight: FontWeight.w600)),
-                            content: Text(
-                              'Please confirm that you have not fallen and do not need emergency assistance.',
-                              style: inter(14, color: Colors.white.withValues(alpha: 0.8)),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, 'cancel'),
+                              child: Text('Cancel', style: inter(14, color: Colors.white54)),
                             ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, 'cancel'),
-                                child: Text('Cancel', style: inter(14, color: Colors.white54)),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, 'confirm'),
-                                child: Text('I am okay', style: inter(14, color: AppTheme.hrColor, weight: FontWeight.w600)),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (response == 'confirm') {
-                          ble.dismissFallPredictionBanner();
-                          if (context.mounted) {
-                            context.read<FallPredictionProvider>().simulateTier('clear');
-                          }
-                        }
-                      },
-                    )
-                  else
-                    FallPredictionBanner(
-                      tier: ble.fallPredictionTier,
-                      message: ble.fallPredictionMessage.isNotEmpty 
-                          ? ble.fallPredictionMessage 
-                          : 'A fall-related alert is active.',
-                      smsSecondsRemaining: ble.emergencySmsActive
-                          ? ble.emergencySmsSecondsRemaining
-                          : null,
-                      smsHasPermission: ble.emergencySmsHasPermission,
-                      onCardTap: () {
-                        final isHigh = ble.fallPredictionTier == 'high' || ble.emergencySmsActive;
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                FallDetectionScreen(initialHighAlert: isHigh),
-                          ),
-                        );
-                      },
-                      onPrimaryAction: () {
-                        final isHigh = ble.fallPredictionTier == 'high' || ble.emergencySmsActive;
-                        final countdown = ble.emergencySmsActive ? ble.emergencySmsSecondsRemaining : null;
-                        if (isHigh && countdown == null) {
-                          _alertContactDirectly();
-                        } else {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  FallDetectionScreen(initialHighAlert: isHigh),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, 'confirm'),
+                              child: Text('I am okay', style: inter(14, color: AppTheme.hrColor, weight: FontWeight.w600)),
                             ),
-                          );
+                          ],
+                        ),
+                      );
+                      if (response == 'confirm') {
+                        ble.dismissFallPredictionBanner();
+                        if (context.mounted) {
+                          context.read<FallPredictionProvider>().simulateTier('clear');
                         }
-                      },
-                      onIgnore: () async {
-                        final response = await showDialog<String>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            backgroundColor: AppTheme.card,
-                            title: Text('Are you okay?', style: inter(18, weight: FontWeight.w600)),
-                            content: Text(
-                              'Please confirm that you have not fallen and do not need emergency assistance.',
-                              style: inter(14, color: Colors.white.withValues(alpha: 0.8)),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, 'cancel'),
-                                child: Text('Cancel', style: inter(14, color: Colors.white54)),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, 'confirm'),
-                                child: Text('I am okay', style: inter(14, color: AppTheme.hrColor, weight: FontWeight.w600)),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (response == 'confirm') {
-                          ble.dismissFallPredictionBanner();
-                          if (context.mounted) {
-                            context.read<FallPredictionProvider>().simulateTier('clear');
-                          }
-                        }
-                      },
-                    ),
+                      }
+                    },
+                  ),
                   const SizedBox(height: 12),
                 ],
                 if (_showBatteryCard) ...[
@@ -950,7 +642,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                       style: inter(14, weight: FontWeight.w600)),
                                   const SizedBox(height: 2),
                                   Text(
-                                      'Your phone is optimizing battery. Allow SUNDR to run uninterrupted for continuous ring sync.',
+                                      'Your phone is optimizing battery. Allow Vital Monitoring to run uninterrupted for continuous ring sync.',
                                       style: inter(12, color: AppTheme.textSec, height: 1.4)),
                                 ],
                               ),
@@ -999,48 +691,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
 
-          // 2. Card rows (paired two-per-row, or full-width when expanded)
-          if (visibleCardIds.isEmpty)
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              sliver: SliverToBoxAdapter(
-                child: GlassCard(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.dashboard_customize_rounded, size: 28, color: AppTheme.textTertiary.withValues(alpha: 0.6)),
-                      const SizedBox(height: 10),
-                      Text('NO CARDS VISIBLE', style: inter(11, weight: FontWeight.w600, color: AppTheme.textTertiary, letterSpacing: 1.2)),
-                      const SizedBox(height: 6),
-                      Text('Tap Edit Cards to show vitals. Heart Rate will reappear automatically when data arrives.',
-                        textAlign: TextAlign.center, style: inter(13, color: AppTheme.textSec, height: 1.4)),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              sliver: _buildCardList(
-                ble,
-                visibleCardIds,
-                compact: compactMode,
-                expandedCards: expandedCards,
-              ),
-            ),
-
-          // 3. Edit Cards button & spacing at bottom
+          // 2. Card rows (paired two-per-row)
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                const SizedBox(height: 8),
-                EditCardsButton(onTap: _openCardSettings),
-                const FooterSpacer(),
-              ]),
-            ),
+            sliver: _buildCardList(ble, visibleCardIds),
           ),
+
+          // 3. Spacing above the floating bottom nav
+          const SliverToBoxAdapter(child: FooterSpacer()),
         ],
       ),
     );
@@ -1049,104 +707,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // ── Header widgets ────────────────────────────────────────────────────────
 
   Widget _buildTopBar(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
-      child: Row(
-        children: [
-          // Keep the same 48px tap target as before, but render the menu
-          // button with the frosted-glass look used across the app.
-          SizedBox(
-            width: 48,
-            height: 48,
-            child: Center(
-              child: GlassIconButton(
-                icon: Icons.menu_rounded,
-                iconSize: 20,
-                onTap: () => showSidePanel(
-                  context: context,
-                  fromRight: false,
-                  child: SidePanelShell(
-                    fromRight: false,
-                    icon: GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: const Icon(
-                        Icons.menu_rounded,
-                        color: Colors.white70,
-                        size: 22,
-                      ),
-                    ),
-                    items: [
-                      SidePanelGroup(
-                        items: [
-                          SidePanelItem(
-                            label: 'About',
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const AboutScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          SidePanelItem(
-                            label: 'Goal Setting',
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const GoalSettingScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          SidePanelItem(
-                            label: 'Share',
-                            onTap: () {
-                              Navigator.pop(context);
-                              SharePlus.instance.share(
-                                ShareParams(
-                                  text: 'Check out SUNDR — the AI health ring app I use to track my sleep, heart rate, and more.',
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Center(
-              child: Text('Home', style: inter(16, weight: FontWeight.w600)),
-            ),
-          ),
-          // Settings button matching the layout size of the menu button
-          SizedBox(
-            width: 48,
-            height: 48,
-            child: Center(
-              child: GlassIconButton(
-                icon: Icons.settings_rounded,
-                iconSize: 20,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          const SettingsScreen(showBackButton: true),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
+    return SizedBox(
+      height: 52,
+      child: Center(
+        child: Text('Home', style: inter(16, weight: FontWeight.w600)),
+      ),
+    );
+  }
+
+  void _openFallPrediction() {
+    final isHigh = context.read<BleProvider>().fallPredictionTier == 'high';
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FallPredictionScreen(initialHighAlert: isHigh),
       ),
     );
   }
@@ -1213,63 +787,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
       ),
-    );
-  }
-
-  Future<void> _alertContactDirectly() async {
-    final ble = context.read<BleProvider>();
-    final rows = await ble.getEmergencyContacts();
-    if (rows.isEmpty) {
-      if (!mounted) return;
-      showGlassPill(context, 'No emergency contact saved yet');
-      return;
-    }
-    final firstRow = rows.first;
-    final contact = EmergencyContact(
-      id: (firstRow['id'] as num?)?.toInt(),
-      name: firstRow['name'] as String? ?? '',
-      phone: firstRow['phone'] as String? ?? '',
-    );
-    final phone = contact.phone.trim();
-    if (!mounted) return;
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: AppTheme.card2,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) =>
-          AlertContactSheet(contact: contact, contactCount: rows.length),
-    );
-    if (action == null || !mounted) return;
-
-    if (action == 'call') {
-      final uri = Uri(scheme: 'tel', path: phone);
-      final ok = await launchUrl(uri);
-      if (!ok && mounted) {
-        showGlassPill(context, 'Could not reach $phone', type: GlassPillType.error);
-      }
-      return;
-    }
-
-    final isHigh = ble.fallPredictionTier == 'high' || ble.emergencySmsActive;
-    final message = isHigh 
-        ? "You might fall soon... We have detected multiple signs that you might fall down in the next 2-3 minutes. Take a seat and contact your caretaker. — Sent by SUNDR Fall Detection"
-        : (ble.fallPredictionMessage.isNotEmpty
-            ? "We are concerned ... ${ble.fallPredictionMessage} — Sent by SUNDR Fall Detection"
-            : "We are concerned ... A fall-related alert is active. Please check on me as soon as possible. — Sent by SUNDR Fall Detection");
-
-    final result = await ble.sendEmergencySms(message: message);
-    if (!mounted) return;
-    final ok = result['ok'] == true;
-    final queued = (result['queuedCount'] as num?)?.toInt() ?? 0;
-    final err = result['error'] as String?;
-    showGlassPill(
-      context,
-      ok
-          ? 'Sending emergency SMS to $queued contact${queued == 1 ? '' : 's'}… delivery is confirmed as it arrives'
-          : (err ?? 'Failed to send emergency SMS'),
-      type: ok ? GlassPillType.success : GlassPillType.error,
     );
   }
 

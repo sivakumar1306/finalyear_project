@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../services/supabase_service.dart';
 import '../../widgets/glass_back_button.dart';
-import '../../widgets/glass_icon_button.dart';
-import '../settings/faq_screen.dart';
 import 'auth_background.dart';
 import 'recovery_code_screen.dart';
 import '../../theme/app_theme.dart';
@@ -72,16 +70,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const GlassBackButton(),
-                  GlassIconButton(
-                    icon: Icons.help_outline_rounded,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const FaqScreen()),
-                    ),
-                  ),
                 ],
               ),
             ),

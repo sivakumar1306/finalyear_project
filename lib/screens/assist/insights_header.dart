@@ -301,9 +301,6 @@ class InsightsHeaderState extends State<InsightsHeader>
       case 'spo2':
         Navigator.pushNamed(context, '/blood-oxygen');
         break;
-      case 'steps':
-        Navigator.pushNamed(context, '/steps');
-        break;
       case 'stress':
         Navigator.pushNamed(context, '/pressure');
         break;
