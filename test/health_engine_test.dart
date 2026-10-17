@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sundr/services/health_engine/health_engine.dart';
-import 'package:sundr/services/health_engine/models.dart';
-import 'package:sundr/services/goal_prefs.dart';
+import 'package:vital_monitoring/services/health_engine/health_engine.dart';
+import 'package:vital_monitoring/services/health_engine/models.dart';
+import 'package:vital_monitoring/services/goal_prefs.dart';
 
 void main() {
   group('HealthEngine - sleep', () {

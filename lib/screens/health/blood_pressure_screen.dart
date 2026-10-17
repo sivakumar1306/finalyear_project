@@ -645,7 +645,7 @@ class _BloodPressureScreenState extends State<BloodPressureScreen> {
           label: 'Share',
           onTap: () => shareScreenshot(
             _screenshotKey,
-            text: 'My Blood Pressure — SUNDR',
+            text: 'My Blood Pressure — Vital Monitoring',
           ),
         ),
         GlassMenuItem(

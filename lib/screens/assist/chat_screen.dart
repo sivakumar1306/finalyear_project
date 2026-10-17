@@ -10,6 +10,8 @@ import '../../services/incident_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
+import '../../widgets/glass_icon_button.dart';
+import '../../widgets/glass_pill.dart';
 import 'voice_listening_sheet.dart';
 import 'insights_header.dart';
 import 'sleep_highlights_card.dart';
@@ -151,6 +153,75 @@ class _ChatScreenState extends State<ChatScreen> {
     Navigator.of(context).pop();
   }
 
+  // The agent runs on a laptop on the same Wi-Fi, so its address changes
+  // with the network — editable here instead of needing a rebuild.
+  Future<void> _editServerUrl() async {
+    final ctl = TextEditingController(text: ChatApiService.serverUrl);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceDeep,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'AI server address',
+          style: AppTypography.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your laptop\'s Wi-Fi IP, e.g. 192.168.1.5 (port 8000 is added automatically).',
+              style: AppTypography.inter(
+                color: AppTheme.white60,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctl,
+              autofocus: true,
+              keyboardType: TextInputType.url,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(hintText: '192.168.1.5'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: AppTypography.inter(color: AppTheme.white60),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Save',
+              style: AppTypography.inter(
+                color: AppTheme.gold,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (saved != true) return;
+    final url = await ChatApiService.setServerUrl(ctl.text);
+    if (!mounted) return;
+    setState(() => _errorMessage = '');
+    showGlassPill(
+      context,
+      url.isEmpty ? 'AI server address cleared' : 'AI server: $url',
+      type: GlassPillType.success,
+    );
+  }
+
   Future<void> _startNewChat() async {
     if (_messages.isEmpty) return; // nothing to clear
 
@@ -254,7 +325,9 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'The assistant is unavailable right now. Please try again.';
+        _errorMessage = ChatApiService.hasServerUrl
+            ? 'Can\'t reach the AI server. Is it running on your laptop, on the same Wi-Fi?'
+            : 'Set the AI server address first (server button, top right).';
         _isLoading = false;
       });
     }
@@ -313,6 +386,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Row(
                   children: [
                     GlassBackButton(onTap: _goBackToHome),
+                    const Spacer(),
+                    GlassIconButton(
+                      icon: Icons.dns_outlined,
+                      onTap: _editServerUrl,
+                    ),
                   ],
                 ),
               ),
@@ -702,10 +780,7 @@ class _ChatScreenState extends State<ChatScreen> {
           onTap: () => Navigator.pushNamed(context, '/blood-pressure'),
         );
       case 'steps_trend':
-        return StepsChatCard(
-          data: data,
-          onTap: () => Navigator.pushNamed(context, '/steps'),
-        );
+        return StepsChatCard(data: data);
       case 'temperature_trend':
         return TemperatureChatCard(
           data: data,

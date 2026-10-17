@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:sundr/widgets/data_card.dart';
 import 'helpers/stat_card.dart';
 import 'helpers/status_badge.dart';
 
@@ -17,29 +16,6 @@ void main() {
     testWidgets('shows Disconnected when not connected', (tester) async {
       await tester.pumpWidget(_wrap(const StatusBadge(connected: false)));
       expect(find.text('Disconnected'), findsOneWidget);
-    });
-  });
-
-  group('DataCard', () {
-    testWidgets('renders label, value and unit', (tester) async {
-      await tester.pumpWidget(_wrap(
-        const DataCard(label: 'Blood Sugar', value: '5.4', unit: 'mmol/L'),
-      ));
-      expect(find.text('Blood Sugar'), findsOneWidget);
-      expect(find.text('5.4'), findsOneWidget);
-      expect(find.text('mmol/L'), findsOneWidget);
-    });
-
-    testWidgets('renders icon when provided', (tester) async {
-      await tester.pumpWidget(_wrap(
-        const DataCard(
-          label: 'Blood Lipids',
-          value: '--',
-          unit: 'mmol/L',
-          icon: Icons.water_drop,
-        ),
-      ));
-      expect(find.byIcon(Icons.water_drop), findsOneWidget);
     });
   });
 

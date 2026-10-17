@@ -185,8 +185,6 @@ class HomeAiInsightSnippetState extends State<HomeAiInsightSnippet> {
 class FallPredictionBanner extends StatelessWidget {
   final String tier;
   final String message;
-  final int? smsSecondsRemaining;
-  final bool smsHasPermission;
   final VoidCallback onCardTap;
   final VoidCallback onPrimaryAction;
   final VoidCallback onIgnore;
@@ -195,8 +193,6 @@ class FallPredictionBanner extends StatelessWidget {
     super.key,
     this.tier = 'low',
     required this.message,
-    this.smsSecondsRemaining,
-    this.smsHasPermission = true,
     required this.onCardTap,
     required this.onPrimaryAction,
     required this.onIgnore,
@@ -204,21 +200,14 @@ class FallPredictionBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final countdown = smsSecondsRemaining;
-    final isHigh = tier == 'high' || countdown != null;
+    final isHigh = tier == 'high';
     final accent = isHigh ? AppTheme.hrColor : AppTheme.tempColor;
-    
-    final title = countdown != null
-        ? 'Emergency SMS in ${countdown}s'
-        : (isHigh ? 'You might fall soon...' : 'We are concerned ...');
-        
-    final body = countdown != null
-        ? (!smsHasPermission
-              ? 'SMS permission is missing — grant it so contacts can be alerted automatically. Open the app settings if needed.'
-              : 'SMS will be sent to all emergency contacts in $countdown seconds. Tap Cancel if you are okay.')
-        : (isHigh 
-              ? 'We have detected multiple signs that you might fall down in the next 2-3 minutes. Take a seat and contact your caretaker.'
-              : message);
+
+    final title = isHigh ? 'You might fall soon...' : 'We are concerned ...';
+
+    final body = isHigh
+        ? 'We have detected multiple signs that you might fall down in the next 2-3 minutes. Take a seat and rest until you feel steady.'
+        : message;
 
     return ShrinkButton(
       onTap: onCardTap,
@@ -238,16 +227,19 @@ class FallPredictionBanner extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text(
-                  countdown != null ? 'EMERGENCY SMS' : 'LIKELY FALL ALERT',
-                  style: inter(
-                    11,
-                    weight: FontWeight.w700,
-                    color: accent,
-                    letterSpacing: 1.0,
+                Expanded(
+                  child: Text(
+                    'LIKELY FALL ALERT',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: inter(
+                      11,
+                      weight: FontWeight.w700,
+                      color: accent,
+                      letterSpacing: 1.0,
+                    ),
                   ),
                 ),
-                const Spacer(),
                 Container(
                   width: 28,
                   height: 28,
@@ -291,17 +283,16 @@ class FallPredictionBanner extends StatelessWidget {
                         ),
                       ),
                       child: Text(
-                        isHigh && countdown == null ? 'Alert emergency contact' : 'Take action',
+                        'Take action',
                         style: inter(14, weight: FontWeight.w600),
                       ),
                     ),
                   ),
                 ),
-                if (!isHigh || countdown != null)
-                  TextButton(
+                                  TextButton(
                     onPressed: onIgnore,
                     child: Text(
-                      countdown != null ? 'Cancel SMS' : 'ignore',
+                      'ignore',
                       style: inter(
                         14,
                         weight: FontWeight.w600,
@@ -309,108 +300,6 @@ class FallPredictionBanner extends StatelessWidget {
                       ),
                     ),
                   ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class FallEventBanner extends StatelessWidget {
-  final int countdown;
-  final VoidCallback onCardTap;
-  final VoidCallback onCancel;
-
-  const FallEventBanner({
-    super.key,
-    required this.countdown,
-    required this.onCardTap,
-    required this.onCancel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ShrinkButton(
-      onTap: onCardTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppTheme.hrColor.withValues(alpha: 0.25), width: 0.5),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppTheme.hrColor.withValues(alpha: 0.40), AppTheme.card],
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'FALL PREDICTION',
-                  style: inter(
-                    11,
-                    weight: FontWeight.w700,
-                    color: AppTheme.hrColor,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                const Spacer(),
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text('We have detected a fall', style: inter(20, weight: FontWeight.w600)),
-            const SizedBox(height: 10),
-            Text(
-              'We have detected that you may have potentially fallen. Notifying emergency contacts & services in $countdown seconds',
-              style: inter(
-                13,
-                color: Colors.white.withValues(alpha: 0.85),
-                height: 1.45,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Dialing emergency contact ...',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: inter(13, color: Colors.white.withValues(alpha: 0.85)),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: onCancel,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withValues(alpha: 0.05),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                  child: Text('Cancel', style: inter(14, weight: FontWeight.w500)),
-                ),
               ],
             ),
           ],
@@ -579,47 +468,3 @@ class ConnectHint extends StatelessWidget {
     );
   }
 }
-
-// ── Edit Cards button ─────────────────────────────────────────────────────────
-
-class EditCardsButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const EditCardsButton({
-    super.key,required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ShrinkButton(
-        onTap: onTap,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: Container(
-              width: 85,
-              height: 29,
-              decoration: BoxDecoration(
-                color: kBtnBg,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Center(
-                child: Text(
-                  'Edit Cards',
-                  style: inter(
-                    11,
-                    weight: FontWeight.w500,
-                    color: AppTheme.gold,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-

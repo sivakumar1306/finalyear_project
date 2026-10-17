@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/onboarding_data.dart';
 import '../../services/unit_prefs.dart';
 import 'onboarding_shell.dart';
-import 'onboarding_emergency_contact_screen.dart';
+import 'pair_ring_screen.dart';
 import '../../theme/app_theme.dart';
 
 class OnboardingWeightScreen extends StatefulWidget {
@@ -71,9 +71,9 @@ class _OnboardingWeightScreenState extends State<OnboardingWeightScreen> {
   Widget build(BuildContext context) {
     return OnboardingShell(
       step: 5,
-      totalSteps: 6,
+      totalSteps: 5,
       data: widget.data,
-      buttonLabel: 'Continue',
+      buttonLabel: 'Finish',
       onContinue: () {
         widget.data.weightKg = _weight;
         _saveAndNext();
@@ -152,9 +152,10 @@ class _OnboardingWeightScreenState extends State<OnboardingWeightScreen> {
   Future<void> _saveAndNext() async {
     widget.data.weightKg = _weight;
     if (!mounted) return;
-    Navigator.push(
+    Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => OnboardingEmergencyContactScreen(data: widget.data)),
+      MaterialPageRoute(builder: (_) => PairRingScreen(data: widget.data)),
+      (_) => false,
     );
   }
 }

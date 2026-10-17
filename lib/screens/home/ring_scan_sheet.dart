@@ -297,7 +297,7 @@ class _SearchingBody extends StatelessWidget {
           )
         else ...[
           Text(
-            'No SUNDR rings found nearby',
+            'No rings found nearby',
             style: AppTypography.inter(fontSize: 13, color: Colors.white38),
           ),
           const SizedBox(height: 20),

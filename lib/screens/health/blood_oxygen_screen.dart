@@ -628,7 +628,7 @@ class _BloodOxygenScreenState extends State<BloodOxygenScreen> {
         GlassMenuItem(
           label: 'Share',
           onTap: () =>
-              shareScreenshot(_screenshotKey, text: 'My Blood Oxygen — SUNDR'),
+              shareScreenshot(_screenshotKey, text: 'My Blood Oxygen — Vital Monitoring'),
         ),
         GlassMenuItem(
           label: 'Note',

@@ -84,10 +84,6 @@ object FallRiskAnalyzer {
         lastAlertAt = measuredAt
         val msg = (result.components["primaryMessage"] as? String) ?: "A fall-related alert is active."
         FallPredictionNotifier.notifyPrediction(context, msg, simulated = simulated)
-        // Simulations must never reach the real emergency pipeline.
-        if (!simulated) {
-            EmergencySmsSender.schedule(context, reason = "prediction")
-        }
 
         // Persist so it survives banner dismissal and shows up in Fall History.
         repo.ioScope.launch {

@@ -493,22 +493,6 @@ class BleService {
       }) ??
       '[]';
 
-  Future<String> getContinuousSugar() async {
-    try {
-      return await _methodChannel.invokeMethod<String>('getContinuousSugar') ?? '[]';
-    } catch (_) {
-      return '[]';
-    }
-  }
-
-  Future<String> startEcgMeasure() async {
-    try {
-      return await _methodChannel.invokeMethod<String>('startEcgMeasure') ?? '{}';
-    } catch (_) {
-      return '{}';
-    }
-  }
-
   Future<String> getTemperatureSetting() async =>
       await _methodChannel.invokeMethod<String>('getTemperatureSetting') ??
       '{}';
@@ -538,33 +522,6 @@ class BleService {
       await _methodChannel.invokeMethod<String>('testManualTemperature') ??
       '{}';
 
-  // ── Sport Records ──────────────────────────────────────────────────
-  Future<String> getSportRecords() async =>
-      await _methodChannel.invokeMethod<String>('getSportRecords') ?? '[]';
-
-  // Ring auto-detected sport sessions (SportPlusEntity). Same DayIndexedData
-  // range shape as the other vitals: [{dayIndex|day_index, data:[...]}].
-  Future<String> getTodaySport() async =>
-      await _methodChannel
-          .invokeMethod<String>('getTodaySport')
-          .timeout(const Duration(seconds: 10)) ??
-      '[]';
-
-  Future<String> getSport(int dayIndex) async =>
-      await _methodChannel
-          .invokeMethod<String>('getSport', {'dayIndex': dayIndex})
-          .timeout(const Duration(seconds: 10)) ??
-      '[]';
-
-  Future<String> getSports(int startDay, int count) async =>
-      await _methodChannel
-          .invokeMethod<String>('getSports', {
-            'startDay': startDay,
-            'count': count,
-          })
-          .timeout(const Duration(seconds: 15)) ??
-      '[]';
-
   // ── Full ring history (dayIndex 0..6 buffer) ──────────────────────────
   // One dispatcher for the "view all history from the ring" path. Each vital
   // returns a JSON list of DayIndexedData ({dayIndex|day_index, data}).
@@ -593,89 +550,10 @@ class BleService {
         return getBloodOxygens(startDay, count);
       case 'temperature':
         return getTemperatureList(startDay, count);
-      case 'sport':
-        return getSports(startDay, count);
       default:
         throw ArgumentError('No ring history for vital: $vital');
     }
   }
-
-  // ── Settings ───────────────────────────────────────────────────────
-  Future<String> getHealthSettings() async =>
-      await _methodChannel.invokeMethod<String>('getHealthSettings') ?? '{}';
-
-  Future<bool> setHealthSettings(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setHealthSettings', {
-        'data': jsonData,
-      }) ??
-      false;
-
-  Future<String> getNotificationSettings() async =>
-      await _methodChannel.invokeMethod<String>('getNotificationSettings') ??
-      '{}';
-
-  Future<bool> setNotificationSetting(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setNotificationSetting', {
-        'data': jsonData,
-      }) ??
-      false;
-
-  Future<String> getDisplaySettings() async =>
-      await _methodChannel.invokeMethod<String>('getDisplaySettings') ?? '{}';
-
-  Future<bool> setDisplaySetting(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setDisplaySetting', {
-        'data': jsonData,
-      }) ??
-      false;
-
-  Future<String> getTargetAndProfile() async =>
-      await _methodChannel.invokeMethod<String>('getTargetAndProfile') ?? '{}';
-
-  Future<bool> setTargetAndProfile(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setTargetAndProfile', {
-        'data': jsonData,
-      }) ??
-      false;
-
-  Future<String> getAdvancedSettings() async =>
-      await _methodChannel.invokeMethod<String>('getAdvancedSettings') ?? '{}';
-
-  Future<bool> setAdvancedSetting(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setAdvancedSetting', {
-        'data': jsonData,
-      }) ??
-      false;
-
-  // ── Gesture Control (PalmScreenReq — wrist-flip / palm-screen wake) ──
-  /// Returns JSON: `{"enabled": bool, "isLeft": bool, "needPalm": bool}`.
-  Future<String> getGestureSetting() async =>
-      await _methodChannel.invokeMethod<String>('getGestureSetting') ?? '{}';
-
-  Future<bool> setGestureSetting({
-    required bool enable,
-    bool isLeft = true,
-  }) async =>
-      await _methodChannel.invokeMethod<bool>('setGestureSetting', {
-        'enable': enable,
-        'isLeft': isLeft,
-      }) ??
-      false;
-
-  // ── Touch Control ──────────────────────────────────────────────────
-  Future<String> getTouchControlSetting() async =>
-      await _methodChannel.invokeMethod<String>('getTouchControlSetting') ??
-      '{}';
-
-  Future<String> setTouchControlSetting({
-    required bool enable,
-    int strength = 5,
-  }) async =>
-      await _methodChannel.invokeMethod<String>('setTouchControlSetting', {
-        'enable': enable,
-        'strength': strength,
-      }) ??
-      '{}';
 
   // ── Ring System Control ──────────────────────────────────────────────
   /// Sends factory reset command (RestoreKeyReq) to the ring.
@@ -699,70 +577,6 @@ class BleService {
       return false;
     }
   }
-
-  Future<String> getDrinkReminder() async =>
-      await _methodChannel.invokeMethod<String>('getDrinkReminder') ?? '{}';
-
-  Future<bool> setDrinkReminder(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setDrinkReminder', {
-        'data': jsonData,
-      }) ??
-      false;
-
-  Future<String> getSedentaryReminder() async =>
-      await _methodChannel.invokeMethod<String>('getSedentaryReminder') ?? '{}';
-
-  Future<bool> setSedentaryReminder(String jsonData) async =>
-      await _methodChannel.invokeMethod<bool>('setSedentaryReminder', {
-        'data': jsonData,
-      }) ??
-      false;
-
-  // ── OTA ────────────────────────────────────────────────────────────
-  Future<bool> startOta(String filePath) async =>
-      await _methodChannel.invokeMethod<bool>('startOta', {
-        'filePath': filePath,
-      }) ??
-      false;
-
-  // ── Notification ───────────────────────────────────────────────────
-  Future<void> sendNotification({
-    required int type,
-    required String title,
-    required String content,
-  }) => _methodChannel.invokeMethod('sendNotification', {
-    'type': type,
-    'title': title,
-    'content': content,
-  });
-
-  // ── Ring camera / photo control ────────────────────────────────────
-  // Enters the ring's camera UI and starts the phone-side keep-alive loop
-  // (native re-sends ACTION_KEEP_SCREEN_ON every ~2s). Listen on `events` for
-  // a `cameraShutter` event with data `{"action": "capture"}` (ring's physical
-  // shutter was pressed) or `{"action": "exit"}` (ring itself left camera mode).
-  Future<bool> takePicture() async =>
-      await _methodChannel.invokeMethod<bool>('takePicture') ?? false;
-
-  /// Tells the ring to exit its camera UI and stops the native keep-alive loop.
-  /// Always call this when the phone's camera screen is closed/disposed, even
-  /// if a `cameraShutter` "exit" event was already received.
-  Future<bool> exitCameraMode() async =>
-      await _methodChannel.invokeMethod<bool>('exitCameraMode') ?? false;
-
-  Future<bool> scanMediaFile(String path) async {
-    try {
-      return await _methodChannel.invokeMethod<bool>('scanMediaFile', {'path': path}) ?? false;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  // ── Workout ────────────────────────────────────────────────────────
-  Future<void> startWorkout(String type, int startTimeMs) => _methodChannel
-      .invokeMethod('startWorkout', {'type': type, 'startTimeMs': startTimeMs});
-
-  Future<void> stopWorkout() => _methodChannel.invokeMethod('stopWorkout');
 
   // ── Local readings (Room, via the continuous background measurement loop) ──
   // vital keys: heart_rate | spo2 | stress | blood_pressure | steps | hrv | temperature
@@ -927,15 +741,6 @@ class BleService {
   Future<String> getSyncStatus() async =>
       await _methodChannel.invokeMethod<String>('getSyncStatus') ?? '{}';
 
-  Future<bool> answerPhoneCall() async =>
-      await _methodChannel.invokeMethod<bool>('answerPhoneCall') ?? false;
-
-  Future<bool> endOrDeclinePhoneCall() async =>
-      await _methodChannel.invokeMethod<bool>('endOrDeclinePhoneCall') ?? false;
-
-  Future<bool> toggleMediaPlayPause() async =>
-      await _methodChannel.invokeMethod<bool>('toggleMediaPlayPause') ?? false;
-
   Future<String> getMeasurementCycleHistory({int? fromMs, int? toMs}) async =>
       await _methodChannel.invokeMethod<String>('getMeasurementCycleHistory', {
         'fromMs': fromMs ?? 0,
@@ -1007,19 +812,6 @@ class BleService {
   Future<String> getMotionSnapshot() async =>
       await _methodChannel.invokeMethod<String>('getMotionSnapshot') ?? '{}';
 
-  /// Focus/Prayer usage read surface — see PhoneModeSessionEntity / PhoneModePlugin.kt.
-  Future<String> getPhoneModeSessions({
-    int? fromMs,
-    int? toMs,
-    int limit = 200,
-  }) async =>
-      await _methodChannel.invokeMethod<String>('getPhoneModeSessions', {
-        'fromMs': fromMs ?? 0,
-        'toMs': toMs ?? DateTime.now().millisecondsSinceEpoch,
-        'limit': limit,
-      }) ??
-      '[]';
-
   /// Dev/testing only — fires the real fall-alert notification pipeline on demand, so it can
   /// be tested/demoed without a genuine drop test + concurrent vitals spike.
   Future<bool> simulateFallEvent() async =>
@@ -1066,76 +858,6 @@ class BleService {
   /// Clears a dismissed fall-prediction alert so it does not reappear on next resume.
   Future<bool> clearFallPredictionFlag() async =>
       await _methodChannel.invokeMethod<bool>('clearFallPredictionFlag') ??
-      false;
-
-  /// Emergency SMS countdown / last-send status — see EmergencySmsSender.kt.
-  Future<String> getEmergencySmsStatus() async =>
-      await _methodChannel.invokeMethod<String>('getEmergencySmsStatus') ??
-      '{"active":false,"secondsRemaining":0}';
-
-  /// Cancel a pending auto-SMS countdown (I'm okay / Cancel SMS).
-  Future<bool> cancelEmergencySms() async =>
-      await _methodChannel.invokeMethod<bool>('cancelEmergencySms') ?? false;
-
-  /// Send SMS via SmsManager to **all** emergency contacts immediately.
-  /// Optional [message] overrides the default fall-help text.
-  Future<String> sendEmergencySms({String? message}) async {
-    final args = <String, dynamic>{};
-    if (message != null) args['message'] = message;
-    return await _methodChannel.invokeMethod<String>(
-          'sendEmergencySms',
-          args,
-        ) ??
-        '{"ok":false,"sentCount":0,"error":"no response"}';
-  }
-
-  Future<bool> placeEmergencyCall(String phone) async {
-    final result = await _methodChannel.invokeMethod<bool>(
-      'placeEmergencyCall',
-      {'phone': phone},
-    );
-    return result ?? false;
-  }
-
-  /// Auto-call on fall *detection* (not prediction) — toggle + permission status.
-  Future<String> getAutoCallOnFallEnabled() async =>
-      await _methodChannel.invokeMethod<String>('getAutoCallOnFallEnabled') ??
-      '{"enabled":false,"hasPermission":false}';
-
-  Future<String> setAutoCallOnFallEnabled(bool enabled) async =>
-      await _methodChannel.invokeMethod<String>('setAutoCallOnFallEnabled', {
-        'enabled': enabled,
-      }) ??
-      '{"enabled":false,"hasPermission":false}';
-
-  /// Emergency contacts — persisted natively (Room), not Flutter widget state, so a future
-  /// caregiver-push or notification action can read them without the Dart engine running.
-  Future<String> getEmergencyContacts() async =>
-      await _methodChannel.invokeMethod<String>('getEmergencyContacts') ?? '[]';
-
-  Future<bool> addEmergencyContact(String name, String phone) async =>
-      await _methodChannel.invokeMethod<bool>('addEmergencyContact', {
-        'name': name,
-        'phone': phone,
-      }) ??
-      false;
-
-  Future<bool> updateEmergencyContact(
-    int id,
-    String name,
-    String phone,
-  ) async =>
-      await _methodChannel.invokeMethod<bool>('updateEmergencyContact', {
-        'id': id,
-        'name': name,
-        'phone': phone,
-      }) ??
-      false;
-
-  Future<bool> deleteEmergencyContact(int id) async =>
-      await _methodChannel.invokeMethod<bool>('deleteEmergencyContact', {
-        'id': id,
-      }) ??
       false;
 
   /// Dev/testing only — fills the local Room DB with plausible readings spanning

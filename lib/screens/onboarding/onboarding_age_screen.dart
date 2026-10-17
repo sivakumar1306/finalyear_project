@@ -32,7 +32,7 @@ class _OnboardingAgeScreenState extends State<OnboardingAgeScreen> {
   Widget build(BuildContext context) {
     return OnboardingShell(
       step: 2,
-      totalSteps: 6,
+      totalSteps: 5,
       data: widget.data,
       onContinue: () {
         widget.data.age = _age;

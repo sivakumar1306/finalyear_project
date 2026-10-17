@@ -1,6 +1,4 @@
 enum HomeCardId {
-  alarms,
-  activity,
   stress,
   womensHealth,
   sleep,

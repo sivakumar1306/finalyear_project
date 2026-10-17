@@ -444,7 +444,7 @@ class _WomensHealthScreenState extends State<WomensHealthScreen> {
         GlassMenuItem(
           label: 'Share',
           onTap: () =>
-              shareScreenshot(_screenshotKey, text: 'My Cycle — SUNDR'),
+              shareScreenshot(_screenshotKey, text: 'My Cycle — Vital Monitoring'),
         ),
       ],
     );

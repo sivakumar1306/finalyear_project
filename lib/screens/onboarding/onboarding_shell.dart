@@ -62,7 +62,6 @@ class OnboardingShell extends StatelessWidget {
                       child: _StepDots(current: step, total: totalSteps),
                     ),
                   ),
-                  if (!data.isEditMode)
                     TextButton(
                       onPressed: () => Navigator.pushReplacement(
                         context,

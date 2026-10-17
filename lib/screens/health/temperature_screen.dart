@@ -560,7 +560,7 @@ class _TemperatureScreenState extends State<TemperatureScreen> {
         GlassMenuItem(
           label: 'Share',
           onTap: () =>
-              shareScreenshot(_screenshotKey, text: 'My Temperature — SUNDR'),
+              shareScreenshot(_screenshotKey, text: 'My Temperature — Vital Monitoring'),
         ),
         GlassMenuItem(
           label: 'Note',

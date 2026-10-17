@@ -98,7 +98,7 @@ class FallPredictionProvider extends ChangeNotifier {
       redFlagService: RedFlagOverrideService(),
       escalationService: _RealEscalationService(
         onAlert: (reason) async {
-          await _bleProvider?.sendEmergencySms(message: reason);
+          _bleProvider?.raiseFallAlert(reason);
         },
       ),
       corroborationService: _MockCorroborationService(),

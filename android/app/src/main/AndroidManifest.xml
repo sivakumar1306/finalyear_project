@@ -17,11 +17,6 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
-    <!-- Emergency SMS to emergency contacts after fall detection (SmsManager).
-         SEND_SMS is restricted by Play policy to default-SMS-handler apps for
-         core functions; here it is only used for the emergency fall alert. -->
-    <uses-permission android:name="android.permission.SEND_SMS" />
-
     <!-- Other -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -41,7 +36,6 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.CALL_PHONE"/>
 
     <!-- Speech recognition (AI-assist voice input, speech_to_text) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -75,6 +69,7 @@
 
     <application
         android:label="@string/app_name"
+        android:usesCleartextTraffic="true"
         android:name=".QRingApplication"
         android:icon="@mipmap/ic_launcher"
         android:hardwareAccelerated="true"
@@ -145,18 +140,6 @@
             android:exported="false" />
 
         <receiver
-            android:name=".analysis.EmergencySmsCancelReceiver"
-            android:enabled="true"
-            android:exported="false" />
-
-        <!-- SENT / DELIVERED receipts for EmergencySmsSender — explicit-component
-             PendingIntents only, so exported=false is safe. -->
-        <receiver
-            android:name=".analysis.EmergencySmsResultReceiver"
-            android:enabled="true"
-            android:exported="false" />
-
-        <receiver
             android:name=".analysis.SafetyLiveUpdateDismissReceiver"
             android:enabled="true"
             android:exported="false" />
@@ -189,22 +172,6 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.DIAL"/>
-            <data android:scheme="tel"/>
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW"/>
-            <data android:scheme="tel"/>
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.SENDTO"/>
-            <data android:scheme="smsto"/>
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW"/>
-            <data android:scheme="sms"/>
         </intent>
     </queries>
 </manifest>

@@ -6,17 +6,12 @@ import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/ble_provider.dart';
-import 'providers/workout_provider.dart';
-import 'providers/alarm_mode_provider.dart';
-import 'providers/alarm_schedule_provider.dart';
-import 'providers/prayer_session_provider.dart';
 import 'providers/main_tab_provider.dart';
-import 'providers/home_card_provider.dart';
 import 'providers/fall_prediction/fall_prediction_provider.dart';
 import 'services/supabase_service.dart';
 import 'services/incident_service.dart';
 import 'services/ble_service.dart';
-import 'services/push_notification_service.dart';
+import 'services/chat_api_service.dart';
 import 'services/health_engine/health_config.dart';
 import 'config.dart';
 import 'app.dart';
@@ -61,8 +56,6 @@ Future<void> _requestPermissionsAndStartService() async {
     Permission.bluetoothConnect,
     Permission.bluetoothAdvertise,
     Permission.locationWhenInUse,
-    Permission.sms,
-    Permission.phone,
   ].request();
   try {
     await _bleChannel.invokeMethod('startForegroundService');
@@ -197,14 +190,12 @@ void main() async {
         unawaited(HealthConfig.load());
         unawaited(_configureNativeSync());
         unawaited(_syncLoggedInFlag());
-        // FCM companion alerts (Part 3) — dormant until Firebase constants are
-        // configured in AppConfig; never blocks startup.
-        unawaited(PushNotificationService.instance.initialize());
       } catch (e, st) {
         debugPrint('Startup init failed (continuing offline): $e\n$st');
       }
 
       unawaited(_reportLastNativeCrash());
+      await ChatApiService.loadServerUrl();
 
       _authSub?.cancel();
       try {
@@ -233,20 +224,13 @@ void main() async {
         MultiProvider(
           providers: [
             ChangeNotifierProvider(create: (_) => BleProvider()),
-            ChangeNotifierProvider(create: (_) => WorkoutProvider()),
-            ChangeNotifierProvider(create: (_) => AlarmModeProvider()),
-            ChangeNotifierProvider(
-              create: (_) => AlarmScheduleProvider()..load(),
-            ),
-            ChangeNotifierProvider(create: (_) => PrayerSessionProvider()),
             ChangeNotifierProvider(create: (_) => MainTabProvider()),
-            ChangeNotifierProvider(create: (_) => HomeCardProvider()..load()),
             ChangeNotifierProxyProvider<BleProvider, FallPredictionProvider>(
               create: (_) => FallPredictionProvider(),
               update: (_, ble, fall) => fall!..updateBleProvider(ble),
             ),
           ],
-          child: const SundrApp(),
+          child: const VitalApp(),
         ),
       );
       unawaited(_requestPermissionsAndStartService());

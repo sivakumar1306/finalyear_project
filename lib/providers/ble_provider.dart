@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ble_service.dart';
@@ -136,34 +135,6 @@ class BleProvider extends ChangeNotifier {
   // fires once per episode rather than on every single reading while it stays elevated.
   final Set<String> _activeAlerts = {};
 
-  // Emergency SMS auto-send countdown (native EmergencySmsSender) — polled while active.
-  bool _emergencySmsActive = false;
-  int _emergencySmsSecondsRemaining = 0;
-  String _emergencySmsReason = '';
-  bool _emergencySmsHasPermission = true;
-  int _emergencySmsLastSentCount = 0;
-  String? _emergencySmsLastError;
-  Timer? _emergencySmsPollTimer;
-
-  // Honest receipt state (Part 1 of the alerting plan) — confirmed sent/delivered
-  // counts arrive via native SENT/DELIVERED receipts, not optimistic dispatch.
-  bool _emergencySmsSendInProgress = false;
-  int _emergencySmsQueuedCount = 0;
-  int _emergencySmsDeliveredCount = 0;
-  int _emergencySmsFailedCount = 0;
-  List<Map<String, dynamic>> _emergencySmsPerContact = [];
-
-  // Ring camera / photo control — broadcasts native "cameraShutter" events
-  // ("capture" | "exit") so a camera screen can react without owning its own
-  // EventChannel subscription. See BlePlugin.kt's takePicture()/exitCameraMode().
-  final StreamController<String> _cameraShutterController =
-      StreamController<String>.broadcast();
-  Stream<String> get cameraShutterEvents => _cameraShutterController.stream;
-
-  // Gesture Controls (PalmScreenReq) — ring-side wrist-flip/palm-screen wake.
-  bool _gestureEnabled = false;
-  bool get gestureEnabled => _gestureEnabled;
-
   String? _lastError;
   String? get lastError => _lastError;
 
@@ -266,30 +237,6 @@ class BleProvider extends ChangeNotifier {
   bool get showFallPredictionBanner => _showFallPredictionBanner;
   String get fallPredictionTier => _fallPredictionTier;
 
-  bool get emergencySmsActive => _emergencySmsActive;
-  int get emergencySmsSecondsRemaining => _emergencySmsSecondsRemaining;
-  String get emergencySmsReason => _emergencySmsReason;
-  bool get emergencySmsHasPermission => _emergencySmsHasPermission;
-  int get emergencySmsLastSentCount => _emergencySmsLastSentCount;
-  String? get emergencySmsLastError => _emergencySmsLastError;
-
-  // Honest receipt state (confirmed by native SENT/DELIVERED receipts).
-  bool get emergencySmsSendInProgress => _emergencySmsSendInProgress;
-  int get emergencySmsQueuedCount => _emergencySmsQueuedCount;
-  int get emergencySmsDeliveredCount => _emergencySmsDeliveredCount;
-  int get emergencySmsFailedCount => _emergencySmsFailedCount;
-  List<Map<String, dynamic>> get emergencySmsPerContact =>
-      List.unmodifiable(_emergencySmsPerContact);
-
-  /// When true, a corroborated fall *detection* immediately calls the first emergency contact.
-  bool _autoCallOnFallEnabled = false;
-  bool _autoCallOnFallHasPermission = false;
-  bool _autoCallOnFallPredictionEnabled = false;
-
-  bool get autoCallOnFallEnabled => _autoCallOnFallEnabled;
-  bool get autoCallOnFallHasPermission => _autoCallOnFallHasPermission;
-  bool get autoCallOnFallPredictionEnabled => _autoCallOnFallPredictionEnabled;
-
   // ── Manual update methods (called by individual screens) ──────────────────
 
   void updateStepsData(
@@ -387,7 +334,6 @@ class BleProvider extends ChangeNotifier {
     // Paint from Room first. Cloud fill and the upload run after that, off the
     // first frame.
     _loadTodayVitalsFromLocal();
-    syncEmergencyContactsFromCloud().then((_) => _syncContactsToCloud());
     loadLowBatteryPromptSetting();
   }
 
@@ -501,11 +447,6 @@ void _listenEvents() {
             case 'newReading':
               _onNewReadingEvent(data);
               break;
-            case 'cameraShutter':
-              if (!_cameraShutterController.isClosed) {
-                _cameraShutterController.add(data['action'] as String? ?? '');
-              }
-              break;
             case 'batteryPush':
               _onBatteryPushEvent(data);
               break;
@@ -518,48 +459,6 @@ void _listenEvents() {
         debugPrint('[BleProvider] event stream error: $e\n$st');
       },
     );
-  }
-
-  // ── Ring camera / photo control ───────────────────────────────────────────
-  //
-  // Enters the ring's camera UI (and starts native's keep-screen-on loop).
-  // Listen on [cameraShutterEvents] for "capture" (ring's shutter button/gesture
-  // was used — trigger the phone's own camera capture) or "exit" (the ring left
-  // camera mode on its own — close the phone's camera screen).
-Future<bool> enterRingCameraMode() => _ble.takePicture();
-
-  /// Tells the ring to exit its camera UI and stops the native keep-alive loop.
-  /// Always call this when the camera screen is closed/disposed.
-  Future<bool> exitRingCameraMode() => _ble.exitCameraMode();
-
-  // ── Gesture Controls (PalmScreenReq) ──────────────────────────────────────
-
-Future<void> loadGestureSetting() async {
-    try {
-      final json = await _ble.getGestureSetting();
-      final decoded = jsonDecode(json);
-      if (decoded is Map) {
-        _gestureEnabled = decoded['enabled'] == true;
-        notifyListeners();
-      }
-    } catch (e, st) {
-      _recordError(e, st);
-    }
-  }
-
-  /// Writes to the ring (PalmScreenReq.getWriteInstance). [isLeft] mirrors
-  /// whichever hand the ring is worn on if you have that elsewhere; defaults
-  /// to true (left) to match the SDK sample.
-  Future<void> setGestureEnabled(bool enabled, {bool isLeft = true}) async {
-    try {
-      final ok = await _ble.setGestureSetting(enable: enabled, isLeft: isLeft);
-      if (ok) {
-        _gestureEnabled = enabled;
-        notifyListeners();
-      }
-    } catch (e, st) {
-      _recordError(e, st);
-    }
   }
 
   /// Sends factory reset command to the ring and disconnects upon success.
@@ -781,20 +680,6 @@ Future<void> _maybeAlert(
     return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
   }
 
-  /// Focus/Prayer sessions overlapping today (local midnight to now) — each entry has
-  /// `mode`, `startedAt` (ms), and `endedAt` (ms, or null if the mode is still active).
-  Future<List<Map<String, dynamic>>> getPhoneModeSessionsToday() async {
-    final now = DateTime.now();
-    final dayStart = DateTime(now.year, now.month, now.day);
-    final json = await _ble.getPhoneModeSessions(
-      fromMs: dayStart.millisecondsSinceEpoch,
-      toMs: now.millisecondsSinceEpoch,
-    );
-    final decoded = jsonDecode(json);
-    if (decoded is! List) return [];
-    return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-  }
-
   /// Recent candidate fall events logged by the native FallMotionDetector.
   Future<List<Map<String, dynamic>>> getFallEvents({int limit = 20}) async {
     final json = await _ble.getFallEvents(limit: limit);
@@ -861,6 +746,19 @@ Future<void> _maybeAlert(
     notifyListeners();
   }
 
+  /// Red-flag override from the fall engine: surface a high-tier alert on Home.
+  void raiseFallAlert(String reason) {
+    if (_showFallPredictionBanner &&
+        _fallPredictionTier == 'high' &&
+        _fallPredictionMessage == reason) {
+      return;
+    }
+    _showFallPredictionBanner = true;
+    _fallPredictionTier = 'high';
+    _fallPredictionMessage = reason;
+    notifyListeners();
+  }
+
   void simulateMediumFallPredictionBanner() {
     _showFallPredictionBanner = true;
     _fallPredictionTier = 'medium';
@@ -873,243 +771,10 @@ Future<void> _maybeAlert(
     _fallPredictionTier = 'low';
     notifyListeners();
     // Clear native SharedPreferences so reopening the app does not resurrect the alert.
-    // Also cancel any pending auto-SMS — user tapped ignore / I'm okay.
-    await Future.wait([
-      _ble.clearFallPredictionFlag(),
-      _ble.cancelEmergencySms(),
-    ]);
-    await refreshEmergencySmsStatus();
+    await _ble.clearFallPredictionFlag();
   }
 
-  /// Poll native countdown state. Starts a 1s timer while a countdown is active
-  /// or while SMS receipts are still arriving after a dispatch.
-  Future<void> refreshEmergencySmsStatus() async {
-    try {
-      final json = await _ble.getEmergencySmsStatus();
-      final decoded = jsonDecode(json);
-      if (decoded is! Map) return;
-      final active = decoded['active'] == true;
-      final remaining = (decoded['secondsRemaining'] as num?)?.toInt() ?? 0;
-      final reason = decoded['reason'] as String? ?? '';
-      final hasPerm = decoded['hasPermission'] != false;
-      final lastCount = (decoded['lastSentCount'] as num?)?.toInt() ?? 0;
-      final lastError = decoded['lastError'] as String?;
-
-      // Honest receipt state (Part 1).
-      final sendInProgress = decoded['sendInProgress'] == true;
-      final queuedCount = (decoded['queuedCount'] as num?)?.toInt() ?? 0;
-      final deliveredCount = (decoded['deliveredCount'] as num?)?.toInt() ?? 0;
-      final failedCount = (decoded['failedCount'] as num?)?.toInt() ?? 0;
-      final perContact = (decoded['perContact'] as List? ?? [])
-          .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
-
-      final changed =
-          active != _emergencySmsActive ||
-          remaining != _emergencySmsSecondsRemaining ||
-          reason != _emergencySmsReason ||
-          hasPerm != _emergencySmsHasPermission ||
-          lastCount != _emergencySmsLastSentCount ||
-          lastError != _emergencySmsLastError ||
-          sendInProgress != _emergencySmsSendInProgress ||
-          queuedCount != _emergencySmsQueuedCount ||
-          deliveredCount != _emergencySmsDeliveredCount ||
-          failedCount != _emergencySmsFailedCount ||
-          !listEquals(perContact, _emergencySmsPerContact);
-
-      _emergencySmsActive = active;
-      _emergencySmsSecondsRemaining = remaining;
-      _emergencySmsReason = reason;
-      _emergencySmsHasPermission = hasPerm;
-      _emergencySmsLastSentCount = lastCount;
-      _emergencySmsLastError = lastError;
-      _emergencySmsSendInProgress = sendInProgress;
-      _emergencySmsQueuedCount = queuedCount;
-      _emergencySmsDeliveredCount = deliveredCount;
-      _emergencySmsFailedCount = failedCount;
-      _emergencySmsPerContact = perContact;
-
-      if (active || sendInProgress) {
-        _ensureEmergencySmsPoll();
-      } else {
-        _stopEmergencySmsPoll();
-      }
-      if (changed) notifyListeners();
-    } catch (e) {
-      debugPrint('[FallDetection] SMS status failed: $e');
-    }
-  }
-
-  void _ensureEmergencySmsPoll() {
-    if (_emergencySmsPollTimer?.isActive == true) return;
-    _emergencySmsPollTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      refreshEmergencySmsStatus();
-    });
-  }
-
-  void _stopEmergencySmsPoll() {
-    _emergencySmsPollTimer?.cancel();
-    _emergencySmsPollTimer = null;
-  }
-
-  /// Cancel auto-SMS countdown and clear the fall-prediction banner.
-  Future<void> cancelEmergencySms() async {
-    await _ble.cancelEmergencySms();
-    _showFallPredictionBanner = false;
-    _fallPredictionTier = 'low';
-    await refreshEmergencySmsStatus();
-    notifyListeners();
-  }
-
-  /// Immediate SmsManager send to **all** emergency contacts (manual Message action).
-  Future<Map<String, dynamic>> sendEmergencySms({String? message}) async {
-    final json = await _ble.sendEmergencySms(message: message);
-    final decoded = jsonDecode(json);
-    await refreshEmergencySmsStatus();
-    if (decoded is Map) return Map<String, dynamic>.from(decoded);
-    return {'ok': false, 'sentCount': 0, 'error': 'invalid response'};
-  }
-
-  Future<bool> placeEmergencyCall(String phone) async {
-    try {
-      final ok = await _ble.placeEmergencyCall(phone);
-      return ok;
-    } catch (e) {
-      debugPrint('[FallDetection] Auto-call failed: $e');
-      return false;
-    }
-  }
-
-  Future<void> loadAutoCallOnFallSetting() async {
-    try {
-      final json = await _ble.getAutoCallOnFallEnabled();
-      final decoded = jsonDecode(json);
-      if (decoded is! Map) return;
-      _autoCallOnFallEnabled = decoded['enabled'] == true;
-      _autoCallOnFallHasPermission = decoded['hasPermission'] == true;
-      final prefs = await SharedPreferences.getInstance();
-      _autoCallOnFallPredictionEnabled =
-          prefs.getBool('autoCallOnFallPrediction') ?? false;
-      notifyListeners();
-    } catch (e) {
-      debugPrint('[FallDetection] load auto-call setting failed: $e');
-    }
-  }
-
-  /// Persist toggle natively so the background fall detector can read it.
-  Future<void> setAutoCallOnFallEnabled(bool enabled) async {
-    try {
-      final json = await _ble.setAutoCallOnFallEnabled(enabled);
-      final decoded = jsonDecode(json);
-      if (decoded is Map) {
-        _autoCallOnFallEnabled = decoded['enabled'] == true;
-        _autoCallOnFallHasPermission = decoded['hasPermission'] == true;
-      } else {
-        _autoCallOnFallEnabled = enabled;
-      }
-      notifyListeners();
-    } catch (e) {
-      debugPrint('[FallDetection] set auto-call setting failed: $e');
-    }
-  }
-
-  Future<void> setAutoCallOnFallPredictionEnabled(bool enabled) async {
-    _autoCallOnFallPredictionEnabled = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('autoCallOnFallPrediction', enabled);
-    notifyListeners();
-  }
-
-  /// Emergency contacts — persisted natively (Room), not Flutter widget state.
-Future<List<Map<String, dynamic>>> getEmergencyContacts() async {
-    final json = await _ble.getEmergencyContacts();
-    final decoded = jsonDecode(json);
-    if (decoded is! List) return [];
-    return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-  }
-
-  // Local Room stays the source of truth (works with no network/no login); every
-  // write is mirrored to Supabase afterward on a best-effort basis via
-  // _syncContactsToCloud()/_deleteContactFromCloud() so the same contacts show up
-  // on the Profile screen (and any other signed-in device later) too.
-
-  Future<void> addEmergencyContact(String name, String phone) async {
-    await _ble.addEmergencyContact(name, phone);
-    await _syncContactsToCloud();
-  }
-
-  Future<void> updateEmergencyContact(int id, String name, String phone) async {
-    await _ble.updateEmergencyContact(id, name, phone);
-    await _syncContactsToCloud();
-  }
-
-  Future<void> deleteEmergencyContact(int id) async {
-    await _ble.deleteEmergencyContact(id);
-    await _deleteContactFromCloud(id);
-  }
-
-  Future<void> syncEmergencyContactsFromCloud() async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
-    try {
-      final cloudContacts = await SupabaseService.getEmergencyContactsCloud(user.id);
-      if (cloudContacts.isEmpty) return;
-
-      final localRows = await getEmergencyContacts();
-      final localKeys = localRows.map((r) => '${r['name']}_${r['phone']}').toSet();
-
-      for (final c in cloudContacts) {
-        final name = c['name'] as String? ?? '';
-        final phone = c['phone'] as String? ?? '';
-        if (name.isNotEmpty && phone.isNotEmpty) {
-          final key = '${name}_$phone';
-          if (!localKeys.contains(key)) {
-            await _ble.addEmergencyContact(name, phone);
-            localKeys.add(key);
-          }
-        }
-      }
-      notifyListeners();
-    } catch (e) {
-      debugPrint('[BleProvider] emergency contact cloud restore failed: $e');
-    }
-  }
-
-  Future<void> _syncContactsToCloud() async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
-    try {
-      final rows = await getEmergencyContacts();
-      for (final r in rows) {
-        final id = (r['id'] as num?)?.toInt();
-        if (id == null) continue;
-        await SupabaseService.upsertEmergencyContact(
-          userId: user.id,
-          localId: id,
-          name: r['name'] as String? ?? '',
-          phone: r['phone'] as String? ?? '',
-        );
-      }
-    } catch (e) {
-      debugPrint('[BleProvider] emergency contact cloud sync failed: $e');
-    }
-  }
-
-  Future<void> _deleteContactFromCloud(int localId) async {
-    final user = SupabaseService.currentUser;
-    if (user == null) return;
-    try {
-      await SupabaseService.deleteEmergencyContactByLocalId(
-        userId: user.id,
-        localId: localId,
-      );
-    } catch (e) {
-      debugPrint('[BleProvider] emergency contact cloud delete failed: $e');
-    }
-  }
-
-bool _notifyBatching = false;
+  bool _notifyBatching = false;
   bool _notifyQueued = false;
 
   bool _microtaskNotifyScheduled = false;
@@ -1724,7 +1389,6 @@ Future<void> _loadSavedDevice() async {
     }
     await refreshBattery();
     await refreshFirmwareVersion();
-    await loadGestureSetting();
     // Wait for native's bind handshake to finish before the sleep large-data sync
     // below (syncAllFromRing) — see BlePlugin.kt's "bindReady" event. A 15s timeout
     // is a safety net only (mirrors BlePlugin's own bind-retry budget of
@@ -2460,8 +2124,6 @@ Future<bool> findDevice({bool enable = true}) async {
   void dispose() {
     _eventSub?.cancel();
     _authSub?.cancel();
-    _stopEmergencySmsPoll();
-    _cameraShutterController.close();
     super.dispose();
   }
 }

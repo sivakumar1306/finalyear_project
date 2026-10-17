@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sundr/utils/ring_names.dart';
+import 'package:vital_monitoring/utils/ring_names.dart';
 
 void main() {
   test('ring model names are accepted', () {

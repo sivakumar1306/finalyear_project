@@ -157,7 +157,7 @@ jobs:
             find build/app/outputs -type f \( -name '*.aab' -o -name '*.apk' \) | head -50
             exit 1
           fi
-          cp "$AAB_SRC" "$OUT/sundr-${VER}-play.aab"
+          cp "$AAB_SRC" "$OUT/vital-monitoring-${VER}-play.aab"
 
           mapfile -t APKS < <(find build/app/outputs -type f -name '*-release.apk' | sort)
           if [[ ${#APKS[@]} -eq 0 ]]; then
@@ -170,50 +170,50 @@ jobs:
             base=$(basename "$apk")
             case "$base" in
               *arm64-v8a*)
-                cp "$apk" "$OUT/sundr-${VER}-arm64-v8a.apk"
+                cp "$apk" "$OUT/vital-monitoring-${VER}-arm64-v8a.apk"
                 ;;
               *armeabi-v7a*)
-                cp "$apk" "$OUT/sundr-${VER}-armeabi-v7a.apk"
+                cp "$apk" "$OUT/vital-monitoring-${VER}-armeabi-v7a.apk"
                 ;;
               *x86_64*)
-                cp "$apk" "$OUT/sundr-${VER}-x86_64.apk"
+                cp "$apk" "$OUT/vital-monitoring-${VER}-x86_64.apk"
                 ;;
               app-release.apk)
-                cp "$apk" "$OUT/sundr-${VER}-universal.apk"
+                cp "$apk" "$OUT/vital-monitoring-${VER}-universal.apk"
                 ;;
               *)
-                cp "$apk" "$OUT/sundr-${VER}-${base}"
+                cp "$apk" "$OUT/vital-monitoring-${VER}-${base}"
                 ;;
             esac
           done
 
           cat > "$OUT/WHICH_FILE.txt" <<EOF
-          SUNDR release artifacts (git ${VER})
+          Vital Monitoring release artifacts (git ${VER})
           Signed with: ${SIGNED_WITH:-unknown}
           Commit: ${{ steps.ver.outputs.sha_full }}
 
           =============================================================================
           FILE                                    | USE FOR
           -----------------------------------------------------------------------------
-          sundr-${VER}-play.aab                   | Google Play Store upload (required for Play)
+          vital-monitoring-${VER}-play.aab                   | Google Play Store upload (required for Play)
                                                   | Play generates per-device APKs from this.
           -----------------------------------------------------------------------------
-          sundr-${VER}-arm64-v8a.apk              | Most modern Android phones (64-bit ARM)
+          vital-monitoring-${VER}-arm64-v8a.apk              | Most modern Android phones (64-bit ARM)
                                                   | Sideload / direct install. Use this on a real phone.
           -----------------------------------------------------------------------------
-          sundr-${VER}-armeabi-v7a.apk            | Older 32-bit ARM phones only
+          vital-monitoring-${VER}-armeabi-v7a.apk            | Older 32-bit ARM phones only
           -----------------------------------------------------------------------------
-          sundr-${VER}-x86_64.apk                 | Emulators / Waydroid / x86_64 devices
+          vital-monitoring-${VER}-x86_64.apk                 | Emulators / Waydroid / x86_64 devices
                                                   | Do NOT install on normal phones.
           -----------------------------------------------------------------------------
-          sundr-${VER}-universal.apk              | (If present) All ABIs in one large APK
+          vital-monitoring-${VER}-universal.apk              | (If present) All ABIs in one large APK
                                                   | Prefer split APKs above when possible.
           =============================================================================
 
           Install examples:
-            adb install -r sundr-${VER}-arm64-v8a.apk
-            adb install -r sundr-${VER}-x86_64.apk
-            Upload sundr-${VER}-play.aab under Production / Testing track.
+            adb install -r vital-monitoring-${VER}-arm64-v8a.apk
+            adb install -r vital-monitoring-${VER}-x86_64.apk
+            Upload vital-monitoring-${VER}-play.aab under Production / Testing track.
           EOF
 
           sed -i 's/^          //' "$OUT/WHICH_FILE.txt"
@@ -223,7 +223,7 @@ jobs:
       - name: Upload build artifacts (Actions)
         uses: actions/upload-artifact@v4
         with:
-          name: sundr-${{ steps.ver.outputs.artifact_ver }}
+          name: vital-monitoring-${{ steps.ver.outputs.artifact_ver }}
           path: release-out/*
           if-no-files-found: error
           retention-days: 30
@@ -233,7 +233,7 @@ jobs:
       - name: Upload Dart debug symbols (Actions, private)
         uses: actions/upload-artifact@v4
         with:
-          name: sundr-${{ steps.ver.outputs.artifact_ver }}-dart-symbols
+          name: vital-monitoring-${{ steps.ver.outputs.artifact_ver }}-dart-symbols
           path: build/symbols/
           if-no-files-found: error
           retention-days: 90
@@ -243,7 +243,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.ver.outputs.tag }}
-          name: SUNDR ${{ steps.ver.outputs.tag }}
+          name: Vital Monitoring ${{ steps.ver.outputs.tag }}
           target_commitish: ${{ steps.ver.outputs.sha_full }}
           generate_release_notes: true
           body: |
@@ -251,10 +251,10 @@ jobs:
 
             | File | Purpose |
             |------|---------|
-            | `sundr-${{ steps.ver.outputs.artifact_ver }}-play.aab` | **Google Play** — upload this to Play Console |
-            | `sundr-${{ steps.ver.outputs.artifact_ver }}-arm64-v8a.apk` | **Most phones** (64-bit ARM) sideload |
-            | `sundr-${{ steps.ver.outputs.artifact_ver }}-armeabi-v7a.apk` | Older **32-bit ARM** phones |
-            | `sundr-${{ steps.ver.outputs.artifact_ver }}-x86_64.apk` | **Waydroid / x86_64 emulator** only |
+            | `vital-monitoring-${{ steps.ver.outputs.artifact_ver }}-play.aab` | **Google Play** — upload this to Play Console |
+            | `vital-monitoring-${{ steps.ver.outputs.artifact_ver }}-arm64-v8a.apk` | **Most phones** (64-bit ARM) sideload |
+            | `vital-monitoring-${{ steps.ver.outputs.artifact_ver }}-armeabi-v7a.apk` | Older **32-bit ARM** phones |
+            | `vital-monitoring-${{ steps.ver.outputs.artifact_ver }}-x86_64.apk` | **Waydroid / x86_64 emulator** only |
 
             See attached `WHICH_FILE.txt` for install commands.
 

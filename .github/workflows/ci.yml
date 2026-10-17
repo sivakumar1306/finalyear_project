@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+      - "claude/**"
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -57,3 +59,52 @@ jobs:
 
       - name: Flutter test
         run: flutter test
+
+  build-apk:
+    name: Build Android APK
+    needs: analyze-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties', 'android/**/*.kts') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # No keystore here: build.gradle.kts falls back to debug signing, so the
+      # APK installs directly on a test phone.
+      - name: Build APK (arm64)
+        run: flutter build apk --release --target-platform android-arm64
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: vital-monitoring-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14

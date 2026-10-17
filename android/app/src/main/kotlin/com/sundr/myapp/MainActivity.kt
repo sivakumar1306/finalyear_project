@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import com.sundr.myapp.analysis.EmergencySmsSender
 import com.sundr.myapp.analysis.FallPredictionNotifier
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -40,7 +39,6 @@ class MainActivity : FlutterFragmentActivity() {
         }
         try {
             FallPredictionNotifier.restorePending(this)
-            EmergencySmsSender.restoreIfNeeded(this)
             handleIntent(intent)
         } catch (e: Exception) {
             Log.e(TAG, "onCreate restore/intent failed", e)

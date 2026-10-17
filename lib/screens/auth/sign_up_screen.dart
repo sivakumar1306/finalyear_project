@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../services/supabase_service.dart';
 import '../../models/onboarding_data.dart';
 import '../onboarding/onboarding_name_screen.dart';
-import '../settings/faq_screen.dart';
 import 'login_screen.dart';
 import 'splash_screen.dart';
 import '../../widgets/glass_back_button.dart';
@@ -142,14 +141,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       (_) => false,
                     ),
                   ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.help_outline, color: Colors.white54),
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const FaqScreen()),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -160,14 +151,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 8),
-                    Center(
-                      child: Image.asset(
-                        'sundr_logo.png',
-                        width: 72,
-                        height: 72,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
                     const Text(
                       'Create an account',
                       style: TextStyle(
@@ -178,7 +161,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Create a SUNDR account.',
+                      'Create a Vital Monitoring account.',
                       style: TextStyle(color: Colors.white54, fontSize: 14),
                     ),
                     const SizedBox(height: 40),
