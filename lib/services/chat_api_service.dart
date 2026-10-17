@@ -1,10 +1,60 @@
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../config.dart';
 import 'supabase_service.dart';
 
 class ChatApiService {
-  static final String baseUrl = AppConfig.chatApiBaseUrl;
+  static const _serverUrlKey = 'agent_server_url';
+  static String _baseUrl = AppConfig.chatApiBaseUrl;
+
+  static String get baseUrl {
+    if (_baseUrl.isEmpty) {
+      throw Exception('AI server address not set');
+    }
+    return _baseUrl;
+  }
+
+  static bool get hasServerUrl => _baseUrl.isNotEmpty;
+
+  /// The current address, for pre-filling the edit dialog.
+  static String get serverUrl => _baseUrl;
+
+  /// Loads the address saved from the AI Assist server dialog, if any.
+  static Future<void> loadServerUrl() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_serverUrlKey) ?? '';
+      if (saved.isNotEmpty) _baseUrl = saved;
+    } catch (_) {}
+  }
+
+  /// Accepts `192.168.1.5`, `192.168.1.5:8000` or a full URL and stores the
+  /// normalised `http://host:port/api/v1` form. Empty input clears it.
+  static Future<String> setServerUrl(String input) async {
+    var url = input.trim();
+    while (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    if (url.isNotEmpty) {
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'http://$url';
+      }
+      final uri = Uri.parse(url);
+      if (!uri.hasPort && uri.scheme == 'http') {
+        url = uri.replace(port: 8000).toString();
+      }
+      if (!url.endsWith('/api/v1')) url = '$url/api/v1';
+    }
+    _baseUrl = url.isEmpty ? AppConfig.chatApiBaseUrl : url;
+    final prefs = await SharedPreferences.getInstance();
+    if (url.isEmpty) {
+      await prefs.remove(_serverUrlKey);
+    } else {
+      await prefs.setString(_serverUrlKey, url);
+    }
+    return _baseUrl;
+  }
 
   // Without a timeout, http.get/post will hang indefinitely if the backend is
   // slow, cold-starting, or unreachable — leaving callers' `await` stuck

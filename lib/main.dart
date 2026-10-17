@@ -11,6 +11,7 @@ import 'providers/fall_prediction/fall_prediction_provider.dart';
 import 'services/supabase_service.dart';
 import 'services/incident_service.dart';
 import 'services/ble_service.dart';
+import 'services/chat_api_service.dart';
 import 'services/health_engine/health_config.dart';
 import 'config.dart';
 import 'app.dart';
@@ -194,6 +195,7 @@ void main() async {
       }
 
       unawaited(_reportLastNativeCrash());
+      await ChatApiService.loadServerUrl();
 
       _authSub?.cancel();
       try {
