@@ -1,4 +1,5 @@
 import 'engine_outputs.dart';
+import 'score_breakdown.dart';
 import '../../services/fall_prediction/fall_risk_registry.dart';
 import '../../services/fall_prediction/layer3_motion.dart' show FallHistoryRate;
 
@@ -13,6 +14,7 @@ class PredictionResult {
   final PredictionHorizon tau;
   final CoverageScore q;
   final ExplainabilityPayload? explainability;
+  final ScoreBreakdown? breakdown;
 
   PredictionResult({
     required this.hsiBase,
@@ -23,6 +25,7 @@ class PredictionResult {
     required this.tau,
     required this.q,
     this.explainability,
+    this.breakdown,
   });
 }
 
@@ -39,6 +42,7 @@ class FallRiskScoreV2Result {
   final PredictionHorizon predictionHorizon;
   final CoverageScore coverageScore;
   final ExplainabilityPayload? explainability;
+  final ScoreBreakdown? breakdown;
 
   FallRiskScoreV2Result({
     required this.hsiBase,
@@ -53,5 +57,6 @@ class FallRiskScoreV2Result {
     required this.predictionHorizon,
     required this.coverageScore,
     this.explainability,
+    this.breakdown,
   });
 }
