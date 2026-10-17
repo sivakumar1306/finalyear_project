@@ -5,11 +5,11 @@ import '../../providers/fall_prediction/fall_prediction_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/fall_prediction/fall_risk_score_card.dart';
-import '../../widgets/fall_prediction/explainable_ai_dashboard.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/footer_spacer.dart';
 import '../../widgets/glass_pill.dart';
 import 'fall_prediction_widgets.dart';
+import 'fall_score_details_screen.dart';
 
 class FallPredictionScreen extends StatefulWidget {
   // Set when navigating here from the Home fall-prediction banner so the
@@ -132,31 +132,7 @@ class _FallPredictionScreenState extends State<FallPredictionScreen> {
   void _openRiskDetails() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          backgroundColor: AppTheme.bg,
-          appBar: AppBar(
-            backgroundColor: AppTheme.bg,
-            leading: const GlassBackButton(),
-            title: Text(
-              'Risk Score Details',
-              style: AppTypography.inter(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            centerTitle: true,
-            elevation: 0,
-          ),
-          body: ListView(
-            padding: const EdgeInsets.all(16.0),
-            children: const [
-              ExplainableAIDashboard(),
-            ],
-          ),
-        ),
-      ),
+      MaterialPageRoute(builder: (_) => const FallScoreDetailsScreen()),
     );
   }
 
@@ -294,6 +270,12 @@ class _FallPredictionScreenState extends State<FallPredictionScreen> {
               onTapRiskDetails: _openRiskDetails,
               onTapHeartRate: () => Navigator.pushNamed(context, '/heart-rate'),
               onTapTemperature: () => Navigator.pushNamed(context, '/temperature'),
+            ),
+            const SizedBox(height: 16),
+            ActionRow(
+              icon: Icons.calculate_outlined,
+              label: 'How this score is calculated',
+              onTap: _openRiskDetails,
             ),
             const SizedBox(height: 20),
           ] else ...[

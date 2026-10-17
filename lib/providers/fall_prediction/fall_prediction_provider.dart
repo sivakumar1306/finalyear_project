@@ -332,6 +332,7 @@ class FallPredictionProvider extends ChangeNotifier {
         tau: v2Result.predictionHorizon,
         q: v2Result.coverageScore,
         explainability: v2Result.explainability,
+        breakdown: v2Result.breakdown,
       );
       notifyListeners();
     }

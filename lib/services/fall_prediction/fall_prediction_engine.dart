@@ -1,7 +1,10 @@
+import 'dart:math' show exp, ln2, max;
+
 import '../../models/fall_prediction/layer_inputs.dart';
 import '../../models/fall_prediction/engine_outputs.dart';
 import '../../models/fall_prediction/context_factors.dart';
 import '../../models/fall_prediction/prediction_result.dart';
+import '../../models/fall_prediction/score_breakdown.dart';
 import 'fall_risk_registry.dart';
 import 'layer1_physiology.dart';
 import 'layer4_womens_health.dart';
@@ -110,7 +113,9 @@ class FallPredictionEngine {
       rolling28DayStdDevHRV: rolling28DayStdDevHRV,
       currentSpO2: pData.spo2,
       peripheralTemp: pData.temp,
-      ambientTemp: 22.0, 
+      // No ambient sensor, and baselineAdjustedTemp is a raw skin-temperature
+      // median — subtracting a fixed 22 °C made every reading score 0.
+      ambientTemp: 0.0,
       baselineAdjustedTemp: baselineAdjustedTemp,
       currentSys: currentSys,
       currentDia: currentDia,
@@ -208,7 +213,7 @@ class FallPredictionEngine {
       rolling28DayStdDevHRV: rolling28DayStdDevHRV,
       currentSpO2: 98.0, // Assumed healthy SpO2 baseline
       peripheralTemp: baselineAdjustedTemp,
-      ambientTemp: 22.0,
+      ambientTemp: 0.0,
       baselineAdjustedTemp: baselineAdjustedTemp,
       currentSys: hospitalBaseline.sys, // Standard healthy BP
       currentDia: hospitalBaseline.dia,
@@ -444,6 +449,38 @@ class FallPredictionEngine {
     // The predictionHorizon on the result is fixed to the 24-hour actionable alert.
     PredictionHorizon tau = PredictionHorizon(const Duration(days: 1));
 
+    final breakdown = _buildBreakdown(
+      pData: pData,
+      rData: rData,
+      mData: mData,
+      wData: wData,
+      bpSource: bpSource,
+      hospitalBaseline: hospitalBaseline,
+      currentSys: currentSys,
+      currentDia: currentDia,
+      pWeights: pWeights,
+      rWeights: rWeights,
+      mWeights: mWeights,
+      pScore: pScore.value,
+      rcScore: rcScore.value,
+      moScore: moScore.value,
+      whScore: whScore,
+      trailingFalls: trailingFalls,
+      ambulationHours: actExp.value,
+      fhRate: fhRate,
+      fhNormalized: fhRateNormalized,
+      lambdaMo: lambda1_24,
+      lambdaRc: lambda2_24,
+      lambdaP: lambda3_24,
+      lambdaFh: lambda4_24,
+      frs24: frs24.value,
+      frs30: frs30.value,
+      coverage: q.q,
+      coverageDetails: coverageDetails,
+      hsi: hsiAdjVal,
+      hsiWeights: dynamicWeights,
+    );
+
     return FallRiskScoreV2Result(
       hsiBase: hsiBase,
       hsiAdj: hsiAdj,
@@ -457,6 +494,319 @@ class FallPredictionEngine {
       predictionHorizon: tau,
       coverageScore: q,
       explainability: explainability,
+      breakdown: breakdown,
+    );
+  }
+
+  /// Shares of a layer score: each measured input's base weight renormalised
+  /// over the measured inputs only (mirrors the layer calculators).
+  static Map<String, double> _shares(Map<String, double> weights, Set<String> measured) {
+    final total = measured.fold<double>(0.0, (sum, k) => sum + (weights[k] ?? 0.0));
+    return {
+      for (final k in weights.keys)
+        k: (measured.contains(k) && total > 0) ? (weights[k] ?? 0.0) / total : 0.0,
+    };
+  }
+
+  static String _n(double v, [int digits = 0]) => v.toStringAsFixed(digits);
+
+  ScoreBreakdown _buildBreakdown({
+    required Layer1PhysiologyData pData,
+    required Layer2RecoveryData rData,
+    required Layer3MotionData mData,
+    required Layer4WomensHealthData wData,
+    required BpSource bpSource,
+    required BpBaseline hospitalBaseline,
+    required double? currentSys,
+    required double? currentDia,
+    required AdaptiveWeights pWeights,
+    required Map<String, double> rWeights,
+    required Map<String, double> mWeights,
+    required double pScore,
+    required double rcScore,
+    required double moScore,
+    required WomensHealthScore? whScore,
+    required List<FallEvent> trailingFalls,
+    required double ambulationHours,
+    required FallHistoryRate fhRate,
+    required double fhNormalized,
+    required double lambdaMo,
+    required double lambdaRc,
+    required double lambdaP,
+    required double lambdaFh,
+    required double frs24,
+    required double frs30,
+    required double coverage,
+    required List<String> coverageDetails,
+    required double hsi,
+    required Map<String, double> hsiWeights,
+  }) {
+    // ── Layer 1: Physiology ──────────────────────────────────────────────
+    final b = pData.baselines;
+    final medianHr = b?.rolling14DayMedianHR ?? 65.0;
+    final meanHrv = b?.rolling28DayMeanHRV ?? 45.0;
+    final sdHrv = b?.rolling28DayStdDevHRV ?? 8.0;
+    final baseTemp = b?.baselineAdjustedTemp ?? 36.5;
+    final hasBp = currentSys != null && currentDia != null;
+    final pW = {
+      'hr': pWeights.hr,
+      'hrv': pWeights.hrv,
+      'spo2': pWeights.spO2,
+      'temp': pWeights.temp,
+      'bp': pWeights.bp,
+    };
+    final pShares = _shares(pW, {
+      if (pData.hr != null) 'hr',
+      if (pData.hrv != null) 'hrv',
+      if (pData.spo2 != null) 'spo2',
+      if (pData.temp != null) 'temp',
+      if (hasBp) 'bp',
+    });
+    double? bpSub;
+    if (hasBp) {
+      final bp = normalizeBP(currentSys, currentDia, bpSource, hospitalBaseline: hospitalBaseline);
+      bpSub = (bp.sysScore + bp.diaScore) / 2.0;
+    }
+    final useBpBaseline = bpSource == BpSource.hospitalBaseline;
+    final physiology = LayerDetail(
+      key: 'p',
+      label: 'Physiology',
+      description: 'How far today\'s vitals are from your personal baselines.',
+      score: pScore,
+      lambda: lambdaP,
+      measures: [
+        MeasureDetail(
+          key: 'hr',
+          label: 'Heart rate',
+          reading: pData.hr != null ? '${_n(pData.hr!)} bpm' : null,
+          reference: '14-day median ${_n(medianHr)} bpm',
+          subScore: pData.hr != null ? normalizeHR(pData.hr!, medianHr) : null,
+          baseWeight: pW['hr']!,
+          share: pShares['hr']!,
+          method: '100 at your median, falls to 0 at ±30% away from it.',
+        ),
+        MeasureDetail(
+          key: 'hrv',
+          label: 'Heart rate variability',
+          reading: pData.hrv != null ? '${_n(pData.hrv!)} ms' : null,
+          reference: '28-day mean ${_n(meanHrv)} ± ${_n(sdHrv)} ms',
+          subScore: pData.hrv != null ? normalizeHRV(pData.hrv!, meanHrv, sdHrv) : null,
+          baseWeight: pW['hrv']!,
+          share: pShares['hrv']!,
+          method: '100 at or above your mean; drops to 20 at 1.5 SD below it.',
+        ),
+        MeasureDetail(
+          key: 'spo2',
+          label: 'Blood oxygen',
+          reading: pData.spo2 != null ? '${_n(pData.spo2!)} %' : null,
+          reference: 'Healthy ≥ 95 %',
+          subScore: pData.spo2 != null ? normalizeSpO2(pData.spo2!) : null,
+          baseWeight: pW['spo2']!,
+          share: pShares['spo2']!,
+          method: '100 at 95 % or more, falls steeply to 0 at 90 %.',
+        ),
+        MeasureDetail(
+          key: 'temp',
+          label: 'Skin temperature',
+          reading: pData.temp != null ? '${_n(pData.temp!, 1)} °C' : null,
+          reference: 'Baseline ${_n(baseTemp, 1)} °C',
+          subScore: pData.temp != null ? normalizeTemp(pData.temp!, 0.0, baseTemp) : null,
+          baseWeight: pW['temp']!,
+          share: pShares['temp']!,
+          method: '100 at your baseline, 0 at ±1.5 °C away from it.',
+        ),
+        MeasureDetail(
+          key: 'bp',
+          label: 'Blood pressure',
+          reading: hasBp ? '${_n(currentSys)}/${_n(currentDia)} mmHg' : null,
+          reference: useBpBaseline
+              ? 'Baseline ${_n(hospitalBaseline.sys)}/${_n(hospitalBaseline.dia)} mmHg'
+              : 'Reference 120/80 mmHg',
+          subScore: bpSub,
+          baseWeight: pW['bp']!,
+          share: pShares['bp']!,
+          method: 'Average of systolic and diastolic: 100 at reference, 0 at ±33 %.',
+        ),
+      ],
+    );
+
+    // ── Layer 2: Recovery ────────────────────────────────────────────────
+    final rW = {
+      'slp': rWeights['slp'] ?? 0.30,
+      'slq': rWeights['slq'] ?? 0.25,
+      'act': rWeights['act'] ?? 0.20,
+      'wkl': rWeights['wkl'] ?? 0.15,
+      'str': rWeights['str'] ?? 0.10,
+    };
+    final rShares = _shares(rW, {
+      if (rData.slp != null) 'slp',
+      if (rData.slq != null) 'slq',
+      if (rData.act != null) 'act',
+      if (rData.wkl != null) 'wkl',
+      if (rData.str != null) 'str',
+    });
+    final recovery = LayerDetail(
+      key: 'rc',
+      label: 'Recovery',
+      description: 'Whether sleep, activity and stress let your body recover.',
+      score: rcScore,
+      lambda: lambdaRc,
+      measures: [
+        MeasureDetail(
+          key: 'slp',
+          label: 'Sleep duration',
+          reading: rData.slp != null ? '≈ ${_n(rData.slp! * 8 / 100, 1)} h slept' : null,
+          reference: 'Goal 8 h',
+          subScore: rData.slp != null ? Layer2Calculator.normalizeSLP(rData.slp!) : null,
+          baseWeight: rW['slp']!,
+          share: rShares['slp']!,
+          method: 'Hours slept ÷ 8 h, capped at 100.',
+        ),
+        MeasureDetail(
+          key: 'slq',
+          label: 'Sleep quality',
+          reading: rData.slq != null ? '≈ ${_n(rData.slq! * 20 / 100)} % deep sleep' : null,
+          reference: 'Target 20 % deep sleep',
+          subScore: rData.slq != null ? Layer2Calculator.normalizeSLQ(rData.slq!) : null,
+          baseWeight: rW['slq']!,
+          share: rShares['slq']!,
+          method: 'Deep-sleep share ÷ 20 %, capped at 100.',
+        ),
+        MeasureDetail(
+          key: 'act',
+          label: 'Daily activity',
+          reading: rData.act != null ? '≈ ${_n(rData.act!.value * 100)} steps' : null,
+          reference: 'Goal 10,000 steps',
+          subScore: rData.act != null ? Layer2Calculator.normalizeACT(rData.act!) : null,
+          baseWeight: rW['act']!,
+          share: rShares['act']!,
+          method: 'Steps ÷ 10,000, capped at 100.',
+        ),
+        MeasureDetail(
+          key: 'wkl',
+          label: 'Exertion load',
+          reading: rData.wkl != null ? 'Load ${_n(rData.wkl!)} / 100' : null,
+          reference: 'Lower load = more recovery',
+          subScore: rData.wkl != null ? Layer2Calculator.normalizeWKL(rData.wkl!) : null,
+          baseWeight: rW['wkl']!,
+          share: rShares['wkl']!,
+          method: 'Inverted: 100 − load.',
+        ),
+        MeasureDetail(
+          key: 'str',
+          label: 'Stress',
+          reading: rData.str != null ? 'Stress ${_n(rData.str!)} / 100' : null,
+          reference: 'Estimated from HRV (60 ms = no stress)',
+          subScore: rData.str != null ? Layer2Calculator.normalizeSTR(rData.str!) : null,
+          baseWeight: rW['str']!,
+          share: rShares['str']!,
+          method: 'Inverted: 100 − stress.',
+        ),
+      ],
+    );
+
+    // ── Layer 3: Motion ──────────────────────────────────────────────────
+    final layer3 = Layer3MotionService(null);
+    final hasMi = mData.acc != null;
+    final hasMg = mData.gait != null && mData.gyr != null;
+    final hasMb = mData.psw != null && mData.ortho != null && mData.gyr != null;
+    final hasMp = mData.plnt != null;
+    final mW = {
+      'MI': mWeights['MI'] ?? 0.25,
+      'MG': mWeights['MG'] ?? 0.25,
+      'MB': mWeights['MB'] ?? 0.25,
+      'MP': mWeights['MP'] ?? 0.25,
+    };
+    final mShares = _shares(mW, {
+      if (hasMi) 'MI',
+      if (hasMg) 'MG',
+      if (hasMb) 'MB',
+      if (hasMp) 'MP',
+    });
+    final motion = LayerDetail(
+      key: 'mo',
+      label: 'Motion',
+      description: 'Impacts, walking pattern and balance from the ring and phone sensors.',
+      score: moScore,
+      lambda: lambdaMo,
+      measures: [
+        MeasureDetail(
+          key: 'MI',
+          label: 'Impact',
+          reading: hasMi ? '${_n(mData.acc!, 2)} g peak' : null,
+          reference: 'Stumble threshold 2.5 g',
+          subScore: hasMi ? layer3.calculateMI(mData.acc!) : null,
+          baseWeight: mW['MI']!,
+          share: mShares['MI']!,
+          method: 'S-curve: ~100 well below 2.5 g, 50 at 2.5 g, ~0 above 3 g.',
+        ),
+        MeasureDetail(
+          key: 'MG',
+          label: 'Walking pattern',
+          reading: hasMg ? 'Variability ${_n(mData.gait!, 2)}' : (mData.gait != null ? 'Variability ${_n(mData.gait!, 2)}' : null),
+          reference: hasMg ? 'Rotation ${_n(mData.gyr!, 1)} °/s' : 'Needs step pattern + rotation peak',
+          subScore: hasMg ? layer3.calculateMG(mData.gait!, mData.gyr!) : null,
+          baseWeight: mW['MG']!,
+          share: mShares['MG']!,
+          method: '100 − variability × 100, minus 0.2 × rotation speed.',
+        ),
+        MeasureDetail(
+          key: 'MB',
+          label: 'Balance',
+          reading: hasMb ? 'Sway ${_n(mData.psw!, 1)}, posture drop ${_n(mData.ortho!)}' : null,
+          reference: 'Needs a sway test and posture-change data',
+          subScore: hasMb ? layer3.calculateMB(mData.psw!, mData.ortho!, mData.gyr!) : null,
+          baseWeight: mW['MB']!,
+          share: mShares['MB']!,
+          method: 'Half postural sway, half drop after standing up.',
+        ),
+        MeasureDetail(
+          key: 'MP',
+          label: 'Foot pressure',
+          reading: hasMp ? 'CoP deviation ${_n(mData.plnt!, 1)}' : null,
+          reference: 'Needs a smart insole',
+          subScore: hasMp ? layer3.calculateMP(mData.plnt!) : null,
+          baseWeight: mW['MP']!,
+          share: mShares['MP']!,
+          method: '100 − 15 × centre-of-pressure deviation.',
+        ),
+      ],
+    );
+
+    // ── Fall history ─────────────────────────────────────────────────────
+    final now = DateTime.now();
+    var weighted = 0.0;
+    for (final fall in trailingFalls) {
+      var daysAgo = now.difference(fall.timestamp).inDays.toDouble();
+      if (daysAgo < 0) daysAgo = 0;
+      weighted += exp(-ln2 * (daysAgo / 90.0));
+    }
+    final history = FallHistoryDetail(
+      falls: trailingFalls.length,
+      weightedFalls: weighted,
+      ambulationHours: max(ambulationHours, 168.0),
+      belowAmbulationFloor: fhRate.isBelowAmbulationFloor,
+      rate: fhRate.rate,
+      normalized: fhNormalized,
+      lambda: lambdaFh,
+    );
+
+    return ScoreBreakdown(
+      layers: [physiology, recovery, motion],
+      fallHistory: history,
+      womensHealth: WomensHealthDetail(
+        applicable: wData.isApplicable && whScore != null,
+        score: whScore?.value,
+        daysSinceLastPeriod: wData.isApplicable ? wData.daysSinceLastPeriod : null,
+        isPMS: wData.isPMS,
+        confidence: whScore?.confidence,
+      ),
+      frs24: frs24,
+      frs30: frs30,
+      coverage: coverage,
+      coverageDetails: coverageDetails,
+      hsi: hsi,
+      hsiWeights: hsiWeights,
     );
   }
 }
