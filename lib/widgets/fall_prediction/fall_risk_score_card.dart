@@ -52,7 +52,7 @@ class FallRiskScoreCard extends StatelessWidget {
           );
         }
 
-        final score = result.frs24.value.toInt();
+        final score = result.frs24.value.round();
         String riskText;
         switch (result.frs24.value.riskBand) {
           case FrsRiskBand.low:

@@ -50,7 +50,7 @@ void main() {
     messenger.setMockMethodCallHandler(
         const MethodChannel(AppConfig.bleMethodChannel), (_) async => null);
     messenger.setMockStreamHandler(
-        const EventChannel(AppConfig.bleEventChannel), MockStreamHandler.inline(onListen: (_, __) {}));
+        const EventChannel(AppConfig.bleEventChannel), MockStreamHandler.inline(onListen: (_, _) {}));
   });
 
   testWidgets('connected ring shows battery percent and Disconnect only', (tester) async {

@@ -30,6 +30,14 @@ class FallPredictionEngine {
   static const double baseGamma = 0.20; // Motion
   static const double baseDelta = 0.15; // Women's Health
 
+  // FRS layer weights, lambda_L = ln(OR_L) / sum_j ln(OR_j), from published
+  // odds ratios: fall history 2.8 and gait/motion 2.1 (Deandrea 2010),
+  // physiology 1.73 (Mol 2019), recovery/sleep 1.27 (Baker 2024).
+  static const double lambdaFallHistory = 0.402;
+  static const double lambdaMotion = 0.290;
+  static const double lambdaPhysiology = 0.214;
+  static const double lambdaRecovery = 0.093;
+
   // Physiological Weights (Layer 1)
   static const double hrWeight = 0.20;
   static const double hrvWeight = 0.25;
@@ -276,11 +284,12 @@ class FallPredictionEngine {
     // Fall History Normalization: anchor the "100" ceiling to 1 fall per 100 ambulation-hours (0.01 falls/hour)
     double fhRateNormalized = (fhRate.rate * 10000.0).clamp(0.0, 100.0); 
 
-    // FRS-24 Weights (Actionable Alert Horizon)
-    double lambda1_24 = 0.35; // MO
-    double lambda2_24 = 0.15; // RC
-    double lambda3_24 = 0.20; // P
-    double lambda4_24 = 0.30; // FH
+    // FRS-24 Weights (Actionable Alert Horizon): lambda = ln(OR) / sum ln(OR),
+    // the same evidence weights as the backend engine (agent/fall_risk.py).
+    double lambda1_24 = lambdaMotion; // MO
+    double lambda2_24 = lambdaRecovery; // RC
+    double lambda3_24 = lambdaPhysiology; // P
+    double lambda4_24 = lambdaFallHistory; // FH
 
     double frsMoImpact = lambda1_24 * (100.0 - moScore.value);
     double frsRcImpact = lambda2_24 * (100.0 - rcScore.value);
@@ -302,10 +311,10 @@ class FallPredictionEngine {
 
     // FRS-30 Weights (Trend-Risk Profile)
     // Uses rolling baseline scores to represent the 30-day longitudinal trend/slope
-    double lambda1_30 = 0.35; // MO
-    double lambda2_30 = 0.15; // RC
-    double lambda3_30 = 0.20; // P
-    double lambda4_30 = 0.30; // FH
+    double lambda1_30 = lambdaMotion; // MO
+    double lambda2_30 = lambdaRecovery; // RC
+    double lambda3_30 = lambdaPhysiology; // P
+    double lambda4_30 = lambdaFallHistory; // FH
 
     // Explicit slope penalty: if current score is worse than baseline, risk increases.
     // The penalty is half of the deviation, modeling a negative longitudinal trajectory.

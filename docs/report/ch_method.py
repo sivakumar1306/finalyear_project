@@ -447,6 +447,6 @@ def write(w):
             ['Backend', 'Python 3, FastAPI, Uvicorn, LangGraph / LangChain, Supabase client'],
             ['Large language model', 'openai/gpt-oss-120b served by Groq (temperature 0.1)'],
             ['Signal processing and statistics', 'NumPy, SciPy, scikit-learn, pandas, WFDB (PhysioNet reader)'],
-            ['Testing and CI', 'pytest (123 backend tests), Flutter test (125 app tests), GitHub Actions APK build'],
+            ['Testing and CI', 'pytest (123 backend tests), Flutter test (127 app tests), GitHub Actions APK build'],
             ['Development hardware', 'Windows laptop running the backend; Android phone running the app'],
         ], [5.0, 10.5], size=10)
