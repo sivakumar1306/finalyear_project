@@ -17,10 +17,10 @@ from docx.shared import Cm, Pt, Emu
 
 HERE = Path(__file__).parent
 TEMPLATE = HERE / 'tpl' / 'template.docx'
-OUT = HERE / 'Final_Report.docx'
 
 sys.path.insert(0, str(HERE))
 import content as C  # noqa: E402
+OUT = HERE / f"Final_Report_{C.ME[0].title().replace(' ', '_')}.docx"
 
 PAGES = json.loads(Path(sys.argv[1]).read_text()) if len(sys.argv) > 1 else {}
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
@@ -290,23 +290,23 @@ for el in (els[14], els[15]):
 set_text(els[26], [(C.MONTH_YEAR, {})])
 
 # Declaration
+NAME, REG = C.ME
 set_text(els[33], [
-    ('We hereby declare that the report titled ', {}), (f'“{T}”', dict(bold=True)),
-    (' submitted by us to the School of Electronics Engineering, Vellore Institute of Technology, Chennai, in partial '
-     'fulfilment of the requirements for the award of ', {}), ('Bachelor of Technology', dict(bold=True)), (' in ', {}),
-    ('Electronics and Computer Engineering', dict(bold=True)),
-    (', is a bonafide record of the work carried out by us under the supervision of ', {}),
+    ('I hereby declare that the report titled ', {}), (f'“{T}”', dict(bold=True)),
+    (f' submitted by me, {NAME} ({REG}), to the School of Electronics Engineering, Vellore Institute of Technology, '
+     'Chennai, in partial fulfilment of the requirements for the award of ', {}), ('Bachelor of Technology', dict(bold=True)),
+    (' in ', {}), ('Electronics and Computer Engineering', dict(bold=True)),
+    (', is a bonafide record of the work carried out by me under the supervision of ', {}),
     (C.GUIDE, dict(bold=True)), ('.', {})])
-set_text(els[34], [('We further declare that the work reported in this report has not been submitted and will not be '
+set_text(els[34], [('I further declare that the work reported in this report has not been submitted and will not be '
                     'submitted, either in part or in full, for the award of any other degree or diploma of this '
                     'institute or of any other institute or University.', {})])
-set_text(els[35], [('Signature of the Students:', {})])
-set_text(els[36], [(f'Names and Reg. Nos.: {C.STUDENTS[0][0]} ({C.STUDENTS[0][1]}), '
-                    f'{C.STUDENTS[1][0]} ({C.STUDENTS[1][1]})', {})])
+set_text(els[35], [('Signature of the Candidate:', {})])
+set_text(els[36], [(f'Name and Reg. No.: {NAME} ({REG})', {})])
 # Certificate
 set_text(els[56], [
     ('This is to certify that the project report titled ', {}), (f'“{T}”', dict(bold=True)),
-    (f' submitted by {C.STUDENTS[0][0]} ({C.STUDENTS[0][1]}) and {C.STUDENTS[1][0]} ({C.STUDENTS[1][1]}) to Vellore '
+    (f' submitted by {NAME} ({REG}) to Vellore '
      'Institute of Technology, Chennai, in partial fulfilment of the requirement for the award of the degree of ', {}),
     ('Bachelor of Technology', dict(bold=True)), (' in ', {}), ('Electronics and Computer Engineering', dict(bold=True)),
     (' is a bonafide work carried out under my supervision. The project report fulfils the requirements as per the '

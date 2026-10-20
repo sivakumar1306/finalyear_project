@@ -19,7 +19,7 @@ class Dummy:
 # fill the registries without building
 ch_intro.write(Dummy()); ch_method.write(Dummy()); ch_results.write(Dummy())
 
-pdf = HERE / 'Final_Report.pdf'
+pdf = Path(sys.argv[1])
 n = int(re.search(r'Pages:\s+(\d+)', subprocess.run(['pdfinfo', str(pdf)], capture_output=True, text=True).stdout).group(1))
 pages = [subprocess.run(['pdftotext', '-layout', '-f', str(i), '-l', str(i), str(pdf), '-'],
                         capture_output=True, text=True).stdout for i in range(1, n + 1)]
@@ -81,5 +81,5 @@ for num, cap in C.TABS:
             break
 missing = [k for k in ([f'H:{n_ or t}' for _, n_, t in C.HEADS] + [f'F:{f}' for f, _ in C.FIGS] +
                        [f'T:{t}' for t, _ in C.TABS]) if k not in out]
-(HERE / 'pages.json').write_text(json.dumps(out, indent=1))
+Path(sys.argv[2]).write_text(json.dumps(out, indent=1))
 print('found', len(out), 'missing', missing)

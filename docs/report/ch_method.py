@@ -54,16 +54,17 @@ def write(w):
       'The application was reduced to three sections, reached from a bottom navigation bar, following a dark, '
       'minimal design system with glass-style cards:')
     w.bullets([
-        '**Home** – cards for heart rate, blood oxygen, HRV, stress, blood pressure, temperature and sleep (and '
-        'women’s health for female users). Each card opens a detail screen with daily charts and statistics.',
+        '**Home** – a ring card with the ring’s name, connection status, battery level and Pair / Disconnect '
+        'buttons, followed by cards for heart rate, blood oxygen, HRV, stress, blood pressure, temperature and sleep '
+        '(and women’s health for female users). Each card opens a detail screen with daily charts and statistics.',
         '**AI Assist** – a chat with the agent. Replies can include data cards (for example a heart-rate trend). The '
         'address of the agent server on the laptop is set from a button on this screen.',
         '**Fall Risk** – the current Fall Risk Score, its tier, the fall history, and a “How this score is '
         'calculated” page that walks from the final score down to each measurement (Section 3.4.10).',
     ])
-    ph(w, '3.2', 'Home dashboard with vital-sign cards', '[Insert screenshot: Home dashboard]')
-    ph(w, '3.3', 'AI Assist conversation with a data card', '[Insert screenshot: AI Assist chat]')
-    ph(w, '3.4', 'Fall Risk page and score explanation', '[Insert screenshots: Fall Risk tab and “How this score is calculated”]')
+    fig(w, '3.2', 'app_home.jpg', 'Home dashboard: ring status card and vital-sign cards', 6.5)
+    fig(w, '3.3', 'app_ai_assist.jpg', 'AI Assist: 30-day key changes and a grounded answer to “how is my overall health”', 6.5)
+    fig(w, '3.4', 'app_fall_risk.jpg', 'Fall Risk tab (left) and the “How your score is calculated” page (right)', 13)
 
     # 3.3 ─────────────────────────────────────────────────────────────────────
     h2(w, '3.3', 'Data Sources and Datasets')
@@ -446,6 +447,6 @@ def write(w):
             ['Backend', 'Python 3, FastAPI, Uvicorn, LangGraph / LangChain, Supabase client'],
             ['Large language model', 'openai/gpt-oss-120b served by Groq (temperature 0.1)'],
             ['Signal processing and statistics', 'NumPy, SciPy, scikit-learn, pandas, WFDB (PhysioNet reader)'],
-            ['Testing and CI', 'pytest (123 backend tests), Flutter test (122 app tests), GitHub Actions APK build'],
+            ['Testing and CI', 'pytest (123 backend tests), Flutter test (125 app tests), GitHub Actions APK build'],
             ['Development hardware', 'Windows laptop running the backend; Android phone running the app'],
         ], [5.0, 10.5], size=10)
