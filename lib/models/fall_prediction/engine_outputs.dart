@@ -18,8 +18,9 @@ enum FrsRiskBand { low, moderate, high }
 
 extension FrsRiskBandClassification on double {
   FrsRiskBand get riskBand {
-    if (this <= 30.0) return FrsRiskBand.low;
-    if (this <= 60.0) return FrsRiskBand.moderate;
+    // LOW < 40, MODERATE 40–69, HIGH >= 70 (same tiers as the backend engine).
+    if (this < 40.0) return FrsRiskBand.low;
+    if (this < 70.0) return FrsRiskBand.moderate;
     return FrsRiskBand.high;
   }
 }

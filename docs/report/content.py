@@ -1,10 +1,14 @@
 """Report content: constants, registries, front matter. Chapters live in ch_*.py."""
+import os
 from pathlib import Path
 
 IMG = Path(__file__).parent / 'img'
 
 TITLE = 'Explainable, Safety-Aware Fall-Risk Prediction from Smart-Ring Data'
 STUDENTS = [('G SIVAKUMAR', '23BCE1834'), ('KRITI SAHANA V', '23BCE1868')]
+# Each student submits their own copy: both names on the cover, everything
+# else (declaration, certificate, acknowledgements, biodata) for this one.
+ME = STUDENTS[int(os.environ.get('REPORT_FOR', '0'))]
 GUIDE = 'Dr. Sheena Christabel Pravin'
 MONTH_YEAR = 'October 2026'
 
@@ -77,19 +81,20 @@ KEYWORDS = ('Fall-risk prediction, smart ring, explainable AI, personal baseline
             'safety fusion, gait analysis, menstrual cycle')
 
 ACK = [
-    f'We wish to express our sincere thanks and deep sense of gratitude to our project guide, **{GUIDE}**, School of '
-    'Electronics Engineering (SENSE), for the consistent encouragement and valuable guidance throughout the course of '
-    'this project. The advice to go deeper into signal processing shaped the gait-analysis work in this report.',
-    'We sincerely express our gratitude to **Dr. Ravi Sankar A**, Dean, SENSE; **Dr. Mohanaprasad K**, Associate Dean '
+    f'It is my pleasure to express with a deep sense of gratitude to my project guide, **{GUIDE}**, School of '
+    'Electronics Engineering (SENSE), Vellore Institute of Technology, Chennai, for the constant guidance, continual '
+    'encouragement and understanding extended to me throughout this work. The advice to go deeper into signal '
+    'processing shaped the gait-analysis work in this report.',
+    'I sincerely express my gratitude to **Dr. Ravi Sankar A**, Dean, SENSE; **Dr. Mohanaprasad K**, Associate Dean '
     '(Academics), SENSE; and **Dr. Chitra K**, Associate Dean (Research), SENSE, for providing the necessary facilities '
-    'and for their constant encouragement and support throughout our project.',
-    'We also extend our heartfelt thanks to **Dr. Vijayakumar P**, Head of the Department, for the continuous guidance '
+    'and for their constant encouragement and support throughout the project.',
+    'I also extend my heartfelt thanks to **Dr. Vijayakumar P**, Head of the Department, for the continuous guidance '
     'and support during the course of this project, and to the review panel members for their feedback at each review.',
-    'We thank the creators of the PhysioNet Long Term Movement Monitoring Database for making their data openly '
-    'available, which allowed us to validate our methods on real recordings.',
-    'We also take this opportunity to thank all the faculty of the School for their support and their wisdom imparted '
-    'to us throughout the course. We thank our parents, family, and friends for bearing with us throughout the course of '
-    'our project and for the opportunity they provided us in undergoing this course in such a prestigious institution.',
+    'I thank the creators of the PhysioNet Long Term Movement Monitoring Database for making their data openly '
+    'available, which allowed the methods to be validated on real recordings.',
+    'I also take this opportunity to thank all the faculty of the School for their support and the knowledge imparted '
+    'throughout the course. I thank my parents, family and friends for their support throughout the project and for '
+    'the opportunity they provided me to undergo this course in such a prestigious institution.',
 ]
 
 STANDARDS = [
@@ -174,7 +179,9 @@ def front_matter(w, PAGES):
     for t in ACK:
         w.body(t)
     w.spacer(240)
-    p = w.body(f'{STUDENTS[0][0].title()}  {STUDENTS[1][0].title()}')
+    w.body('Place: Chennai', after=40)
+    w.body('Date:', after=40)
+    w.body(f'**{ME[0].title()}** ({ME[1]})')
     # Codes and standards
     w.front_title('Codes and Standards')
     w.body(f'**Project Title:** {TITLE}')

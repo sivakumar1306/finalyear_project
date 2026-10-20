@@ -163,11 +163,11 @@ Color _bandColor(FrsRiskBand band) {
 String _bandLabel(FrsRiskBand band) {
   switch (band) {
     case FrsRiskBand.low:
-      return 'Low risk (0–30)';
+      return 'Low risk (0–39)';
     case FrsRiskBand.moderate:
-      return 'Moderate risk (31–60)';
+      return 'Moderate risk (40–69)';
     case FrsRiskBand.high:
-      return 'High risk (61–100)';
+      return 'High risk (70–100)';
   }
 }
 
@@ -346,10 +346,10 @@ class _FormulaCard extends StatelessWidget {
     final p = layer('p');
     final fh = breakdown.fallHistory;
     final rows = [
-      _FormulaRow('mo', 'Motion', '${_f(mo.lambda, 2)} × (100 − ${mo.score.round()})', mo.frsPoints),
-      _FormulaRow('rc', 'Recovery', '${_f(rc.lambda, 2)} × (100 − ${rc.score.round()})', rc.frsPoints),
-      _FormulaRow('p', 'Physiology', '${_f(p.lambda, 2)} × (100 − ${p.score.round()})', p.frsPoints),
-      _FormulaRow('fh', 'Fall history', '${_f(fh.lambda, 2)} × ${_f(fh.normalized)}', fh.frsPoints),
+      _FormulaRow('mo', 'Motion', '${_f(mo.lambda, 3)} × (100 − ${mo.score.round()})', mo.frsPoints),
+      _FormulaRow('rc', 'Recovery', '${_f(rc.lambda, 3)} × (100 − ${rc.score.round()})', rc.frsPoints),
+      _FormulaRow('p', 'Physiology', '${_f(p.lambda, 3)} × (100 − ${p.score.round()})', p.frsPoints),
+      _FormulaRow('fh', 'Fall history', '${_f(fh.lambda, 3)} × ${_f(fh.normalized)}', fh.frsPoints),
     ];
 
     return GlassCard(
@@ -434,7 +434,8 @@ class _FormulaCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Weights λ: motion 0.35, fall history 0.30, physiology 0.20, recovery 0.15. '
+            'Weights λ = ln(odds ratio) ÷ Σ ln(odds ratio): fall history 0.402, motion 0.290, '
+            'physiology 0.214, recovery 0.093. '
             'Women\'s health shapes the stability index but never adds fall points directly.',
             style: _caption(),
           ),

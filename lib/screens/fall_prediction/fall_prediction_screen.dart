@@ -186,7 +186,7 @@ class _FallPredictionScreenState extends State<FallPredictionScreen> {
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
     final fallProvider = context.watch<FallPredictionProvider>();
-    final realScore = fallProvider.currentResult?.frs24.value.toInt() ?? 0;
+    final realScore = fallProvider.currentResult?.frs24.value.round() ?? 0;
     final tier = _debugTier ?? _tierFromScore(realScore);
 
     final String message = ble.fallPredictionMessage.isNotEmpty

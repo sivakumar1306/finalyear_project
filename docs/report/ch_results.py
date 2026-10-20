@@ -1,5 +1,5 @@
 """Chapter 4 (Results), Chapter 5 (Conclusion), Appendix, Bibliography, Biodata."""
-from content import chapter, h2, h3, fig, ph, tab, P, unnumbered, STUDENTS
+from content import chapter, h2, h3, fig, ph, tab, P, unnumbered, ME
 
 REFS = [
     'H. H. Mohammed, G. Kiss, J. A. Serrano, and F. Lindseth, “Agentic health analytics for personalized insights from '
@@ -443,7 +443,7 @@ def write(w):
 
     # ── BIODATA ──────────────────────────────────────────────────────────────
     unnumbered(w, 'Biodata')
-    for name, reg in STUDENTS:
+    for name, reg in (ME,):
         w.placeholder('[Photo – insert here]', '')
         for line in (f'Name: {name.title()} ({reg})', 'Mobile No.:', 'E-mail:', 'Permanent Address:'):
             w.body(line, after=40)
