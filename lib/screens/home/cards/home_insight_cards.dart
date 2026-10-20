@@ -4,6 +4,7 @@ import '../../../providers/ble_provider.dart';
 import '../../../utils/ring_names.dart';
 import '../../../services/chat_api_service.dart';
 import '../../../theme/app_theme.dart';
+import '../../../widgets/glass_card.dart';
 import '../../../widgets/app_typography.dart';
 import '../../main_shell.dart';
 import '../ring_scan_sheet.dart';
@@ -348,84 +349,184 @@ class ShrinkButtonState extends State<ShrinkButton> {
 
 // ── Device pill ───────────────────────────────────────────────────────────────
 
-class DevicePill extends StatelessWidget {
+/// Ring connection card on Home: name, live status, battery level and the
+/// Pair / Disconnect actions (moved here from the old Settings ring card).
+class RingStatusCard extends StatelessWidget {
   final BleProvider ble;
-  const DevicePill({
-    super.key,required this.ble});
+  const RingStatusCard({super.key, required this.ble});
 
   @override
   Widget build(BuildContext context) {
     final connected = ble.isConnected;
     final reconnecting = ble.isReconnecting;
+    final paired = ble.deviceAddress.isNotEmpty && isRingDeviceName(ble.deviceName);
     final battery = ble.battery;
-    final ringName = isRingDeviceName(ble.deviceName) ? ble.deviceName : '';
-    final label = connected
-        ? (ringName.isNotEmpty ? ringName : 'Ring')
-        : 'Offline';
+    final title = paired ? ble.deviceName : 'No ring paired';
+    final status = connected
+        ? 'Connected'
+        : reconnecting
+            ? 'Reconnecting…'
+            : paired
+                ? 'Disconnected'
+                : 'Pair your ring to start tracking';
 
-    return GestureDetector(
-      onTap: () => showRingScanSheet(context),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: kCardBg,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: kCardBorder, width: 0.5),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (reconnecting)
-              const SizedBox(
-                width: 7,
-                height: 7,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.5,
-                  color: AppTheme.gold,
-                ),
-              )
-            else
-              Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: connected
-                      ? AppTheme.success
-                      : Colors.white.withValues(alpha: 0.2),
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Image.asset('ring.webp', width: 44, height: 44, fit: BoxFit.contain),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: inter(14, weight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        if (reconnecting)
+                          const SizedBox(
+                            width: 7,
+                            height: 7,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: AppTheme.gold,
+                            ),
+                          )
+                        else
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: connected
+                                  ? AppTheme.success
+                                  : Colors.white.withValues(alpha: 0.2),
+                            ),
+                          ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            status,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: inter(12,
+                                color: connected ? AppTheme.success : AppTheme.textSec),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            const SizedBox(width: 6),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 96),
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: inter(
-                  11,
-                  weight: FontWeight.w600,
-                  color: connected ? Colors.white : Colors.white38,
+              if (paired && battery >= 0) ...[
+                const SizedBox(width: 8),
+                Icon(
+                  battery > 60
+                      ? Icons.battery_full_rounded
+                      : battery > 30
+                          ? Icons.battery_3_bar_rounded
+                          : Icons.battery_1_bar_rounded,
+                  color: battery > 20
+                      ? Colors.white.withValues(alpha: 0.65)
+                      : AppTheme.danger,
+                  size: 18,
                 ),
-              ),
-            ),
-            if (battery >= 0) ...[
-              const SizedBox(width: 6),
-              Icon(
-                battery > 60
-                    ? Icons.battery_full_rounded
-                    : battery > 30
-                    ? Icons.battery_3_bar_rounded
-                    : Icons.battery_1_bar_rounded,
-                color: battery > 20
-                    ? Colors.white.withValues(alpha: 0.5)
-                    : AppTheme.danger,
-                size: 14,
-              ),
+                const SizedBox(width: 2),
+                Text(
+                  '$battery%',
+                  style: inter(14,
+                      weight: FontWeight.w600,
+                      color: battery > 20 ? Colors.white : AppTheme.danger),
+                ),
+              ],
             ],
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (!connected)
+                Expanded(
+                  child: _RingActionButton(
+                    label: paired ? 'Pair again' : 'Pair Ring',
+                    color: AppTheme.gold,
+                    onPressed: () => showRingScanSheet(context),
+                  ),
+                ),
+              if (!connected && paired) const SizedBox(width: 8),
+              if (paired)
+                Expanded(
+                  child: _RingActionButton(
+                    label: 'Disconnect',
+                    color: Colors.white70,
+                    onPressed: () => _confirmDisconnect(context),
+                  ),
+                ),
+            ],
+          ),
+        ],
       ),
+    );
+  }
+
+  Future<void> _confirmDisconnect(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppTheme.card2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Disconnect ring', style: inter(17, weight: FontWeight.w600)),
+        content: Text(
+          'This will disconnect and remove the pairing with your ring. '
+          'Measurements stop until you pair it again.',
+          style: inter(14, color: AppTheme.textSec, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('Cancel', style: inter(14, color: AppTheme.textSec)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text('Disconnect',
+                style: inter(14, weight: FontWeight.w600, color: AppTheme.danger)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await ble.disconnect();
+  }
+}
+
+class _RingActionButton extends StatelessWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
+  const _RingActionButton({
+    required this.label,
+    required this.color,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: Colors.white.withValues(alpha: 0.03),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        foregroundColor: color,
+      ),
+      child: Text(label, style: inter(13, weight: FontWeight.w600, color: color)),
     );
   }
 }

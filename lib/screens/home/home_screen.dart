@@ -16,11 +16,9 @@ import '../../theme/app_theme.dart';
 import '../../widgets/footer_spacer.dart';
 import '../../widgets/glass_card.dart';
 import '../../utils/formatters.dart';
-import '../../utils/ring_names.dart';
 import '../../widgets/glass_pill.dart';
 import '../fall_prediction/fall_prediction_screen.dart';
 import 'home_card_id.dart';
-import 'ring_scan_sheet.dart';
 import 'cards/home_card_shared.dart';
 import 'cards/home_compact_cards.dart';
 import 'cards/home_insight_cards.dart';
@@ -748,44 +746,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              if (ble.isConnected ||
-                  (ble.deviceAddress.isNotEmpty &&
-                      isRingDeviceName(ble.deviceName)))
-                DevicePill(ble: ble)
-              else
-                _buildPairRingPill(context),
             ],
           ),
+          const SizedBox(height: 16),
+          RingStatusCard(ble: ble),
         ],
-      ),
-    );
-  }
-
-  Widget _buildPairRingPill(BuildContext context) {
-    return GestureDetector(
-      onTap: () => showRingScanSheet(context),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: AppTheme.gold.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: AppTheme.gold.withValues(alpha: 0.4),
-            width: 0.5,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.add, color: AppTheme.gold, size: 14),
-            const SizedBox(width: 4),
-            Text(
-              'Pair Ring',
-              style: inter(12, weight: FontWeight.w600, color: AppTheme.gold),
-            ),
-          ],
-        ),
       ),
     );
   }

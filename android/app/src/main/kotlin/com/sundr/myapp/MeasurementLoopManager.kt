@@ -40,6 +40,12 @@ object MeasurementLoopManager {
     private const val TAG = "MeasurementLoop"
     private const val DISCONNECTED_RECHECK_MS = 8_000L
     private const val WORKOUT_RECHECK_MS = 15_000L
+    // After the ring confirms its bind, wait this long before the first cycle so Dart's
+    // post-connect setTime / HR-interval / battery commands go out ahead of the first vital.
+    private const val POST_BIND_SETTLE_MS = 3_000L
+    // If bindReady never arrives (user dismissed the pairing dialog, old firmware), start
+    // anyway after this long — same budget as BleProvider._waitForBindReady().
+    private const val BIND_WAIT_TIMEOUT_MS = 15_000L
 
     // Fixed ceiling timeouts — the adaptive system uses actual response time + headroom,
     // but these hard caps prevent a stuck ring from blocking the loop indefinitely.
@@ -89,6 +95,10 @@ object MeasurementLoopManager {
     private val handler = Handler(Looper.getMainLooper())
     private var started = false
     private val runningCycle = AtomicBoolean(false)
+    // Set between the GATT connect and the ring's bind confirmation (0 = not waiting).
+    // Measurement commands sent in that window are ignored by the ring, so every vital ran to
+    // its timeout and the first real reading only came a full cooldown later.
+    @Volatile private var bindWaitUntilMs = 0L
     private lateinit var repository: ReadingRepository
 
     // ── Adaptive timeout helpers ────────────────────────────────────────────
@@ -144,16 +154,25 @@ object MeasurementLoopManager {
         handler.removeCallbacks(cycleRunnable)
     }
 
-    // Hooked directly from BlePlugin.onServiceDiscovered() so the loop reacts immediately on
-    // connect rather than waiting on its own disconnected-recheck poll.
+    // Hooked from BlePlugin.onServiceDiscovered(). The ring is linked but not yet bound, so
+    // hold the loop until onRingReady() (or the bind timeout) instead of measuring now.
     fun onRingConnected() {
+        bindWaitUntilMs = System.currentTimeMillis() + BIND_WAIT_TIMEOUT_MS
+        runningCycle.set(false)
+        if (started) scheduleNext(BIND_WAIT_TIMEOUT_MS)
+    }
+
+    // Hooked from BlePlugin.sendBindSuccessWithRetry() (the "bindReady" event): the ring now
+    // accepts measurement commands, so start the first cycle right away.
+    fun onRingReady() {
+        bindWaitUntilMs = 0L
         if (!started) return
         runningCycle.set(false)
-        handler.removeCallbacks(cycleRunnable)
-        handler.post(cycleRunnable)
+        scheduleNext(POST_BIND_SETTLE_MS)
     }
 
     fun onRingDisconnected() {
+        bindWaitUntilMs = 0L
         runningCycle.set(false)
     }
 
@@ -174,6 +193,11 @@ object MeasurementLoopManager {
         val connected = com.sundr.myapp.sdk.BleSdkLifecycle.isConnected()
         if (!connected) {
             scheduleNext(DISCONNECTED_RECHECK_MS)
+            return
+        }
+        val bindWaitMs = bindWaitUntilMs - System.currentTimeMillis()
+        if (bindWaitMs > 0) {
+            scheduleNext(bindWaitMs)
             return
         }
         if (MeasurementCoordinator.isWorkoutActive) {
@@ -283,6 +307,8 @@ object MeasurementLoopManager {
         // seeing a full cooldown-length gap in the auto cycle.
         val delay = when {
             status == "YIELDED_TO_MANUAL" -> WORKOUT_RECHECK_MS
+            // Retry as soon as the ring is back rather than sitting out a full cooldown.
+            status == "ABORTED_DISCONNECT" -> DISCONNECTED_RECHECK_MS
             status != "COMPLETED" -> MeasurementConfig.getCycleCooldownMs()
             isAnomalyDetected() -> {
                 consecutiveNormalCycles = 0

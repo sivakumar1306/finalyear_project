@@ -878,6 +878,7 @@ class BlePlugin(private val context: Context) {
         )
         mainHandler.post {
             sendEvent("bindReady", emptyMap<String, Any>())
+            MeasurementLoopManager.onRingReady()
         }
     }
 
