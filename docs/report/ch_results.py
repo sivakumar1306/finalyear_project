@@ -1,5 +1,8 @@
 """Chapter 4 (Results), Chapter 5 (Conclusion), Appendix, Bibliography, Biodata."""
-from content import chapter, h2, h3, fig, ph, tab, P, unnumbered, ME
+import json
+from pathlib import Path
+
+from content import chapter, h2, h3, fig, ph, tab, P, unnumbered, ME, STUDENTS
 
 REFS = [
     'H. H. Mohammed, G. Kiss, J. A. Serrano, and F. Lindseth, “Agentic health analytics for personalized insights from '
@@ -443,8 +446,15 @@ def write(w):
 
     # ── BIODATA ──────────────────────────────────────────────────────────────
     unnumbered(w, 'Biodata')
-    for name, reg in (ME,):
+    # Personal details live in private/biodata.json (git-ignored); placeholders otherwise.
+    name, reg = ME
+    bio_file = Path(__file__).parent / 'private' / 'biodata.json'
+    bio = json.loads(bio_file.read_text()).get(str(STUDENTS.index(ME)), {}) if bio_file.exists() else {}
+    photo = bio_file.parent / bio.get('photo', '-')
+    if photo.is_file():
+        w.picture(photo, 3.5)
+    else:
         w.placeholder('[Photo – insert here]', '')
-        for line in (f'Name: {name.title()} ({reg})', 'Mobile No.:', 'E-mail:', 'Permanent Address:'):
-            w.body(line, after=40)
-        w.spacer(360)
+    for label, value in (('Name', f'{name.title()} ({reg})'), ('Mobile No.', bio.get('mobile', '')),
+                         ('E-mail', bio.get('email', '')), ('Permanent Address', bio.get('address', ''))):
+        w.body(f'**{label}:** {value}', after=80)

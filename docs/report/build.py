@@ -170,6 +170,11 @@ class Writer:
         p.add_run().add_picture(str(path), width=Cm(width_cm))
         self.caption(caption)
 
+    def picture(self, path, width_cm):
+        p = self._p()
+        ppr(p, '<w:keepNext/><w:spacing w:before="160" w:after="200"/><w:jc w:val="center"/>')
+        p.add_run().add_picture(str(path), width=Cm(width_cm))
+
     def placeholder(self, text, caption):
         p = self._p()
         ppr(p, '<w:keepNext/><w:pBdr><w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
