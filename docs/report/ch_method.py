@@ -1,5 +1,5 @@
 """Chapter 3: Methodology and System Design."""
-from content import chapter, h2, h3, fig, ph, tab, P, FIGS, IMG
+from content import chapter, h2, h3, fig, ph, tab, P
 
 
 def write(w):
@@ -354,9 +354,8 @@ def write(w):
       'nights. Five fixed pairs (such as sleep duration → HRV and stress → next-night sleep score) are tested with the '
       'Pearson correlation over the last 45 days, and a pattern is reported only if at least 14 days are available, '
       '|r| ≥ 0.40 and p < 0.05.')
-    # Full-page landscape figure at the end of 3.6, so the text above fills its page
-    FIGS.append(('3.10', 'Pipeline of the agent'))
-    w.landscape_figure(IMG / 'architecture_slide.png', 'Figure 3.10: Pipeline of the agent')
+    # Rotated diagram filling a normal portrait page, at the end of 3.6 so the text above fills its page
+    fig(w, '3.10', 'architecture_rot.png', 'Pipeline of the agent', 7.6)
 
     # 3.7 ─────────────────────────────────────────────────────────────────────
     h2(w, '3.7', 'Evaluation Methodology')
