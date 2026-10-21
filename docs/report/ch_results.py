@@ -380,16 +380,17 @@ def write(w):
     w.code([
         'EVIDENCE_RATIOS = {"FH": 2.8, "MO": 2.1, "P": 1.73, "RC": 1.27}',
         '_LN = {k: math.log(v) for k, v in EVIDENCE_RATIOS.items()}',
-        'BASE_LAYER_WEIGHTS = {k: v / sum(_LN.values()) for k, v in _LN.items()}',
+        'BASE_LAYER_WEIGHTS = {k: v / sum(_LN.values())',
+        '                      for k, v in _LN.items()}',
         '',
         'def _robust_baseline(values, min_scale):',
-        '    """Median and MAD-based spread (1.4826*MAD ~ SD for normal data)."""',
+        '    """Median and MAD-based spread (1.4826*MAD ~ SD)."""',
         '    med = statistics.median(values)',
         '    mad = statistics.median([abs(v - med) for v in values])',
         '    return med, max(1.4826 * mad, min_scale)',
         '',
         'def _strain_from_z(z_risk):',
-        '    """Map a risk-direction z-score to 0-100 strain with a noise dead-zone."""',
+        '    """Risk-direction z-score -> 0-100 strain, with dead zone."""',
         '    s = (z_risk - DEAD_ZONE_Z) / (FULL_STRAIN_Z - DEAD_ZONE_Z)',
         '    return max(0.0, min(1.0, s)) * 100.0',
     ])
@@ -400,14 +401,16 @@ def write(w):
         '    triggered_kw = match_emergency_keywords(message)',
         '    is_llm_emerg, llm_reason, llm_conf = llm_res',
         '    llm_triggered = is_llm_emerg and llm_conf >= 0.7',
-        '    # a keyword hit is ignored only if the LLM confidently disagrees',
+        '    # keyword hit ignored only if the LLM confidently disagrees',
         '    if triggered_kw and not is_llm_emerg and llm_conf >= 0.85:',
         '        effective_kw = []',
         '    else:',
         '        effective_kw = triggered_kw',
-        '    # an uncancelled ring fall in the last 30 min escalates ANY message',
+        '    # an uncancelled ring fall in the last 30 min escalates',
+        '    # ANY message',
         '    biometric_triggered = bool(biometric_event)',
-        '    is_emergency = bool(effective_kw) or llm_triggered or biometric_triggered',
+        '    is_emergency = (bool(effective_kw) or llm_triggered',
+        '                    or biometric_triggered)',
         '    ...',
     ])
     w.spacer(160)
@@ -415,13 +418,16 @@ def write(w):
     w.code([
         'def compute_grounding_score_strict(final_reply, patient_data):',
         '    numbers = re.findall(r"\\d+(?:\\.\\d+)?", final_reply or "")',
-        '    checked = [n for n in numbers if n not in _GROUNDING_ALLOWLIST]',
+        '    checked = [n for n in numbers',
+        '               if n not in _GROUNDING_ALLOWLIST]',
         '    if not checked:',
         '        return {"grounding_score": 1.0, "ungrounded_numbers": []}',
         '    ungrounded = [n for n in checked if not re.search(',
-        '        r"(?<![\\d.])" + re.escape(n) + r"(?![\\d]|\\.\\d)", patient_data)]',
+        '        r"(?<![\\d.])" + re.escape(n) + r"(?![\\d]|\\.\\d)",',
+        '        patient_data)]',
         '    score = (len(checked) - len(ungrounded)) / len(checked)',
-        '    return {"grounding_score": round(score, 4), "ungrounded_numbers": ungrounded}',
+        '    return {"grounding_score": round(score, 4),',
+        '            "ungrounded_numbers": ungrounded}',
     ])
     w.spacer(160)
     w.h3('Appendix 3: Reproducing the Results')
@@ -440,7 +446,7 @@ def write(w):
     ])
 
     # ── BIBLIOGRAPHY ─────────────────────────────────────────────────────────
-    unnumbered(w, 'Bibliography')
+    unnumbered(w, 'Bibliography', after=320)  # template spacing
     for r in REFS:
         w.bib(r)
 

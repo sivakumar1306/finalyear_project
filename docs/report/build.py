@@ -104,10 +104,10 @@ class Writer:
         ppr(p, f'<w:spacing w:after="{after}" w:line="360" w:lineRule="auto"/>{ind}<w:jc w:val="both"/>')
         return add_runs(p, text)
 
-    def front_title(self, text, page_break=True):
+    def front_title(self, text, page_break=True, after=400):
         p = self._p()
         pb = '<w:pageBreakBefore/>' if page_break else ''
-        ppr(p, f'{pb}<w:spacing w:before="80" w:after="400"/><w:jc w:val="center"/>')
+        ppr(p, f'{pb}<w:spacing w:before="80" w:after="{after}"/><w:jc w:val="center"/>')
         return add_runs(p, text, size=16, bold=True)
 
     def chapter(self, num, title):
@@ -154,7 +154,7 @@ class Writer:
         r._r.append(parse_xml(f'<w:tab {nsdecls("w")}/>'))
         add_runs(p, f'({num})')
 
-    def caption(self, text, before=60, after=240):
+    def caption(self, text, before=60, after=200):
         p = self._p()
         ppr(p, f'<w:keepLines/><w:spacing w:before="{before}" w:after="{after}"/><w:jc w:val="center"/>')
         return add_runs(p, text, size=11, italic=True)
@@ -188,10 +188,10 @@ class Writer:
     def code(self, lines):
         for ln in lines:
             p = self._p()
-            ppr(p, '<w:keepLines/><w:spacing w:before="0" w:after="0"/><w:ind w:left="360"/>')
+            ppr(p, '<w:keepLines/><w:spacing w:before="30" w:after="30"/><w:ind w:left="720"/>')
             r = p.add_run(ln if ln else ' ')
             r.font.name = 'Courier New'
-            r.font.size = Pt(8)
+            r.font.size = Pt(10)  # template: Courier New, 10 pt
             rpr = r._r.get_or_add_rPr()
             rpr.get_or_add_rFonts().set(qn('w:eastAsia'), 'Courier New')
             rpr.get_or_add_rFonts().set(qn('w:cs'), 'Courier New')
@@ -248,16 +248,16 @@ class Writer:
                 p = cell.paragraphs[0]
                 jc = 'center' if ri == 0 else ((align[ci] if align else 'left'))
                 ppr(p, f'<w:spacing w:before="20" w:after="20"/><w:jc w:val="{jc}"/>')
-                add_runs(p, str(val), size=size, bold=(ri == 0))
+                add_runs(p, str(val), size=size, bold=(ri == 0), font='Times New Roman')  # as the template's tables
         # space after table
         self.spacer(after=120)
         return tbl
 
-    def toc_line(self, text, page, indent=0, italic_page=False, before=20):
+    def toc_line(self, text, page, indent=0, italic_page=False, before=40):
         p = self._p()
         ind = f'<w:ind w:left="{indent}"/>' if indent else ''
         ppr(p, f'<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="8666"/></w:tabs>'
-               f'<w:spacing w:before="{before}" w:after="20"/>{ind}')
+               f'<w:spacing w:before="{before}" w:after="40"/>{ind}')
         add_runs(p, text)
         r = p.add_run()
         r._r.append(parse_xml(f'<w:tab {nsdecls("w")}/>'))
@@ -266,7 +266,7 @@ class Writer:
     def bib(self, text):
         p = self._p()
         ppr(p, '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr>'
-               '<w:spacing w:before="60" w:after="120"/><w:jc w:val="both"/>')
+               '<w:spacing w:before="80" w:after="320"/><w:jc w:val="both"/>')
         add_runs(p, text)
 
 
@@ -281,7 +281,7 @@ def set_text(par_el, text_parts):
 
 
 T = C.TITLE
-set_text(els[4], [(C.MAIN_TITLE, dict(bold=True, size=18))])
+set_text(els[4], [(C.MAIN_TITLE, dict(bold=True, size=20))])
 subtitle = copy.deepcopy(els[4]); els[4].addnext(subtitle)
 set_text(subtitle, [(C.SUBTITLE, dict(size=14))])
 set_text(els[12], [(C.STUDENTS[0][0], {})])
