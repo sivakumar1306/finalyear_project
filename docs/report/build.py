@@ -175,6 +175,33 @@ class Writer:
         ppr(p, '<w:keepNext/><w:spacing w:before="160" w:after="200"/><w:jc w:val="center"/>')
         p.add_run().add_picture(str(path), width=Cm(width_cm))
 
+    def landscape_figure(self, path, caption, width_cm=23.0):
+        """Put one figure on its own landscape page; page numbers continue."""
+        final = self.anchor  # the body sectPr (chapters: arabic, starts at 1)
+        # 1. close the portrait section so far (keeps the arabic restart at 1)
+        brk = self._p()
+        ppr(brk, '<w:spacing w:before="0" w:after="0"/>')
+        brk._p.get_or_add_pPr().append(copy.deepcopy(final))
+        # later sections continue the numbering instead of restarting
+        num = final.find(qn('w:pgNumType'))
+        if num is not None and num.get(qn('w:start')) is not None:
+            del num.attrib[qn('w:start')]
+        # 2. the figure and caption, ending in a landscape section break
+        p = self._p()
+        ppr(p, '<w:spacing w:before="0" w:after="60"/><w:jc w:val="center"/>')
+        p.add_run().add_picture(str(path), width=Cm(width_cm))
+        self.caption(caption)
+        land = copy.deepcopy(final)
+        sz = land.find(qn('w:pgSz'))
+        w_, h_ = sz.get(qn('w:w')), sz.get(qn('w:h'))
+        sz.set(qn('w:w'), h_); sz.set(qn('w:h'), w_); sz.set(qn('w:orient'), 'landscape')
+        mar = land.find(qn('w:pgMar'))
+        for k in ('top', 'right', 'bottom', 'left'):
+            mar.set(qn(f'w:{k}'), '1440')
+        end = self._p()
+        ppr(end, '<w:spacing w:before="0" w:after="0"/>')
+        end._p.get_or_add_pPr().append(land)
+
     def placeholder(self, text, caption):
         p = self._p()
         ppr(p, '<w:keepNext/><w:pBdr><w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
@@ -265,8 +292,12 @@ class Writer:
 
     def bib(self, text):
         p = self._p()
+        # hanging indent wide enough for "[10]".."[23]" so every entry's text
+        # starts at the same tab (the template's 0.25" fits only one digit)
         ppr(p, '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr>'
-               '<w:spacing w:before="80" w:after="320"/><w:jc w:val="both"/>')
+               '<w:tabs><w:tab w:val="num" w:pos="720"/></w:tabs>'
+               '<w:spacing w:before="80" w:after="320"/><w:ind w:left="720" w:hanging="720"/>'
+               '<w:jc w:val="both"/>')
         add_runs(p, text)
 
 
