@@ -306,7 +306,7 @@ def write(w):
       'safety signals are fused; (3) if there is no emergency, only the data streams the router selected are fetched; '
       '(4) the engine computes the fall-risk score and its contributors; (5) the LLM explains the numbers; and (6) '
       'every number in the reply is checked against the data before it is sent.')
-    fig(w, '3.10', 'architecture_rot.png', 'Pipeline of the agent (rotated)', 7.6)
+    fig(w, '3.10', 'architecture_rot.png', 'Pipeline of the agent', 7.6)
     h3(w, '3.6.1', 'Confidence-Scored Routing with Safety Widening')
     P(w,
       'The router is an LLM call that selects which of twelve data streams (profile, current heart rate, sleep, '

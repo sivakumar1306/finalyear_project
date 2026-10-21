@@ -265,7 +265,7 @@ def write(w):
             ['Grounding tests', 'Digit-boundary matching and the correction rule', 'Pass'],
             ['Routing tests', 'Safety widening at low confidence', 'Pass'],
             ['Backend total', '123 tests', 'All pass'],
-            ['Application total', '122 tests, incl. layout tests at 320 px and 1.3× text', 'All pass'],
+            ['Application total', '127 tests, incl. layout tests at 320 px and 1.3× text', 'All pass'],
             ['Static analysis', 'flutter analyze', 'No issues'],
             ['Build', 'GitHub Actions APK build', 'Success'],
         ], [3.6, 8.4, 2.6], size=9.5)

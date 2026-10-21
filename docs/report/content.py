@@ -4,7 +4,9 @@ from pathlib import Path
 
 IMG = Path(__file__).parent / 'img'
 
-TITLE = 'Explainable, Safety-Aware Fall-Risk Prediction from Smart-Ring Data'
+MAIN_TITLE = 'Leveraging Agentic AI for Intelligent Personalized Health Monitoring'
+SUBTITLE = 'Explainable, Safety-Aware Fall-Risk Prediction from Smart-Ring Data'
+TITLE = f'{MAIN_TITLE}: {SUBTITLE}'  # full form used in the declaration, certificate, etc.
 STUDENTS = [('G SIVAKUMAR', '23BCE1834'), ('KRITI SAHANA V', '23BCE1868')]
 # Each student submits their own copy: both names on the cover, everything
 # else (declaration, certificate, acknowledgements, biodata) for this one.

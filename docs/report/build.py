@@ -281,7 +281,9 @@ def set_text(par_el, text_parts):
 
 
 T = C.TITLE
-set_text(els[4], [(T, dict(bold=True, size=18))])
+set_text(els[4], [(C.MAIN_TITLE, dict(bold=True, size=18))])
+subtitle = copy.deepcopy(els[4]); els[4].addnext(subtitle)
+set_text(subtitle, [(C.SUBTITLE, dict(size=14))])
 set_text(els[12], [(C.STUDENTS[0][0], {})])
 set_text(els[13], [(C.STUDENTS[0][1], {})])
 # second student under the first
