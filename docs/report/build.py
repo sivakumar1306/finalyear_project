@@ -104,10 +104,10 @@ class Writer:
         ppr(p, f'<w:spacing w:after="{after}" w:line="360" w:lineRule="auto"/>{ind}<w:jc w:val="both"/>')
         return add_runs(p, text)
 
-    def front_title(self, text, page_break=True):
+    def front_title(self, text, page_break=True, after=400):
         p = self._p()
         pb = '<w:pageBreakBefore/>' if page_break else ''
-        ppr(p, f'{pb}<w:spacing w:before="80" w:after="400"/><w:jc w:val="center"/>')
+        ppr(p, f'{pb}<w:spacing w:before="80" w:after="{after}"/><w:jc w:val="center"/>')
         return add_runs(p, text, size=16, bold=True)
 
     def chapter(self, num, title):
@@ -154,7 +154,7 @@ class Writer:
         r._r.append(parse_xml(f'<w:tab {nsdecls("w")}/>'))
         add_runs(p, f'({num})')
 
-    def caption(self, text, before=60, after=240):
+    def caption(self, text, before=60, after=200):
         p = self._p()
         ppr(p, f'<w:keepLines/><w:spacing w:before="{before}" w:after="{after}"/><w:jc w:val="center"/>')
         return add_runs(p, text, size=11, italic=True)
@@ -170,6 +170,38 @@ class Writer:
         p.add_run().add_picture(str(path), width=Cm(width_cm))
         self.caption(caption)
 
+    def picture(self, path, width_cm):
+        p = self._p()
+        ppr(p, '<w:keepNext/><w:spacing w:before="160" w:after="200"/><w:jc w:val="center"/>')
+        p.add_run().add_picture(str(path), width=Cm(width_cm))
+
+    def landscape_figure(self, path, caption, width_cm=23.0):
+        """Put one figure on its own landscape page; page numbers continue."""
+        final = self.anchor  # the body sectPr (chapters: arabic, starts at 1)
+        # 1. close the portrait section so far (keeps the arabic restart at 1)
+        brk = self._p()
+        ppr(brk, '<w:spacing w:before="0" w:after="0"/>')
+        brk._p.get_or_add_pPr().append(copy.deepcopy(final))
+        # later sections continue the numbering instead of restarting
+        num = final.find(qn('w:pgNumType'))
+        if num is not None and num.get(qn('w:start')) is not None:
+            del num.attrib[qn('w:start')]
+        # 2. the figure and caption, ending in a landscape section break
+        p = self._p()
+        ppr(p, '<w:spacing w:before="0" w:after="60"/><w:jc w:val="center"/>')
+        p.add_run().add_picture(str(path), width=Cm(width_cm))
+        self.caption(caption)
+        land = copy.deepcopy(final)
+        sz = land.find(qn('w:pgSz'))
+        w_, h_ = sz.get(qn('w:w')), sz.get(qn('w:h'))
+        sz.set(qn('w:w'), h_); sz.set(qn('w:h'), w_); sz.set(qn('w:orient'), 'landscape')
+        mar = land.find(qn('w:pgMar'))
+        for k in ('top', 'right', 'bottom', 'left'):
+            mar.set(qn(f'w:{k}'), '1440')
+        end = self._p()
+        ppr(end, '<w:spacing w:before="0" w:after="0"/>')
+        end._p.get_or_add_pPr().append(land)
+
     def placeholder(self, text, caption):
         p = self._p()
         ppr(p, '<w:keepNext/><w:pBdr><w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
@@ -183,10 +215,10 @@ class Writer:
     def code(self, lines):
         for ln in lines:
             p = self._p()
-            ppr(p, '<w:keepLines/><w:spacing w:before="0" w:after="0"/><w:ind w:left="360"/>')
+            ppr(p, '<w:keepLines/><w:spacing w:before="30" w:after="30"/><w:ind w:left="720"/>')
             r = p.add_run(ln if ln else ' ')
             r.font.name = 'Courier New'
-            r.font.size = Pt(8)
+            r.font.size = Pt(10)  # template: Courier New, 10 pt
             rpr = r._r.get_or_add_rPr()
             rpr.get_or_add_rFonts().set(qn('w:eastAsia'), 'Courier New')
             rpr.get_or_add_rFonts().set(qn('w:cs'), 'Courier New')
@@ -243,16 +275,16 @@ class Writer:
                 p = cell.paragraphs[0]
                 jc = 'center' if ri == 0 else ((align[ci] if align else 'left'))
                 ppr(p, f'<w:spacing w:before="20" w:after="20"/><w:jc w:val="{jc}"/>')
-                add_runs(p, str(val), size=size, bold=(ri == 0))
+                add_runs(p, str(val), size=size, bold=(ri == 0), font='Times New Roman')  # as the template's tables
         # space after table
         self.spacer(after=120)
         return tbl
 
-    def toc_line(self, text, page, indent=0, italic_page=False, before=20):
+    def toc_line(self, text, page, indent=0, italic_page=False, before=40):
         p = self._p()
         ind = f'<w:ind w:left="{indent}"/>' if indent else ''
         ppr(p, f'<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="8666"/></w:tabs>'
-               f'<w:spacing w:before="{before}" w:after="20"/>{ind}')
+               f'<w:spacing w:before="{before}" w:after="40"/>{ind}')
         add_runs(p, text)
         r = p.add_run()
         r._r.append(parse_xml(f'<w:tab {nsdecls("w")}/>'))
@@ -260,8 +292,12 @@ class Writer:
 
     def bib(self, text):
         p = self._p()
+        # hanging indent wide enough for "[10]".."[23]" so every entry's text
+        # starts at the same tab (the template's 0.25" fits only one digit)
         ppr(p, '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr>'
-               '<w:spacing w:before="60" w:after="120"/><w:jc w:val="both"/>')
+               '<w:tabs><w:tab w:val="num" w:pos="720"/></w:tabs>'
+               '<w:spacing w:before="80" w:after="320"/><w:ind w:left="720" w:hanging="720"/>'
+               '<w:jc w:val="both"/>')
         add_runs(p, text)
 
 
@@ -276,7 +312,9 @@ def set_text(par_el, text_parts):
 
 
 T = C.TITLE
-set_text(els[4], [(T, dict(bold=True, size=18))])
+set_text(els[4], [(C.MAIN_TITLE, dict(bold=True, size=20))])
+subtitle = copy.deepcopy(els[4]); els[4].addnext(subtitle)
+set_text(subtitle, [(C.SUBTITLE, dict(size=14))])
 set_text(els[12], [(C.STUDENTS[0][0], {})])
 set_text(els[13], [(C.STUDENTS[0][1], {})])
 # second student under the first

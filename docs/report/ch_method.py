@@ -301,12 +301,12 @@ def write(w):
     # 3.6 ─────────────────────────────────────────────────────────────────────
     h2(w, '3.6', 'Explainable and Safety-Aware Agent')
     P(w,
-      'The agent answers the user’s questions in the AI Assist chat. Its pipeline (Figure 3.10) has six stages: '
+      'The agent answers the user’s questions in the AI Assist chat. Its pipeline (Figure 3.10, at the end of this '
+      'section) has six stages: '
       '(1) a router, an LLM safety classifier and a lookup of recent ring fall events run in parallel; (2) the three '
       'safety signals are fused; (3) if there is no emergency, only the data streams the router selected are fetched; '
       '(4) the engine computes the fall-risk score and its contributors; (5) the LLM explains the numbers; and (6) '
       'every number in the reply is checked against the data before it is sent.')
-    fig(w, '3.10', 'architecture_rot.png', 'Pipeline of the agent (rotated)', 7.6)
     h3(w, '3.6.1', 'Confidence-Scored Routing with Safety Widening')
     P(w,
       'The router is an LLM call that selects which of twelve data streams (profile, current heart rate, sleep, '
@@ -354,6 +354,8 @@ def write(w):
       'nights. Five fixed pairs (such as sleep duration → HRV and stress → next-night sleep score) are tested with the '
       'Pearson correlation over the last 45 days, and a pattern is reported only if at least 14 days are available, '
       '|r| ≥ 0.40 and p < 0.05.')
+    # Rotated diagram filling a normal portrait page, at the end of 3.6 so the text above fills its page
+    fig(w, '3.10', 'architecture_rot.png', 'Pipeline of the agent', 7.6)
 
     # 3.7 ─────────────────────────────────────────────────────────────────────
     h2(w, '3.7', 'Evaluation Methodology')
@@ -414,24 +416,34 @@ def write(w):
     P(w, 'The computation of the Fall Risk Score is summarised below.')
     w.code([
         'Algorithm 1: Fall Risk Score for user u on date d0',
-        'Input : daily rows of u (45 days), cycle logs, fall events (366 days)',
+        'Input : daily rows of u (45 days), cycle logs,',
+        '        fall events (366 days)',
         'Output: FRS, tier, Q, contributions',
-        '1  for each feature k in {HRV, RHR, SpO2, Temp, Sleep, SleepScore, Stress, Steps}:',
-        '2      x_k <- latest value on or before d0 (missing if older than 7 days)',
-        '3      H_k <- values in the 28 days before that date   (need >= 7)',
+        '1  for each feature k in {HRV, RHR, SpO2, Temp, Sleep,',
+        '                          SleepScore, Stress, Steps}:',
+        '2      x_k <- latest value on or before d0',
+        '              (missing if older than 7 days)',
+        '3      H_k <- values in the 28 days before it (need >= 7)',
         '4      if cycle-eligible and k in {HRV, RHR, Temp}:',
-        '5          H_k <- same-phase days of H_k (if >= 5), else apply luteal offsets',
-        '6      m_k <- median(H_k);  s_k <- max(1.4826 * MAD(H_k), minScale_k)',
+        '5          H_k <- same-phase days of H_k (if >= 5),',
+        '                  else apply luteal offsets',
+        '6      m_k <- median(H_k)',
+        '       s_k <- max(1.4826 * MAD(H_k), minScale_k)',
         '7      z_k <- direction_k * (x_k - m_k) / s_k',
-        '8      strain_k <- 100 * clip((z_k - 0.5) / 2.5, 0, 1)   (+ SpO2 floor)',
-        '9  nearStrain <- min(100, 50 * nearFalls14d);  R_FH <- {0, 60, 100}[falls365d]',
+        '8      strain_k <- 100 * clip((z_k - 0.5) / 2.5, 0, 1)',
+        '                   (+ SpO2 floor)',
+        '9  nearStrain <- min(100, 50 * nearFalls14d)',
+        '   R_FH <- {0, 60, 100}[falls365d]',
         '10 for each layer L in {P, RC, MO}:',
         '11     R_L <- sum(w_k * strain_k) / p_L;   c_L <- p_L / W_L',
-        '12 lambda_L <- ln(ratio_L) / sum_j ln(ratio_j)      (FH 2.8, MO 2.1, P 1.73, RC 1.27)',
+        '12 lambda_L <- ln(ratio_L) / sum_j ln(ratio_j)',
+        '              (FH 2.8, MO 2.1, P 1.73, RC 1.27)',
         '13 lambda\'_L <- lambda_L * c_L / sum_j lambda_j * c_j',
-        '14 FRS <- round(sum_L lambda\'_L * R_L);  tier <- LOW | MODERATE | HIGH (40, 70)',
+        '14 FRS <- round(sum_L lambda\'_L * R_L)',
+        '   tier <- LOW | MODERATE | HIGH   (cut-offs 40, 70)',
         '15 Q <- 100 * sum_L lambda_L * c_L - staleness penalty',
-        '16 points_k <- lambda\'_L * (w_k / p_L) * strain_k     (sum of points = FRS)',
+        '16 points_k <- lambda\'_L * (w_k / p_L) * strain_k',
+        '              (sum of points = FRS)',
         '17 return FRS, tier, Q, points',
     ])
     w.spacer(160)

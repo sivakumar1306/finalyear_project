@@ -1,1 +1,5 @@
 __pycache__/
+# Personal details and the finished reports that contain them stay local.
+private/
+Final_Report_*.docx
+Final_Report_*.pdf

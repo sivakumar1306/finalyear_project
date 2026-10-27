@@ -4,7 +4,9 @@ from pathlib import Path
 
 IMG = Path(__file__).parent / 'img'
 
-TITLE = 'Explainable, Safety-Aware Fall-Risk Prediction from Smart-Ring Data'
+MAIN_TITLE = 'Leveraging Agentic AI for Intelligent Personalized Health Monitoring'
+SUBTITLE = 'Explainable, Safety-Aware Fall-Risk Prediction from Smart-Ring Data'
+TITLE = f'{MAIN_TITLE}: {SUBTITLE}'  # full form used in the declaration, certificate, etc.
 STUDENTS = [('G SIVAKUMAR', '23BCE1834'), ('KRITI SAHANA V', '23BCE1868')]
 # Each student submits their own copy: both names on the cover, everything
 # else (declaration, certificate, acknowledgements, biodata) for this one.
@@ -30,9 +32,9 @@ def h3(w, num, title):
     w.h3(f'{num} {title}')
 
 
-def unnumbered(w, title):
+def unnumbered(w, title, after=400):
     HEADS.append((0, '', title))
-    w.front_title(title)
+    w.front_title(title, after=after)
 
 
 def fig(w, num, file, caption, width=14.5):
@@ -194,7 +196,7 @@ def front_matter(w, PAGES):
     # SDGs
     w.front_title('Mapping of Sustainable Development Goals (SDGs)')
     w.body(f'**Project Title:** {TITLE}')
-    w.table(['Mapped SDG', 'Justification', 'Expected Impact'], SDG_ROWS, [4.2, 6.0, 5.6], size=10)
+    w.table(['Mapped SDG', 'Justification', 'Expected Impact'], SDG_ROWS, [4.2, 6.0, 5.6], size=12)
     # TOC
     w.front_title('Table of Contents')
     for name in ('Declaration', 'Certificate', 'Abstract', 'Acknowledgements', 'Codes and Standards',
@@ -205,7 +207,7 @@ def front_matter(w, PAGES):
     for level, num, title in HEADS:
         if level == 0:
             label = f'{num} {title}' if num else title
-            w.toc_line(label, pg(f'H:{num or title}'), before=100)
+            w.toc_line(label, pg(f'H:{num or title}'))
         else:
             w.toc_line(f'{num} {title}', pg(f'H:{num}'), indent=480 * level)
         prev_level = level
@@ -217,7 +219,7 @@ def front_matter(w, PAGES):
     for num, cap in TABS:
         w.toc_line(f'{num} {cap}', pg(f'T:{num}'))
     w.front_title('List of Acronyms')
-    w.table(['Acronym', 'Full Form'], ACRONYMS, [3.0, 9.5], size=10)
+    w.table(['Acronym', 'Full Form'], ACRONYMS, [3.0, 9.5], size=12)
 
 
 def chapters(w, PAGES):
