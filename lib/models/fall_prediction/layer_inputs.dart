@@ -90,47 +90,26 @@ class Layer2RecoveryData {
   });
 }
 
-class Layer3Baselines {
-  final double baselineAcc;
-  final double baselineGyr;
-  final double baselineGait;
-  final double baselinePsw;
-  final double baselineOrtho;
-  final double baselinePlnt;
-
-  const Layer3Baselines({
-    required this.baselineAcc,
-    required this.baselineGyr,
-    required this.baselineGait,
-    required this.baselinePsw,
-    required this.baselineOrtho,
-    required this.baselinePlnt,
-  });
-}
-
-// Layer 3 Inputs: Motion Stability raw inputs
+// Layer 3 Inputs: Motion — daily steps and near-falls, as in the report's engine
 class Layer3MotionData {
-  final double? acc;   // Accelerometer-derived resultant acceleration magnitude
-  final double? gyr;   // Gyroscope-derived angular velocity
-  final double? gait;  // Gait consistency / variability
-  final double? psw;   // Postural sway (from patent 003, claims 21–23)
-  final double? ortho; // Orthostatic HR/BP trajectory after posture change
-  final double? plnt;  // Plantar pressure array signal
+  final double? steps;        // Latest complete day's step count (ring)
+  final double? stepsMedian;  // Personal median of the 28 days before that day
+  final double? stepsSpread;  // Robust spread: max(1.4826 × MAD, 500 steps)
+  final int? nearFalls14d;    // Fall alerts the phone recorded in the last 14 days
   final double? fh;    // Fall history (single home: Layer 3 only)
   final ActivityExposure? actExp; // Activity exposure (ambulation hours)
-  final Layer3Baselines? baselines; // Historical baselines
 
   Layer3MotionData({
-    required this.acc,
-    required this.gyr,
-    required this.gait,
-    required this.psw,
-    required this.ortho,
-    required this.plnt,
+    required this.steps,
+    required this.stepsMedian,
+    required this.stepsSpread,
+    required this.nearFalls14d,
     required this.fh,
     required this.actExp,
-    this.baselines,
   });
+
+  bool get hasSteps => steps != null && stepsMedian != null && stepsSpread != null && stepsSpread! > 0;
+  bool get hasNearFalls => nearFalls14d != null;
 }
 
 // Layer 4 Inputs: Women's Health

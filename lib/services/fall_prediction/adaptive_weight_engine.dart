@@ -69,21 +69,12 @@ class AdaptiveWeightEngine {
     return renormalizeWeights(baseWeights, multipliers);
   }
 
-  static Map<String, double> getMotionWeights(ContextFactors context, {bool hasSmartInsole = true}) {
-    Map<String, double> baseWeights = {
-      'MI': 0.25,
-      'MG': 0.35,
-      'MB': 0.40,
-      'MP': 0.25,
-    };
-    Map<String, double> multipliers = {
-      'MI': 1.0,
-      'MG': 1.0,
-      'MB': 1.0,
-      // If no insole, force MP context to 0.0 before renormalizing
-      'MP': hasSmartInsole ? 1.0 : 0.0,
-    };
-    return renormalizeWeights(baseWeights, multipliers);
+  /// Motion layer: daily steps 0.5, near-falls 0.5 (report, Table 3.3).
+  static Map<String, double> getMotionWeights(ContextFactors context) {
+    return renormalizeWeights(
+      {'steps': 0.5, 'nearFalls': 0.5},
+      {'steps': 1.0, 'nearFalls': 1.0},
+    );
   }
 
   static Map<String, double> getHsiGlobalWeights(ContextFactors context, {bool includeWomensHealth = true}) {

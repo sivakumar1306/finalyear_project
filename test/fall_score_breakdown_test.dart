@@ -55,7 +55,7 @@ void main() {
         slp: 60, slq: 40, act: const ActivityRecovery(35), wkl: 35, str: 50,
       ),
       mData: Layer3MotionData(
-        acc: 2.3, gyr: 40, gait: 0.3, psw: null, ortho: null, plnt: null,
+        steps: 4000, stepsMedian: 8000, stepsSpread: 1000, nearFalls14d: 1,
         fh: 1, actExp: const ActivityExposure(35),
       ),
       wData: _noWh(),
@@ -97,7 +97,7 @@ void main() {
       ),
       rData: Layer2RecoveryData(slp: null, slq: null, act: null, wkl: null, str: null),
       mData: Layer3MotionData(
-        acc: null, gyr: null, gait: null, psw: null, ortho: null, plnt: null,
+        steps: null, stepsMedian: null, stepsSpread: null, nearFalls14d: null,
         fh: 0, actExp: const ActivityExposure(100),
       ),
       wData: _noWh(),

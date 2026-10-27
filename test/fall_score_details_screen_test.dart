@@ -45,7 +45,7 @@ Future<PredictionResult> _realResult({required bool womensHealth}) async {
     ),
     rData: Layer2RecoveryData(slp: 60, slq: 40, act: const ActivityRecovery(35), wkl: 35, str: 50),
     mData: Layer3MotionData(
-      acc: 2.3, gyr: 40, gait: 0.3, psw: null, ortho: null, plnt: null,
+      steps: 4000, stepsMedian: 8000, stepsSpread: 1000, nearFalls14d: 1,
       fh: 1, actExp: const ActivityExposure(35),
     ),
     wData: Layer4WomensHealthData(
@@ -93,7 +93,7 @@ void main() {
     await _pump(tester, result!);
     expect(tester.takeException(), isNull);
     for (final text in ['HOW THE SCORE ADDS UP', 'Physiology', 'Recovery', 'Motion', 'Fall history',
-        'Heart rate', 'Sleep duration', 'Impact', 'Women\'s health', 'DATA COVERAGE']) {
+        'Heart rate', 'Sleep duration', 'Daily steps', 'Near-falls', 'Women\'s health', 'DATA COVERAGE']) {
       expect(find.text(text, findRichText: true), findsWidgets, reason: text);
     }
     expect(find.text('= ${result.frs24.value.round()}'), findsOneWidget);

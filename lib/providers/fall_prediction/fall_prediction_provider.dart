@@ -9,6 +9,7 @@ import '../../services/fall_prediction/fall_prediction_engine.dart';
 import '../../services/fall_prediction/layer2_recovery.dart';
 import '../../services/fall_prediction/layer1_physiology.dart' show BpSource;
 import '../../services/health_connect_service.dart';
+import '../../services/local_vitals_service.dart';
 import '../ble_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../services/fall_prediction/layer3_motion.dart';
@@ -86,7 +87,8 @@ class FallPredictionProvider extends ChangeNotifier {
 
   List<FallEvent>? _cachedTrailingFalls;
   DateTime? _lastFallsFetch;
-  ({double acc, double gyr})? _cachedMotionPeak;
+  ({double? steps, double? median, double? spread})? _cachedStepsBaseline;
+  DateTime? _lastStepsFetch;
 
   /// Latest native motion-monitoring snapshot (FallMotionDetector state).
   /// Exposed for future UI ("monitoring active/idle"); deliberately NOT fed
@@ -274,6 +276,31 @@ class FallPredictionProvider extends ChangeNotifier {
 
 
 
+  /// Daily step history from the phone's local store, refreshed hourly
+  /// (it only changes once a day).
+  Future<({double? steps, double? median, double? spread})> _stepsBaseline(DateTime now) async {
+    final cached = _cachedStepsBaseline;
+    if (cached != null && _lastStepsFetch != null && now.difference(_lastStepsFetch!).inHours < 1) {
+      return cached;
+    }
+    try {
+      final rows = await LocalVitalsService().getHistory('steps', days: 36, end: now);
+      final daily = <DateTime, int>{};
+      for (final r in rows) {
+        final dayMs = (r['dayEpochMs'] as num?)?.toInt();
+        final steps = (r['steps'] as num?)?.toInt() ?? (r['avg'] as num?)?.round() ?? 0;
+        if (dayMs == null || steps <= 0) continue;
+        final d = DateTime.fromMillisecondsSinceEpoch(dayMs);
+        daily[DateTime(d.year, d.month, d.day)] = steps;
+      }
+      _cachedStepsBaseline = Layer3MotionService.stepsBaseline(daily, today: now);
+      _lastStepsFetch = now;
+    } catch (_) {
+      _cachedStepsBaseline ??= (steps: null, median: null, spread: null);
+    }
+    return _cachedStepsBaseline!;
+  }
+
   void _recalculate() async {
     // Primary source: native Room `fall_event` (written by FallMotionDetector
     // and FallRiskAnalyzer). The Supabase `falls` table is merged as a
@@ -283,8 +310,6 @@ class FallPredictionProvider extends ChangeNotifier {
     // 15-minute health sync promptly.
     List<FallEvent> trailingFalls = [];
     double? fh;
-    double? motionAcc;
-    double? motionGyr;
     final now = DateTime.now();
     final oneYearAgo = now.subtract(const Duration(days: 365));
     final fallsStale = _cachedTrailingFalls == null ||
@@ -311,8 +336,6 @@ class FallPredictionProvider extends ChangeNotifier {
         final merged = [...nativeFalls, ...remoteFalls]
           ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
         _cachedTrailingFalls = merged;
-        _cachedMotionPeak =
-            Layer3MotionService.recentMotionPeak(nativeRows);
         _lastFallsFetch = now;
         try {
           _motionSnapshot =
@@ -334,28 +357,20 @@ class FallPredictionProvider extends ChangeNotifier {
     fh = _bleProvider != null
         ? trailingFalls.length.toDouble()
         : (trailingFalls.isNotEmpty ? trailingFalls.length.toDouble() : null);
-    motionAcc = _cachedMotionPeak?.acc;
-    motionGyr = _cachedMotionPeak?.gyr;
-
-    // Step-pattern gait proxy (heuristic, see Layer3MotionService). Stays
-    // null on insufficient data. psw/ortho/plnt stay null: no sway test,
-    // no posture-change timestamps, no smart insole on this hardware.
-    double? gaitProxy;
-    try {
-      gaitProxy = Layer3MotionService.gaitVariabilityFromStepSlots(
-        _bleProvider?.todayStepsByInterval ?? const [],
-      );
-    } catch (_) {
-      gaitProxy = null;
-    }
+    // Motion (report, Table 3.3): the last full day's steps against the
+    // personal 28-day median, and fall alerts in the last 14 days. Unknown
+    // history (no source at all) stays null, as for fall history above.
+    final stepsBaseline = await _stepsBaseline(now);
+    final fourteenDaysAgo = now.subtract(const Duration(days: 14));
+    final nearFalls = _bleProvider != null
+        ? trailingFalls.where((f) => f.timestamp.isAfter(fourteenDaysAgo)).length
+        : null;
 
     final mData = Layer3MotionData(
-      acc: motionAcc,
-      gyr: motionGyr,
-      gait: gaitProxy,
-      psw: null,
-      ortho: null,
-      plnt: null,
+      steps: stepsBaseline.steps,
+      stepsMedian: stepsBaseline.median,
+      stepsSpread: stepsBaseline.spread,
+      nearFalls14d: nearFalls,
       fh: fh,
       actExp: _lastActExp,
     );

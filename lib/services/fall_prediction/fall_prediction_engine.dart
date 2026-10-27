@@ -78,8 +78,7 @@ class FallPredictionEngine {
     }
 
     // Step B: Build the ContextFactors payload from the user's profile and current trends
-    // The `context` argument represents this payload. 
-    bool hasSmartInsole = (mData.plnt != null);
+    // The `context` argument represents this payload.
 
     // Step C: Fetch global HSI weights and layer-specific weights from AdaptiveWeightEngine
     Map<String, double> pWeightsRaw = AdaptiveWeightEngine.getPhysiologyWeights(context);
@@ -91,7 +90,7 @@ class FallPredictionEngine {
       temp: pWeightsRaw['temp'] ?? 0.15,
     );
     Map<String, double> rWeights = AdaptiveWeightEngine.getRecoveryWeights(context);
-    Map<String, double> mWeights = AdaptiveWeightEngine.getMotionWeights(context, hasSmartInsole: hasSmartInsole);
+    Map<String, double> mWeights = AdaptiveWeightEngine.getMotionWeights(context);
     Map<String, double> hsiWeights = AdaptiveWeightEngine.getHsiGlobalWeights(context, includeWomensHealth: wData.isApplicable);
 
     // Step D: Pass the layer-specific weights into Layer1Calculator, Layer2Calculator, and Layer3Calculator at the time of their execution.
@@ -243,21 +242,9 @@ class FallPredictionEngine {
       rcBaseline = Layer2Calculator.calculateRC(data: baseRData, wPrime: rWeights).value;
     }
 
-    // Compute true motion baseline
-    double moBaseline = 90.0;
-    if (mData.baselines != null) {
-      final baseMData = Layer3MotionData(
-        acc: mData.baselines!.baselineAcc,
-        gyr: mData.baselines!.baselineGyr,
-        gait: mData.baselines!.baselineGait,
-        psw: mData.baselines!.baselinePsw,
-        ortho: mData.baselines!.baselineOrtho,
-        plnt: mData.baselines!.baselinePlnt,
-        fh: 0.0, // Baseline assumes 0 fall history
-        actExp: const ActivityExposure(100.0), // Standard exposure
-      );
-      moBaseline = layer3Svc.calculateMO(baseMData, wPrime: mWeights).value;
-    }
+    // Motion baseline: steps at the personal median and no fall alerts carry
+    // no strain by definition, so the personal motion baseline is fully stable.
+    final double moBaseline = (mData.hasSteps || mData.hasNearFalls) ? 100.0 : 90.0;
 
     // Provide personal baseline scores for the UI insight payload
     final baselineScores = {
@@ -355,27 +342,9 @@ class FallPredictionEngine {
     qDenominator += stressWeight * baseBeta;
 
     double moNumerator = 0.0;
-    double moDenominator = 1.25; // Sum of base motion sub-weights (0.25 + 0.35 + 0.40 + 0.25)
-    
-    if (mData.acc != null) {
-      moNumerator += 0.25; // w_MI
-    }
-    if (mData.gait != null && mData.gyr != null) {
-      moNumerator += 0.35; // w_MG
-    } else if (mData.gait != null || mData.gyr != null) {
-      moNumerator += 0.175; // partial w_MG
-    }
-    
-    if (mData.psw != null && mData.ortho != null && mData.gyr != null) {
-      moNumerator += 0.40; // w_MB
-    } else {
-      if (mData.psw != null) moNumerator += 0.133;
-      if (mData.ortho != null) moNumerator += 0.133;
-      if (mData.gyr != null && mData.gait == null) moNumerator += 0.133; // partial w_MB
-    }
-    
-    if (mData.plnt != null) moNumerator += 0.25; // w_MP
-    
+    double moDenominator = 1.0; // daily steps 0.5 + near-falls 0.5
+    if (mData.hasSteps) moNumerator += 0.5;
+    if (mData.hasNearFalls) moNumerator += 0.5;
     qNumerator += (moNumerator / moDenominator) * baseGamma;
     qDenominator += baseGamma;
 
@@ -716,68 +685,46 @@ class FallPredictionEngine {
 
     // ── Layer 3: Motion ──────────────────────────────────────────────────
     final layer3 = Layer3MotionService(null);
-    final hasMi = mData.acc != null;
-    final hasMg = mData.gait != null && mData.gyr != null;
-    final hasMb = mData.psw != null && mData.ortho != null && mData.gyr != null;
-    final hasMp = mData.plnt != null;
     final mW = {
-      'MI': mWeights['MI'] ?? 0.25,
-      'MG': mWeights['MG'] ?? 0.25,
-      'MB': mWeights['MB'] ?? 0.25,
-      'MP': mWeights['MP'] ?? 0.25,
+      'steps': mWeights['steps'] ?? 0.5,
+      'nearFalls': mWeights['nearFalls'] ?? 0.5,
     };
     final mShares = _shares(mW, {
-      if (hasMi) 'MI',
-      if (hasMg) 'MG',
-      if (hasMb) 'MB',
-      if (hasMp) 'MP',
+      if (mData.hasSteps) 'steps',
+      if (mData.hasNearFalls) 'nearFalls',
     });
     final motion = LayerDetail(
       key: 'mo',
       label: 'Motion',
-      description: 'Impacts, walking pattern and balance from the ring and phone sensors.',
+      description: 'Daily steps from the ring and fall alerts from the phone.',
       score: moScore,
       lambda: lambdaMo,
       measures: [
         MeasureDetail(
-          key: 'MI',
-          label: 'Impact',
-          reading: hasMi ? '${_n(mData.acc!, 2)} g peak' : null,
-          reference: 'Stumble threshold 2.5 g',
-          subScore: hasMi ? layer3.calculateMI(mData.acc!) : null,
-          baseWeight: mW['MI']!,
-          share: mShares['MI']!,
-          method: 'S-curve: ~100 well below 2.5 g, 50 at 2.5 g, ~0 above 3 g.',
+          key: 'steps',
+          label: 'Daily steps',
+          reading: mData.steps != null ? '${_n(mData.steps!)} steps (last full day)' : null,
+          reference: mData.stepsMedian != null
+              ? '28-day median ${_n(mData.stepsMedian!)} steps'
+              : 'Needs 7 days of step history',
+          subScore: mData.hasSteps
+              ? layer3.calculateSteps(mData.steps!, mData.stepsMedian!, mData.stepsSpread!)
+              : null,
+          baseWeight: mW['steps']!,
+          share: mShares['steps']!,
+          method: '100 down to 0.5 SD below your median, 0 at 3 SD below it.',
         ),
         MeasureDetail(
-          key: 'MG',
-          label: 'Walking pattern',
-          reading: hasMg ? 'Variability ${_n(mData.gait!, 2)}' : (mData.gait != null ? 'Variability ${_n(mData.gait!, 2)}' : null),
-          reference: hasMg ? 'Rotation ${_n(mData.gyr!, 1)} °/s' : 'Needs step pattern + rotation peak',
-          subScore: hasMg ? layer3.calculateMG(mData.gait!, mData.gyr!) : null,
-          baseWeight: mW['MG']!,
-          share: mShares['MG']!,
-          method: '100 − variability × 100, minus 0.2 × rotation speed.',
-        ),
-        MeasureDetail(
-          key: 'MB',
-          label: 'Balance',
-          reading: hasMb ? 'Sway ${_n(mData.psw!, 1)}, posture drop ${_n(mData.ortho!)}' : null,
-          reference: 'Needs a sway test and posture-change data',
-          subScore: hasMb ? layer3.calculateMB(mData.psw!, mData.ortho!, mData.gyr!) : null,
-          baseWeight: mW['MB']!,
-          share: mShares['MB']!,
-          method: 'Half postural sway, half drop after standing up.',
-        ),
-        MeasureDetail(
-          key: 'MP',
-          label: 'Foot pressure',
-          reading: hasMp ? 'CoP deviation ${_n(mData.plnt!, 1)}' : null,
-          reference: 'Needs a smart insole',
-          subScore: hasMp ? layer3.calculateMP(mData.plnt!) : null,
-          baseWeight: mW['MP']!,
-          share: mShares['MP']!,
-          method: '100 − 15 × centre-of-pressure deviation.',
+          key: 'nearFalls',
+          label: 'Near-falls',
+          reading: mData.nearFalls14d != null
+              ? '${mData.nearFalls14d} fall alert${mData.nearFalls14d == 1 ? '' : 's'} in 14 days'
+              : null,
+          reference: 'Fall alerts from the phone\'s motion sensors',
+          subScore: mData.hasNearFalls ? layer3.calculateNearFalls(mData.nearFalls14d!) : null,
+          baseWeight: mW['nearFalls']!,
+          share: mShares['nearFalls']!,
+          method: '100 with none, 50 with one, 0 with two or more.',
         ),
       ],
     );

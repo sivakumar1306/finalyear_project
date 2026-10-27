@@ -72,15 +72,6 @@ class RedFlagOverrideService {
       }
     }
 
-    // 4. ORTHO Drop: Evaluate motion.ortho against a validated orthostatic drop threshold
-    if (motion.ortho != null && motion.ortho! >= 20.0) { // Using standard consensus definition: systolic drop >= 20 mmHg
-      escalationService.triggerAlert(
-        ladder: EscalationLadder.t0ToT120s,
-        reason: 'Critical Orthostatic drop threshold breached: ${motion.ortho} (>= 20 mmHg)',
-      );
-      return true;
-    }
-
     return false;
   }
 }
