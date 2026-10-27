@@ -605,7 +605,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       if (response == 'confirm') {
                         ble.dismissFallPredictionBanner();
                         if (context.mounted) {
-                          context.read<FallPredictionProvider>().simulateTier('clear');
+                          context.read<FallPredictionProvider>().refresh();
                         }
                       }
                     },

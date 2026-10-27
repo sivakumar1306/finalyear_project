@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../theme/app_theme.dart';
+import '../../services/fall_prediction/demo_patients.dart';
 import '../../widgets/app_typography.dart';
+import '../../widgets/glass_card.dart';
 
 // Tier labels for display only — the actual score comes from the native
 // FallRiskAnalyzer (see BleProvider.getFallRiskScore), not computed here.
@@ -294,6 +296,95 @@ class FallHistorySheet extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Shown above the score while a demo patient is open: who it is, how the
+/// score changed from the user's own, and a way to add a fall or go back.
+class DemoPatientCard extends StatelessWidget {
+  final DemoPatient patient;
+  final double? ownScore;
+  final double? demoScore;
+  final VoidCallback onAddFall;
+  final VoidCallback onBack;
+  const DemoPatientCard({
+    super.key,
+    required this.patient,
+    required this.ownScore,
+    required this.demoScore,
+    required this.onAddFall,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final own = ownScore?.round();
+    final theirs = demoScore?.round();
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'DEMO PATIENT · SYNTHETIC DATA',
+            style: AppTypography.inter(
+              color: AppTheme.gold,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            patient.name,
+            style: AppTypography.inter(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            patient.summary,
+            style: AppTypography.inter(color: AppTheme.textSec, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            theirs == null
+                ? 'Calculating…'
+                : own == null
+                    ? '${patient.name}\'s score: $theirs'
+                    : 'Your score $own  →  ${patient.name} $theirs',
+            style: AppTypography.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _DemoButton(label: 'Simulate a fall', color: AppTheme.gold, onPressed: onAddFall)),
+              const SizedBox(width: 8),
+              Expanded(child: _DemoButton(label: 'Back to my data', color: Colors.white70, onPressed: onBack)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DemoButton extends StatelessWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
+  const _DemoButton({required this.label, required this.color, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: Colors.white.withValues(alpha: 0.03),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.08), width: 0.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        foregroundColor: color,
+      ),
+      child: Text(label, style: AppTypography.inter(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
     );
   }
 }

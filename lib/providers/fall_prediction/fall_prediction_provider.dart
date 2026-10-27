@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import '../../models/fall_prediction/layer_inputs.dart';
 import '../../models/fall_prediction/context_factors.dart';
 import '../../models/fall_prediction/prediction_result.dart';
-import '../../models/fall_prediction/engine_outputs.dart';
 import '../../services/fall_prediction/fall_prediction_engine.dart';
 import '../../services/fall_prediction/layer2_recovery.dart';
 import '../../services/fall_prediction/layer1_physiology.dart' show BpSource;
@@ -13,6 +12,7 @@ import '../../services/local_vitals_service.dart';
 import '../ble_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../services/fall_prediction/layer3_motion.dart';
+import '../../services/fall_prediction/demo_patients.dart';
 
 import '../../services/fall_prediction/red_flag_override.dart';
 
@@ -56,6 +56,44 @@ class FallPredictionProvider extends ChangeNotifier {
 
   /// Recompute now, e.g. when the Fall Risk tab is opened.
   Future<void> refresh() => _fetchHealthData();
+
+  // ── Demo patients (report Table 3.2) ─────────────────────────────────────
+  DemoPatient? _demo;
+  List<FallEvent> _demoExtraFalls = const [];
+  double? _ownScore;
+
+  /// The demo patient shown instead of the live ring data, if any.
+  DemoPatient? get demoPatient => _demo;
+
+  /// The user's own score just before a demo patient was opened.
+  double? get ownScore => _ownScore;
+
+  /// Show [patient]'s score; the live data is left untouched.
+  Future<void> showDemoPatient(DemoPatient patient) async {
+    if (_demo == null) _ownScore = _currentResult?.frs24.value;
+    _demo = patient;
+    _demoExtraFalls = const [];
+    _currentResult = null;
+    notifyListeners();
+    await _recalculate();
+  }
+
+  /// Add a fall "now" to the demo patient, to show how the score responds.
+  Future<void> addDemoFall() async {
+    if (_demo == null) return;
+    _demoExtraFalls = [..._demoExtraFalls, FallEvent(timestamp: DateTime.now(), severity: 80)];
+    await _recalculate();
+  }
+
+  /// Back to the live ring data.
+  Future<void> showMyData() async {
+    _demo = null;
+    _demoExtraFalls = const [];
+    _ownScore = null;
+    _currentResult = null;
+    notifyListeners();
+    await _fetchHealthData();
+  }
 
   // Battery: a burst of readings (one measurement cycle) costs one pass.
   static const _minRefreshGap = Duration(seconds: 60);
@@ -133,7 +171,7 @@ class FallPredictionProvider extends ChangeNotifier {
       redFlagService: RedFlagOverrideService(),
       escalationService: _RealEscalationService(
         onAlert: (reason) async {
-          _bleProvider?.raiseFallAlert(reason);
+          if (_demo == null) _bleProvider?.raiseFallAlert(reason);
         },
       ),
       corroborationService: _MockCorroborationService(),
@@ -148,6 +186,10 @@ class FallPredictionProvider extends ChangeNotifier {
   }
 
   Future<void> _fetchHealthData() async {
+    if (_demo != null) {
+      await _recalculate();
+      return;
+    }
     if (_fetching || _disposed) return;
     _fetching = true;
     _lastFetchAt = DateTime.now();
@@ -225,53 +267,18 @@ class FallPredictionProvider extends ChangeNotifier {
     final bleSleepSecs = _bleProvider?.todaySleepDuration;
     final bleSleepDeepSecs = _bleProvider?.todaySleepDeepSecs;
     final bleSteps = _bleProvider?.todaySteps;
-    
-    double? sleepDurScore;
-    final finalSleepMinutes = today.sleepMinutes ?? (bleSleepSecs != null && bleSleepSecs > 0 ? bleSleepSecs / 60.0 : null);
-    if (finalSleepMinutes != null) {
-      sleepDurScore = (finalSleepMinutes / 480.0 * 100.0).clamp(0.0, 100.0);
-    }
 
-    double? sleepQualScore = sleepDurScore;
-    final finalDeepMinutes = bleSleepDeepSecs != null && bleSleepDeepSecs > 0 ? bleSleepDeepSecs / 60.0 : null;
-    if (finalDeepMinutes != null &&
-        finalSleepMinutes != null &&
-        finalSleepMinutes > 0) {
-      final deepPct = finalDeepMinutes / finalSleepMinutes;
-      sleepQualScore = (deepPct / 0.2 * 100.0).clamp(0.0, 100.0);
-    }
-
-    double? activityScore;
-    final finalSteps = today.steps ?? (bleSteps != null && bleSteps > 0 ? bleSteps : null);
-    if (finalSteps != null) {
-      activityScore = (finalSteps / 10000.0 * 100.0).clamp(0.0, 100.0);
-    }
-
-    double? stressScore;
-    final finalAvgHrv = today.avgHrv ?? (bleHrv != null && bleHrv > 0 ? bleHrv.toDouble() : null);
-    if (finalAvgHrv != null) {
-      stressScore = (100.0 - (finalAvgHrv / 60.0 * 100.0).clamp(0.0, 100.0))
-          .clamp(0.0, 100.0);
-    }
-
-    ActivityRecovery? actRecovery;
-    if (activityScore != null) {
-      final activitySplit = ActivityDataTransformer.splitRawActivity(
-        activityScore,
-      );
-      _lastActExp = activitySplit.$2;
-      actRecovery = activitySplit.$1;
-    }
-
-    _rData = Layer2RecoveryData(
-      slp: sleepDurScore,
-      slq: sleepQualScore,
-      act: actRecovery,
-      wkl: activityScore,
-      str: stressScore,
+    final recovery = recoveryFromReadings(
+      sleepMinutes: today.sleepMinutes?.toDouble() ??
+          (bleSleepSecs != null && bleSleepSecs > 0 ? bleSleepSecs / 60.0 : null),
+      deepSleepMinutes: bleSleepDeepSecs != null && bleSleepDeepSecs > 0 ? bleSleepDeepSecs / 60.0 : null,
+      steps: today.steps ?? (bleSteps != null && bleSteps > 0 ? bleSteps : null),
+      hrv: today.avgHrv ?? (bleHrv != null && bleHrv > 0 ? bleHrv.toDouble() : null),
     );
+    _rData = recovery.$1;
+    if (recovery.$2 != null) _lastActExp = recovery.$2!;
 
-    _recalculate();
+    await _recalculate();
   }
 
 
@@ -301,7 +308,24 @@ class FallPredictionProvider extends ChangeNotifier {
     return _cachedStepsBaseline!;
   }
 
-  void _recalculate() async {
+  Future<void> _recalculate() async {
+    final demo = _demo;
+    if (demo != null) {
+      final inputs = demo.engineInputs(extraFalls: _demoExtraFalls);
+      await _calculate(
+        pData: inputs.pData,
+        rData: inputs.rData,
+        wData: inputs.wData,
+        mData: inputs.mData,
+        trailingFalls: inputs.falls,
+        demo: demo,
+      );
+      return;
+    }
+    await _recalculateLive();
+  }
+
+  Future<void> _recalculateLive() async {
     // Primary source: native Room `fall_event` (written by FallMotionDetector
     // and FallRiskAnalyzer). The Supabase `falls` table is merged as a
     // secondary source for history that outlived the 90-day local retention
@@ -375,15 +399,37 @@ class FallPredictionProvider extends ChangeNotifier {
       actExp: _lastActExp,
     );
 
-    final v2Result = await _engine.calculateFRSv2(
+    await _calculate(
       pData: _pData,
       rData: _rData,
-      mData: mData,
       wData: _wData,
+      mData: mData,
+      trailingFalls: trailingFalls,
+      demo: null,
+    );
+  }
+
+  Future<void> _calculate({
+    required Layer1PhysiologyData pData,
+    required Layer2RecoveryData rData,
+    required Layer4WomensHealthData wData,
+    required Layer3MotionData mData,
+    required List<FallEvent> trailingFalls,
+    required DemoPatient? demo,
+  }) async {
+    final v2Result = await _engine.calculateFRSv2(
+      pData: pData,
+      rData: rData,
+      mData: mData,
+      wData: wData,
       bpSource: BpSource.none, // Fallback assumption
       context: _context,
       trailingFalls: trailingFalls,
     );
+
+    // A live result that lands after a demo patient was opened (or the
+    // reverse) belongs to the other view; drop it.
+    if (!identical(demo, _demo)) return;
 
     if (v2Result != null && !_disposed) {
       _currentResult = PredictionResult(
@@ -400,56 +446,6 @@ class FallPredictionProvider extends ChangeNotifier {
       );
       notifyListeners();
     }
-  }
-
-  void simulateTier(String tier) {
-    if (tier == 'clear') {
-      _recalculate();
-      return;
-    }
-
-    double score = 10.0;
-    if (tier == 'high') {
-      score = 75.0;
-      _bleProvider?.simulateFallPrediction();
-    }
-    if (tier == 'medium') {
-      score = 45.0;
-      _bleProvider?.simulateMediumFallPredictionBanner();
-    }
-
-    _currentResult = PredictionResult(
-      hsiBase: HsiBase(80.0),
-      hsi: HsiAdj(70.0),
-      frs24: Frs24(score),
-      frs30: Frs30(score - 5.0),
-      riskLevel: tier == 'high'
-          ? RiskClassification.high
-          : RiskClassification.moderate,
-      tau: PredictionHorizon(const Duration(hours: 24)),
-      q: CoverageScore(95.0),
-      explainability: ExplainabilityPayload(
-        hsiBase: 80,
-        hsiBaseline: 85,
-        hsiAdj: 70,
-        attributionDeltas: AttributionDeltas(
-          contextShiftDelta: -5,
-          physiologicalDelta: -10,
-        ),
-        frs24Score: score.round(),
-        frs24Band: score.riskBand,
-        topContributors: ['Heart Rate Variability', 'Activity Exposure'],
-        frsContributors: ['Motion Instability', 'Recent Fall History'],
-        coverageScoreQ: 95.0,
-        coverageDetails: ['Good coverage'],
-        recommendationAction: 'Take a rest',
-        frsBreakdown: {
-          'Motion Instability': 25,
-          'Recovery Deficit': 10,
-        },
-      ),
-    );
-    notifyListeners();
   }
 
   bool _disposed = false;
