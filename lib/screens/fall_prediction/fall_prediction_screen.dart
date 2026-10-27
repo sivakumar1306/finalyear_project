@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
@@ -43,6 +44,8 @@ class _FallPredictionScreenState extends State<FallPredictionScreen> {
   }
 
   Future<void> _loadRealRisk() async {
+    // Recompute the score with the latest ring readings whenever the tab opens.
+    unawaited(context.read<FallPredictionProvider>().refresh());
     await context.read<BleProvider>().getFallRiskScore();
   }
 

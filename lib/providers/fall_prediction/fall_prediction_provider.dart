@@ -43,6 +43,39 @@ class FallPredictionProvider extends ChangeNotifier {
 
   void updateBleProvider(BleProvider ble) {
     _bleProvider = ble;
+    // Recompute as soon as new ring readings arrive instead of waiting for
+    // the 15-minute sync (the first score after launch was computed before
+    // any reading existed and read "not enough data" for up to 15 minutes).
+    final signature = _bleSignature(ble);
+    if (signature != _lastBleSignature) {
+      _lastBleSignature = signature;
+      _scheduleRefresh();
+    }
+  }
+
+  /// Recompute now, e.g. when the Fall Risk tab is opened.
+  Future<void> refresh() => _fetchHealthData();
+
+  // Battery: a burst of readings (one measurement cycle) costs one pass.
+  static const _minRefreshGap = Duration(seconds: 60);
+  String? _lastBleSignature;
+  DateTime? _lastFetchAt;
+  bool _fetching = false;
+
+  String _bleSignature(BleProvider b) =>
+      '${b.todayAvgHr}|${b.todayAvgHrv}|${b.todayAvgSpo2}|${b.latestTempC}|'
+      '${b.latestBpSbp}/${b.latestBpDbp}|${b.todaySleepDuration}|${b.todaySteps}';
+
+  void _scheduleRefresh() {
+    if (_recalcDebounce?.isActive ?? false) return;
+    final last = _lastFetchAt;
+    var wait = last == null
+        ? const Duration(seconds: 2)
+        : _minRefreshGap - DateTime.now().difference(last);
+    if (wait < const Duration(seconds: 2)) wait = const Duration(seconds: 2);
+    _recalcDebounce = Timer(wait, () {
+      if (!_disposed) _fetchHealthData();
+    });
   }
 
   PredictionResult? _currentResult;
@@ -113,30 +146,46 @@ class FallPredictionProvider extends ChangeNotifier {
   }
 
   Future<void> _fetchHealthData() async {
+    if (_fetching || _disposed) return;
+    _fetching = true;
+    _lastFetchAt = DateTime.now();
+    try {
+      await _gatherInputs();
+    } finally {
+      _fetching = false;
+    }
+  }
+
+  Future<void> _gatherInputs() async {
     final healthService = HealthConnectService.instance;
     final isAvailable = await healthService.isAvailable();
-    if (!isAvailable) {
-      _recalculate();
-      return;
+    // Without Health Connect the ring's own readings below are the only
+    // source; they used to be skipped entirely on such phones.
+    var today = const HealthConnectToday();
+    var historicalBaselines = <String, double>{};
+    if (isAvailable) {
+      final types = await healthService.loadEnabledTypes();
+      today = await healthService.fetchToday(types);
+      historicalBaselines = await healthService.fetchHistoricalBaselines();
     }
-
-    final types = await healthService.loadEnabledTypes();
-    final today = await healthService.fetchToday(types);
-
-    final historicalBaselines = await healthService.fetchHistoricalBaselines();
 
     final bleHr = _bleProvider?.todayAvgHr;
     final bleHrv = _bleProvider?.todayAvgHrv;
     final bleSpo2 = _bleProvider?.todayAvgSpo2;
-    
+    final bleTemp = _bleProvider?.latestTempC;
+    final bleSys = _bleProvider?.latestBpSbp;
+    final bleDia = _bleProvider?.latestBpDbp;
+
     _pData = Layer1PhysiologyData(
       hr: today.avgHeartRate ?? (bleHr != null && bleHr > 0 ? bleHr.toDouble() : null),
       hrv: today.avgHrv ?? (bleHrv != null && bleHrv > 0 ? bleHrv.toDouble() : null),
       bp: null, // We'll pass sys and dia directly
       spo2: today.avgSpo2 ?? (bleSpo2 != null && bleSpo2 > 0 ? bleSpo2.toDouble() : null),
-      temp: today.avgTemperatureC,
-      sys: today.bpSystolic?.toDouble(),
-      dia: today.bpDiastolic?.toDouble(),
+      temp: today.avgTemperatureC ?? (bleTemp != null && bleTemp > 0 ? bleTemp : null),
+      sys: today.bpSystolic?.toDouble() ??
+          (bleSys != null && bleSys > 0 && bleDia != null && bleDia > 0 ? bleSys.toDouble() : null),
+      dia: today.bpDiastolic?.toDouble() ??
+          (bleSys != null && bleSys > 0 && bleDia != null && bleDia > 0 ? bleDia.toDouble() : null),
       baselines: Layer1Baselines(
         rolling14DayMedianHR:
             historicalBaselines['rolling14DayMedianHR'] ?? 65.0,
