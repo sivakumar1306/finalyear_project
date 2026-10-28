@@ -17,14 +17,19 @@ class FallScoreDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final result = context.watch<FallPredictionProvider>().currentResult;
-    return FallScoreDetailsView(result: result);
+    final provider = context.watch<FallPredictionProvider>();
+    return FallScoreDetailsView(
+      result: provider.currentResult,
+      demoName: provider.demoPatient?.name,
+    );
   }
 }
 
 class FallScoreDetailsView extends StatelessWidget {
   final PredictionResult? result;
-  const FallScoreDetailsView({super.key, required this.result});
+  // Set while a demo patient is shown on the Fall Risk tab.
+  final String? demoName;
+  const FallScoreDetailsView({super.key, required this.result, this.demoName});
 
   @override
   Widget build(BuildContext context) {
@@ -57,14 +62,14 @@ class FallScoreDetailsView extends StatelessWidget {
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               children: [
+                if (demoName != null) ...[
+                  _Note(text: 'Demo patient: $demoName (synthetic data). Choose "My data" in the ⋮ menu on the Fall Risk tab to see your own score.'),
+                  const SizedBox(height: 12),
+                ],
                 _ScoreHero(result: result),
                 const SizedBox(height: 20),
                 if (breakdown == null)
-                  const _Note(
-                    text: 'This is a simulated score from the demo menu, so there is no '
-                        'measure-by-measure breakdown. Choose "Simulate: Clear (auto)" on the '
-                        'Fall Risk tab to see the real calculation.',
-                  )
+                  const _Note(text: 'No measure-by-measure breakdown is available for this score.')
                 else ...[
                   const SectionLabel('HOW THE SCORE ADDS UP'),
                   const SizedBox(height: 8),

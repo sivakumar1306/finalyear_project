@@ -5,6 +5,7 @@ import '../../../utils/ring_names.dart';
 import '../../../services/chat_api_service.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/glass_card.dart';
+import '../../../widgets/glass_pill.dart';
 import '../../../widgets/app_typography.dart';
 import '../../main_shell.dart';
 import '../ring_scan_sheet.dart';
@@ -452,6 +453,14 @@ class RingStatusCard extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
+              if (connected)
+                Expanded(
+                  child: _RingActionButton(
+                    label: 'Measure now',
+                    color: AppTheme.gold,
+                    onPressed: () => _measureNow(context),
+                  ),
+                ),
               if (!connected)
                 Expanded(
                   child: _RingActionButton(
@@ -460,7 +469,7 @@ class RingStatusCard extends StatelessWidget {
                     onPressed: () => showRingScanSheet(context),
                   ),
                 ),
-              if (!connected && paired) const SizedBox(width: 8),
+              if (paired) const SizedBox(width: 8),
               if (paired)
                 Expanded(
                   child: _RingActionButton(
@@ -474,6 +483,21 @@ class RingStatusCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Starts a full measurement cycle now (steps, HR, SpO₂, stress, BP, HRV,
+  /// temperature) instead of waiting for the next automatic one.
+  Future<void> _measureNow(BuildContext context) async {
+    final outcome = await ble.startMeasurementCycleNow();
+    if (!context.mounted) return;
+    final (message, type) = switch (outcome) {
+      'started' => ('Measuring now — new readings appear over the next few minutes', GlassPillType.success),
+      'running' => ('A measurement cycle is already running', GlassPillType.info),
+      'pairing' => ('The ring is still connecting — try again in a few seconds', GlassPillType.info),
+      'disconnected' => ('Connect the ring first', GlassPillType.info),
+      _ => ('Could not start measuring right now — try again in a moment', GlassPillType.error),
+    };
+    showGlassPill(context, message, type: type);
   }
 
   Future<void> _confirmDisconnect(BuildContext context) async {

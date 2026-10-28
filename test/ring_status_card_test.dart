@@ -25,6 +25,13 @@ class _FakeBle extends BleProvider {
   int get battery => level;
   @override
   Future<void> disconnect() async => disconnected = true;
+
+  int measureRequests = 0;
+  @override
+  Future<String> startMeasurementCycleNow() async {
+    measureRequests++;
+    return 'started';
+  }
 }
 
 Future<void> _pump(WidgetTester tester, BleProvider ble) async {
@@ -60,8 +67,15 @@ void main() {
     expect(find.text('Connected'), findsOneWidget);
     expect(find.text('82%'), findsOneWidget);
     expect(find.text('Disconnect'), findsOneWidget);
+    expect(find.text('Measure now'), findsOneWidget);
     expect(find.text('Pair Ring'), findsNothing);
     expect(find.text('Pair again'), findsNothing);
+
+    await tester.tap(find.text('Measure now'));
+    await tester.pump();
+    expect(ble.measureRequests, 1);
+    expect(find.textContaining('Measuring now'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 6));
 
     await tester.tap(find.text('Disconnect'));
     await tester.pumpAndSettle();
@@ -76,6 +90,7 @@ void main() {
     expect(find.text('15%'), findsOneWidget);
     expect(find.text('Pair again'), findsOneWidget);
     expect(find.text('Disconnect'), findsOneWidget);
+    expect(find.text('Measure now'), findsNothing);
   });
 
   testWidgets('no ring paired offers Pair Ring only', (tester) async {

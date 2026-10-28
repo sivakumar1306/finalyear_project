@@ -891,6 +891,11 @@ class BleService {
   Future<bool> getMasterLoopEnabled() async =>
       await _methodChannel.invokeMethod<bool>('getMasterLoopEnabled') ?? false;
 
+  /// Start a full measurement cycle now instead of waiting for the next one.
+  /// Returns "started", "running", "pairing", "disconnected" or "unavailable".
+  Future<String> startMeasurementCycleNow() async =>
+      await _methodChannel.invokeMethod<String>('startMeasurementCycleNow') ?? 'unavailable';
+
   /// Gap between automatic measurement cycles, in milliseconds. This is a phone-side
   /// setting (SharedPreferences via MeasurementConfig), so it works whether or not the
   /// ring is connected. Native clamps to [30s, 30min]; default is 3 minutes.

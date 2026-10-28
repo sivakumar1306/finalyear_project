@@ -94,115 +94,56 @@ void main() {
     });
   });
 
-  group('recentMotionPeak', () {
-    test('returns newest peaks within 24h', () {
-      final now = DateTime.now();
-      final rows = [
-        nativeRow(
-          detectedAtMs:
-              now.subtract(const Duration(hours: 20)).millisecondsSinceEpoch,
-          metadataJson:
-              jsonEncode({'peakG': 3.0, 'peakGyro': 4.0, 'stillnessRatio': 0.5}),
-        ),
-        nativeRow(
-          detectedAtMs:
-              now.subtract(const Duration(hours: 2)).millisecondsSinceEpoch,
-          metadataJson:
-              jsonEncode({'peakG': 3.6, 'peakGyro': 5.0, 'stillnessRatio': 0.7}),
-        ),
-      ];
-      final peak = Layer3MotionService.recentMotionPeak(rows);
-      expect(peak, isNotNull);
-      expect(peak!.acc, closeTo(3.6, 1e-9));
-      expect(peak.gyr, closeTo(5.0, 1e-9));
+  group('stepsBaseline', () {
+    final today = DateTime(2026, 10, 27);
+    Map<DateTime, int> history(int days, int Function(int back) steps) => {
+          for (var back = 1; back <= days; back++)
+            DateTime(2026, 10, 27 - back): steps(back),
+        };
+
+    test('last full day against the median of the 28 days before it', () {
+      final daily = history(29, (back) => back == 1 ? 3000 : 8000 + (back.isEven ? 400 : -400));
+      final b = Layer3MotionService.stepsBaseline(daily, today: today);
+      expect(b.steps, 3000);
+      expect(b.median, 8000);
+      // MAD 400 -> 1.4826 * 400 = 593
+      expect(b.spread, closeTo(593.04, 0.01));
     });
 
-    test('null when peaks are stale, simulated-only, or peakless', () {
-      final now = DateTime.now();
-      expect(
-        Layer3MotionService.recentMotionPeak([
-          nativeRow(
-            detectedAtMs:
-                now.subtract(const Duration(hours: 30)).millisecondsSinceEpoch,
-          ),
-        ]),
-        isNull,
-      );
-      expect(
-        Layer3MotionService.recentMotionPeak([
-          nativeRow(
-            detectedAtMs: now.millisecondsSinceEpoch,
-            simulated: true,
-          ),
-        ]),
-        isNull,
-      );
-      expect(
-        Layer3MotionService.recentMotionPeak([
-          nativeRow(
-            detectedAtMs: now.millisecondsSinceEpoch,
-            metadataJson: jsonEncode({'foo': 1}),
-          ),
-        ]),
-        isNull,
-      );
-      expect(Layer3MotionService.recentMotionPeak([]), isNull);
+    test('baseline needs 7 earlier days; the reading is kept', () {
+      final daily = history(5, (_) => 6000);
+      final b = Layer3MotionService.stepsBaseline(daily, today: today);
+      expect(b.steps, 6000);
+      expect(b.median, isNull);
+      expect(b.spread, isNull);
+    });
+
+    test('spread never below 500 steps', () {
+      final daily = history(20, (_) => 7000);
+      expect(Layer3MotionService.stepsBaseline(daily, today: today).spread, 500.0);
+    });
+
+    test('ignores today and skips back to the last day with steps', () {
+      final daily = {DateTime(2026, 10, 27): 900, DateTime(2026, 10, 24): 5000};
+      expect(Layer3MotionService.stepsBaseline(daily, today: today).steps, 5000);
     });
   });
 
-  group('gaitVariabilityFromStepSlots', () {
-    final endOfDay = DateTime(2026, 9, 19, 23, 59);
+  group('motion sub-scores', () {
+    final svc = Layer3MotionService(null);
 
-    test('null when insufficient active slots', () {
-      expect(
-        Layer3MotionService.gaitVariabilityFromStepSlots([], now: endOfDay),
-        isNull,
-      );
-      expect(
-        Layer3MotionService.gaitVariabilityFromStepSlots(
-          [100, 120, 90, 110, 95],
-          now: endOfDay,
-        ),
-        isNull,
-      );
+    test('steps: dead zone, then linear to 0 at 3 SD below the median', () {
+      expect(svc.calculateSteps(8000, 8000, 1000), 100.0);
+      expect(svc.calculateSteps(7500, 8000, 1000), 100.0); // z = 0.5
+      expect(svc.calculateSteps(6500, 8000, 1000), closeTo(60.0, 1e-9)); // z = 1.5
+      expect(svc.calculateSteps(4000, 8000, 1000), 0.0);
+      expect(svc.calculateSteps(12000, 8000, 1000), 100.0); // more steps is not risk
     });
 
-    test('zero for steady walking pattern', () {
-      final slots = List<int>.filled(12, 100);
-      expect(
-        Layer3MotionService.gaitVariabilityFromStepSlots(slots, now: endOfDay),
-        equals(0.0),
-      );
-    });
-
-    test('positive but capped for erratic pattern', () {
-      final slots = [5, 5, 800, 5, 5, 900, 5, 5, 5, 700, 5, 5];
-      final gait = Layer3MotionService.gaitVariabilityFromStepSlots(
-        slots,
-        now: endOfDay,
-      );
-      expect(gait, isNotNull);
-      expect(gait!, greaterThan(0.0));
-      expect(gait, lessThanOrEqualTo(0.5));
-    });
-
-    test('ignores future slots beyond now', () {
-      // Only 3 active slots before noon -> insufficient -> null, even though
-      // the full day array holds many active slots later.
-      final slots = List<int>.filled(96, 0);
-      slots[10] = 100;
-      slots[11] = 120;
-      slots[12] = 90;
-      for (var i = 60; i < 80; i++) {
-        slots[i] = 200;
-      }
-      expect(
-        Layer3MotionService.gaitVariabilityFromStepSlots(
-          slots,
-          now: DateTime(2026, 9, 19, 12, 0),
-        ),
-        isNull,
-      );
+    test('near-falls: 100, 50, 0', () {
+      expect(svc.calculateNearFalls(0), 100.0);
+      expect(svc.calculateNearFalls(1), 50.0);
+      expect(svc.calculateNearFalls(3), 0.0);
     });
   });
 }

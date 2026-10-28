@@ -53,6 +53,10 @@ class FallRiskScoreCard extends StatelessWidget {
         }
 
         final score = result.frs24.value.round();
+        // While a demo patient is shown, the tiles show that patient's readings.
+        final demo = provider.demoPatient;
+        final double? hr = demo != null ? demo.physiology.hr : bleProvider.todayAvgHr.toDouble();
+        final double? temp = demo != null ? demo.physiology.temp : bleProvider.latestTempC;
         String riskText;
         switch (result.frs24.value.riskBand) {
           case FrsRiskBand.low:
@@ -120,32 +124,35 @@ class FallRiskScoreCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: onTapHeartRate,
+                      // A demo patient's readings have no history charts.
+                      onTap: demo == null ? onTapHeartRate : null,
                       child: _MiniCard(
                         title: 'Heart Rate',
-                        value: bleProvider.todayAvgHr > 0 ? bleProvider.todayAvgHr.toString() : '--',
+                        value: hr != null && hr > 0 ? hr.round().toString() : '--',
                         unit: 'bpm',
                         valueColor: AppTheme.hrColor,
-                        showChevron: true,
+                        showChevron: demo == null,
                         trailing: const Icon(Icons.waves_rounded, color: AppTheme.hrColor, size: 28),
-                        subtitle: bleProvider.todayMinHr > 0 && bleProvider.todayMaxHr > 0 
-                            ? 'Range: ${bleProvider.todayMinHr}-${bleProvider.todayMaxHr}bpm'
-                            : null,
+                        subtitle: demo != null
+                            ? 'Demo patient'
+                            : bleProvider.todayMinHr > 0 && bleProvider.todayMaxHr > 0
+                                ? 'Range: ${bleProvider.todayMinHr}-${bleProvider.todayMaxHr}bpm'
+                                : null,
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: GestureDetector(
-                      onTap: onTapTemperature,
+                      onTap: demo == null ? onTapTemperature : null,
                       child: _MiniCard(
                         title: 'Temperature',
-                        value: bleProvider.latestTempC > 0 ? bleProvider.latestTempC.fixed2() : '--',
+                        value: temp != null && temp > 0 ? temp.fixed2() : '--',
                         unit: '°C',
                         valueColor: AppTheme.tempColor,
-                        subtitle: bleProvider.latestTempC <= 0 ? 'No data' : (bleProvider.latestTempC < 36.0 ? 'Low' : (bleProvider.latestTempC <= 37.2 ? 'Normal' : 'Elevated')),
+                        subtitle: temp == null || temp <= 0 ? 'No data' : (temp < 36.0 ? 'Low' : (temp <= 37.2 ? 'Normal' : 'Elevated')),
                         subtitleColor: AppTheme.tempColor,
-                        showChevron: true,
+                        showChevron: demo == null,
                       ),
                     ),
                   ),

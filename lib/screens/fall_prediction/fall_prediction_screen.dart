@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ble_provider.dart';
 import '../../providers/fall_prediction/fall_prediction_provider.dart';
+import '../../services/fall_prediction/demo_patients.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_back_button.dart';
 import '../../widgets/fall_prediction/fall_risk_score_card.dart';
 import '../../widgets/app_typography.dart';
 import '../../widgets/footer_spacer.dart';
-import '../../widgets/glass_pill.dart';
 import 'fall_prediction_widgets.dart';
 import 'fall_score_details_screen.dart';
 
@@ -29,8 +29,8 @@ class FallPredictionScreen extends StatefulWidget {
 }
 
 class _FallPredictionScreenState extends State<FallPredictionScreen> {
-  // Lets you preview the alert states from the ⋮ menu without needing
-  // real elevated vitals — purely a demo aid, no effect on stored data.
+  // Set when opened from the Home fall banner, so the high-tier card shows
+  // immediately.
   FallTier? _debugTier;
   FallTier? _ignoredForTier;
 
@@ -47,15 +47,6 @@ class _FallPredictionScreenState extends State<FallPredictionScreen> {
     // Recompute the score with the latest ring readings whenever the tab opens.
     unawaited(context.read<FallPredictionProvider>().refresh());
     await context.read<BleProvider>().getFallRiskScore();
-  }
-
-  Future<void> _simulateRiskTrigger() async {
-    final ble = context.read<BleProvider>();
-    await ble.simulateFallRiskTrigger();
-    // The native side computes and logs this asynchronously (EventBus + a background
-    // coroutine) — give it a moment before re-fetching.
-    await Future.delayed(const Duration(milliseconds: 600));
-    await _loadRealRisk();
   }
 
   FallTier _tierFromScore(int score) {
@@ -129,7 +120,7 @@ class _FallPredictionScreenState extends State<FallPredictionScreen> {
     setState(() => _ignoredForTier = tier);
     await context.read<BleProvider>().dismissFallPredictionBanner();
     if (!mounted) return;
-    context.read<FallPredictionProvider>().simulateTier('clear');
+    context.read<FallPredictionProvider>().refresh();
   }
 
   void _openRiskDetails() {
@@ -139,51 +130,70 @@ class _FallPredictionScreenState extends State<FallPredictionScreen> {
     );
   }
 
+  // ⋮ menu: the five demo patients of the report, or back to the live data.
   void _onDemoAction(String value) {
-    switch (value) {
-      case 'high':
-        context.read<FallPredictionProvider>().simulateTier('high');
-        setState(() {
-          _debugTier = FallTier.high;
-          _ignoredForTier = null;
-        });
-        break;
-      case 'medium':
-        context.read<FallPredictionProvider>().simulateTier('medium');
-        setState(() {
-          _debugTier = FallTier.medium;
-          _ignoredForTier = null;
-        });
-        break;
-      case 'clear':
-        context.read<FallPredictionProvider>().simulateTier('clear');
-        setState(() {
-          _debugTier = null;
-          _ignoredForTier = null;
-        });
-        break;
-      case 'clear_mock_data':
-        context.read<BleProvider>().clearMockVitals();
-        showGlassPill(context, 'Mock data cleared! Restart the app to refresh all UI.', type: GlassPillType.success);
-        break;
-      case 'notify':
-        context.read<BleProvider>().simulateFallEvent();
-        break;
-      case 'risk_trigger':
-        _simulateRiskTrigger();
-        break;
-      case 'prediction':
-        context.read<BleProvider>().simulateFallPrediction();
-        break;
+    final provider = context.read<FallPredictionProvider>();
+    if (value == 'my_data') {
+      provider.showMyData();
+    } else {
+      final patient = demoPatients.where((p) => p.id == value).firstOrNull;
+      if (patient != null) provider.showDemoPatient(patient);
     }
+    setState(() {
+      _debugTier = null;
+      _ignoredForTier = null;
+    });
   }
 
-  PopupMenuItem<String> _menuItem(String value, String label) {
-    return PopupMenuItem(
-      value: value,
-      child: Text(label, style: const TextStyle(color: Colors.white)),
-    );
-  }
+  List<PopupMenuEntry<String>> _demoMenu(DemoPatient? active) => [
+        PopupMenuItem<String>(
+          enabled: false,
+          height: 32,
+          child: Text(
+            'DEMO PATIENTS · SYNTHETIC DATA',
+            style: AppTypography.inter(
+              color: AppTheme.gold,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        for (final p in demoPatients)
+          PopupMenuItem<String>(
+            value: p.id,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  p.name,
+                  style: AppTypography.inter(
+                    color: identical(p, active) ? AppTheme.gold : Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  p.summary,
+                  style: AppTypography.inter(color: AppTheme.textSec, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'my_data',
+          enabled: active != null,
+          child: Text(
+            'My data',
+            style: AppTypography.inter(
+              color: active != null ? Colors.white : AppTheme.textSec,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -196,7 +206,8 @@ class _FallPredictionScreenState extends State<FallPredictionScreen> {
         ? ble.fallPredictionMessage
         : 'Your heart rate rose to 122 BPM while you seemed to be in-active for the last 10 minutes.'; // Fallback
 
-    final showAlert = tier != FallTier.low && _ignoredForTier != tier;
+    final demo = fallProvider.demoPatient;
+    final showAlert = demo == null && tier != FallTier.low && _ignoredForTier != tier;
 
     return Scaffold(
       backgroundColor: AppTheme.bg,
@@ -219,21 +230,23 @@ class _FallPredictionScreenState extends State<FallPredictionScreen> {
             icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
             color: AppTheme.card2,
             onSelected: _onDemoAction,
-            itemBuilder: (_) => [
-              _menuItem('high', 'Simulate: High risk'),
-              _menuItem('medium', 'Simulate: Medium risk'),
-              _menuItem('clear', 'Simulate: Clear (auto)'),
-              const PopupMenuDivider(),
-              _menuItem('notify', 'Simulate: Fall notification'),
-              _menuItem('risk_trigger', 'Simulate: Trigger risk analysis'),
-              _menuItem('prediction', 'Simulate Fall prediction'),
-            ],
+            itemBuilder: (_) => _demoMenu(demo),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
         children: [
+          if (demo != null) ...[
+            DemoPatientCard(
+              patient: demo,
+              ownScore: fallProvider.ownScore,
+              demoScore: fallProvider.currentResult?.frs24.value,
+              onAddFall: fallProvider.addDemoFall,
+              onBack: fallProvider.showMyData,
+            ),
+            const SizedBox(height: 20),
+          ],
           if (showAlert) ...[
             HeroCard(
               tier: tier,
@@ -242,7 +255,7 @@ class _FallPredictionScreenState extends State<FallPredictionScreen> {
             ),
             const SizedBox(height: 20),
           ],
-          if (ble.isConnected || _simulateConnection) ...[
+          if (ble.isConnected || _simulateConnection || demo != null) ...[
             if (_simulateConnection)
               Container(
                 margin: const EdgeInsets.only(bottom: 20),

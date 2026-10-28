@@ -509,6 +509,7 @@ class BlePlugin(private val context: Context) {
                 result.success(true)
             }
             "getMasterLoopEnabled"       -> result.success(MeasurementConfig.isMasterEnabled())
+            "startMeasurementCycleNow"   -> result.success(MeasurementLoopManager.requestCycleNow())
             "setCycleCooldownMs"         -> {
                 val ms = (call.argument<Number>("ms") ?: 180_000L).toLong()
                 MeasurementConfig.setCycleCooldownMs(ms)

@@ -52,8 +52,7 @@ void main() {
         baselines: const Layer2Baselines(baselineSlp: 80, baselineSlq: 80, baselineAct: 80, baselineWkl: 20, baselineStr: 10)
       );
       final mData = Layer3MotionData(
-        acc: 1.0, gyr: 10, gait: 10, psw: 10, ortho: 5, plnt: 10, fh: 0, actExp: const ActivityExposure(100),
-        baselines: const Layer3Baselines(baselineAcc: 1.0, baselineGyr: 10, baselineGait: 10, baselinePsw: 10, baselineOrtho: 5, baselinePlnt: 10)
+        steps: 8000, stepsMedian: 8000, stepsSpread: 1000, nearFalls14d: 0, fh: 0, actExp: const ActivityExposure(100),
       );
       final wData = Layer4WomensHealthData(
         isApplicable: false, hasConsentedToWomensHealth: false, cycleState: CycleState.optedOut, daysSinceLastPeriod: 0, cycleLength: 28, isPMS: false,
