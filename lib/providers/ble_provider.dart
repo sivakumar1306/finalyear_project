@@ -2099,6 +2099,17 @@ Future<bool> findDevice({bool enable = true}) async {
     }
   }
 
+  /// "Measure now" on the Home ring card. Never throws: any failure is
+  /// reported as "unavailable".
+  Future<String> startMeasurementCycleNow() async {
+    try {
+      return await _ble.startMeasurementCycleNow();
+    } catch (e, st) {
+      _recordError(e, st);
+      return 'unavailable';
+    }
+  }
+
   // This is the "Unbind" action (Settings screen) — it must forget the device, not just
   // drop the live connection. Previously it left device_name/device_address in
   // SharedPreferences untouched, so BleConnectionService's native 8s reconnect loop (which

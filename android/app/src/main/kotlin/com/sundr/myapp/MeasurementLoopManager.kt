@@ -176,6 +176,21 @@ object MeasurementLoopManager {
         runningCycle.set(false)
     }
 
+    /**
+     * "Measure now" from the Home ring card: start a full cycle right away instead of
+     * waiting out the cooldown. Never interrupts a cycle that is already running; the
+     * usual checks in runCycleIfPossible (workout, manual measurement, SDK guard) still
+     * apply. Returns what happened, for the button's message.
+     */
+    fun requestCycleNow(): String {
+        if (!started || !MeasurementConfig.isMasterEnabled()) return "unavailable"
+        if (!com.sundr.myapp.sdk.BleSdkLifecycle.isConnected()) return "disconnected"
+        if (bindWaitUntilMs > System.currentTimeMillis()) return "pairing"
+        if (runningCycle.get()) return "running"
+        scheduleNext(0L)
+        return "started"
+    }
+
     private fun scheduleNext(delayMs: Long) {
         handler.removeCallbacks(cycleRunnable)
         handler.postDelayed(cycleRunnable, delayMs)
